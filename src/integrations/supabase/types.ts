@@ -20,42 +20,48 @@ export type Database = {
           company_name: string
           contact_name: string
           created_at: string
-          created_by: string
+          created_by: string | null
           email: string
           id: string
           notes: string | null
           phone: string | null
+          source: string | null
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string
           value: number | null
+          workshop_name: string | null
         }
         Insert: {
           assigned_to?: string | null
           company_name: string
           contact_name: string
           created_at?: string
-          created_by: string
+          created_by?: string | null
           email: string
           id?: string
           notes?: string | null
           phone?: string | null
+          source?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
           value?: number | null
+          workshop_name?: string | null
         }
         Update: {
           assigned_to?: string | null
           company_name?: string
           contact_name?: string
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           email?: string
           id?: string
           notes?: string | null
           phone?: string | null
+          source?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
           value?: number | null
+          workshop_name?: string | null
         }
         Relationships: [
           {

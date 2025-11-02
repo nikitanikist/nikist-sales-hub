@@ -1,1 +1,4 @@
 project_id = "swnpxkovxhinxzprxviz"
+
+[functions.ingest-tagmango]
+verify_jwt = false
