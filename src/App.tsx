@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
+import SalesClosers from "./pages/SalesClosers";
 import Workshops from "./pages/Workshops";
 import Sales from "./pages/Sales";
 import AppLayout from "./components/AppLayout";
@@ -26,6 +27,7 @@ const App = () => (
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
+              <Route path="/sales-closers" element={<SalesClosers />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
             </Route>

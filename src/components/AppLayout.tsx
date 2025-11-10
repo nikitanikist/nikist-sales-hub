@@ -2,7 +2,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
-import { Building2, LayoutDashboard, Users, Calendar, DollarSign, LogOut } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const AppLayout = () => {
@@ -31,6 +31,7 @@ const AppLayout = () => {
   const menuItems = [
     { title: "Dashboard", icon: LayoutDashboard, path: "/" },
     { title: "Customers", icon: Users, path: "/leads" },
+    { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "Workshops", icon: Calendar, path: "/workshops" },
     { title: "Sales", icon: DollarSign, path: "/sales" },
   ];
