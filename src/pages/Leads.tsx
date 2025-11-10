@@ -173,7 +173,7 @@ const Leads = () => {
                   <TableHead>Customer</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Service</TableHead>
-                  <TableHead>Payment Cycle</TableHead>
+                  <TableHead>Assigned To</TableHead>
                   <TableHead>Last Transaction Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
@@ -200,9 +200,7 @@ const Leads = () => {
                       <div className="text-sm">{lead.workshop_name || "-"}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
-                        ONETIME
-                      </Badge>
+                      <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
