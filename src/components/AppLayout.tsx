@@ -30,7 +30,7 @@ const AppLayout = () => {
 
   const menuItems = [
     { title: "Dashboard", icon: LayoutDashboard, path: "/" },
-    { title: "Leads", icon: Users, path: "/leads" },
+    { title: "Customers", icon: Users, path: "/leads" },
     { title: "Workshops", icon: Calendar, path: "/workshops" },
     { title: "Sales", icon: DollarSign, path: "/sales" },
   ];
