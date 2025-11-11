@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      funnels: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          funnel_name: string
+          id: string
+          total_leads: number
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          funnel_name: string
+          id?: string
+          total_leads?: number
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          funnel_name?: string
+          id?: string
+          total_leads?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnels_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           assigned_to: string | null

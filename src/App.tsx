@@ -10,6 +10,7 @@ import Leads from "./pages/Leads";
 import SalesClosers from "./pages/SalesClosers";
 import Workshops from "./pages/Workshops";
 import Sales from "./pages/Sales";
+import Funnels from "./pages/Funnels";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/sales-closers" element={<SalesClosers />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
+              <Route path="/funnels" element={<Funnels />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

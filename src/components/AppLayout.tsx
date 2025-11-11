@@ -2,7 +2,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, LogOut, Bell, User } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -37,6 +37,7 @@ const AppLayout = () => {
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "All Workshops", icon: Calendar, path: "/workshops" },
     { title: "Sales", icon: DollarSign, path: "/sales" },
+    { title: "Active Funnels", icon: TrendingUp, path: "/funnels" },
   ];
 
   const notificationCount = 10; // Demo value
