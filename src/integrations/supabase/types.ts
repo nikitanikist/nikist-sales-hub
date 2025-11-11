@@ -192,6 +192,7 @@ export type Database = {
       }
       workshops: {
         Row: {
+          ad_spend: number | null
           created_at: string
           created_by: string
           current_participants: number | null
@@ -207,6 +208,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ad_spend?: number | null
           created_at?: string
           created_by: string
           current_participants?: number | null
@@ -222,6 +224,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ad_spend?: number | null
           created_at?: string
           created_by?: string
           current_participants?: number | null

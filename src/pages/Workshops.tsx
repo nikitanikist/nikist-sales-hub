@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Calendar } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,19 +25,44 @@ const statusColors: Record<string, string> = {
 const Workshops = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [editingWorkshop, setEditingWorkshop] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const { data: workshops, isLoading } = useQuery({
+  const { data: workshops, isLoading, refetch } = useQuery({
     queryKey: ["workshops"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: workshopsData, error } = await supabase
         .from("workshops")
-        .select("*, lead:leads(company_name), created_by:profiles(full_name)")
+        .select("*")
         .order("start_date", { ascending: false });
-
+      
       if (error) throw error;
-      return data;
+      
+      // Fetch sales data for each workshop to calculate metrics
+      const workshopsWithMetrics = await Promise.all(
+        workshopsData.map(async (workshop) => {
+          // Get sales for this workshop's lead
+          const { data: salesData } = await supabase
+            .from("sales")
+            .select("amount")
+            .eq("lead_id", workshop.lead_id || "");
+          
+          const salesCount = salesData?.length || 0;
+          const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.amount || 0), 0) || 0;
+          const adSpend = Number(workshop.ad_spend || 0);
+          const roughPL = totalRevenue - adSpend;
+          
+          return {
+            ...workshop,
+            sales_count: salesCount,
+            total_revenue: totalRevenue,
+            rough_pl: roughPL,
+          };
+        })
+      );
+      
+      return workshopsWithMetrics;
     },
   });
 
@@ -112,6 +137,7 @@ const Workshops = () => {
       end_date: formData.get("end_date"),
       location: formData.get("location"),
       max_participants: formData.get("max_participants") ? Number(formData.get("max_participants")) : null,
+      ad_spend: formData.get("ad_spend") ? Number(formData.get("ad_spend")) : 0,
       status: formData.get("status"),
       lead_id: formData.get("lead_id") || null,
     };
@@ -123,11 +149,21 @@ const Workshops = () => {
     }
   };
 
+  const handleRefresh = () => {
+    refetch();
+    toast.success("Workshops data refreshed");
+  };
+
+  const filteredWorkshops = workshops?.filter((workshop) => {
+    const query = searchQuery.toLowerCase();
+    return workshop.title.toLowerCase().includes(query);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Workshops</h1>
+          <h1 className="text-3xl font-bold tracking-tight">All Workshops</h1>
           <p className="text-muted-foreground">Schedule and manage your workshops</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -202,6 +238,17 @@ const Workshops = () => {
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ad_spend">Ad Spend ($)</Label>
+                  <Input
+                    id="ad_spend"
+                    name="ad_spend"
+                    type="number"
+                    step="0.01"
+                    defaultValue={editingWorkshop?.ad_spend || 0}
+                    placeholder="0.00"
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="status">Status</Label>
@@ -247,7 +294,29 @@ const Workshops = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Workshops</CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>All Workshops</CardTitle>
+              <CardDescription>Manage and track workshop performance</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" onClick={handleRefresh}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon">
+                <Filter className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="relative mt-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search workshops by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -256,37 +325,45 @@ const Workshops = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Participants</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Related Lead</TableHead>
+                  <TableHead>Workshop Name</TableHead>
+                  <TableHead className="text-right">Total Registrations</TableHead>
+                  <TableHead className="text-right">Ad Spend</TableHead>
+                  <TableHead className="text-right">Number of Workshop Sales</TableHead>
+                  <TableHead className="text-right">Rough P&L</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {workshops?.map((workshop) => (
+                {filteredWorkshops?.map((workshop) => (
                   <TableRow key={workshop.id}>
-                    <TableCell className="font-medium">{workshop.title}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         {format(new Date(workshop.start_date), "MMM dd, yyyy")}
                       </div>
                     </TableCell>
-                    <TableCell>{workshop.location || "-"}</TableCell>
-                    <TableCell>
-                      {workshop.max_participants
-                        ? `${workshop.current_participants}/${workshop.max_participants}`
-                        : "-"}
+                    <TableCell className="font-medium">{workshop.title}</TableCell>
+                    <TableCell className="text-right">
+                      {workshop.current_participants || 0}
                     </TableCell>
-                    <TableCell>
-                      <Badge className={statusColors[workshop.status]}>
-                        {workshop.status.charAt(0).toUpperCase() + workshop.status.slice(1)}
-                      </Badge>
+                    <TableCell className="text-right">
+                      ${Number(workshop.ad_spend || 0).toLocaleString("en-US", { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                      })}
                     </TableCell>
-                    <TableCell>{workshop.lead?.company_name || "-"}</TableCell>
+                    <TableCell className="text-right">
+                      {workshop.sales_count || 0}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={workshop.rough_pl >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                        ${Number(workshop.rough_pl || 0).toLocaleString("en-US", { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"

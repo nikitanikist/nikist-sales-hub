@@ -35,7 +35,7 @@ const AppLayout = () => {
     { title: "Dashboard", icon: LayoutDashboard, path: "/" },
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
-    { title: "Workshops", icon: Calendar, path: "/workshops" },
+    { title: "All Workshops", icon: Calendar, path: "/workshops" },
     { title: "Sales", icon: DollarSign, path: "/sales" },
   ];
 
