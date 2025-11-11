@@ -195,7 +195,7 @@ const Funnels = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="amount">Amount ($)</Label>
+                    <Label htmlFor="amount">Amount (₹)</Label>
                     <Input
                       id="amount"
                       type="number"
@@ -251,7 +251,7 @@ const Funnels = () => {
                     <TableRow key={funnel.id}>
                       <TableCell className="font-medium">{funnel.funnel_name}</TableCell>
                       <TableCell>{funnel.total_leads}</TableCell>
-                      <TableCell>${funnel.amount.toLocaleString()}</TableCell>
+                      <TableCell>₹{funnel.amount.toLocaleString()}</TableCell>
                       <TableCell>{format(new Date(funnel.created_at), "MMM dd, yyyy")}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
