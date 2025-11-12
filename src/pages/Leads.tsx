@@ -281,7 +281,7 @@ const Leads = () => {
 
       {/* Edit Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingLead ? "Edit Customer Details" : "Add New Customer"}</DialogTitle>
           </DialogHeader>
@@ -364,7 +364,7 @@ const Leads = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="value">Value ($)</Label>
+                  <Label htmlFor="value">Value (₹)</Label>
                   <Input
                     id="value"
                     name="value"
