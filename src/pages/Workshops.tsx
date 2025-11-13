@@ -348,7 +348,7 @@ const Workshops = () => {
                       {workshop.current_participants || 0}
                     </TableCell>
                     <TableCell className="text-right">
-                      ${Number(workshop.ad_spend || 0).toLocaleString("en-US", { 
+                      ₹{Number(workshop.ad_spend || 0).toLocaleString("en-US", { 
                         minimumFractionDigits: 2, 
                         maximumFractionDigits: 2 
                       })}
@@ -358,7 +358,7 @@ const Workshops = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={workshop.rough_pl >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
-                        ${Number(workshop.rough_pl || 0).toLocaleString("en-US", { 
+                        ₹{Number(workshop.rough_pl || 0).toLocaleString("en-US", { 
                           minimumFractionDigits: 2, 
                           maximumFractionDigits: 2 
                         })}
