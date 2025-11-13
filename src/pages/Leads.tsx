@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,15 +30,33 @@ const Leads = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedWorkshops, setSelectedWorkshops] = useState<string[]>([]);
+  const [selectedFunnels, setSelectedFunnels] = useState<string[]>([]);
+  const [connectWorkshopFunnel, setConnectWorkshopFunnel] = useState(false);
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const { data: leads, isLoading } = useQuery({
-    queryKey: ["leads"],
+  const { data: leadAssignments, isLoading } = useQuery({
+    queryKey: ["lead-assignments"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("leads")
-        .select("*, assigned_to:profiles!leads_assigned_to_fkey(full_name), created_by:profiles!leads_created_by_fkey(full_name)")
+        .from("lead_assignments")
+        .select(`
+          *,
+          lead:leads(
+            id,
+            contact_name,
+            company_name,
+            email,
+            phone,
+            country,
+            status,
+            updated_at,
+            assigned_to:profiles!leads_assigned_to_fkey(full_name)
+          ),
+          workshop:workshops(id, title),
+          funnel:funnels(id, funnel_name)
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -58,34 +77,131 @@ const Leads = () => {
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (newLead: any) => {
-      const { error } = await supabase.from("leads").insert([{
-        ...newLead,
-        created_by: user?.id,
-      }]);
+  const { data: workshops } = useQuery({
+    queryKey: ["workshops"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("workshops")
+        .select("*")
+        .order("title");
+
       if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success("Lead created successfully");
-      setIsOpen(false);
-    },
-    onError: (error: any) => {
-      toast.error(error.message);
+      return data;
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
-      const { error } = await supabase.from("leads").update(updates).eq("id", id);
+  const { data: funnels } = useQuery({
+    queryKey: ["funnels"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("funnels")
+        .select("*")
+        .order("funnel_name");
+
       if (error) throw error;
+      return data;
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ leadData, workshopIds, funnelIds, isConnected }: any) => {
+      // Upsert lead basic info
+      let leadId = editingLead?.id;
+      if (editingLead) {
+        const { error } = await supabase
+          .from("leads")
+          .update(leadData)
+          .eq("id", leadId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from("leads")
+          .insert([{ ...leadData, created_by: user?.id }])
+          .select()
+          .single();
+        if (error) throw error;
+        leadId = data.id;
+      }
+
+      // Delete existing assignments
+      const { error: deleteError } = await supabase
+        .from("lead_assignments")
+        .delete()
+        .eq("lead_id", leadId);
+      if (deleteError) throw deleteError;
+
+      // Create new assignments
+      const assignments = [];
+      
+      if (isConnected && workshopIds.length > 0 && funnelIds.length > 0) {
+        // Create connected pair
+        assignments.push({
+          lead_id: leadId,
+          workshop_id: workshopIds[0],
+          funnel_id: funnelIds[0],
+          is_connected: true,
+          created_by: user?.id,
+        });
+        
+        // Add remaining workshops as separate assignments
+        for (let i = 1; i < workshopIds.length; i++) {
+          assignments.push({
+            lead_id: leadId,
+            workshop_id: workshopIds[i],
+            funnel_id: null,
+            is_connected: false,
+            created_by: user?.id,
+          });
+        }
+        
+        // Add remaining funnels as separate assignments
+        for (let i = 1; i < funnelIds.length; i++) {
+          assignments.push({
+            lead_id: leadId,
+            funnel_id: funnelIds[i],
+            workshop_id: null,
+            is_connected: false,
+            created_by: user?.id,
+          });
+        }
+      } else {
+        // Create separate assignments
+        workshopIds.forEach((wId: string) => {
+          assignments.push({
+            lead_id: leadId,
+            workshop_id: wId,
+            funnel_id: null,
+            is_connected: false,
+            created_by: user?.id,
+          });
+        });
+        
+        funnelIds.forEach((fId: string) => {
+          assignments.push({
+            lead_id: leadId,
+            funnel_id: fId,
+            workshop_id: null,
+            is_connected: false,
+            created_by: user?.id,
+          });
+        });
+      }
+
+      if (assignments.length > 0) {
+        const { error: insertError } = await supabase
+          .from("lead_assignments")
+          .insert(assignments);
+        if (insertError) throw insertError;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success("Lead updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      toast.success(editingLead ? "Customer updated successfully" : "Customer created successfully");
       setIsOpen(false);
       setEditingLead(null);
+      setSelectedWorkshops([]);
+      setSelectedFunnels([]);
+      setConnectWorkshopFunnel(false);
     },
     onError: (error: any) => {
       toast.error(error.message);
@@ -98,8 +214,25 @@ const Leads = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success("Lead deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      toast.success("Customer deleted successfully");
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+    },
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: async ({ leadId, assignedTo }: { leadId: string; assignedTo: string }) => {
+      const { error } = await supabase
+        .from("leads")
+        .update({ assigned_to: assignedTo })
+        .eq("id", leadId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      toast.success("Customer assigned successfully");
     },
     onError: (error: any) => {
       toast.error(error.message);
@@ -109,7 +242,7 @@ const Leads = () => {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const data = {
+    const leadData = {
       company_name: formData.get("company_name"),
       contact_name: formData.get("contact_name"),
       email: formData.get("email"),
@@ -118,25 +251,41 @@ const Leads = () => {
       status: formData.get("status"),
       value: formData.get("value") ? Number(formData.get("value")) : null,
       notes: formData.get("notes"),
-      workshop_name: formData.get("workshop_name"),
       assigned_to: formData.get("assigned_to") || null,
     };
 
-    if (editingLead) {
-      updateMutation.mutate({ id: editingLead.id, updates: data });
-    } else {
-      createMutation.mutate(data);
-    }
+    saveMutation.mutate({
+      leadData,
+      workshopIds: selectedWorkshops,
+      funnelIds: selectedFunnels,
+      isConnected: connectWorkshopFunnel,
+    });
   };
 
-  const filteredLeads = leads?.filter((lead) => {
+  const filteredAssignments = leadAssignments?.filter((assignment) => {
     const query = searchQuery.toLowerCase();
+    const lead = assignment.lead;
     return (
-      lead.contact_name?.toLowerCase().includes(query) ||
-      lead.email?.toLowerCase().includes(query) ||
-      lead.phone?.toLowerCase().includes(query)
+      lead?.contact_name?.toLowerCase().includes(query) ||
+      lead?.email?.toLowerCase().includes(query) ||
+      lead?.phone?.toLowerCase().includes(query)
     );
   });
+
+  // Group assignments by customer for display
+  const groupedAssignments = filteredAssignments?.reduce((acc: any, assignment) => {
+    const leadId = assignment.lead?.id;
+    if (!leadId) return acc;
+    
+    if (!acc[leadId]) {
+      acc[leadId] = {
+        lead: assignment.lead,
+        assignments: [],
+      };
+    }
+    acc[leadId].assignments.push(assignment);
+    return acc;
+  }, {});
 
   return (
     <div className="space-y-6">
@@ -155,8 +304,17 @@ const Leads = () => {
           <Button variant="outline" size="icon">
             <Filter className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey: ["leads"] })}>
+          <Button variant="outline" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey: ["lead-assignments"] })}>
             <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button onClick={() => {
+            setEditingLead(null);
+            setSelectedWorkshops([]);
+            setSelectedFunnels([]);
+            setConnectWorkshopFunnel(false);
+            setIsOpen(true);
+          }}>
+            Add Customer
           </Button>
         </div>
       </div>
@@ -172,7 +330,8 @@ const Leads = () => {
                 <TableRow>
                   <TableHead>Customer</TableHead>
                   <TableHead>Contact</TableHead>
-                  <TableHead>Service</TableHead>
+                  <TableHead>Workshop</TableHead>
+                  <TableHead>Funnel</TableHead>
                   <TableHead>Assigned To</TableHead>
                   <TableHead>Last Transaction Date</TableHead>
                   <TableHead>Status</TableHead>
@@ -180,99 +339,126 @@ const Leads = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLeads?.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="font-medium">{lead.contact_name}</div>
-                        <div className="text-sm text-muted-foreground flex items-center gap-1">
-                          {lead.country && <span>{lead.country}</span>}
+                {Object.values(groupedAssignments || {}).map((group: any) => {
+                  const lead = group.lead;
+                  return group.assignments.map((assignment: any, idx: number) => (
+                    <TableRow key={assignment.id} className={idx > 0 ? "bg-muted/30" : ""}>
+                      {idx === 0 ? (
+                        <TableCell rowSpan={group.assignments.length}>
+                          <div className="space-y-1">
+                            <div className="font-medium">{lead.contact_name}</div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-1">
+                              {lead.country && <span>{lead.country}</span>}
+                            </div>
+                          </div>
+                        </TableCell>
+                      ) : null}
+                      {idx === 0 ? (
+                        <TableCell rowSpan={group.assignments.length}>
+                          <div className="space-y-1">
+                            <div className="text-sm text-blue-600">{lead.phone || "-"}</div>
+                            <div className="text-sm text-blue-600">{lead.email}</div>
+                          </div>
+                        </TableCell>
+                      ) : null}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{assignment.workshop?.title || "-"}</span>
+                          {assignment.is_connected && (
+                            <Link2 className="h-3 w-3 text-primary" />
+                          )}
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="text-sm text-blue-600">{lead.phone || "-"}</div>
-                        <div className="text-sm text-blue-600">{lead.email}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{lead.workshop_name || "-"}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : "-"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
-                        ACTIVE
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
-                          <DropdownMenuItem className="text-red-600 cursor-pointer">
-                            <Ban className="mr-2 h-4 w-4" />
-                            Revoke access
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            onClick={() => {
-                              setEditingLead(lead);
-                              setIsOpen(true);
-                            }}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer">
-                            <MessageSquare className="mr-2 h-4 w-4" />
-                            View remarks
-                          </DropdownMenuItem>
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger className="cursor-pointer">
-                              <Users className="mr-2 h-4 w-4" />
-                              Assign affiliate
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                              {profiles?.map((profile) => (
-                                <DropdownMenuItem
-                                  key={profile.id}
-                                  className="cursor-pointer"
-                                  onClick={() => {
-                                    updateMutation.mutate({
-                                      id: lead.id,
-                                      updates: { assigned_to: profile.id },
-                                    });
-                                  }}
-                                >
-                                  {profile.full_name}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600 cursor-pointer"
-                            onClick={() => deleteMutation.mutate(lead.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete customer
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{assignment.funnel?.funnel_name || "-"}</span>
+                        </div>
+                      </TableCell>
+                      {idx === 0 ? (
+                        <TableCell rowSpan={group.assignments.length}>
+                          <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
+                        </TableCell>
+                      ) : null}
+                      {idx === 0 ? (
+                        <TableCell rowSpan={group.assignments.length}>
+                          <div className="text-sm">
+                            {lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : "-"}
+                          </div>
+                        </TableCell>
+                      ) : null}
+                      {idx === 0 ? (
+                        <TableCell rowSpan={group.assignments.length}>
+                          <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
+                            ACTIVE
+                          </Badge>
+                        </TableCell>
+                      ) : null}
+                      {idx === 0 ? (
+                        <TableCell rowSpan={group.assignments.length}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setEditingLead(lead);
+                                  // Load existing assignments
+                                  const workshopIds = group.assignments
+                                    .filter((a: any) => a.workshop_id)
+                                    .map((a: any) => a.workshop_id);
+                                  const funnelIds = group.assignments
+                                    .filter((a: any) => a.funnel_id)
+                                    .map((a: any) => a.funnel_id);
+                                  setSelectedWorkshops(workshopIds);
+                                  setSelectedFunnels(funnelIds);
+                                  setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
+                                  setIsOpen(true);
+                                }}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit details
+                              </DropdownMenuItem>
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="cursor-pointer">
+                                  <Users className="mr-2 h-4 w-4" />
+                                  Assign affiliate
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
+                                  {profiles?.map((profile) => (
+                                    <DropdownMenuItem
+                                      key={profile.id}
+                                      className="cursor-pointer"
+                                      onClick={() => {
+                                        assignMutation.mutate({
+                                          leadId: lead.id,
+                                          assignedTo: profile.id,
+                                        });
+                                      }}
+                                    >
+                                      {profile.full_name}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 cursor-pointer"
+                                onClick={() => deleteMutation.mutate(lead.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete customer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  ));
+                })}
               </TableBody>
             </Table>
           )}
@@ -328,23 +514,77 @@ const Leads = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="company_name">Company Name</Label>
+                <Input
+                  id="company_name"
+                  name="company_name"
+                  defaultValue={editingLead?.company_name}
+                />
+              </div>
+              <div className="space-y-3 border-t pt-4">
+                <Label>Workshops & Funnels</Label>
                 <div className="space-y-2">
-                  <Label htmlFor="workshop_name">Service/Workshop</Label>
-                  <Input
-                    id="workshop_name"
-                    name="workshop_name"
-                    defaultValue={editingLead?.workshop_name}
-                    placeholder="e.g., Crypto Wealth Masterclass"
-                  />
+                  <Label className="text-sm text-muted-foreground">Select Workshops</Label>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-md">
+                    {workshops?.map((workshop) => (
+                      <div key={workshop.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`workshop-${workshop.id}`}
+                          checked={selectedWorkshops.includes(workshop.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedWorkshops([...selectedWorkshops, workshop.id]);
+                            } else {
+                              setSelectedWorkshops(selectedWorkshops.filter(id => id !== workshop.id));
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`workshop-${workshop.id}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {workshop.title}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="company_name">Company Name</Label>
-                  <Input
-                    id="company_name"
-                    name="company_name"
-                    defaultValue={editingLead?.company_name}
+                  <Label className="text-sm text-muted-foreground">Select Funnels</Label>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-md">
+                    {funnels?.map((funnel) => (
+                      <div key={funnel.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`funnel-${funnel.id}`}
+                          checked={selectedFunnels.includes(funnel.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedFunnels([...selectedFunnels, funnel.id]);
+                            } else {
+                              setSelectedFunnels(selectedFunnels.filter(id => id !== funnel.id));
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`funnel-${funnel.id}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {funnel.funnel_name}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="connect"
+                    checked={connectWorkshopFunnel}
+                    onCheckedChange={(checked) => setConnectWorkshopFunnel(checked as boolean)}
                   />
+                  <Label htmlFor="connect" className="text-sm cursor-pointer">
+                    Connect first workshop with first funnel (e.g., Free Workshop + Free Funnel)
+                  </Label>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

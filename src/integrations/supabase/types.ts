@@ -21,6 +21,7 @@ export type Database = {
           created_by: string | null
           funnel_name: string
           id: string
+          is_free: boolean | null
           total_leads: number
           updated_at: string
         }
@@ -30,6 +31,7 @@ export type Database = {
           created_by?: string | null
           funnel_name: string
           id?: string
+          is_free?: boolean | null
           total_leads?: number
           updated_at?: string
         }
@@ -39,6 +41,7 @@ export type Database = {
           created_by?: string | null
           funnel_name?: string
           id?: string
+          is_free?: boolean | null
           total_leads?: number
           updated_at?: string
         }
@@ -48,6 +51,68 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_assignments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          funnel_id: string | null
+          id: string
+          is_connected: boolean | null
+          lead_id: string
+          updated_at: string
+          workshop_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          funnel_id?: string | null
+          id?: string
+          is_connected?: boolean | null
+          lead_id: string
+          updated_at?: string
+          workshop_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          funnel_id?: string | null
+          id?: string
+          is_connected?: boolean | null
+          lead_id?: string
+          updated_at?: string
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_assignments_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_assignments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_assignments_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -237,6 +302,7 @@ export type Database = {
           description: string | null
           end_date: string
           id: string
+          is_free: boolean | null
           lead_id: string | null
           location: string | null
           max_participants: number | null
@@ -253,6 +319,7 @@ export type Database = {
           description?: string | null
           end_date: string
           id?: string
+          is_free?: boolean | null
           lead_id?: string | null
           location?: string | null
           max_participants?: number | null
@@ -269,6 +336,7 @@ export type Database = {
           description?: string | null
           end_date?: string
           id?: string
+          is_free?: boolean | null
           lead_id?: string | null
           location?: string | null
           max_participants?: number | null
