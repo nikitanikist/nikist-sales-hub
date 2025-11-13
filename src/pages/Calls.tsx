@@ -273,7 +273,6 @@ const Calls = () => {
                       <TableRow key={appointment.id}>
                         <TableCell className="font-medium">
                           <div>{appointment.lead.contact_name}</div>
-                          <div className="text-sm text-muted-foreground">{appointment.lead.company_name}</div>
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">{appointment.lead.email}</div>
