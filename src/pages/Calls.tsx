@@ -287,9 +287,9 @@ const Calls = () => {
                             {appointment.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>${appointment.offer_amount}</TableCell>
-                        <TableCell>${appointment.cash_received}</TableCell>
-                        <TableCell>${appointment.due_amount}</TableCell>
+                        <TableCell>₹{appointment.offer_amount?.toLocaleString('en-IN')}</TableCell>
+                        <TableCell>₹{appointment.cash_received?.toLocaleString('en-IN')}</TableCell>
+                        <TableCell>₹{appointment.due_amount?.toLocaleString('en-IN')}</TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"
