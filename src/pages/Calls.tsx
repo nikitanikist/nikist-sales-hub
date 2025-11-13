@@ -19,6 +19,37 @@ import { cn } from "@/lib/utils";
 
 type DateFilter = 'yesterday' | 'today' | 'tomorrow' | 'custom';
 
+type Appointment = {
+  id: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  status: string;
+  offer_amount: number | null;
+  cash_received: number | null;
+  due_amount: number | null;
+  closer_remarks: string | null;
+  additional_comments: string | null;
+  lead: {
+    id: string;
+    contact_name: string;
+    company_name: string;
+    email: string;
+    phone: string | null;
+    country: string | null;
+  }[];
+  closer: {
+    id: string;
+    full_name: string;
+  }[];
+  reminders: {
+    id: string;
+    reminder_type: string;
+    reminder_time: string;
+    status: string;
+    sent_at: string | null;
+  }[];
+};
+
 const Calls = () => {
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
   const [customDate, setCustomDate] = useState<Date>(new Date());
@@ -46,10 +77,10 @@ const Calls = () => {
   const selectedDate = getSelectedDate();
 
   // Fetch appointments
-  const { data: appointments, isLoading } = useQuery({
+  const { data: appointments, isLoading } = useQuery<Appointment[]>({
     queryKey: ["call-appointments", selectedDate],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("call_appointments")
         .select(`
           *,
@@ -77,27 +108,27 @@ const Calls = () => {
         .order("scheduled_time", { ascending: true });
 
       if (error) throw error;
-      return data;
+      return data as unknown as Appointment[];
     },
   });
 
   // Fetch closers with call counts
-  const { data: closers } = useQuery({
+  const { data: closers } = useQuery<{ id: string; full_name: string; call_count: number }[]>({
     queryKey: ["closers-with-calls", selectedDate],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_closer_call_counts', {
+      const { data, error } = await (supabase as any).rpc('get_closer_call_counts', {
         target_date: selectedDate
       });
 
       if (error) throw error;
-      return data;
+      return data as unknown as { id: string; full_name: string; call_count: number }[];
     },
   });
 
   // Update appointment mutation
   const updateAppointmentMutation = useMutation({
     mutationFn: async (appointment: any) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('call_appointments')
         .update({
           scheduled_date: appointment.scheduled_date,
@@ -272,15 +303,15 @@ const Calls = () => {
                     <>
                       <TableRow key={appointment.id}>
                         <TableCell className="font-medium">
-                          <div>{appointment.lead.contact_name}</div>
+                          <div>{appointment.lead[0]?.contact_name}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm">{appointment.lead.email}</div>
-                          <div className="text-sm text-muted-foreground">{appointment.lead.phone}</div>
+                          <div className="text-sm">{appointment.lead[0]?.email}</div>
+                          <div className="text-sm text-muted-foreground">{appointment.lead[0]?.phone}</div>
                         </TableCell>
                         <TableCell>{format(new Date(appointment.scheduled_date), 'yyyy-MM-dd')}</TableCell>
                         <TableCell>{appointment.scheduled_time}</TableCell>
-                        <TableCell>{appointment.closer.full_name}</TableCell>
+                        <TableCell>{appointment.closer[0]?.full_name}</TableCell>
                         <TableCell>
                           <Badge className={cn("text-white", getStatusColor(appointment.status))}>
                             {appointment.status}
