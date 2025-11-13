@@ -11,6 +11,7 @@ import SalesClosers from "./pages/SalesClosers";
 import Workshops from "./pages/Workshops";
 import Sales from "./pages/Sales";
 import Funnels from "./pages/Funnels";
+import Calls from "./pages/Calls";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -28,6 +29,7 @@ const App = () => (
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
+              <Route path="/calls" element={<Calls />} />
               <Route path="/sales-closers" element={<SalesClosers />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
