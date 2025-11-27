@@ -297,6 +297,50 @@ export type Database = {
           },
         ]
       }
+      products: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          funnel_id: string
+          id: string
+          is_active: boolean
+          price: number
+          product_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          funnel_id: string
+          id?: string
+          is_active?: boolean
+          price?: number
+          product_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          funnel_id?: string
+          id?: string
+          is_active?: boolean
+          price?: number
+          product_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
