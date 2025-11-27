@@ -79,6 +79,33 @@ const Workshops = () => {
     },
   });
 
+  const { data: funnels } = useQuery({
+    queryKey: ["funnels-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("funnels")
+        .select("id, funnel_name")
+        .order("funnel_name");
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: products } = useQuery({
+    queryKey: ["products-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, product_name, funnel_id")
+        .eq("is_active", true)
+        .order("product_name");
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (newWorkshop: any) => {
       const { error } = await supabase.from("workshops").insert([{
@@ -140,6 +167,8 @@ const Workshops = () => {
       ad_spend: formData.get("ad_spend") ? Number(formData.get("ad_spend")) : 0,
       status: formData.get("status"),
       lead_id: formData.get("lead_id") || null,
+      funnel_id: formData.get("funnel_id") || null,
+      product_id: formData.get("product_id") || null,
     };
 
     if (editingWorkshop) {
@@ -239,7 +268,7 @@ const Workshops = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="ad_spend">Ad Spend ($)</Label>
+                  <Label htmlFor="ad_spend">Ad Spend (₹)</Label>
                   <Input
                     id="ad_spend"
                     name="ad_spend"
@@ -248,6 +277,40 @@ const Workshops = () => {
                     defaultValue={editingWorkshop?.ad_spend || 0}
                     placeholder="0.00"
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="funnel_id">Associated Funnel</Label>
+                    <Select name="funnel_id" defaultValue={editingWorkshop?.funnel_id || ""}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a funnel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {funnels?.map((funnel) => (
+                          <SelectItem key={funnel.id} value={funnel.id}>
+                            {funnel.funnel_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product_id">Associated Product</Label>
+                    <Select name="product_id" defaultValue={editingWorkshop?.product_id || ""}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a product" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {products?.map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.product_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
