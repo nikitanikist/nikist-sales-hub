@@ -123,11 +123,105 @@ Deno.serve(async (req) => {
 
     console.log('Lead created successfully:', data.id);
 
+    // Check if workshop exists with this name
+    const { data: existingWorkshop, error: workshopCheckError } = await supabase
+      .from('workshops')
+      .select('id')
+      .ilike('title', payload.workshop_name.trim())
+      .maybeSingle();
+
+    if (workshopCheckError) {
+      console.error('Error checking workshop:', workshopCheckError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Workshop check error', 
+          details: workshopCheckError.message 
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    let workshopId: string;
+
+    if (existingWorkshop) {
+      // Workshop exists, use its ID
+      workshopId = existingWorkshop.id;
+      console.log('Using existing workshop:', workshopId);
+    } else {
+      // Create new workshop
+      const newWorkshopData = {
+        title: payload.workshop_name.trim(),
+        start_date: new Date().toISOString(),
+        end_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // +1 day
+        status: 'planned',
+        is_free: payload.amount === 0,
+        ad_spend: 0,
+        created_by: null, // External source
+      };
+
+      const { data: newWorkshop, error: workshopCreateError } = await supabase
+        .from('workshops')
+        .insert(newWorkshopData)
+        .select()
+        .single();
+
+      if (workshopCreateError) {
+        console.error('Error creating workshop:', workshopCreateError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Workshop creation error', 
+            details: workshopCreateError.message 
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      workshopId = newWorkshop.id;
+      console.log('Created new workshop:', workshopId);
+    }
+
+    // Create lead assignment
+    const assignmentData = {
+      lead_id: data.id,
+      workshop_id: workshopId,
+      funnel_id: null,
+      product_id: null,
+      is_connected: false,
+      created_by: null,
+    };
+
+    const { error: assignmentError } = await supabase
+      .from('lead_assignments')
+      .insert(assignmentData);
+
+    if (assignmentError) {
+      console.error('Error creating lead assignment:', assignmentError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Lead assignment error', 
+          details: assignmentError.message 
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('Lead assignment created successfully');
+
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Lead created successfully',
-        lead_id: data.id 
+        message: 'Lead created and assigned to workshop successfully',
+        lead_id: data.id,
+        workshop_id: workshopId
       }),
       { 
         status: 201, 
