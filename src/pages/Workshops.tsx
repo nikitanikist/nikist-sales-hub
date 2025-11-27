@@ -42,11 +42,15 @@ const Workshops = () => {
       // Fetch sales data for each workshop to calculate metrics
       const workshopsWithMetrics = await Promise.all(
         workshopsData.map(async (workshop) => {
-          // Get sales for this workshop's lead
-          const { data: salesData } = await supabase
-            .from("sales")
-            .select("amount")
-            .eq("lead_id", workshop.lead_id || "");
+          // Only fetch sales if workshop has a valid lead_id
+          let salesData = null;
+          if (workshop.lead_id) {
+            const { data } = await supabase
+              .from("sales")
+              .select("amount")
+              .eq("lead_id", workshop.lead_id);
+            salesData = data;
+          }
           
           const salesCount = salesData?.length || 0;
           const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.amount || 0), 0) || 0;
