@@ -158,6 +158,69 @@ const Workshops = () => {
     },
   });
 
+  const createFunnelMutation = useMutation({
+    mutationFn: async (workshopData: any) => {
+      const { data, error } = await supabase
+        .from("funnels")
+        .insert([{
+          funnel_name: workshopData.title,
+          amount: 0,
+          is_free: workshopData.is_free || false,
+          created_by: user?.id,
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async (newFunnel) => {
+      // Update the workshop with the new funnel_id
+      await supabase
+        .from("workshops")
+        .update({ funnel_id: newFunnel.id })
+        .eq("id", editingWorkshop.id);
+      queryClient.invalidateQueries({ queryKey: ["workshops"] });
+      queryClient.invalidateQueries({ queryKey: ["funnels-list"] });
+      toast.success("Funnel created and linked to workshop!");
+      setEditingWorkshop({ ...editingWorkshop, funnel_id: newFunnel.id });
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+    },
+  });
+
+  const createProductMutation = useMutation({
+    mutationFn: async (data: { workshopTitle: string; funnelId: string }) => {
+      const { data: newProduct, error } = await supabase
+        .from("products")
+        .insert([{
+          product_name: data.workshopTitle,
+          funnel_id: data.funnelId,
+          price: 0,
+          is_active: true,
+          created_by: user?.id,
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return newProduct;
+    },
+    onSuccess: async (newProduct) => {
+      // Update the workshop with the new product_id
+      await supabase
+        .from("workshops")
+        .update({ product_id: newProduct.id })
+        .eq("id", editingWorkshop.id);
+      queryClient.invalidateQueries({ queryKey: ["workshops"] });
+      queryClient.invalidateQueries({ queryKey: ["products-list"] });
+      toast.success("Product created and linked to workshop!");
+      setEditingWorkshop({ ...editingWorkshop, product_id: newProduct.id });
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -207,7 +270,7 @@ const Workshops = () => {
               Add Workshop
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingWorkshop ? "Edit Workshop" : "Add New Workshop"}</DialogTitle>
             </DialogHeader>
@@ -360,14 +423,49 @@ const Workshops = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit">
-                  {editingWorkshop ? "Update" : "Create"} Workshop
-                </Button>
-              </DialogFooter>
-            </form>
+                 </div>
+               </div>
+               
+               {editingWorkshop && (
+                 <div className="border-t pt-4 mt-4">
+                   <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
+                   <div className="flex flex-wrap gap-2">
+                     <Button
+                       type="button"
+                       variant="outline"
+                       size="sm"
+                       onClick={() => createFunnelMutation.mutate(editingWorkshop)}
+                       disabled={createFunnelMutation.isPending || editingWorkshop.funnel_id}
+                     >
+                       {editingWorkshop.funnel_id ? "Funnel Already Linked" : "Create Funnel from Workshop"}
+                     </Button>
+                     <Button
+                       type="button"
+                       variant="outline"
+                       size="sm"
+                       onClick={() => createProductMutation.mutate({ 
+                         workshopTitle: editingWorkshop.title, 
+                         funnelId: editingWorkshop.funnel_id 
+                       })}
+                       disabled={createProductMutation.isPending || !editingWorkshop.funnel_id || editingWorkshop.product_id}
+                     >
+                       {editingWorkshop.product_id ? "Product Already Linked" : "Create Product from Workshop"}
+                     </Button>
+                   </div>
+                   {!editingWorkshop.funnel_id && (
+                     <p className="text-xs text-muted-foreground mt-2">
+                       Create a funnel first before creating a product
+                     </p>
+                   )}
+                 </div>
+               )}
+               
+               <DialogFooter>
+                 <Button type="submit">
+                   {editingWorkshop ? "Update" : "Create"} Workshop
+                 </Button>
+               </DialogFooter>
+             </form>
           </DialogContent>
         </Dialog>
       </div>
