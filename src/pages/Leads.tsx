@@ -31,7 +31,7 @@ const Leads = () => {
   const [editingLead, setEditingLead] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedWorkshops, setSelectedWorkshops] = useState<string[]>([]);
-  const [selectedFunnels, setSelectedFunnels] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [connectWorkshopFunnel, setConnectWorkshopFunnel] = useState(false);
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -55,7 +55,8 @@ const Leads = () => {
             assigned_to:profiles!leads_assigned_to_fkey(full_name)
           ),
           workshop:workshops(id, title),
-          funnel:funnels(id, funnel_name)
+          funnel:funnels(id, funnel_name),
+          product:products(id, product_name, price)
         `)
         .order("created_at", { ascending: false });
 
@@ -103,8 +104,25 @@ const Leads = () => {
     },
   });
 
+  const { data: products } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          funnel:funnels(id, funnel_name)
+        `)
+        .eq("is_active", true)
+        .order("product_name");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const saveMutation = useMutation({
-    mutationFn: async ({ leadData, workshopIds, funnelIds, isConnected }: any) => {
+    mutationFn: async ({ leadData, workshopIds, productIds, isConnected }: any) => {
       // Upsert lead basic info
       let leadId = editingLead?.id;
       if (editingLead) {
@@ -133,12 +151,24 @@ const Leads = () => {
       // Create new assignments
       const assignments = [];
       
-      if (isConnected && workshopIds.length > 0 && funnelIds.length > 0) {
+      // Map product IDs to their funnel IDs
+      const productToFunnelMap = new Map<string, string>();
+      productIds.forEach((productId: string) => {
+        const product = products?.find(p => p.id === productId);
+        if (product?.funnel_id) {
+          productToFunnelMap.set(productId, product.funnel_id);
+        }
+      });
+      
+      if (isConnected && workshopIds.length > 0 && productIds.length > 0) {
         // Create connected pair
+        const firstProduct = productIds[0];
+        const firstFunnelId = productToFunnelMap.get(firstProduct);
         assignments.push({
           lead_id: leadId,
           workshop_id: workshopIds[0],
-          funnel_id: funnelIds[0],
+          product_id: firstProduct,
+          funnel_id: firstFunnelId,
           is_connected: true,
           created_by: user?.id,
         });
@@ -148,17 +178,21 @@ const Leads = () => {
           assignments.push({
             lead_id: leadId,
             workshop_id: workshopIds[i],
+            product_id: null,
             funnel_id: null,
             is_connected: false,
             created_by: user?.id,
           });
         }
         
-        // Add remaining funnels as separate assignments
-        for (let i = 1; i < funnelIds.length; i++) {
+        // Add remaining products as separate assignments
+        for (let i = 1; i < productIds.length; i++) {
+          const productId = productIds[i];
+          const funnelId = productToFunnelMap.get(productId);
           assignments.push({
             lead_id: leadId,
-            funnel_id: funnelIds[i],
+            product_id: productId,
+            funnel_id: funnelId,
             workshop_id: null,
             is_connected: false,
             created_by: user?.id,
@@ -170,16 +204,19 @@ const Leads = () => {
           assignments.push({
             lead_id: leadId,
             workshop_id: wId,
+            product_id: null,
             funnel_id: null,
             is_connected: false,
             created_by: user?.id,
           });
         });
         
-        funnelIds.forEach((fId: string) => {
+        productIds.forEach((productId: string) => {
+          const funnelId = productToFunnelMap.get(productId);
           assignments.push({
             lead_id: leadId,
-            funnel_id: fId,
+            product_id: productId,
+            funnel_id: funnelId,
             workshop_id: null,
             is_connected: false,
             created_by: user?.id,
@@ -200,7 +237,7 @@ const Leads = () => {
       setIsOpen(false);
       setEditingLead(null);
       setSelectedWorkshops([]);
-      setSelectedFunnels([]);
+      setSelectedProducts([]);
       setConnectWorkshopFunnel(false);
     },
     onError: (error: any) => {
@@ -257,7 +294,7 @@ const Leads = () => {
     saveMutation.mutate({
       leadData,
       workshopIds: selectedWorkshops,
-      funnelIds: selectedFunnels,
+      productIds: selectedProducts,
       isConnected: connectWorkshopFunnel,
     });
   };
@@ -310,7 +347,7 @@ const Leads = () => {
           <Button onClick={() => {
             setEditingLead(null);
             setSelectedWorkshops([]);
-            setSelectedFunnels([]);
+            setSelectedProducts([]);
             setConnectWorkshopFunnel(false);
             setIsOpen(true);
           }}>
@@ -331,7 +368,7 @@ const Leads = () => {
                   <TableHead>Customer</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Workshop</TableHead>
-                  <TableHead>Funnel</TableHead>
+                  <TableHead>Product</TableHead>
                   <TableHead>Assigned To</TableHead>
                   <TableHead>Last Transaction Date</TableHead>
                   <TableHead>Status</TableHead>
@@ -370,9 +407,15 @@ const Leads = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm">{assignment.funnel?.funnel_name || "-"}</span>
-                        </div>
+                        {assignment.product ? (
+                          <div className="space-y-0.5">
+                            <div className="text-sm font-medium">{assignment.product.product_name}</div>
+                            <div className="text-xs text-muted-foreground">{assignment.funnel?.funnel_name}</div>
+                            <div className="text-xs text-primary">₹{assignment.product.price?.toLocaleString('en-IN')}</div>
+                          </div>
+                        ) : (
+                          <span className="text-sm">-</span>
+                        )}
                       </TableCell>
                       {idx === 0 ? (
                         <TableCell rowSpan={group.assignments.length}>
@@ -410,11 +453,11 @@ const Leads = () => {
                                   const workshopIds = group.assignments
                                     .filter((a: any) => a.workshop_id)
                                     .map((a: any) => a.workshop_id);
-                                  const funnelIds = group.assignments
-                                    .filter((a: any) => a.funnel_id)
-                                    .map((a: any) => a.funnel_id);
+                                  const productIds = group.assignments
+                                    .filter((a: any) => a.product_id)
+                                    .map((a: any) => a.product_id);
                                   setSelectedWorkshops(workshopIds);
-                                  setSelectedFunnels(funnelIds);
+                                  setSelectedProducts(productIds);
                                   setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
                                   setIsOpen(true);
                                 }}
@@ -523,7 +566,7 @@ const Leads = () => {
                 />
               </div>
               <div className="space-y-3 border-t pt-4">
-                <Label>Workshops & Funnels</Label>
+                <Label>Workshops & Products</Label>
                 <div className="space-y-2">
                   <Label className="text-sm text-muted-foreground">Select Workshops</Label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-md">
@@ -551,29 +594,42 @@ const Leads = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm text-muted-foreground">Select Funnels</Label>
-                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-md">
-                    {funnels?.map((funnel) => (
-                      <div key={funnel.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`funnel-${funnel.id}`}
-                          checked={selectedFunnels.includes(funnel.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedFunnels([...selectedFunnels, funnel.id]);
-                            } else {
-                              setSelectedFunnels(selectedFunnels.filter(id => id !== funnel.id));
-                            }
-                          }}
-                        />
-                        <label
-                          htmlFor={`funnel-${funnel.id}`}
-                          className="text-sm cursor-pointer"
-                        >
-                          {funnel.funnel_name}
-                        </label>
-                      </div>
-                    ))}
+                  <Label className="text-sm text-muted-foreground">Select Products</Label>
+                  <div className="space-y-3 max-h-64 overflow-y-auto p-2 border rounded-md">
+                    {funnels?.map((funnel) => {
+                      const funnelProducts = products?.filter(p => p.funnel_id === funnel.id);
+                      if (!funnelProducts || funnelProducts.length === 0) return null;
+                      return (
+                        <div key={funnel.id} className="space-y-2">
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            {funnel.funnel_name}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 pl-2">
+                            {funnelProducts.map((product) => (
+                              <div key={product.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`product-${product.id}`}
+                                  checked={selectedProducts.includes(product.id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedProducts([...selectedProducts, product.id]);
+                                    } else {
+                                      setSelectedProducts(selectedProducts.filter(id => id !== product.id));
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`product-${product.id}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  {product.product_name} <span className="text-xs text-muted-foreground">(₹{product.price?.toLocaleString('en-IN')})</span>
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 pt-2">
@@ -583,7 +639,7 @@ const Leads = () => {
                     onCheckedChange={(checked) => setConnectWorkshopFunnel(checked as boolean)}
                   />
                   <Label htmlFor="connect" className="text-sm cursor-pointer">
-                    Connect first workshop with first funnel (e.g., Free Workshop + Free Funnel)
+                    Connect first workshop with first product (e.g., Free Workshop + Free Product)
                   </Label>
                 </div>
               </div>
