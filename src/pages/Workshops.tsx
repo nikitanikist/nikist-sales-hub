@@ -169,10 +169,11 @@ const Workshops = () => {
       location: formData.get("location"),
       max_participants: formData.get("max_participants") ? Number(formData.get("max_participants")) : null,
       ad_spend: formData.get("ad_spend") ? Number(formData.get("ad_spend")) : 0,
-      status: formData.get("status"),
-      lead_id: formData.get("lead_id") === "" ? null : formData.get("lead_id"),
-      funnel_id: formData.get("funnel_id") === "none" ? null : (formData.get("funnel_id") || null),
-      product_id: formData.get("product_id") === "none" ? null : (formData.get("product_id") || null),
+      lead_id:
+        formData.get("lead_id") === "none" || formData.get("lead_id") === "" ? null : formData.get("lead_id"),
+      funnel_id: formData.get("funnel_id") === "none" ? null : formData.get("funnel_id") || null,
+      product_id:
+        formData.get("product_id") === "none" ? null : formData.get("product_id") || null,
     };
 
     if (editingWorkshop) {
@@ -344,13 +345,13 @@ const Workshops = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lead_id">Related Lead (Optional)</Label>
-                    <Select name="lead_id" defaultValue={editingWorkshop?.lead_id || ""}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a lead" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                     <Label htmlFor="lead_id">Related Lead (Optional)</Label>
+                     <Select name="lead_id" defaultValue={editingWorkshop?.lead_id || "none"}>
+                       <SelectTrigger>
+                         <SelectValue placeholder="Select a lead" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="none">None</SelectItem>
                         {leads?.map((lead) => (
                           <SelectItem key={lead.id} value={lead.id}>
                             {lead.company_name}
