@@ -79,7 +79,7 @@ const Workshops = () => {
     },
   });
 
-  const { data: funnels } = useQuery({
+  const { data: funnels, isLoading: funnelsLoading } = useQuery({
     queryKey: ["funnels-list"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -88,11 +88,11 @@ const Workshops = () => {
         .order("funnel_name");
       
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
-  const { data: products } = useQuery({
+  const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ["products-list"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -102,7 +102,7 @@ const Workshops = () => {
         .order("product_name");
       
       if (error) throw error;
-      return data;
+      return data || [];
     },
   });
 
@@ -166,9 +166,9 @@ const Workshops = () => {
       max_participants: formData.get("max_participants") ? Number(formData.get("max_participants")) : null,
       ad_spend: formData.get("ad_spend") ? Number(formData.get("ad_spend")) : 0,
       status: formData.get("status"),
-      lead_id: formData.get("lead_id") || null,
-      funnel_id: formData.get("funnel_id") || null,
-      product_id: formData.get("product_id") || null,
+      lead_id: formData.get("lead_id") === "" ? null : formData.get("lead_id"),
+      funnel_id: formData.get("funnel_id") === "none" ? null : (formData.get("funnel_id") || null),
+      product_id: formData.get("product_id") === "none" ? null : (formData.get("product_id") || null),
     };
 
     if (editingWorkshop) {
@@ -281,33 +281,45 @@ const Workshops = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="funnel_id">Associated Funnel</Label>
-                    <Select name="funnel_id" defaultValue={editingWorkshop?.funnel_id || ""}>
+                    <Select 
+                      name="funnel_id" 
+                      defaultValue={editingWorkshop?.funnel_id ?? undefined}
+                      disabled={funnelsLoading}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a funnel" />
+                        <SelectValue placeholder={funnelsLoading ? "Loading..." : "Select a funnel"} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
-                        {funnels?.map((funnel) => (
-                          <SelectItem key={funnel.id} value={funnel.id}>
-                            {funnel.funnel_name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="none">None</SelectItem>
+                        {funnels && funnels.length > 0 ? (
+                          funnels.map((funnel) => (
+                            <SelectItem key={funnel.id} value={funnel.id}>
+                              {funnel.funnel_name}
+                            </SelectItem>
+                          ))
+                        ) : null}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="product_id">Associated Product</Label>
-                    <Select name="product_id" defaultValue={editingWorkshop?.product_id || ""}>
+                    <Select 
+                      name="product_id" 
+                      defaultValue={editingWorkshop?.product_id ?? undefined}
+                      disabled={productsLoading}
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a product" />
+                        <SelectValue placeholder={productsLoading ? "Loading..." : "Select a product"} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
-                        {products?.map((product) => (
-                          <SelectItem key={product.id} value={product.id}>
-                            {product.product_name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="none">None</SelectItem>
+                        {products && products.length > 0 ? (
+                          products.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.product_name}
+                            </SelectItem>
+                          ))
+                        ) : null}
                       </SelectContent>
                     </Select>
                   </div>
