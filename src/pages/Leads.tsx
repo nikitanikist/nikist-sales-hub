@@ -36,7 +36,7 @@ const Leads = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const { data: leadAssignments, isLoading } = useQuery({
+  const { data: leadAssignments, isLoading: isLoadingAssignments } = useQuery({
     queryKey: ["lead-assignments"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -64,6 +64,24 @@ const Leads = () => {
       return data;
     },
   });
+
+  const { data: allLeads, isLoading: isLoadingLeads } = useQuery({
+    queryKey: ["all-leads"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("leads")
+        .select(`
+          *,
+          assigned_to:profiles!leads_assigned_to_fkey(full_name)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const isLoading = isLoadingAssignments || isLoadingLeads;
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles"],
@@ -233,6 +251,7 @@ const Leads = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
       toast.success(editingLead ? "Customer updated successfully" : "Customer created successfully");
       setIsOpen(false);
       setEditingLead(null);
@@ -252,6 +271,7 @@ const Leads = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
       toast.success("Customer deleted successfully");
     },
     onError: (error: any) => {
@@ -269,6 +289,7 @@ const Leads = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
       toast.success("Customer assigned successfully");
     },
     onError: (error: any) => {
@@ -309,6 +330,16 @@ const Leads = () => {
     );
   });
 
+  // Filter all leads by search query
+  const filteredLeads = allLeads?.filter((lead) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      lead.contact_name?.toLowerCase().includes(query) ||
+      lead.email?.toLowerCase().includes(query) ||
+      lead.phone?.toLowerCase().includes(query)
+    );
+  });
+
   // Group assignments by customer for display
   const groupedAssignments = filteredAssignments?.reduce((acc: any, assignment) => {
     const leadId = assignment.lead?.id;
@@ -323,6 +354,20 @@ const Leads = () => {
     acc[leadId].assignments.push(assignment);
     return acc;
   }, {});
+
+  // Add leads without assignments
+  filteredLeads?.forEach((lead) => {
+    if (!groupedAssignments?.[lead.id]) {
+      if (!groupedAssignments) return;
+      groupedAssignments[lead.id] = {
+        lead: {
+          ...lead,
+          assigned_to: lead.assigned_to,
+        },
+        assignments: [],
+      };
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -341,7 +386,10 @@ const Leads = () => {
           <Button variant="outline" size="icon">
             <Filter className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey: ["lead-assignments"] })}>
+          <Button variant="outline" size="icon" onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+            queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+          }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button onClick={() => {
@@ -378,6 +426,102 @@ const Leads = () => {
               <TableBody>
                 {Object.values(groupedAssignments || {}).map((group: any) => {
                   const lead = group.lead;
+                  
+                  // If no assignments, show lead with empty assignment columns
+                  if (group.assignments.length === 0) {
+                    return (
+                      <TableRow key={lead.id}>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="font-medium">{lead.contact_name}</div>
+                            <div className="text-sm text-muted-foreground flex items-center gap-1">
+                              {lead.country && <span>{lead.country}</span>}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="text-sm text-blue-600">{lead.phone || "-"}</div>
+                            <div className="text-sm text-blue-600">{lead.email}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">-</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">-</span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : "-"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
+                            ACTIVE
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setEditingLead(lead);
+                                  setSelectedWorkshops([]);
+                                  setSelectedProducts([]);
+                                  setConnectWorkshopFunnel(false);
+                                  setIsOpen(true);
+                                }}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit details
+                              </DropdownMenuItem>
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="cursor-pointer">
+                                  <Users className="mr-2 h-4 w-4" />
+                                  Assign affiliate
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
+                                  {profiles?.map((profile) => (
+                                    <DropdownMenuItem
+                                      key={profile.id}
+                                      className="cursor-pointer"
+                                      onClick={() => {
+                                        assignMutation.mutate({
+                                          leadId: lead.id,
+                                          assignedTo: profile.id,
+                                        });
+                                      }}
+                                    >
+                                      {profile.full_name}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 cursor-pointer"
+                                onClick={() => deleteMutation.mutate(lead.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete customer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }
+                  
                   return group.assignments.map((assignment: any, idx: number) => (
                     <TableRow key={assignment.id} className={idx > 0 ? "bg-muted/30" : ""}>
                       {idx === 0 ? (
