@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
         status: 'planned',
         is_free: payload.amount === 0,
         ad_spend: 0,
-        created_by: '00000000-0000-0000-0000-000000000000', // System-generated workshop
+        created_by: 'efff01b2-c24a-4256-9a91-11459fe27386', // Admin user
       };
 
       const { data: newWorkshop, error: workshopCreateError } = await supabase
