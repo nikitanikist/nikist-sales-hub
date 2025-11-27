@@ -8,7 +8,7 @@ const corsHeaders = {
 interface PabblyPayload {
   name: string;
   email: string;
-  phone: string;
+  phone: string | number;
   workshop_name: string;
   amount: number;
 }
@@ -35,14 +35,18 @@ Deno.serve(async (req) => {
     if (!payload.email || typeof payload.email !== 'string' || !payload.email.includes('@')) {
       errors.push('email is required and must be a valid email address');
     }
-    if (!payload.phone || typeof payload.phone !== 'string' || payload.phone.trim().length === 0) {
+    
+    // Convert phone to string if it's a number
+    const phoneValue = typeof payload.phone === 'number' ? String(payload.phone) : payload.phone;
+    if (!phoneValue || phoneValue.trim().length === 0) {
       errors.push('phone is required and must be a non-empty string');
     }
+    
     if (!payload.workshop_name || typeof payload.workshop_name !== 'string' || payload.workshop_name.trim().length === 0) {
       errors.push('workshop_name is required and must be a non-empty string');
     }
-    if (typeof payload.amount !== 'number' || payload.amount <= 0) {
-      errors.push('amount is required and must be a positive number');
+    if (typeof payload.amount !== 'number' || payload.amount < 0) {
+      errors.push('amount is required and must be a non-negative number');
     }
 
     // Additional validation
@@ -52,7 +56,7 @@ Deno.serve(async (req) => {
     if (payload.email && payload.email.length > 255) {
       errors.push('email must be less than 255 characters');
     }
-    if (payload.phone && payload.phone.length > 20) {
+    if (phoneValue && phoneValue.length > 20) {
       errors.push('phone must be less than 20 characters');
     }
     if (payload.workshop_name && payload.workshop_name.length > 255) {
@@ -83,7 +87,7 @@ Deno.serve(async (req) => {
     const leadData = {
       contact_name: payload.name.trim(),
       email: payload.email.trim().toLowerCase(),
-      phone: payload.phone.trim(),
+      phone: phoneValue.trim(),
       workshop_name: payload.workshop_name.trim(),
       company_name: payload.workshop_name.trim(), // Using workshop name as company name
       value: payload.amount,
