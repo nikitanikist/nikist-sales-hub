@@ -466,11 +466,13 @@ export type Database = {
           current_participants: number | null
           description: string | null
           end_date: string
+          funnel_id: string | null
           id: string
           is_free: boolean | null
           lead_id: string | null
           location: string | null
           max_participants: number | null
+          product_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["workshop_status"]
           title: string
@@ -483,11 +485,13 @@ export type Database = {
           current_participants?: number | null
           description?: string | null
           end_date: string
+          funnel_id?: string | null
           id?: string
           is_free?: boolean | null
           lead_id?: string | null
           location?: string | null
           max_participants?: number | null
+          product_id?: string | null
           start_date: string
           status?: Database["public"]["Enums"]["workshop_status"]
           title: string
@@ -500,11 +504,13 @@ export type Database = {
           current_participants?: number | null
           description?: string | null
           end_date?: string
+          funnel_id?: string | null
           id?: string
           is_free?: boolean | null
           lead_id?: string | null
           location?: string | null
           max_participants?: number | null
+          product_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["workshop_status"]
           title?: string
@@ -519,10 +525,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "workshops_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "workshops_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshops_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
