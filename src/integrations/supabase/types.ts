@@ -174,6 +174,7 @@ export type Database = {
           id: string
           is_connected: boolean | null
           lead_id: string
+          product_id: string | null
           updated_at: string
           workshop_id: string | null
         }
@@ -184,6 +185,7 @@ export type Database = {
           id?: string
           is_connected?: boolean | null
           lead_id: string
+          product_id?: string | null
           updated_at?: string
           workshop_id?: string | null
         }
@@ -194,6 +196,7 @@ export type Database = {
           id?: string
           is_connected?: boolean | null
           lead_id?: string
+          product_id?: string | null
           updated_at?: string
           workshop_id?: string | null
         }
@@ -217,6 +220,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_assignments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
