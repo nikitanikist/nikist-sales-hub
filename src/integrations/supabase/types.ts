@@ -14,6 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
+      call_appointments: {
+        Row: {
+          additional_comments: string | null
+          cash_received: number | null
+          closer_id: string
+          closer_remarks: string | null
+          created_at: string
+          created_by: string | null
+          due_amount: number | null
+          id: string
+          lead_id: string
+          offer_amount: number | null
+          scheduled_date: string
+          scheduled_time: string
+          status: Database["public"]["Enums"]["call_status"]
+          updated_at: string
+        }
+        Insert: {
+          additional_comments?: string | null
+          cash_received?: number | null
+          closer_id: string
+          closer_remarks?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          id?: string
+          lead_id: string
+          offer_amount?: number | null
+          scheduled_date: string
+          scheduled_time: string
+          status?: Database["public"]["Enums"]["call_status"]
+          updated_at?: string
+        }
+        Update: {
+          additional_comments?: string | null
+          cash_received?: number | null
+          closer_id?: string
+          closer_remarks?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          id?: string
+          lead_id?: string
+          offer_amount?: number | null
+          scheduled_date?: string
+          scheduled_time?: string
+          status?: Database["public"]["Enums"]["call_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_appointments_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_appointments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_reminders: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          id: string
+          reminder_time: string
+          reminder_type: Database["public"]["Enums"]["reminder_type"]
+          sent_at: string | null
+          status: Database["public"]["Enums"]["reminder_status"] | null
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          id?: string
+          reminder_time: string
+          reminder_type: Database["public"]["Enums"]["reminder_type"]
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["reminder_status"] | null
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          reminder_time?: string
+          reminder_type?: Database["public"]["Enums"]["reminder_type"]
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["reminder_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_reminders_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "call_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnels: {
         Row: {
           amount: number
@@ -367,6 +478,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_closer_call_counts: {
+        Args: { target_date: string }
+        Returns: {
+          call_count: number
+          full_name: string
+          id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -377,6 +496,12 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "sales_rep" | "viewer"
+      call_status:
+        | "scheduled"
+        | "rescheduled"
+        | "completed"
+        | "cancelled"
+        | "no_show"
       lead_status:
         | "new"
         | "contacted"
@@ -385,6 +510,14 @@ export type Database = {
         | "negotiation"
         | "won"
         | "lost"
+      reminder_status: "pending" | "sent" | "failed"
+      reminder_type:
+        | "two_days"
+        | "one_day"
+        | "three_hours"
+        | "one_hour"
+        | "thirty_minutes"
+        | "ten_minutes"
       workshop_status: "planned" | "confirmed" | "completed" | "cancelled"
     }
     CompositeTypes: {
@@ -514,6 +647,13 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "sales_rep", "viewer"],
+      call_status: [
+        "scheduled",
+        "rescheduled",
+        "completed",
+        "cancelled",
+        "no_show",
+      ],
       lead_status: [
         "new",
         "contacted",
@@ -522,6 +662,15 @@ export const Constants = {
         "negotiation",
         "won",
         "lost",
+      ],
+      reminder_status: ["pending", "sent", "failed"],
+      reminder_type: [
+        "two_days",
+        "one_day",
+        "three_hours",
+        "one_hour",
+        "thirty_minutes",
+        "ten_minutes",
       ],
       workshop_status: ["planned", "confirmed", "completed", "cancelled"],
     },
