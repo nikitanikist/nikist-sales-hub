@@ -33,6 +33,8 @@ const Leads = () => {
   const [selectedWorkshops, setSelectedWorkshops] = useState<string[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [connectWorkshopFunnel, setConnectWorkshopFunnel] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -330,6 +332,12 @@ const Leads = () => {
     );
   });
 
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
   // Filter all leads by search query
   const filteredLeads = allLeads?.filter((lead) => {
     const query = searchQuery.toLowerCase();
@@ -369,6 +377,13 @@ const Leads = () => {
     }
   });
 
+  // Paginate grouped assignments
+  const groupedAssignmentsArray = Object.values(groupedAssignments || {});
+  const totalPages = Math.ceil(groupedAssignmentsArray.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedAssignments = groupedAssignmentsArray.slice(startIndex, endIndex);
+
   return (
     <div className="space-y-6">
       {/* Header with Search */}
@@ -380,7 +395,7 @@ const Leads = () => {
               placeholder="Search by name, phone or email"
               className="pl-9"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
             />
           </div>
           <Button variant="outline" size="icon">
@@ -424,7 +439,7 @@ const Leads = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Object.values(groupedAssignments || {}).map((group: any) => {
+                {paginatedAssignments.map((group: any) => {
                   const lead = group.lead;
                   
                   // If no assignments, show lead with empty assignment columns
@@ -651,6 +666,36 @@ const Leads = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Pagination Controls */}
+      {!isLoading && groupedAssignmentsArray.length > 0 && (
+        <div className="flex items-center justify-between px-2">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex + 1} to {Math.min(endIndex, groupedAssignmentsArray.length)} of {groupedAssignmentsArray.length} customers
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <div className="text-sm">
+              Page {currentPage} of {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Edit Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
