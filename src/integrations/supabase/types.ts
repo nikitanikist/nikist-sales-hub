@@ -133,8 +133,10 @@ export type Database = {
           funnel_name: string
           id: string
           is_free: boolean | null
+          product_id: string | null
           total_leads: number
           updated_at: string
+          workshop_id: string | null
         }
         Insert: {
           amount: number
@@ -143,8 +145,10 @@ export type Database = {
           funnel_name: string
           id?: string
           is_free?: boolean | null
+          product_id?: string | null
           total_leads?: number
           updated_at?: string
+          workshop_id?: string | null
         }
         Update: {
           amount?: number
@@ -153,8 +157,10 @@ export type Database = {
           funnel_name?: string
           id?: string
           is_free?: boolean | null
+          product_id?: string | null
           total_leads?: number
           updated_at?: string
+          workshop_id?: string | null
         }
         Relationships: [
           {
@@ -162,6 +168,20 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnels_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnels_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -318,6 +338,7 @@ export type Database = {
           price: number
           product_name: string
           updated_at: string
+          workshop_id: string | null
         }
         Insert: {
           created_at?: string
@@ -329,6 +350,7 @@ export type Database = {
           price?: number
           product_name: string
           updated_at?: string
+          workshop_id?: string | null
         }
         Update: {
           created_at?: string
@@ -340,6 +362,7 @@ export type Database = {
           price?: number
           product_name?: string
           updated_at?: string
+          workshop_id?: string | null
         }
         Relationships: [
           {
@@ -347,6 +370,13 @@ export type Database = {
             columns: ["funnel_id"]
             isOneToOne: false
             referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -461,6 +491,7 @@ export type Database = {
       workshops: {
         Row: {
           ad_spend: number | null
+          amount: number | null
           created_at: string
           created_by: string
           current_participants: number | null
@@ -480,6 +511,7 @@ export type Database = {
         }
         Insert: {
           ad_spend?: number | null
+          amount?: number | null
           created_at?: string
           created_by: string
           current_participants?: number | null
@@ -499,6 +531,7 @@ export type Database = {
         }
         Update: {
           ad_spend?: number | null
+          amount?: number | null
           created_at?: string
           created_by?: string
           current_participants?: number | null
