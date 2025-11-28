@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -94,6 +94,19 @@ const Products = () => {
     },
   });
 
+  // Fetch lead assignments for user count
+  const { data: leadAssignments = [] } = useQuery({
+    queryKey: ["lead-assignments-products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lead_assignments")
+        .select("product_id");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Create product mutation
   const createMutation = useMutation({
     mutationFn: async (newProduct: typeof formData) => {
@@ -177,6 +190,33 @@ const Products = () => {
     const matchesFunnel = selectedFunnel === "all" || product.funnel_id === selectedFunnel;
     return matchesSearch && matchesFunnel;
   });
+
+  const getUserCount = (productId: string) => {
+    return leadAssignments.filter((assignment: any) => assignment.product_id === productId).length;
+  };
+
+  // Real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('products-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lead_assignments'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["lead-assignments-products"] });
+          queryClient.invalidateQueries({ queryKey: ["products"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const resetForm = () => {
     setFormData({
@@ -392,7 +432,7 @@ const Products = () => {
                     <TableHead>Product Name</TableHead>
                     <TableHead>Funnel</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
+                    <TableHead>Total Users</TableHead>
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -421,9 +461,7 @@ const Products = () => {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {product.description || "-"}
-                        </TableCell>
+                        <TableCell>{getUserCount(product.id)}</TableCell>
                         <TableCell className="text-right">
                           ₹{Number(product.price).toLocaleString("en-IN", {
                             minimumFractionDigits: 2,

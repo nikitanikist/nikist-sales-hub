@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -256,6 +256,28 @@ const Workshops = () => {
     const query = searchQuery.toLowerCase();
     return workshop.title.toLowerCase().includes(query);
   });
+
+  // Real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('workshops-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lead_assignments'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   return (
     <div className="space-y-6">

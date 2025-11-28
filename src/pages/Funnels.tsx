@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -147,6 +147,40 @@ const Funnels = () => {
   const getWorkshopCount = (funnelId: string) => {
     return workshops.filter((w: any) => w.funnel_id === funnelId).length;
   };
+
+  // Real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('funnels-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lead_assignments'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["funnels"] });
+          queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workshops'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const resetForm = () => {
     setFormData({ funnel_name: "", amount: "", total_leads: "0", workshop_id: "", product_id: "" });
@@ -321,7 +355,6 @@ const Funnels = () => {
                     <TableHead>Type</TableHead>
                     <TableHead>Total Workshops</TableHead>
                     <TableHead>Total Leads</TableHead>
-                    <TableHead>Amount</TableHead>
                     <TableHead>Created Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -329,7 +362,7 @@ const Funnels = () => {
                 <TableBody>
                   {filteredFunnels.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
                         No funnels found
                       </TableCell>
                     </TableRow>
@@ -350,7 +383,6 @@ const Funnels = () => {
                         </TableCell>
                         <TableCell>{getWorkshopCount(funnel.id)}</TableCell>
                         <TableCell>{funnel.total_leads}</TableCell>
-                        <TableCell>₹{Number(funnel.amount || 0).toLocaleString("en-IN")}</TableCell>
                         <TableCell>{funnel.created_at ? format(new Date(funnel.created_at), "MMM dd, yyyy") : "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
