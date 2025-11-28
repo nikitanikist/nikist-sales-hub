@@ -16,9 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface Funnel {
   id: string;
   funnel_name: string;
-  amount: number;
+  amount: number | null;
   total_leads: number;
-  created_at: string;
+  created_at: string | null;
   updated_at: string;
   created_by: string | null;
 }
@@ -170,8 +170,8 @@ const Funnels = () => {
     setEditingFunnel(funnel);
     setFormData({
       funnel_name: funnel.funnel_name,
-      amount: funnel.amount.toString(),
-      total_leads: funnel.total_leads.toString(),
+      amount: (funnel.amount ?? 0).toString(),
+      total_leads: (funnel.total_leads ?? 0).toString(),
       workshop_id: (funnel as any).workshop_id || "",
       product_id: (funnel as any).product_id || "",
     });
@@ -345,7 +345,7 @@ const Funnels = () => {
                         </TableCell>
                         <TableCell>{funnel.total_leads}</TableCell>
                         <TableCell>₹{Number(funnel.amount || 0).toLocaleString("en-IN")}</TableCell>
-                        <TableCell>{format(new Date(funnel.created_at), "MMM dd, yyyy")}</TableCell>
+                        <TableCell>{funnel.created_at ? format(new Date(funnel.created_at), "MMM dd, yyyy") : "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(funnel)}>
