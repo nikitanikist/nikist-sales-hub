@@ -57,7 +57,7 @@ const Products = () => {
         .from("products")
         .select(`
           *,
-          funnel:funnels(funnel_name)
+          funnel:funnels!products_funnel_id_fkey(funnel_name)
         `)
         .order("created_at", { ascending: false });
 
