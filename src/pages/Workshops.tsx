@@ -533,7 +533,7 @@ const Workshops = () => {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        {format(new Date(workshop.start_date), "MMM dd, yyyy")}
+                        {workshop.start_date ? format(new Date(workshop.start_date), "MMM dd, yyyy") : "N/A"}
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">{workshop.title}</TableCell>
