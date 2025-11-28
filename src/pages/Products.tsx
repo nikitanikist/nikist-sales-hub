@@ -46,6 +46,7 @@ const Products = () => {
     description: "",
     price: 0,
     is_active: true,
+    workshop_id: "",
   });
 
   // Fetch products with funnel details
@@ -76,6 +77,20 @@ const Products = () => {
 
       if (error) throw error;
       return data as Funnel[];
+    },
+  });
+
+  // Fetch workshops for linking
+  const { data: workshops = [] } = useQuery({
+    queryKey: ["workshops"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("workshops")
+        .select("id, title")
+        .order("title");
+
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -170,6 +185,7 @@ const Products = () => {
       description: "",
       price: 0,
       is_active: true,
+      workshop_id: "",
     });
     setEditingProduct(null);
   };
@@ -182,6 +198,7 @@ const Products = () => {
       description: product.description || "",
       price: product.price,
       is_active: product.is_active,
+      workshop_id: (product as any).workshop_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -328,6 +345,30 @@ const Products = () => {
                     />
                     <Label htmlFor="is_active">Active</Label>
                   </div>
+
+                  {editingProduct && (
+                    <div className="border-t pt-4 mt-4">
+                      <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
+                      <div className="space-y-2">
+                        <div>
+                          <Label htmlFor="workshop_link" className="text-xs">Link to Workshop</Label>
+                          <Select value={formData.workshop_id} onValueChange={(value) => setFormData({ ...formData, workshop_id: value })}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a workshop" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">None</SelectItem>
+                              {workshops.map((workshop: any) => (
+                                <SelectItem key={workshop.id} value={workshop.id}>
+                                  {workshop.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -350,6 +391,7 @@ const Products = () => {
                   <TableRow>
                     <TableHead>Product Name</TableHead>
                     <TableHead>Funnel</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead>Status</TableHead>
@@ -359,7 +401,7 @@ const Products = () => {
                 <TableBody>
                   {filteredProducts.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No products found
                       </TableCell>
                     </TableRow>
@@ -368,6 +410,17 @@ const Products = () => {
                       <TableRow key={product.id}>
                         <TableCell className="font-medium">{product.product_name}</TableCell>
                         <TableCell>{product.funnel?.funnel_name || "N/A"}</TableCell>
+                        <TableCell>
+                          {Number(product.price || 0) === 0 ? (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200">
+                              Free
+                            </Badge>
+                          ) : (
+                            <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200">
+                              Paid
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="max-w-xs truncate">
                           {product.description || "-"}
                         </TableCell>

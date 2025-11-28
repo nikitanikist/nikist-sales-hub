@@ -232,6 +232,7 @@ const Workshops = () => {
       location: formData.get("location"),
       max_participants: formData.get("max_participants") ? Number(formData.get("max_participants")) : null,
       ad_spend: formData.get("ad_spend") ? Number(formData.get("ad_spend")) : 0,
+      amount: formData.get("amount") ? Number(formData.get("amount")) : 0,
       lead_id:
         formData.get("lead_id") === "none" || formData.get("lead_id") === "" ? null : formData.get("lead_id"),
       funnel_id: formData.get("funnel_id") === "none" ? null : formData.get("funnel_id") || null,
@@ -335,16 +336,29 @@ const Workshops = () => {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ad_spend">Ad Spend (₹)</Label>
-                  <Input
-                    id="ad_spend"
-                    name="ad_spend"
-                    type="number"
-                    step="0.01"
-                    defaultValue={editingWorkshop?.ad_spend || 0}
-                    placeholder="0.00"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ad_spend">Ad Spend (₹)</Label>
+                    <Input
+                      id="ad_spend"
+                      name="ad_spend"
+                      type="number"
+                      step="0.01"
+                      defaultValue={editingWorkshop?.ad_spend || 0}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount (₹)</Label>
+                    <Input
+                      id="amount"
+                      name="amount"
+                      type="number"
+                      step="0.01"
+                      defaultValue={editingWorkshop?.amount || 0}
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -430,27 +444,27 @@ const Workshops = () => {
                  <div className="border-t pt-4 mt-4">
                    <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
                    <div className="flex flex-wrap gap-2">
-                     <Button
-                       type="button"
-                       variant="outline"
-                       size="sm"
-                       onClick={() => createFunnelMutation.mutate(editingWorkshop)}
-                       disabled={createFunnelMutation.isPending || editingWorkshop.funnel_id}
-                     >
-                       {editingWorkshop.funnel_id ? "Funnel Already Linked" : "Create Funnel from Workshop"}
-                     </Button>
-                     <Button
-                       type="button"
-                       variant="outline"
-                       size="sm"
-                       onClick={() => createProductMutation.mutate({ 
-                         workshopTitle: editingWorkshop.title, 
-                         funnelId: editingWorkshop.funnel_id 
-                       })}
-                       disabled={createProductMutation.isPending || !editingWorkshop.funnel_id || editingWorkshop.product_id}
-                     >
-                       {editingWorkshop.product_id ? "Product Already Linked" : "Create Product from Workshop"}
-                     </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => createFunnelMutation.mutate(editingWorkshop)}
+                        disabled={createFunnelMutation.isPending || editingWorkshop.funnel_id}
+                      >
+                        {editingWorkshop.funnel_id ? "Funnel Already Linked" : "Convert Workshop to Funnel"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => createProductMutation.mutate({ 
+                          workshopTitle: editingWorkshop.title, 
+                          funnelId: editingWorkshop.funnel_id 
+                        })}
+                        disabled={createProductMutation.isPending || !editingWorkshop.funnel_id || editingWorkshop.product_id}
+                      >
+                        {editingWorkshop.product_id ? "Product Already Linked" : "Convert Workshop to Product"}
+                      </Button>
                    </div>
                    {!editingWorkshop.funnel_id && (
                      <p className="text-xs text-muted-foreground mt-2">
@@ -505,6 +519,7 @@ const Workshops = () => {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Workshop Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead className="text-right">Total Registrations</TableHead>
                   <TableHead className="text-right">Ad Spend</TableHead>
                   <TableHead className="text-right">Number of Workshop Sales</TableHead>
@@ -522,6 +537,17 @@ const Workshops = () => {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">{workshop.title}</TableCell>
+                    <TableCell>
+                      {Number(workshop.amount || 0) === 0 ? (
+                        <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200">
+                          Free
+                        </Badge>
+                      ) : (
+                        <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200">
+                          Paid ₹{Number(workshop.amount).toLocaleString("en-IN")}
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       {workshop.current_participants || 0}
                     </TableCell>

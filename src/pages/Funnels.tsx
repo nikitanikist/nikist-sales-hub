@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Search, RefreshCw, Filter, Plus, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Funnel {
   id: string;
@@ -29,12 +31,14 @@ const Funnels = () => {
     funnel_name: "",
     amount: "",
     total_leads: "0",
+    workshop_id: "",
+    product_id: "",
   });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: funnels = [], refetch } = useQuery({
+  const { data: funnels = [], refetch, isLoading } = useQuery({
     queryKey: ["funnels"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -44,6 +48,35 @@ const Funnels = () => {
 
       if (error) throw error;
       return data as Funnel[];
+    },
+  });
+
+  // Fetch workshops for linking
+  const { data: workshops = [] } = useQuery({
+    queryKey: ["workshops"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("workshops")
+        .select("id, title")
+        .order("title");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch products for linking
+  const { data: products = [] } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, product_name, funnel_id")
+        .eq("is_active", true)
+        .order("product_name");
+
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -112,19 +145,21 @@ const Funnels = () => {
   );
 
   const resetForm = () => {
-    setFormData({ funnel_name: "", amount: "", total_leads: "0" });
+    setFormData({ funnel_name: "", amount: "", total_leads: "0", workshop_id: "", product_id: "" });
     setEditingFunnel(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const funnelData = {
+    const funnelData: any = {
       funnel_name: formData.funnel_name,
       amount: parseFloat(formData.amount),
       total_leads: parseInt(formData.total_leads),
     };
 
     if (editingFunnel) {
+      funnelData.workshop_id = formData.workshop_id || null;
+      funnelData.product_id = formData.product_id || null;
       updateMutation.mutate({ id: editingFunnel.id, ...funnelData });
     } else {
       createMutation.mutate(funnelData);
@@ -137,6 +172,8 @@ const Funnels = () => {
       funnel_name: funnel.funnel_name,
       amount: funnel.amount.toString(),
       total_leads: funnel.total_leads.toString(),
+      workshop_id: (funnel as any).workshop_id || "",
+      product_id: (funnel as any).product_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -215,6 +252,47 @@ const Funnels = () => {
                       required
                     />
                   </div>
+
+                  {editingFunnel && (
+                    <div className="border-t pt-4 mt-4">
+                      <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="workshop_link" className="text-xs">Link to Workshop</Label>
+                          <Select value={formData.workshop_id} onValueChange={(value) => setFormData({ ...formData, workshop_id: value })}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a workshop" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">None</SelectItem>
+                              {workshops.map((workshop: any) => (
+                                <SelectItem key={workshop.id} value={workshop.id}>
+                                  {workshop.title}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="product_link" className="text-xs">Link to Product</Label>
+                          <Select value={formData.product_id} onValueChange={(value) => setFormData({ ...formData, product_id: value })}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">None</SelectItem>
+                              {products.filter((p: any) => p.funnel_id === editingFunnel.id).map((product: any) => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.product_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <Button type="submit" className="flex-1">
                       {editingFunnel ? "Update" : "Create"}
@@ -228,47 +306,63 @@ const Funnels = () => {
             </Dialog>
           </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Funnel Name</TableHead>
-                  <TableHead>Total Leads</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Created Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredFunnels.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-8">Loading funnels...</div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No funnels found
-                    </TableCell>
+                    <TableHead>Funnel Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Total Leads</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Created Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredFunnels.map((funnel) => (
-                    <TableRow key={funnel.id}>
-                      <TableCell className="font-medium">{funnel.funnel_name}</TableCell>
-                      <TableCell>{funnel.total_leads}</TableCell>
-                      <TableCell>₹{funnel.amount.toLocaleString()}</TableCell>
-                      <TableCell>{format(new Date(funnel.created_at), "MMM dd, yyyy")}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(funnel)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(funnel.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredFunnels.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No funnels found
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ) : (
+                    filteredFunnels.map((funnel) => (
+                      <TableRow key={funnel.id}>
+                        <TableCell className="font-medium">{funnel.funnel_name}</TableCell>
+                        <TableCell>
+                          {Number(funnel.amount || 0) === 0 ? (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200">
+                              Free
+                            </Badge>
+                          ) : (
+                            <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200">
+                              Paid
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>{funnel.total_leads}</TableCell>
+                        <TableCell>₹{funnel.amount.toLocaleString("en-IN")}</TableCell>
+                        <TableCell>{format(new Date(funnel.created_at), "MMM dd, yyyy")}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(funnel)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(funnel.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
