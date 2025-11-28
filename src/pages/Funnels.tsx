@@ -57,7 +57,7 @@ const Funnels = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("workshops")
-        .select("id, title")
+        .select("id, title, funnel_id")
         .order("title");
 
       if (error) throw error;
@@ -143,6 +143,10 @@ const Funnels = () => {
   const filteredFunnels = funnels.filter((funnel) =>
     funnel.funnel_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const getWorkshopCount = (funnelId: string) => {
+    return workshops.filter((w: any) => w.funnel_id === funnelId).length;
+  };
 
   const resetForm = () => {
     setFormData({ funnel_name: "", amount: "", total_leads: "0", workshop_id: "", product_id: "" });
@@ -315,6 +319,7 @@ const Funnels = () => {
                   <TableRow>
                     <TableHead>Funnel Name</TableHead>
                     <TableHead>Type</TableHead>
+                    <TableHead>Total Workshops</TableHead>
                     <TableHead>Total Leads</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Created Date</TableHead>
@@ -324,7 +329,7 @@ const Funnels = () => {
                 <TableBody>
                   {filteredFunnels.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No funnels found
                       </TableCell>
                     </TableRow>
@@ -343,6 +348,7 @@ const Funnels = () => {
                             </Badge>
                           )}
                         </TableCell>
+                        <TableCell>{getWorkshopCount(funnel.id)}</TableCell>
                         <TableCell>{funnel.total_leads}</TableCell>
                         <TableCell>₹{Number(funnel.amount || 0).toLocaleString("en-IN")}</TableCell>
                         <TableCell>{funnel.created_at ? format(new Date(funnel.created_at), "MMM dd, yyyy") : "N/A"}</TableCell>
