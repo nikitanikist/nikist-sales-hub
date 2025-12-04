@@ -62,6 +62,36 @@ const reminderTypeLabels: Record<string, string> = {
   ten_minutes: "10 Min",
 };
 
+// Helper function to format time string (HH:MM:SS) to 12-hour format
+const formatTimeString = (timeStr: string): string => {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
+};
+
+// Helper function to format reminder time without timezone conversion
+const formatReminderDateTime = (isoString: string): string => {
+  // Extract date and time portions directly from the ISO string
+  const [datePart, timePart] = isoString.split('T');
+  const timeOnly = timePart?.split('+')[0]?.split('-')[0]?.substring(0, 5) || '';
+  
+  if (!timeOnly) return '';
+  
+  // Format date
+  const [year, month, day] = datePart.split('-').map(Number);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dateStr = `${day.toString().padStart(2, '0')} ${months[month - 1]}`;
+  
+  // Convert 24h to 12h format
+  const [hours, minutes] = timeOnly.split(':').map(Number);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const hour12 = hours % 12 || 12;
+  const timeStr = `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
+  
+  return `${dateStr}, ${timeStr}`;
+};
+
 const CloserAssignedCalls = () => {
   const { closerId } = useParams<{ closerId: string }>();
   const navigate = useNavigate();
@@ -334,7 +364,7 @@ const CloserAssignedCalls = () => {
                               </div>
                             </TableCell>
                             <TableCell>{format(new Date(apt.scheduled_date), "dd MMM yyyy")}</TableCell>
-                            <TableCell>{apt.scheduled_time}</TableCell>
+                            <TableCell>{formatTimeString(apt.scheduled_time)}</TableCell>
                             <TableCell>
                               <Badge className={statusColors[apt.status]}>{apt.status}</Badge>
                             </TableCell>
@@ -398,7 +428,7 @@ const CloserAssignedCalls = () => {
                                           </div>
                                           {reminder?.reminder_time && (
                                             <span className="text-muted-foreground text-[10px]">
-                                              {format(new Date(reminder.reminder_time), "dd MMM, hh:mm a")}
+                                              {formatReminderDateTime(reminder.reminder_time)}
                                             </span>
                                           )}
                                         </div>
