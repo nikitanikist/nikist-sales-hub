@@ -5,7 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, RefreshCw, Filter } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Search, RefreshCw, Filter, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CloserMetrics {
@@ -22,6 +24,9 @@ interface CloserMetrics {
 
 const SalesClosers = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({ full_name: "", email: "", phone: "" });
   const { toast } = useToast();
 
   const { data: closers, isLoading, refetch } = useQuery({
@@ -99,6 +104,50 @@ const SalesClosers = () => {
     });
   };
 
+  const handleAddCloser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.full_name.trim() || !formData.email.trim()) {
+      toast({
+        title: "Error",
+        description: "Name and email are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("add-closer", {
+        body: {
+          email: formData.email.trim(),
+          full_name: formData.full_name.trim(),
+          phone: formData.phone.trim() || null,
+          role: "sales_rep",
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Success",
+        description: `${formData.full_name} has been added as a closer`,
+      });
+      setFormData({ full_name: "", email: "", phone: "" });
+      setIsAddDialogOpen(false);
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add closer",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const filteredClosers = closers?.filter((closer) => {
     const query = searchQuery.toLowerCase();
     return (
@@ -110,11 +159,66 @@ const SalesClosers = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Sales Closers</h1>
-        <p className="text-muted-foreground mt-2">
-          View and manage sales team performance metrics
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Sales Closers</h1>
+          <p className="text-muted-foreground mt-2">
+            View and manage sales team performance metrics
+          </p>
+        </div>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Closer
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Closer</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleAddCloser} className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="full_name">Full Name *</Label>
+                <Input
+                  id="full_name"
+                  placeholder="Enter full name"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  placeholder="Enter phone number (optional)"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Adding..." : "Add Closer"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
