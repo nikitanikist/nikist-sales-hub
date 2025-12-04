@@ -298,7 +298,7 @@ const SalesClosers = () => {
                         <TableCell className="text-right">{closer.not_converted}</TableCell>
                         <TableCell className="text-right">{closer.rescheduled}</TableCell>
                         <TableCell className="text-right font-semibold">
-                          ₹{closer.earnings.toLocaleString("en-IN")}
+                          ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
                         </TableCell>
                       </TableRow>
                     ))
