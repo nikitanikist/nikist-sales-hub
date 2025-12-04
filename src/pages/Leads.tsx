@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,24 @@ const Leads = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  // Real-time subscription for leads and assignments
+  useEffect(() => {
+    const channel = supabase
+      .channel('leads-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+        queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_assignments' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { data: leadAssignments, isLoading: isLoadingAssignments } = useQuery({
     queryKey: ["lead-assignments"],
@@ -377,8 +395,12 @@ const Leads = () => {
     }
   });
 
-  // Paginate grouped assignments
-  const groupedAssignmentsArray = Object.values(groupedAssignments || {});
+  // Paginate grouped assignments - sort by newest first
+  const groupedAssignmentsArray = Object.values(groupedAssignments || {}).sort((a: any, b: any) => {
+    const dateA = new Date(a.lead?.created_at || 0).getTime();
+    const dateB = new Date(b.lead?.created_at || 0).getTime();
+    return dateB - dateA;
+  });
   const totalPages = Math.ceil(groupedAssignmentsArray.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
