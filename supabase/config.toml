@@ -2,3 +2,6 @@ project_id = "swnpxkovxhinxzprxviz"
 
 [functions.ingest-tagmango]
 verify_jwt = false
+
+[functions.add-closer]
+verify_jwt = false
