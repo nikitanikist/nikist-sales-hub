@@ -10,11 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2 } from "lucide-react";
+import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
+import { ScheduleCallDialog } from "@/components/ScheduleCallDialog";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-500",
@@ -37,6 +38,11 @@ const Leads = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  // Schedule Call Dialog State
+  const [scheduleCallOpen, setScheduleCallOpen] = useState(false);
+  const [selectedLeadForCall, setSelectedLeadForCall] = useState<any>(null);
+  const [selectedCloser, setSelectedCloser] = useState<any>(null);
 
   // Real-time subscription for leads and assignments
   useEffect(() => {
@@ -113,6 +119,28 @@ const Leads = () => {
 
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch sales closers (profiles with sales_rep or admin roles)
+  const { data: salesClosers } = useQuery({
+    queryKey: ["sales-closers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select(`
+          user_id,
+          role,
+          profile:profiles!user_roles_user_id_fkey(
+            id,
+            full_name,
+            email
+          )
+        `)
+        .in("role", ["sales_rep", "admin"]);
+
+      if (error) throw error;
+      return data?.map((r: any) => r.profile).filter(Boolean) || [];
     },
   });
 
@@ -524,22 +552,21 @@ const Leads = () => {
                               </DropdownMenuItem>
                               <DropdownMenuSub>
                                 <DropdownMenuSubTrigger className="cursor-pointer">
-                                  <Users className="mr-2 h-4 w-4" />
-                                  Assign affiliate
+                                  <Calendar className="mr-2 h-4 w-4" />
+                                  Schedule Call
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                                  {profiles?.map((profile) => (
+                                  {salesClosers?.map((closer: any) => (
                                     <DropdownMenuItem
-                                      key={profile.id}
+                                      key={closer.id}
                                       className="cursor-pointer"
                                       onClick={() => {
-                                        assignMutation.mutate({
-                                          leadId: lead.id,
-                                          assignedTo: profile.id,
-                                        });
+                                        setSelectedLeadForCall(lead);
+                                        setSelectedCloser(closer);
+                                        setScheduleCallOpen(true);
                                       }}
                                     >
-                                      {profile.full_name}
+                                      {closer.full_name}
                                     </DropdownMenuItem>
                                   ))}
                                 </DropdownMenuSubContent>
@@ -648,22 +675,21 @@ const Leads = () => {
                               </DropdownMenuItem>
                               <DropdownMenuSub>
                                 <DropdownMenuSubTrigger className="cursor-pointer">
-                                  <Users className="mr-2 h-4 w-4" />
-                                  Assign affiliate
+                                  <Calendar className="mr-2 h-4 w-4" />
+                                  Schedule Call
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                                  {profiles?.map((profile) => (
+                                  {salesClosers?.map((closer: any) => (
                                     <DropdownMenuItem
-                                      key={profile.id}
+                                      key={closer.id}
                                       className="cursor-pointer"
                                       onClick={() => {
-                                        assignMutation.mutate({
-                                          leadId: lead.id,
-                                          assignedTo: profile.id,
-                                        });
+                                        setSelectedLeadForCall(lead);
+                                        setSelectedCloser(closer);
+                                        setScheduleCallOpen(true);
                                       }}
                                     >
-                                      {profile.full_name}
+                                      {closer.full_name}
                                     </DropdownMenuItem>
                                   ))}
                                 </DropdownMenuSubContent>
@@ -916,6 +942,14 @@ const Leads = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Schedule Call Dialog */}
+      <ScheduleCallDialog
+        open={scheduleCallOpen}
+        onOpenChange={setScheduleCallOpen}
+        lead={selectedLeadForCall}
+        closer={selectedCloser}
+      />
     </div>
   );
 };
