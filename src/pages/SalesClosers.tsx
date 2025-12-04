@@ -77,6 +77,7 @@ const SalesClosers = () => {
 
           const assigned = assignedCount || 0;
           const converted = convertedCount || 0;
+          const rescheduled = rescheduledCount || 0;
 
           return {
             id: profile.id,
@@ -85,8 +86,8 @@ const SalesClosers = () => {
             phone: profile.phone,
             assigned,
             converted,
-            not_converted: assigned - converted,
-            rescheduled: rescheduledCount,
+            not_converted: Math.max(0, assigned - converted),
+            rescheduled,
             earnings,
           };
         })
