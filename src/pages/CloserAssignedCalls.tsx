@@ -40,6 +40,7 @@ interface Appointment {
     reminder_type: string;
     status: ReminderStatus | null;
     sent_at: string | null;
+    reminder_time: string;
   }[];
 }
 
@@ -126,7 +127,7 @@ const CloserAssignedCalls = () => {
         (data || []).map(async (apt) => {
           const { data: reminders } = await supabase
             .from("call_reminders")
-            .select("reminder_type, status, sent_at")
+            .select("reminder_type, status, sent_at, reminder_time")
             .eq("appointment_id", apt.id);
 
           return {
@@ -389,10 +390,17 @@ const CloserAssignedCalls = () => {
                                       return (
                                         <div
                                           key={type}
-                                          className="flex items-center gap-1 px-2 py-1 bg-background rounded border text-xs"
+                                          className="flex flex-col items-center gap-1 px-3 py-2 bg-background rounded border text-xs"
                                         >
-                                          {reminder ? getReminderIcon(reminder.status) : <AlertCircle className="h-4 w-4 text-gray-400" />}
-                                          <span>{reminderTypeLabels[type]}</span>
+                                          <div className="flex items-center gap-1">
+                                            {reminder ? getReminderIcon(reminder.status) : <AlertCircle className="h-4 w-4 text-gray-400" />}
+                                            <span>{reminderTypeLabels[type]}</span>
+                                          </div>
+                                          {reminder?.reminder_time && (
+                                            <span className="text-muted-foreground text-[10px]">
+                                              {format(new Date(reminder.reminder_time), "dd MMM, hh:mm a")}
+                                            </span>
+                                          )}
                                         </div>
                                       );
                                     })}
