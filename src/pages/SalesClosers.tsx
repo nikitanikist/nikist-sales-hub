@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Search, RefreshCw, Filter, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import AssignedLeadsDrawer from "@/components/AssignedLeadsDrawer";
 
 interface CloserMetrics {
   id: string;
@@ -28,14 +28,7 @@ const SalesClosers = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ full_name: "", email: "", phone: "" });
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedCloser, setSelectedCloser] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
-
-  const handleOpenDrawer = (closerId: string, closerName: string) => {
-    setSelectedCloser({ id: closerId, name: closerName });
-    setDrawerOpen(true);
-  };
 
   const { data: closers, isLoading, refetch } = useQuery({
     queryKey: ["sales-closers"],
@@ -287,12 +280,12 @@ const SalesClosers = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <button
-                            onClick={() => handleOpenDrawer(closer.id, closer.full_name)}
-                            className="font-medium text-primary hover:underline cursor-pointer"
+                          <Link
+                            to={`/sales-closers/${closer.id}/calls`}
+                            className="font-medium text-primary hover:underline"
                           >
                             {closer.assigned}
-                          </button>
+                          </Link>
                         </TableCell>
                         <TableCell className="text-right">{closer.converted}</TableCell>
                         <TableCell className="text-right">{closer.not_converted}</TableCell>
@@ -315,18 +308,6 @@ const SalesClosers = () => {
           )}
         </CardContent>
       </Card>
-
-      {selectedCloser && (
-        <AssignedLeadsDrawer
-          isOpen={drawerOpen}
-          onClose={() => {
-            setDrawerOpen(false);
-            setSelectedCloser(null);
-          }}
-          closerId={selectedCloser.id}
-          closerName={selectedCloser.name}
-        />
-      )}
     </div>
   );
 };

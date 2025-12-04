@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import SalesClosers from "./pages/SalesClosers";
+import CloserAssignedCalls from "./pages/CloserAssignedCalls";
 import Workshops from "./pages/Workshops";
 import Sales from "./pages/Sales";
 import Funnels from "./pages/Funnels";
@@ -32,6 +33,7 @@ const App = () => (
               <Route path="/leads" element={<Leads />} />
               <Route path="/calls" element={<Calls />} />
               <Route path="/sales-closers" element={<SalesClosers />} />
+              <Route path="/sales-closers/:closerId/calls" element={<CloserAssignedCalls />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />
