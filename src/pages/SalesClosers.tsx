@@ -63,9 +63,12 @@ const SalesClosers = () => {
           // Calculate total earnings
           const earnings = sales?.reduce((sum, sale) => sum + Number(sale.amount || 0), 0) || 0;
 
-          // TODO: Add rescheduled status tracking when enum is updated
-          // For now, set rescheduled to 0
-          const rescheduledCount = 0;
+          // Count rescheduled calls
+          const { count: rescheduledCount } = await supabase
+            .from("call_appointments")
+            .select("*", { count: "exact", head: true })
+            .eq("closer_id", profile.id)
+            .eq("status", "rescheduled");
 
           const assigned = assignedCount || 0;
           const converted = convertedCount || 0;
@@ -175,7 +178,7 @@ const SalesClosers = () => {
                         <TableCell className="text-right">{closer.not_converted}</TableCell>
                         <TableCell className="text-right">{closer.rescheduled}</TableCell>
                         <TableCell className="text-right font-semibold">
-                          ${closer.earnings.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{closer.earnings.toLocaleString("en-IN")}
                         </TableCell>
                       </TableRow>
                     ))
