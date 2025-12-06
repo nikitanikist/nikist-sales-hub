@@ -38,6 +38,19 @@ const Funnels = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch lead assignments for counting leads per funnel
+  const { data: leadAssignments = [] } = useQuery({
+    queryKey: ["lead_assignments"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lead_assignments")
+        .select("funnel_id, product_id, workshop_id, lead_id");
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: funnels = [], refetch, isLoading } = useQuery({
     queryKey: ["funnels"],
     queryFn: async () => {
@@ -148,6 +161,20 @@ const Funnels = () => {
     return workshops.filter((w: any) => w.funnel_id === funnelId).length;
   };
 
+  const getProductCount = (funnelId: string) => {
+    return products.filter((p: any) => p.funnel_id === funnelId).length;
+  };
+
+  const getLeadCount = (funnelId: string) => {
+    // Count unique leads assigned to this funnel
+    const uniqueLeads = new Set(
+      leadAssignments
+        .filter((la: any) => la.funnel_id === funnelId)
+        .map((la: any) => la.lead_id)
+    );
+    return uniqueLeads.size;
+  };
+
   // Real-time updates
   useEffect(() => {
     const channel = supabase
@@ -162,6 +189,7 @@ const Funnels = () => {
         () => {
           queryClient.invalidateQueries({ queryKey: ["funnels"] });
           queryClient.invalidateQueries({ queryKey: ["workshops"] });
+          queryClient.invalidateQueries({ queryKey: ["lead_assignments"] });
         }
       )
       .on(
@@ -173,6 +201,17 @@ const Funnels = () => {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["products"] });
         }
       )
       .subscribe();
@@ -354,6 +393,7 @@ const Funnels = () => {
                     <TableHead>Funnel Name</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Total Workshops</TableHead>
+                    <TableHead>Total Products</TableHead>
                     <TableHead>Total Leads</TableHead>
                     <TableHead>Created Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -362,7 +402,7 @@ const Funnels = () => {
                 <TableBody>
                   {filteredFunnels.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No funnels found
                       </TableCell>
                     </TableRow>
@@ -382,7 +422,8 @@ const Funnels = () => {
                           )}
                         </TableCell>
                         <TableCell>{getWorkshopCount(funnel.id)}</TableCell>
-                        <TableCell>{funnel.total_leads}</TableCell>
+                        <TableCell>{getProductCount(funnel.id)}</TableCell>
+                        <TableCell>{getLeadCount(funnel.id)}</TableCell>
                         <TableCell>{funnel.created_at ? format(new Date(funnel.created_at), "MMM dd, yyyy") : "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
