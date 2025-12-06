@@ -17,6 +17,8 @@ export type Database = {
       call_appointments: {
         Row: {
           additional_comments: string | null
+          calendly_event_uri: string | null
+          calendly_invitee_uri: string | null
           cash_received: number | null
           closer_id: string
           closer_remarks: string | null
@@ -30,9 +32,12 @@ export type Database = {
           scheduled_time: string
           status: Database["public"]["Enums"]["call_status"]
           updated_at: string
+          zoom_link: string | null
         }
         Insert: {
           additional_comments?: string | null
+          calendly_event_uri?: string | null
+          calendly_invitee_uri?: string | null
           cash_received?: number | null
           closer_id: string
           closer_remarks?: string | null
@@ -46,9 +51,12 @@ export type Database = {
           scheduled_time: string
           status?: Database["public"]["Enums"]["call_status"]
           updated_at?: string
+          zoom_link?: string | null
         }
         Update: {
           additional_comments?: string | null
+          calendly_event_uri?: string | null
+          calendly_invitee_uri?: string | null
           cash_received?: number | null
           closer_id?: string
           closer_remarks?: string | null
@@ -62,6 +70,7 @@ export type Database = {
           scheduled_time?: string
           status?: Database["public"]["Enums"]["call_status"]
           updated_at?: string
+          zoom_link?: string | null
         }
         Relationships: [
           {
@@ -625,6 +634,8 @@ export type Database = {
         | "one_hour"
         | "thirty_minutes"
         | "ten_minutes"
+        | "call_booked"
+        | "we_are_live"
       workshop_status: "planned" | "confirmed" | "completed" | "cancelled"
     }
     CompositeTypes: {
@@ -778,6 +789,8 @@ export const Constants = {
         "one_hour",
         "thirty_minutes",
         "ten_minutes",
+        "call_booked",
+        "we_are_live",
       ],
       workshop_status: ["planned", "confirmed", "completed", "cancelled"],
     },

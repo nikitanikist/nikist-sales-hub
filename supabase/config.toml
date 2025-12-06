@@ -5,3 +5,12 @@ verify_jwt = false
 
 [functions.add-closer]
 verify_jwt = false
+
+[functions.schedule-calendly-call]
+verify_jwt = false
+
+[functions.send-whatsapp-reminder]
+verify_jwt = false
+
+[functions.process-due-reminders]
+verify_jwt = false

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, Mail, User } from "lucide-react";
+import { CalendarIcon, Phone, Mail, User, Video } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+
+// Dipanshu's email for Calendly integration
+const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
 
 interface ScheduleCallDialogProps {
   open: boolean;
@@ -41,39 +44,50 @@ export const ScheduleCallDialog = ({
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
+  // Check if this is Dipanshu (for showing Calendly indicator)
+  const isDipanshu = closer?.email?.toLowerCase() === DIPANSHU_EMAIL.toLowerCase();
+
   const scheduleCallMutation = useMutation({
     mutationFn: async () => {
       if (!lead || !closer || !selectedDate) {
         throw new Error("Missing required fields");
       }
 
-      // First, assign the lead to the closer
-      const { error: assignError } = await supabase
-        .from("leads")
-        .update({ assigned_to: closer.id })
-        .eq("id", lead.id);
+      const scheduledDate = format(selectedDate, "yyyy-MM-dd");
 
-      if (assignError) throw assignError;
-
-      // Create the call appointment
-      const { error: appointmentError } = await supabase
-        .from("call_appointments")
-        .insert({
+      // Call the edge function to handle scheduling (with Calendly for Dipanshu)
+      const { data, error } = await supabase.functions.invoke("schedule-calendly-call", {
+        body: {
           lead_id: lead.id,
           closer_id: closer.id,
-          scheduled_date: format(selectedDate, "yyyy-MM-dd"),
+          scheduled_date: scheduledDate,
           scheduled_time: selectedTime,
-          status: "scheduled",
-          created_by: user?.id,
-        });
+          user_id: user?.id,
+        },
+      });
 
-      if (appointmentError) throw appointmentError;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["all-leads"] });
       queryClient.invalidateQueries({ queryKey: ["call-appointments"] });
-      toast.success(`Call scheduled with ${closer?.full_name} for ${lead?.contact_name}`);
+      
+      if (data?.calendly && data?.zoom_link) {
+        toast.success(`Call scheduled with ${closer?.full_name}. Calendly booking created with Zoom link!`);
+      } else if (data?.calendly) {
+        toast.success(`Call scheduled with ${closer?.full_name}. Calendly booking created.`);
+      } else {
+        toast.success(`Call scheduled with ${closer?.full_name} for ${lead?.contact_name}`);
+      }
+      
+      if (data?.whatsapp_sent) {
+        toast.info("WhatsApp booking confirmation sent to customer!");
+      }
+      
       onOpenChange(false);
       // Reset form
       setSelectedDate(new Date());
@@ -119,8 +133,14 @@ export const ScheduleCallDialog = ({
             {/* Assigned Closer */}
             <div className="space-y-2">
               <Label>Assigned Closer</Label>
-              <div className="p-2 bg-primary/10 rounded-md text-sm font-medium">
-                {closer?.full_name}
+              <div className="p-2 bg-primary/10 rounded-md text-sm font-medium flex items-center justify-between">
+                <span>{closer?.full_name}</span>
+                {isDipanshu && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground bg-background px-2 py-1 rounded">
+                    <Video className="h-3 w-3" />
+                    Calendly + WhatsApp
+                  </span>
+                )}
               </div>
             </div>
 
