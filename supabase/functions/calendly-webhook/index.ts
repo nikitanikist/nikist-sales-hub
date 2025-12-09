@@ -102,17 +102,21 @@ serve(async (req) => {
     const closerId = dipanshuProfile.id;
     console.log('Dipanshu closer ID:', closerId);
 
-    // Step 2: Find or create lead by email
-    let { data: lead, error: leadError } = await supabase
+    // Step 2: Find or create lead by email (handle duplicates - pick most recent)
+    let { data: leads, error: leadError } = await supabase
       .from('leads')
       .select('*')
       .eq('email', customerEmail)
-      .maybeSingle();
+      .order('created_at', { ascending: false })
+      .limit(1);
 
     if (leadError) {
       console.error('Lead lookup error:', leadError);
       throw leadError;
     }
+
+    let lead = leads?.[0] || null;
+    console.log('Lead lookup result:', lead ? `Found lead ${lead.id} (${lead.workshop_name || 'no workshop'})` : 'No existing lead');
 
     if (!lead) {
       // Create new lead
