@@ -74,7 +74,7 @@ const SalesClosers = () => {
             .from("call_appointments")
             .select("*", { count: "exact", head: true })
             .eq("closer_id", profile.id)
-            .eq("status", "rescheduled");
+            .eq("status", "reschedule");
 
           const assigned = assignedCount || 0;
           const converted = convertedCount || 0;

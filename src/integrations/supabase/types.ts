@@ -614,10 +614,16 @@ export type Database = {
       app_role: "admin" | "sales_rep" | "viewer"
       call_status:
         | "scheduled"
-        | "rescheduled"
-        | "completed"
-        | "cancelled"
-        | "no_show"
+        | "converted_beginner"
+        | "converted_intermediate"
+        | "converted_advance"
+        | "booking_amount"
+        | "not_converted"
+        | "not_decided"
+        | "so_so"
+        | "reschedule"
+        | "pending"
+        | "refunded"
       lead_status:
         | "new"
         | "contacted"
@@ -767,10 +773,16 @@ export const Constants = {
       app_role: ["admin", "sales_rep", "viewer"],
       call_status: [
         "scheduled",
-        "rescheduled",
-        "completed",
-        "cancelled",
-        "no_show",
+        "converted_beginner",
+        "converted_intermediate",
+        "converted_advance",
+        "booking_amount",
+        "not_converted",
+        "not_decided",
+        "so_so",
+        "reschedule",
+        "pending",
+        "refunded",
       ],
       lead_status: [
         "new",

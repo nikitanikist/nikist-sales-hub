@@ -46,10 +46,30 @@ interface Appointment {
 
 const statusColors: Record<CallStatus, string> = {
   scheduled: "bg-blue-100 text-blue-800 border-blue-200",
-  completed: "bg-green-100 text-green-800 border-green-200",
-  rescheduled: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  cancelled: "bg-red-100 text-red-800 border-red-200",
-  no_show: "bg-gray-100 text-gray-800 border-gray-200",
+  converted_beginner: "bg-green-100 text-green-800 border-green-200",
+  converted_intermediate: "bg-green-200 text-green-900 border-green-300",
+  converted_advance: "bg-emerald-200 text-emerald-900 border-emerald-300",
+  booking_amount: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  not_converted: "bg-red-100 text-red-800 border-red-200",
+  not_decided: "bg-orange-100 text-orange-800 border-orange-200",
+  so_so: "bg-amber-100 text-amber-800 border-amber-200",
+  reschedule: "bg-purple-100 text-purple-800 border-purple-200",
+  pending: "bg-gray-100 text-gray-800 border-gray-200",
+  refunded: "bg-rose-100 text-rose-800 border-rose-200",
+};
+
+const statusLabels: Record<CallStatus, string> = {
+  scheduled: "Scheduled",
+  converted_beginner: "Converted (Beginner)",
+  converted_intermediate: "Converted (Intermediate)",
+  converted_advance: "Converted (Advance)",
+  booking_amount: "Booking Amount",
+  not_converted: "Not Converted",
+  not_decided: "Not Decided",
+  so_so: "So-So",
+  reschedule: "Reschedule",
+  pending: "Pending",
+  refunded: "Refunded",
 };
 
 const reminderTypeOrder = ["two_days", "one_day", "three_hours", "one_hour", "thirty_minutes", "ten_minutes"];
@@ -299,16 +319,22 @@ const CloserAssignedCalls = () => {
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectTrigger className="w-full sm:w-[220px]">
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="scheduled">Scheduled</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="rescheduled">Rescheduled</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="no_show">No Show</SelectItem>
+                <SelectItem value="converted_beginner">Converted (Beginner)</SelectItem>
+                <SelectItem value="converted_intermediate">Converted (Intermediate)</SelectItem>
+                <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
+                <SelectItem value="booking_amount">Booking Amount</SelectItem>
+                <SelectItem value="not_converted">Not Converted</SelectItem>
+                <SelectItem value="not_decided">Not Decided</SelectItem>
+                <SelectItem value="so_so">So-So</SelectItem>
+                <SelectItem value="reschedule">Reschedule</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="refunded">Refunded</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -366,7 +392,7 @@ const CloserAssignedCalls = () => {
                             <TableCell>{format(new Date(apt.scheduled_date), "dd MMM yyyy")}</TableCell>
                             <TableCell>{formatTimeString(apt.scheduled_time)}</TableCell>
                             <TableCell>
-                              <Badge className={statusColors[apt.status]}>{apt.status}</Badge>
+                              <Badge className={statusColors[apt.status]}>{statusLabels[apt.status]}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               ₹{(apt.offer_amount || 0).toLocaleString("en-IN")}
@@ -457,10 +483,16 @@ const CloserAssignedCalls = () => {
                                             </SelectTrigger>
                                             <SelectContent>
                                               <SelectItem value="scheduled">Scheduled</SelectItem>
-                                              <SelectItem value="completed">Completed</SelectItem>
-                                              <SelectItem value="rescheduled">Rescheduled</SelectItem>
-                                              <SelectItem value="cancelled">Cancelled</SelectItem>
-                                              <SelectItem value="no_show">No Show</SelectItem>
+                                              <SelectItem value="converted_beginner">Converted (Beginner)</SelectItem>
+                                              <SelectItem value="converted_intermediate">Converted (Intermediate)</SelectItem>
+                                              <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
+                                              <SelectItem value="booking_amount">Booking Amount</SelectItem>
+                                              <SelectItem value="not_converted">Not Converted</SelectItem>
+                                              <SelectItem value="not_decided">Not Decided</SelectItem>
+                                              <SelectItem value="so_so">So-So</SelectItem>
+                                              <SelectItem value="reschedule">Reschedule</SelectItem>
+                                              <SelectItem value="pending">Pending</SelectItem>
+                                              <SelectItem value="refunded">Refunded</SelectItem>
                                             </SelectContent>
                                           </Select>
                                         </div>
