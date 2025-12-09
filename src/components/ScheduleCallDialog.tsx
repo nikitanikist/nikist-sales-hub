@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, Mail, User, Video } from "lucide-react";
+import { CalendarIcon, Phone, Mail, User, Video, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Dipanshu's email for Calendly integration
+// Dipanshu's configuration for Calendly webhook integration
 const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
+const DIPANSHU_CALENDLY_URL = "https://calendly.com/nikist/1-1-call-with-dipanshu-malasi-clone";
 
 interface ScheduleCallDialogProps {
   open: boolean;
@@ -144,49 +146,72 @@ export const ScheduleCallDialog = ({
               </div>
             </div>
 
-            {/* Date Picker */}
-            <div className="space-y-2">
-              <Label>Call Date</Label>
-              <Popover open={showCalendar} onOpenChange={setShowCalendar}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !selectedDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => {
-                      setSelectedDate(date);
-                      setShowCalendar(false);
-                    }}
-                    initialFocus
-                    className="pointer-events-auto"
-                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+            {/* Dipanshu: Show Calendly booking message instead of date/time pickers */}
+            {isDipanshu ? (
+              <div className="space-y-4">
+                <Alert className="bg-blue-500/10 border-blue-500/30">
+                  <Video className="h-4 w-4 text-blue-500" />
+                  <AlertDescription className="text-sm">
+                    For Dipanshu, please book calls directly in Calendly. The booking will sync automatically to this CRM with Zoom link and WhatsApp reminders.
+                  </AlertDescription>
+                </Alert>
+                
+                <Button
+                  type="button"
+                  className="w-full"
+                  onClick={() => window.open(DIPANSHU_CALENDLY_URL, '_blank')}
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Open Calendly to Book Call
+                </Button>
+              </div>
+            ) : (
+              <>
+                {/* Date Picker */}
+                <div className="space-y-2">
+                  <Label>Call Date</Label>
+                  <Popover open={showCalendar} onOpenChange={setShowCalendar}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !selectedDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {selectedDate ? format(selectedDate, "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          setSelectedDate(date);
+                          setShowCalendar(false);
+                        }}
+                        initialFocus
+                        className="pointer-events-auto"
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-            {/* Time Picker */}
-            <div className="space-y-2">
-              <Label htmlFor="call-time">Call Time</Label>
-              <Input
-                id="call-time"
-                type="time"
-                value={selectedTime}
-                onChange={(e) => setSelectedTime(e.target.value)}
-                required
-              />
-            </div>
+                {/* Time Picker */}
+                <div className="space-y-2">
+                  <Label htmlFor="call-time">Call Time</Label>
+                  <Input
+                    id="call-time"
+                    type="time"
+                    value={selectedTime}
+                    onChange={(e) => setSelectedTime(e.target.value)}
+                    required
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <DialogFooter>
@@ -197,12 +222,14 @@ export const ScheduleCallDialog = ({
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={scheduleCallMutation.isPending || !selectedDate}
-            >
-              {scheduleCallMutation.isPending ? "Scheduling..." : "Schedule Call"}
-            </Button>
+            {!isDipanshu && (
+              <Button
+                type="submit"
+                disabled={scheduleCallMutation.isPending || !selectedDate}
+              >
+                {scheduleCallMutation.isPending ? "Scheduling..." : "Schedule Call"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
