@@ -37,7 +37,7 @@ serve(async (req) => {
         reminder_time,
         appointment:call_appointments(
           id,
-          closer:profiles(email)
+          closer:profiles!call_appointments_closer_id_fkey(email)
         )
       `)
       .eq('status', 'pending')
