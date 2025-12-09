@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.setup-calendly-webhook]
 verify_jwt = false
+
+[functions.send-workshop-confirmation-test]
+verify_jwt = false
