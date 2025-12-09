@@ -277,6 +277,7 @@ export type Database = {
           created_by: string | null
           email: string
           id: string
+          mango_id: string | null
           notes: string | null
           phone: string | null
           source: string | null
@@ -294,6 +295,7 @@ export type Database = {
           created_by?: string | null
           email: string
           id?: string
+          mango_id?: string | null
           notes?: string | null
           phone?: string | null
           source?: string | null
@@ -311,6 +313,7 @@ export type Database = {
           created_by?: string | null
           email?: string
           id?: string
+          mango_id?: string | null
           notes?: string | null
           phone?: string | null
           source?: string | null

@@ -11,6 +11,7 @@ interface PabblyPayload {
   phone: string | number;
   workshop_name: string;
   amount: number;
+  'Mango Id'?: string;
 }
 
 Deno.serve(async (req) => {
@@ -96,6 +97,7 @@ Deno.serve(async (req) => {
       notes: `Lead created via Pabbly webhook at ${new Date().toISOString()}`,
       created_by: null, // External lead, no user_id
       assigned_to: null, // Not assigned yet
+      mango_id: payload['Mango Id'] || null,
     };
 
     console.log('Inserting lead data:', JSON.stringify(leadData, null, 2));
