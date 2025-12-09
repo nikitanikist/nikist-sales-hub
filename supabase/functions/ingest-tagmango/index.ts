@@ -12,7 +12,11 @@ interface PabblyPayload {
   workshop_name: string;
   amount: number;
   'Mango Id'?: string;
+  'country code'?: string;
 }
+
+// Target Mango ID for sending WhatsApp confirmations
+const TARGET_MANGO_ID = '689b7b7e37ddd15a781ec63b';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -84,13 +88,60 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    const normalizedEmail = payload.email.trim().toLowerCase();
+    const normalizedWorkshopName = payload.workshop_name.trim();
+
+    // Check for duplicate lead (same email + workshop_name)
+    const { data: existingLead, error: duplicateCheckError } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .eq('workshop_name', normalizedWorkshopName)
+      .maybeSingle();
+
+    if (duplicateCheckError) {
+      console.error('Error checking for duplicate lead:', duplicateCheckError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Duplicate check error', 
+          details: duplicateCheckError.message 
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    if (existingLead) {
+      console.log('Duplicate lead detected for email:', normalizedEmail, 'and workshop:', normalizedWorkshopName);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Lead already exists for this workshop',
+          lead_id: existingLead.id,
+          is_duplicate: true
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Format country code - strip + if present, default to 91 for India
+    let countryCode = '91';
+    if (payload['country code']) {
+      countryCode = String(payload['country code']).replace('+', '').trim();
+    }
+
     // Map Pabbly fields to database columns
     const leadData = {
       contact_name: payload.name.trim(),
-      email: payload.email.trim().toLowerCase(),
+      email: normalizedEmail,
       phone: phoneValue.trim(),
-      workshop_name: payload.workshop_name.trim(),
-      company_name: payload.workshop_name.trim(), // Using workshop name as company name
+      workshop_name: normalizedWorkshopName,
+      company_name: normalizedWorkshopName, // Using workshop name as company name
       value: payload.amount,
       source: 'tagmango',
       status: 'new',
@@ -98,6 +149,7 @@ Deno.serve(async (req) => {
       created_by: null, // External lead, no user_id
       assigned_to: null, // Not assigned yet
       mango_id: payload['Mango Id'] || null,
+      country: countryCode, // Store country code
     };
 
     console.log('Inserting lead data:', JSON.stringify(leadData, null, 2));
@@ -129,7 +181,7 @@ Deno.serve(async (req) => {
     const { data: existingWorkshop, error: workshopCheckError } = await supabase
       .from('workshops')
       .select('id')
-      .ilike('title', payload.workshop_name.trim())
+      .ilike('title', normalizedWorkshopName)
       .maybeSingle();
 
     if (workshopCheckError) {
@@ -155,7 +207,7 @@ Deno.serve(async (req) => {
     } else {
       // Create new workshop
       const newWorkshopData = {
-        title: payload.workshop_name.trim(),
+        title: normalizedWorkshopName,
         start_date: new Date().toISOString(),
         end_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // +1 day
         status: 'planned',
@@ -217,6 +269,73 @@ Deno.serve(async (req) => {
     }
 
     console.log('Lead assignment created successfully');
+
+    // Send WhatsApp confirmation if Mango ID matches target
+    if (payload['Mango Id'] === TARGET_MANGO_ID) {
+      console.log('Mango ID matches target, sending WhatsApp confirmation...');
+      
+      try {
+        // Extract date from workshop name (after "<>")
+        let workshopDate = '';
+        let workshopTitle = normalizedWorkshopName;
+        
+        if (normalizedWorkshopName.includes('<>')) {
+          const parts = normalizedWorkshopName.split('<>');
+          workshopTitle = parts[0].trim();
+          workshopDate = parts[1]?.trim() || '';
+        }
+
+        // Format phone with country code
+        const formattedPhone = `${countryCode}${phoneValue.trim()}`;
+        
+        const AISENSY_FREE_API_KEY = Deno.env.get('AISENSY_FREE_API_KEY');
+        const AISENSY_FREE_SOURCE = Deno.env.get('AISENSY_FREE_SOURCE');
+
+        if (!AISENSY_FREE_API_KEY || !AISENSY_FREE_SOURCE) {
+          console.error('Missing AiSensy FREE configuration');
+        } else {
+          const whatsappPayload = {
+            apiKey: AISENSY_FREE_API_KEY,
+            campaignName: 'class_registration_confirmation_copy',
+            destination: formattedPhone,
+            userName: payload.name.trim(),
+            templateParams: [
+              payload.name.trim(),           // Variable 1: Name
+              workshopTitle,                  // Variable 2: Workshop name
+              workshopDate,                   // Variable 3: Date (e.g., "11th December")
+              '7 PM',                         // Variable 4: Time
+              'https://nikist.in/registrartionsuccessful'  // Variable 5: URL
+            ],
+            source: AISENSY_FREE_SOURCE,
+            buttons: []
+          };
+
+          console.log('Sending WhatsApp confirmation:', JSON.stringify(whatsappPayload, null, 2));
+
+          const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(whatsappPayload),
+          });
+
+          const whatsappResult = await whatsappResponse.text();
+          console.log('WhatsApp API response:', whatsappResponse.status, whatsappResult);
+
+          if (!whatsappResponse.ok) {
+            console.error('WhatsApp API error:', whatsappResult);
+          } else {
+            console.log('WhatsApp confirmation sent successfully');
+          }
+        }
+      } catch (whatsappError) {
+        console.error('Error sending WhatsApp confirmation:', whatsappError);
+        // Don't fail the whole request if WhatsApp fails
+      }
+    } else {
+      console.log('Mango ID does not match target, skipping WhatsApp confirmation');
+    }
 
     return new Response(
       JSON.stringify({ 
