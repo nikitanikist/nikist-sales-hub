@@ -442,6 +442,55 @@ Deno.serve(async (req) => {
         console.error('Error sending YouTube WhatsApp confirmation:', whatsappError);
       }
 
+      // Send data to YouTube Google Sheet (for ALL registrations including duplicates)
+      try {
+        const GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL = Deno.env.get('GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL');
+        
+        if (!GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL) {
+          console.error('Missing GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL configuration');
+        } else {
+          const registrationDate = new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+
+          const sheetPayload = {
+            name: payload.name.trim(),
+            email: normalizedEmail,
+            countryCode: countryCode,
+            phone: phoneValue.trim(),
+            service: normalizedWorkshopName,
+            registrationDate: registrationDate
+          };
+
+          console.log('Sending data to YouTube Google Sheet:', JSON.stringify(sheetPayload, null, 2));
+
+          const sheetResponse = await fetch(GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(sheetPayload),
+          });
+
+          const sheetResult = await sheetResponse.text();
+          console.log('YouTube Google Sheet API response:', sheetResponse.status, sheetResult);
+
+          if (!sheetResponse.ok) {
+            console.error('YouTube Google Sheet API error:', sheetResult);
+          } else {
+            console.log('YouTube Google Sheet entry added successfully');
+          }
+        }
+      } catch (sheetError) {
+        console.error('Error adding to YouTube Google Sheet:', sheetError);
+      }
+
     } else {
       console.log('Mango ID does not match any target, skipping WhatsApp confirmation');
     }
