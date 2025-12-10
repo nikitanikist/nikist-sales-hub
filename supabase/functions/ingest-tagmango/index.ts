@@ -15,8 +15,9 @@ interface PabblyPayload {
   'country code'?: string;
 }
 
-// Target Mango ID for sending WhatsApp confirmations
-const TARGET_MANGO_ID = '689b7b7e37ddd15a781ec63b';
+// Target Mango IDs for sending WhatsApp confirmations
+const TARGET_MANGO_ID_CRYPTO = '689b7b7e37ddd15a781ec63b';
+const TARGET_MANGO_ID_YOUTUBE = '6899e47bfa8e61e188499df3';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -270,24 +271,27 @@ Deno.serve(async (req) => {
 
     console.log('Lead assignment created successfully');
 
-    // Send WhatsApp confirmation if Mango ID matches target
-    if (payload['Mango Id'] === TARGET_MANGO_ID) {
-      console.log('Mango ID matches target, sending WhatsApp confirmation...');
+    // Extract date and title from workshop name (for WhatsApp templates)
+    let workshopDate = '';
+    let workshopTitle = normalizedWorkshopName;
+    
+    if (normalizedWorkshopName.includes('<>')) {
+      const parts = normalizedWorkshopName.split('<>');
+      workshopTitle = parts[0].trim();
+      workshopDate = parts[1]?.trim() || '';
+    }
+
+    // Format phone with country code
+    const formattedPhone = `${countryCode}${phoneValue.trim()}`;
+
+    // Send WhatsApp confirmation based on Mango ID
+    const mangoId = payload['Mango Id'];
+
+    if (mangoId === TARGET_MANGO_ID_CRYPTO) {
+      // Crypto registration confirmation
+      console.log('Mango ID matches CRYPTO target, sending WhatsApp confirmation...');
       
       try {
-        // Extract date from workshop name (after "<>")
-        let workshopDate = '';
-        let workshopTitle = normalizedWorkshopName;
-        
-        if (normalizedWorkshopName.includes('<>')) {
-          const parts = normalizedWorkshopName.split('<>');
-          workshopTitle = parts[0].trim();
-          workshopDate = parts[1]?.trim() || '';
-        }
-
-        // Format phone with country code
-        const formattedPhone = `${countryCode}${phoneValue.trim()}`;
-        
         const AISENSY_FREE_API_KEY = Deno.env.get('AISENSY_FREE_API_KEY');
         const AISENSY_FREE_SOURCE = Deno.env.get('AISENSY_FREE_SOURCE');
 
@@ -310,7 +314,7 @@ Deno.serve(async (req) => {
             buttons: []
           };
 
-          console.log('Sending WhatsApp confirmation:', JSON.stringify(whatsappPayload, null, 2));
+          console.log('Sending Crypto WhatsApp confirmation:', JSON.stringify(whatsappPayload, null, 2));
 
           const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
             method: 'POST',
@@ -326,22 +330,20 @@ Deno.serve(async (req) => {
           if (!whatsappResponse.ok) {
             console.error('WhatsApp API error:', whatsappResult);
           } else {
-            console.log('WhatsApp confirmation sent successfully');
+            console.log('Crypto WhatsApp confirmation sent successfully');
           }
         }
       } catch (whatsappError) {
-        console.error('Error sending WhatsApp confirmation:', whatsappError);
-        // Don't fail the whole request if WhatsApp fails
+        console.error('Error sending Crypto WhatsApp confirmation:', whatsappError);
       }
 
-      // Send data to Google Sheet for the same Mango ID
+      // Send data to Google Sheet for Crypto Mango ID
       try {
         const GOOGLE_SHEET_WEBHOOK_URL = Deno.env.get('GOOGLE_SHEET_WEBHOOK_URL');
         
         if (!GOOGLE_SHEET_WEBHOOK_URL) {
           console.error('Missing GOOGLE_SHEET_WEBHOOK_URL configuration');
         } else {
-          // Format registration date in IST (India Standard Time)
           const registrationDate = new Date().toLocaleString('en-IN', {
             timeZone: 'Asia/Kolkata',
             year: 'numeric',
@@ -382,10 +384,60 @@ Deno.serve(async (req) => {
         }
       } catch (sheetError) {
         console.error('Error adding to Google Sheet:', sheetError);
-        // Don't fail the whole request if Google Sheet fails
       }
+
+    } else if (mangoId === TARGET_MANGO_ID_YOUTUBE) {
+      // YouTube registration confirmation
+      console.log('Mango ID matches YOUTUBE target, sending WhatsApp confirmation...');
+      
+      try {
+        const AISENSY_FREE_API_KEY = Deno.env.get('AISENSY_FREE_API_KEY');
+        const AISENSY_FREE_SOURCE = Deno.env.get('AISENSY_FREE_SOURCE');
+
+        if (!AISENSY_FREE_API_KEY || !AISENSY_FREE_SOURCE) {
+          console.error('Missing AiSensy FREE configuration');
+        } else {
+          const whatsappPayload = {
+            apiKey: AISENSY_FREE_API_KEY,
+            campaignName: 'youtube_registration_confirmation',
+            destination: formattedPhone,
+            userName: payload.name.trim(),
+            templateParams: [
+              payload.name.trim(),           // Variable 1: Name
+              workshopTitle,                  // Variable 2: Workshop name
+              workshopDate,                   // Variable 3: Date (e.g., "11th December")
+              '7 PM',                         // Variable 4: Time
+              'https://nikistschool.in/yt'   // Variable 5: URL
+            ],
+            source: AISENSY_FREE_SOURCE,
+            buttons: []
+          };
+
+          console.log('Sending YouTube WhatsApp confirmation:', JSON.stringify(whatsappPayload, null, 2));
+
+          const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(whatsappPayload),
+          });
+
+          const whatsappResult = await whatsappResponse.text();
+          console.log('WhatsApp API response:', whatsappResponse.status, whatsappResult);
+
+          if (!whatsappResponse.ok) {
+            console.error('WhatsApp API error:', whatsappResult);
+          } else {
+            console.log('YouTube WhatsApp confirmation sent successfully');
+          }
+        }
+      } catch (whatsappError) {
+        console.error('Error sending YouTube WhatsApp confirmation:', whatsappError);
+      }
+
     } else {
-      console.log('Mango ID does not match target, skipping WhatsApp confirmation');
+      console.log('Mango ID does not match any target, skipping WhatsApp confirmation');
     }
 
     return new Response(
