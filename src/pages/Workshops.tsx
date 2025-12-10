@@ -38,6 +38,20 @@ const Workshops = () => {
         .order("start_date", { ascending: false });
       
       if (error) throw error;
+
+      // Fetch registration counts from lead_assignments
+      const { data: registrations } = await supabase
+        .from("lead_assignments")
+        .select("workshop_id")
+        .not("workshop_id", "is", null);
+      
+      // Count registrations per workshop
+      const registrationCounts = registrations?.reduce((acc, la) => {
+        if (la.workshop_id) {
+          acc[la.workshop_id] = (acc[la.workshop_id] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>) || {};
       
       // Fetch sales data for each workshop to calculate metrics
       const workshopsWithMetrics = await Promise.all(
@@ -62,6 +76,7 @@ const Workshops = () => {
             sales_count: salesCount,
             total_revenue: totalRevenue,
             rough_pl: roughPL,
+            registration_count: registrationCounts[workshop.id] || 0,
           };
         })
       );
@@ -571,7 +586,7 @@ const Workshops = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {workshop.current_participants || 0}
+                      {workshop.registration_count || 0}
                     </TableCell>
                     <TableCell className="text-right">
                       ₹{Number(workshop.ad_spend || 0).toLocaleString("en-US", { 
