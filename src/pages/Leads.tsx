@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getCountryInfo } from "@/lib/countryUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -499,9 +500,17 @@ const Leads = () => {
                         <TableCell>
                           <div className="space-y-1">
                             <div className="font-medium">{lead.contact_name}</div>
-                            <div className="text-sm text-muted-foreground flex items-center gap-1">
-                              {lead.country && <span>{lead.country}</span>}
-                            </div>
+                            {lead.country && (() => {
+                              const countryInfo = getCountryInfo(lead.country);
+                              return countryInfo ? (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-base">{countryInfo.flag}</span>
+                                  <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 bg-muted/50 border-muted-foreground/20">
+                                    {countryInfo.name}
+                                  </Badge>
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -592,9 +601,17 @@ const Leads = () => {
                         <TableCell rowSpan={group.assignments.length}>
                           <div className="space-y-1">
                             <div className="font-medium">{lead.contact_name}</div>
-                            <div className="text-sm text-muted-foreground flex items-center gap-1">
-                              {lead.country && <span>{lead.country}</span>}
-                            </div>
+                            {lead.country && (() => {
+                              const countryInfo = getCountryInfo(lead.country);
+                              return countryInfo ? (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-base">{countryInfo.flag}</span>
+                                  <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 bg-muted/50 border-muted-foreground/20">
+                                    {countryInfo.name}
+                                  </Badge>
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         </TableCell>
                       ) : null}
