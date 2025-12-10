@@ -333,6 +333,57 @@ Deno.serve(async (req) => {
         console.error('Error sending WhatsApp confirmation:', whatsappError);
         // Don't fail the whole request if WhatsApp fails
       }
+
+      // Send data to Google Sheet for the same Mango ID
+      try {
+        const GOOGLE_SHEET_WEBHOOK_URL = Deno.env.get('GOOGLE_SHEET_WEBHOOK_URL');
+        
+        if (!GOOGLE_SHEET_WEBHOOK_URL) {
+          console.error('Missing GOOGLE_SHEET_WEBHOOK_URL configuration');
+        } else {
+          // Format registration date in IST (India Standard Time)
+          const registrationDate = new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+
+          const sheetPayload = {
+            name: payload.name.trim(),
+            email: normalizedEmail,
+            countryCode: countryCode,
+            phone: phoneValue.trim(),
+            service: normalizedWorkshopName,
+            registrationDate: registrationDate
+          };
+
+          console.log('Sending data to Google Sheet:', JSON.stringify(sheetPayload, null, 2));
+
+          const sheetResponse = await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(sheetPayload),
+          });
+
+          const sheetResult = await sheetResponse.text();
+          console.log('Google Sheet API response:', sheetResponse.status, sheetResult);
+
+          if (!sheetResponse.ok) {
+            console.error('Google Sheet API error:', sheetResult);
+          } else {
+            console.log('Google Sheet entry added successfully');
+          }
+        }
+      } catch (sheetError) {
+        console.error('Error adding to Google Sheet:', sheetError);
+        // Don't fail the whole request if Google Sheet fails
+      }
     } else {
       console.log('Mango ID does not match target, skipping WhatsApp confirmation');
     }
