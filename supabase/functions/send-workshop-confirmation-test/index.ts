@@ -20,18 +20,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Test data for nikita@nikist.in
+    // Test data for YouTube template
     const testPayload = {
       apiKey: AISENSY_FREE_API_KEY,
-      campaignName: 'class_registration_confirmation_copy',
+      campaignName: 'youtube_registration_confirmation',
       destination: '917042693494',  // Test phone number
       userName: 'Nikita',
       templateParams: [
         'Nikita',                              // Variable 1: Name
-        'Crypto Wealth Masterclass (Sh1)',     // Variable 2: Workshop name
+        'Crypto Wealth Masterclass(YT)',       // Variable 2: Workshop name
         '11th December',                        // Variable 3: Date
         '7 PM',                                 // Variable 4: Time
-        'https://nikist.in/registrartionsuccessful'  // Variable 5: URL
+        'https://nikistschool.in/yt'           // Variable 5: URL
       ],
       source: AISENSY_FREE_SOURCE,
       buttons: []
