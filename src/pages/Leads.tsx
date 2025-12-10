@@ -515,7 +515,7 @@ const Leads = () => {
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <div className="text-sm text-blue-600">{lead.phone || "-"}</div>
+                            <div className="text-sm text-blue-600">{lead.phone ? `+${lead.country}-${lead.phone}` : "-"}</div>
                             <div className="text-sm text-blue-600">{lead.email}</div>
                           </div>
                         </TableCell>
@@ -618,7 +618,7 @@ const Leads = () => {
                       {idx === 0 ? (
                         <TableCell rowSpan={group.assignments.length}>
                           <div className="space-y-1">
-                            <div className="text-sm text-blue-600">{lead.phone || "-"}</div>
+                            <div className="text-sm text-blue-600">{lead.phone ? `+${lead.country}-${lead.phone}` : "-"}</div>
                             <div className="text-sm text-blue-600">{lead.email}</div>
                           </div>
                         </TableCell>
