@@ -26,6 +26,7 @@ const Workshops = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [editingWorkshop, setEditingWorkshop] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -272,6 +273,11 @@ const Workshops = () => {
     return workshop.title.toLowerCase().includes(query);
   });
 
+  // Sync selectedFunnelId when editingWorkshop changes
+  useEffect(() => {
+    setSelectedFunnelId(editingWorkshop?.funnel_id || null);
+  }, [editingWorkshop]);
+
   // Real-time updates
   useEffect(() => {
     const channel = supabase
@@ -402,7 +408,8 @@ const Workshops = () => {
                     <Label htmlFor="funnel_id">Associated Funnel</Label>
                     <Select 
                       name="funnel_id" 
-                      defaultValue={editingWorkshop?.funnel_id ?? undefined}
+                      value={selectedFunnelId ?? "none"}
+                      onValueChange={(value) => setSelectedFunnelId(value === "none" ? null : value)}
                       disabled={funnelsLoading}
                     >
                       <SelectTrigger>
@@ -496,16 +503,16 @@ const Workshops = () => {
                         size="sm"
                         onClick={() => createProductMutation.mutate({ 
                           workshopTitle: editingWorkshop.title, 
-                          funnelId: editingWorkshop.funnel_id 
+                          funnelId: selectedFunnelId! 
                         })}
-                        disabled={createProductMutation.isPending || !editingWorkshop.funnel_id || editingWorkshop.product_id}
+                        disabled={createProductMutation.isPending || !selectedFunnelId || editingWorkshop.product_id}
                       >
                         {editingWorkshop.product_id ? "Product Already Linked" : "Convert Workshop to Product"}
                       </Button>
                    </div>
-                   {!editingWorkshop.funnel_id && (
+                   {!selectedFunnelId && !editingWorkshop.product_id && (
                      <p className="text-xs text-muted-foreground mt-2">
-                       Create a funnel first before creating a product
+                       👆 Select an associated funnel above to enable product creation
                      </p>
                    )}
                  </div>
