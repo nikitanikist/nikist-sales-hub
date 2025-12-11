@@ -118,6 +118,37 @@ serve(async (req) => {
     let lead = leads?.[0] || null;
     console.log('Lead lookup result:', lead ? `Found lead ${lead.id} (${lead.workshop_name || 'no workshop'})` : 'No existing lead');
 
+    // Parse phone number to extract country code and clean digits
+    const rawPhone = customerPhone || '';
+    const cleanPhone = rawPhone.replace(/\D/g, ''); // Remove all non-digits
+    
+    let countryCode: string | null = null;
+    let phoneDigits: string | null = cleanPhone || null;
+    
+    // Handle common patterns for Indian numbers
+    if (cleanPhone.startsWith('91') && cleanPhone.length > 10) {
+      countryCode = '91';
+      phoneDigits = cleanPhone.slice(2);
+    } else if (cleanPhone.length === 10) {
+      countryCode = '91'; // Default to India for 10-digit numbers
+      phoneDigits = cleanPhone;
+    } else if (cleanPhone.length > 10) {
+      // Try to extract country code (first 1-3 digits)
+      // Common codes: 1 (US/CA), 44 (UK), 91 (IN), 61 (AU)
+      if (cleanPhone.startsWith('1') && cleanPhone.length === 11) {
+        countryCode = '1';
+        phoneDigits = cleanPhone.slice(1);
+      } else if (cleanPhone.startsWith('44') && cleanPhone.length >= 12) {
+        countryCode = '44';
+        phoneDigits = cleanPhone.slice(2);
+      } else if (cleanPhone.startsWith('61') && cleanPhone.length >= 11) {
+        countryCode = '61';
+        phoneDigits = cleanPhone.slice(2);
+      }
+    }
+    
+    console.log('Parsed phone:', { rawPhone, countryCode, phoneDigits });
+
     if (!lead) {
       // Create new lead
       console.log('Creating new lead for:', customerEmail);
@@ -126,7 +157,8 @@ serve(async (req) => {
         .insert({
           contact_name: customerName,
           email: customerEmail,
-          phone: customerPhone || null,
+          phone: phoneDigits,
+          country: countryCode,
           company_name: customerName, // Use name as company for new leads
           status: 'new',
           assigned_to: closerId,
@@ -142,11 +174,21 @@ serve(async (req) => {
       lead = newLead;
       console.log('New lead created:', lead.id);
     } else {
-      // Update existing lead assignment
+      // Update existing lead - also update phone/country if they're missing
       console.log('Existing lead found:', lead.id);
+      const updateData: Record<string, any> = { assigned_to: closerId };
+      
+      // Update phone/country only if existing lead has null values
+      if (!lead.country && countryCode) {
+        updateData.country = countryCode;
+      }
+      if (!lead.phone && phoneDigits) {
+        updateData.phone = phoneDigits;
+      }
+      
       await supabase
         .from('leads')
-        .update({ assigned_to: closerId })
+        .update(updateData)
         .eq('id', lead.id);
     }
 
