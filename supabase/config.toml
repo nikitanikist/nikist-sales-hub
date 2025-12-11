@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.send-workshop-confirmation-test]
 verify_jwt = false
+
+[functions.send-status-to-pabbly]
+verify_jwt = false

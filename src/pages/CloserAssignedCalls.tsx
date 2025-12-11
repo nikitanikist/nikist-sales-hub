@@ -209,9 +209,35 @@ const CloserAssignedCalls = () => {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["closer-appointments", closerId] });
       queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
+      
+      // Get the appointment details for Pabbly
+      const currentAppointment = appointments?.find(apt => apt.id === variables.id);
+      
+      // Send to Pabbly webhook
+      if (currentAppointment?.lead) {
+        try {
+          await supabase.functions.invoke('send-status-to-pabbly', {
+            body: {
+              customer_name: currentAppointment.lead.contact_name,
+              customer_email: currentAppointment.lead.email,
+              customer_phone: currentAppointment.lead.phone,
+              status: variables.status,
+              offer_amount: variables.offer_amount,
+              cash_received: variables.cash_received,
+              due_amount: Math.max(0, variables.offer_amount - variables.cash_received),
+              call_date: currentAppointment.scheduled_date,
+              closer_name: closer?.full_name || 'Unknown'
+            }
+          });
+          console.log('Successfully sent to Pabbly');
+        } catch (error) {
+          console.error('Error sending to Pabbly:', error);
+        }
+      }
+      
       toast({ title: "Updated", description: "Appointment details saved successfully" });
       setEditingId(null);
       setEditData(null);
@@ -248,6 +274,17 @@ const CloserAssignedCalls = () => {
 
   const handleSave = () => {
     if (!editingId || !editData) return;
+    
+    // Validate mandatory fields
+    if (editData.status === 'scheduled') {
+      toast({ 
+        title: "Status Required", 
+        description: "Please select an outcome status (not 'Scheduled')", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
     updateMutation.mutate({ id: editingId, ...editData });
   };
 
@@ -473,7 +510,7 @@ const CloserAssignedCalls = () => {
                                     <div className="space-y-4">
                                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div className="space-y-2">
-                                          <Label>Status</Label>
+                                          <Label>Status <span className="text-red-500">*</span></Label>
                                           <Select
                                             value={editData.status}
                                             onValueChange={(value) => setEditData({ ...editData, status: value as CallStatus })}
@@ -497,7 +534,7 @@ const CloserAssignedCalls = () => {
                                           </Select>
                                         </div>
                                         <div className="space-y-2">
-                                          <Label>Offer Amount (₹)</Label>
+                                          <Label>Offer Amount (₹) <span className="text-red-500">*</span></Label>
                                           <Input
                                             type="number"
                                             value={editData.offer_amount}
@@ -505,7 +542,7 @@ const CloserAssignedCalls = () => {
                                           />
                                         </div>
                                         <div className="space-y-2">
-                                          <Label>Cash Received (₹)</Label>
+                                          <Label>Cash Received (₹) <span className="text-red-500">*</span></Label>
                                           <Input
                                             type="number"
                                             value={editData.cash_received}
