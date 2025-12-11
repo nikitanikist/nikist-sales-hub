@@ -174,15 +174,15 @@ serve(async (req) => {
       lead = newLead;
       console.log('New lead created:', lead.id);
     } else {
-      // Update existing lead - also update phone/country if they're missing
+      // Update existing lead - always overwrite phone/country with properly parsed values
       console.log('Existing lead found:', lead.id);
       const updateData: Record<string, any> = { assigned_to: closerId };
       
-      // Update phone/country only if existing lead has null values
-      if (!lead.country && countryCode) {
+      // Always update phone/country with parsed values from Calendly
+      if (countryCode) {
         updateData.country = countryCode;
       }
-      if (!lead.phone && phoneDigits) {
+      if (phoneDigits) {
         updateData.phone = phoneDigits;
       }
       
