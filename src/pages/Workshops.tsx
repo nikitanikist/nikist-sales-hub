@@ -36,6 +36,7 @@ const Workshops = () => {
       const { data: workshopsData, error } = await supabase
         .from("workshops")
         .select("*")
+        .is("product_id", null) // Hide workshops converted to products
         .order("start_date", { ascending: false });
       
       if (error) throw error;
