@@ -131,6 +131,7 @@ const Leads = () => {
             country,
             status,
             updated_at,
+            created_at,
             assigned_to:profiles!leads_assigned_to_fkey(full_name)
           ),
           workshop:workshops(id, title),
@@ -552,8 +553,8 @@ const Leads = () => {
                         <TableCell>
                           <div className="space-y-1">
                             <div className="font-medium">{lead.contact_name}</div>
-                            {lead.country && (() => {
-                              const countryInfo = getCountryInfo(lead.country);
+                            {(() => {
+                              const { countryInfo } = formatPhoneDisplay(lead.phone, lead.country);
                               return countryInfo ? (
                                 <div className="flex items-center gap-1.5 mt-1">
                                   <span className="text-base">{countryInfo.flag}</span>
@@ -567,7 +568,7 @@ const Leads = () => {
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
-                            <div className="text-sm text-blue-600">{lead.phone ? `+${lead.country}-${lead.phone}` : "-"}</div>
+                            <div className="text-sm text-blue-600">{formatPhoneDisplay(lead.phone, lead.country).display}</div>
                             <div className="text-sm text-blue-600">{lead.email}</div>
                           </div>
                         </TableCell>
