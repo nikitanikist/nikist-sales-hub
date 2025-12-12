@@ -51,34 +51,41 @@ const SalesClosers = () => {
 
       if (profilesError) throw profilesError;
 
-      // Get metrics for each closer
+      // Get metrics for each closer from call_appointments
       const closersWithMetrics: CloserMetrics[] = await Promise.all(
         profiles.map(async (profile) => {
-          // Count assigned leads
-          const { count: assignedCount } = await supabase
-            .from("leads")
-            .select("*", { count: "exact", head: true })
-            .eq("assigned_to", profile.id);
-
-          // Count converted (sales)
-          const { data: sales, count: convertedCount } = await supabase
-            .from("sales")
-            .select("amount", { count: "exact" })
-            .eq("sales_rep", profile.id);
-
-          // Calculate total earnings
-          const earnings = sales?.reduce((sum, sale) => sum + Number(sale.amount || 0), 0) || 0;
-
-          // Count rescheduled calls
-          const { count: rescheduledCount } = await supabase
+          // Get all call appointments for this closer
+          const { data: appointments, error: apptError } = await supabase
             .from("call_appointments")
-            .select("*", { count: "exact", head: true })
-            .eq("closer_id", profile.id)
-            .eq("status", "reschedule");
+            .select("status, cash_received")
+            .eq("closer_id", profile.id);
 
-          const assigned = assignedCount || 0;
-          const converted = convertedCount || 0;
-          const rescheduled = rescheduledCount || 0;
+          if (apptError) throw apptError;
+
+          const allCalls = appointments || [];
+          
+          // Total assigned = all appointments for this closer
+          const assigned = allCalls.length;
+          
+          // Converted = statuses starting with "converted_"
+          const converted = allCalls.filter(apt => 
+            apt.status.startsWith('converted_')
+          ).length;
+          
+          // Not Converted = only "not_converted" status
+          const not_converted = allCalls.filter(apt => 
+            apt.status === 'not_converted'
+          ).length;
+          
+          // Rescheduled = "reschedule" status
+          const rescheduled = allCalls.filter(apt => 
+            apt.status === 'reschedule'
+          ).length;
+          
+          // Earnings = sum of cash_received from all appointments
+          const earnings = allCalls.reduce((sum, apt) => 
+            sum + Number(apt.cash_received || 0), 0
+          );
 
           return {
             id: profile.id,
@@ -87,7 +94,7 @@ const SalesClosers = () => {
             phone: profile.phone,
             assigned,
             converted,
-            not_converted: Math.max(0, assigned - converted),
+            not_converted,
             rescheduled,
             earnings,
           };
