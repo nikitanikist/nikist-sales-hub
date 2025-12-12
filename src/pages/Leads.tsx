@@ -28,6 +28,58 @@ const statusColors: Record<string, string> = {
   lost: "bg-red-500",
 };
 
+// Helper function to format phone display and extract country info
+const formatPhoneDisplay = (phone: string | null, country: string | null) => {
+  if (!phone) return { display: "-", countryInfo: null };
+  
+  // If country is provided, use it directly
+  if (country) {
+    const countryInfo = getCountryInfo(country);
+    const cleanPhone = phone.replace(/\D/g, '');
+    return { 
+      display: `+${country}-${cleanPhone}`, 
+      countryInfo 
+    };
+  }
+  
+  // If phone already has country code prefix, parse it
+  const cleanPhone = phone.replace(/\D/g, '');
+  
+  // Try to extract country code from formatted phone like "+91 80191 18888"
+  if (phone.startsWith('+')) {
+    const match = phone.match(/^\+(\d{1,3})/);
+    if (match) {
+      const dialCode = match[1];
+      const countryInfo = getCountryInfo(dialCode);
+      const digits = cleanPhone.slice(dialCode.length);
+      return { 
+        display: `+${dialCode}-${digits}`, 
+        countryInfo 
+      };
+    }
+  }
+  
+  // Check if cleanPhone starts with common country codes
+  if (cleanPhone.startsWith('91') && cleanPhone.length > 10) {
+    const countryInfo = getCountryInfo('91');
+    return { 
+      display: `+91-${cleanPhone.slice(2)}`, 
+      countryInfo 
+    };
+  }
+  
+  // Fallback - assume India for 10-digit numbers
+  if (cleanPhone.length === 10) {
+    const countryInfo = getCountryInfo('91');
+    return { 
+      display: `+91-${cleanPhone}`, 
+      countryInfo 
+    };
+  }
+  
+  return { display: phone, countryInfo: null };
+};
+
 const Leads = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<any>(null);
@@ -601,8 +653,8 @@ const Leads = () => {
                         <TableCell rowSpan={group.assignments.length}>
                           <div className="space-y-1">
                             <div className="font-medium">{lead.contact_name}</div>
-                            {lead.country && (() => {
-                              const countryInfo = getCountryInfo(lead.country);
+                            {(() => {
+                              const { countryInfo } = formatPhoneDisplay(lead.phone, lead.country);
                               return countryInfo ? (
                                 <div className="flex items-center gap-1.5 mt-1">
                                   <span className="text-base">{countryInfo.flag}</span>
@@ -618,7 +670,7 @@ const Leads = () => {
                       {idx === 0 ? (
                         <TableCell rowSpan={group.assignments.length}>
                           <div className="space-y-1">
-                            <div className="text-sm text-blue-600">{lead.phone ? `+${lead.country}-${lead.phone}` : "-"}</div>
+                            <div className="text-sm text-blue-600">{formatPhoneDisplay(lead.phone, lead.country).display}</div>
                             <div className="text-sm text-blue-600">{lead.email}</div>
                           </div>
                         </TableCell>
