@@ -277,7 +277,7 @@ serve(async (req) => {
           lead.contact_name || customerName, // {{1}} - Name
           formattedDate, // {{2}} - Date
           formattedTime, // {{3}} - Time
-          zoomLink || 'Zoom link will be shared 10 minutes before the call', // {{4}}
+          'Zoom link will be shared 10 minutes before the call', // {{4}} - Always static message
           '+919266395637', // {{5}} - Contact number
         ],
       };
