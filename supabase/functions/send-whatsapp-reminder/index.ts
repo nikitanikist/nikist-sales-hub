@@ -45,6 +45,7 @@ serve(async (req) => {
     console.log('Processing reminder:', reminder_id);
 
     // Fetch reminder with appointment and lead details
+    // Use explicit foreign key for profiles to avoid ambiguity
     const { data: reminder, error: reminderError } = await supabase
       .from('call_reminders')
       .select(`
@@ -52,7 +53,7 @@ serve(async (req) => {
         appointment:call_appointments(
           *,
           lead:leads(*),
-          closer:profiles(*)
+          closer:profiles!call_appointments_closer_id_fkey(*)
         )
       `)
       .eq('id', reminder_id)
@@ -131,7 +132,7 @@ serve(async (req) => {
           lead.contact_name,
           formattedDate,
           formattedTime,
-          'Zoom link will be shared 10 minutes before the call',
+          'Zoom link will be shared 10 minutes before the call', // Always static message
           '+919266395637',
         ];
         break;
