@@ -347,6 +347,7 @@ export type Database = {
           funnel_id: string
           id: string
           is_active: boolean
+          mango_id: string | null
           price: number
           product_name: string
           updated_at: string
@@ -359,6 +360,7 @@ export type Database = {
           funnel_id: string
           id?: string
           is_active?: boolean
+          mango_id?: string | null
           price?: number
           product_name: string
           updated_at?: string
@@ -371,6 +373,7 @@ export type Database = {
           funnel_id?: string
           id?: string
           is_active?: boolean
+          mango_id?: string | null
           price?: number
           product_name?: string
           updated_at?: string
