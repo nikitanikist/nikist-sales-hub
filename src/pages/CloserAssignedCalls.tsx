@@ -286,7 +286,7 @@ const CloserAssignedCalls = () => {
 
     // Sort: Today → Future → Past
     return sortAppointments(filtered);
-  }, [appointments, statusFilter, dateFilter, searchQuery]);
+  }, [appointments, statusFilter, dateFilter, customDate, searchQuery]);
 
   // Pagination
   const totalPages = Math.ceil(processedAppointments.length / ITEMS_PER_PAGE);
