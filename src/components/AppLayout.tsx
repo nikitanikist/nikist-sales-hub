@@ -2,7 +2,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -34,6 +34,7 @@ const AppLayout = () => {
   const menuItems = [
     { title: "Dashboard", icon: LayoutDashboard, path: "/" },
     { title: "Customers", icon: Users, path: "/leads" },
+    { title: "Customer Insights", icon: ClipboardList, path: "/onboarding" },
     { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "All Workshops", icon: Calendar, path: "/workshops" },
