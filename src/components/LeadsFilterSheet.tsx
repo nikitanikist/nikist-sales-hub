@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -39,6 +38,7 @@ export interface LeadsFilters {
   dateFrom: Date | undefined;
   dateTo: Date | undefined;
   productIds: string[];
+  workshopIds: string[];
   country: string;
   status: string;
 }
@@ -53,6 +53,10 @@ interface LeadsFilterSheetProps {
     product_name: string;
     funnel?: { funnel_name: string } | null;
   }>;
+  workshops: Array<{
+    id: string;
+    title: string;
+  }>;
 }
 
 export function LeadsFilterSheet({
@@ -61,6 +65,7 @@ export function LeadsFilterSheet({
   filters,
   onFiltersChange,
   products,
+  workshops,
 }: LeadsFilterSheetProps) {
   const [localFilters, setLocalFilters] = useState<LeadsFilters>(filters);
 
@@ -82,6 +87,7 @@ export function LeadsFilterSheet({
       dateFrom: undefined,
       dateTo: undefined,
       productIds: [],
+      workshopIds: [],
       country: "all",
       status: "all",
     };
@@ -89,25 +95,6 @@ export function LeadsFilterSheet({
     onFiltersChange(clearedFilters);
     onOpenChange(false);
   };
-
-  const toggleProduct = (productId: string) => {
-    setLocalFilters((prev) => ({
-      ...prev,
-      productIds: prev.productIds.includes(productId)
-        ? prev.productIds.filter((id) => id !== productId)
-        : [...prev.productIds, productId],
-    }));
-  };
-
-  // Group products by funnel
-  const productsByFunnel = products.reduce((acc, product) => {
-    const funnelName = product.funnel?.funnel_name || "Other";
-    if (!acc[funnelName]) {
-      acc[funnelName] = [];
-    }
-    acc[funnelName].push(product);
-    return acc;
-  }, {} as Record<string, typeof products>);
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -184,37 +171,53 @@ export function LeadsFilterSheet({
             {/* Products Section */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Select Products</Label>
-              <div className="space-y-4 max-h-[200px] overflow-y-auto border rounded-md p-3">
-                {Object.entries(productsByFunnel).map(([funnelName, funnelProducts]) => (
-                  <div key={funnelName} className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {funnelName}
-                    </div>
-                    <div className="space-y-2 pl-1">
-                      {funnelProducts.map((product) => (
-                        <div key={product.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`product-${product.id}`}
-                            checked={localFilters.productIds.includes(product.id)}
-                            onCheckedChange={() => toggleProduct(product.id)}
-                          />
-                          <label
-                            htmlFor={`product-${product.id}`}
-                            className="text-sm cursor-pointer"
-                          >
-                            {product.product_name}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {products.length === 0 && (
-                  <div className="text-sm text-muted-foreground text-center py-2">
-                    No products available
-                  </div>
-                )}
-              </div>
+              <Select
+                value={localFilters.productIds[0] || "all"}
+                onValueChange={(value) =>
+                  setLocalFilters((prev) => ({ 
+                    ...prev, 
+                    productIds: value === "all" ? [] : [value] 
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Products" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Products</SelectItem>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.product_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Workshops Section */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Select Workshops</Label>
+              <Select
+                value={localFilters.workshopIds[0] || "all"}
+                onValueChange={(value) =>
+                  setLocalFilters((prev) => ({ 
+                    ...prev, 
+                    workshopIds: value === "all" ? [] : [value] 
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Workshops" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Workshops</SelectItem>
+                  {workshops.map((workshop) => (
+                    <SelectItem key={workshop.id} value={workshop.id}>
+                      {workshop.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Country Section */}

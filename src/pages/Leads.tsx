@@ -104,6 +104,7 @@ const Leads = () => {
     dateFrom: undefined,
     dateTo: undefined,
     productIds: [],
+    workshopIds: [],
     country: "all",
     status: "all",
   });
@@ -113,6 +114,7 @@ const Leads = () => {
     filters.dateFrom !== undefined ||
     filters.dateTo !== undefined ||
     filters.productIds.length > 0 ||
+    filters.workshopIds.length > 0 ||
     filters.country !== "all" ||
     filters.status !== "all";
 
@@ -460,6 +462,10 @@ const Leads = () => {
     const matchesProduct = filters.productIds.length === 0 || 
       (assignment.product_id && filters.productIds.includes(assignment.product_id));
 
+    // Workshop filter
+    const matchesWorkshop = filters.workshopIds.length === 0 || 
+      (assignment.workshop_id && filters.workshopIds.includes(assignment.workshop_id));
+
     // Country filter
     const matchesCountry = filters.country === "all" || lead?.country === filters.country;
 
@@ -469,7 +475,7 @@ const Leads = () => {
       (filters.status === "inactive" && lead?.status === "lost") ||
       (filters.status === "revoked" && lead?.status === "lost"); // For now map revoked to lost until we add revoked status
 
-    return matchesSearch && matchesDateFrom && matchesDateTo && matchesProduct && matchesCountry && matchesStatus;
+    return matchesSearch && matchesDateFrom && matchesDateTo && matchesProduct && matchesWorkshop && matchesCountry && matchesStatus;
   });
 
   // Reset to page 1 when search changes
@@ -1099,6 +1105,7 @@ const Leads = () => {
         filters={filters}
         onFiltersChange={handleFiltersChange}
         products={products || []}
+        workshops={workshops || []}
       />
     </div>
   );
