@@ -1,0 +1,280 @@
+import { useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon, X } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+// Country list with dial codes
+const countries = [
+  { code: "91", name: "India", flag: "🇮🇳" },
+  { code: "1", name: "USA", flag: "🇺🇸" },
+  { code: "44", name: "UK", flag: "🇬🇧" },
+  { code: "61", name: "Australia", flag: "🇦🇺" },
+  { code: "971", name: "UAE", flag: "🇦🇪" },
+  { code: "65", name: "Singapore", flag: "🇸🇬" },
+  { code: "60", name: "Malaysia", flag: "🇲🇾" },
+  { code: "966", name: "Saudi Arabia", flag: "🇸🇦" },
+  { code: "974", name: "Qatar", flag: "🇶🇦" },
+  { code: "968", name: "Oman", flag: "🇴🇲" },
+  { code: "973", name: "Bahrain", flag: "🇧🇭" },
+  { code: "965", name: "Kuwait", flag: "🇰🇼" },
+  { code: "977", name: "Nepal", flag: "🇳🇵" },
+  { code: "94", name: "Sri Lanka", flag: "🇱🇰" },
+  { code: "880", name: "Bangladesh", flag: "🇧🇩" },
+  { code: "92", name: "Pakistan", flag: "🇵🇰" },
+  { code: "49", name: "Germany", flag: "🇩🇪" },
+  { code: "33", name: "France", flag: "🇫🇷" },
+  { code: "39", name: "Italy", flag: "🇮🇹" },
+  { code: "34", name: "Spain", flag: "🇪🇸" },
+];
+
+export interface LeadsFilters {
+  dateFrom: Date | undefined;
+  dateTo: Date | undefined;
+  productIds: string[];
+  country: string;
+  status: string;
+}
+
+interface LeadsFilterSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  filters: LeadsFilters;
+  onFiltersChange: (filters: LeadsFilters) => void;
+  products: Array<{
+    id: string;
+    product_name: string;
+    funnel?: { funnel_name: string } | null;
+  }>;
+}
+
+export function LeadsFilterSheet({
+  open,
+  onOpenChange,
+  filters,
+  onFiltersChange,
+  products,
+}: LeadsFilterSheetProps) {
+  const [localFilters, setLocalFilters] = useState<LeadsFilters>(filters);
+
+  // Reset local filters when sheet opens
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      setLocalFilters(filters);
+    }
+    onOpenChange(isOpen);
+  };
+
+  const handleApply = () => {
+    onFiltersChange(localFilters);
+    onOpenChange(false);
+  };
+
+  const handleClearAll = () => {
+    const clearedFilters: LeadsFilters = {
+      dateFrom: undefined,
+      dateTo: undefined,
+      productIds: [],
+      country: "all",
+      status: "all",
+    };
+    setLocalFilters(clearedFilters);
+    onFiltersChange(clearedFilters);
+    onOpenChange(false);
+  };
+
+  const toggleProduct = (productId: string) => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      productIds: prev.productIds.includes(productId)
+        ? prev.productIds.filter((id) => id !== productId)
+        : [...prev.productIds, productId],
+    }));
+  };
+
+  // Group products by funnel
+  const productsByFunnel = products.reduce((acc, product) => {
+    const funnelName = product.funnel?.funnel_name || "Other";
+    if (!acc[funnelName]) {
+      acc[funnelName] = [];
+    }
+    acc[funnelName].push(product);
+    return acc;
+  }, {} as Record<string, typeof products>);
+
+  return (
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetContent className="w-[400px] sm:w-[450px] flex flex-col">
+        <SheetHeader>
+          <SheetTitle>Filters</SheetTitle>
+        </SheetHeader>
+
+        <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="space-y-6 py-4">
+            {/* Join Date Section */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Join Date</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">From</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !localFilters.dateFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.dateFrom ? format(localFilters.dateFrom, "PPP") : "Pick date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.dateFrom}
+                        onSelect={(date) =>
+                          setLocalFilters((prev) => ({ ...prev, dateFrom: date }))
+                        }
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">To</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !localFilters.dateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.dateTo ? format(localFilters.dateTo, "PPP") : "Pick date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.dateTo}
+                        onSelect={(date) =>
+                          setLocalFilters((prev) => ({ ...prev, dateTo: date }))
+                        }
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </div>
+
+            {/* Products Section */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Select Products</Label>
+              <div className="space-y-4 max-h-[200px] overflow-y-auto border rounded-md p-3">
+                {Object.entries(productsByFunnel).map(([funnelName, funnelProducts]) => (
+                  <div key={funnelName} className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {funnelName}
+                    </div>
+                    <div className="space-y-2 pl-1">
+                      {funnelProducts.map((product) => (
+                        <div key={product.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`product-${product.id}`}
+                            checked={localFilters.productIds.includes(product.id)}
+                            onCheckedChange={() => toggleProduct(product.id)}
+                          />
+                          <label
+                            htmlFor={`product-${product.id}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {product.product_name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {products.length === 0 && (
+                  <div className="text-sm text-muted-foreground text-center py-2">
+                    No products available
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Country Section */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Country</Label>
+              <Select
+                value={localFilters.country}
+                onValueChange={(value) =>
+                  setLocalFilters((prev) => ({ ...prev, country: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Countries" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  {countries.map((country) => (
+                    <SelectItem key={country.code} value={country.code}>
+                      <span className="flex items-center gap-2">
+                        <span>{country.flag}</span>
+                        <span>{country.name}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status Section */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Status</Label>
+              <Select
+                value={localFilters.status}
+                onValueChange={(value) =>
+                  setLocalFilters((prev) => ({ ...prev, status: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="revoked">Revoked</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </ScrollArea>
+
+        <SheetFooter className="flex-row gap-2 pt-4 border-t">
+          <Button variant="outline" onClick={handleClearAll} className="flex-1">
+            Clear All
+          </Button>
+          <Button onClick={handleApply} className="flex-1">
+            Apply Filters
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
