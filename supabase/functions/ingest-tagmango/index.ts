@@ -19,11 +19,11 @@ interface PabblyPayload {
 const TARGET_MANGO_ID_CRYPTO = '689b7b7e37ddd15a781ec63b';
 const TARGET_MANGO_ID_YOUTUBE = '6899e47bfa8e61e188499df3';
 
-// Helper function to determine if an item is a Product or Workshop
+// Helper function to determine if a NEW item is a Product or Workshop (only used for items not found in DB)
 const isProduct = (name: string, amount: number): boolean => {
   const productKeywords = [
     'mentorship', 'insider', 'recordings', 'community class', 
-    'partial access', 'full access', 'bonus', 'call bonus',
+    'partial access', 'full access', 'half access', 'bonus', 'call bonus',
     'batch', 'emi', 'one to one', '1 to 1', 'crypto club',
     'mean coin', 'futures'
   ];
@@ -33,17 +33,17 @@ const isProduct = (name: string, amount: number): boolean => {
   
   const lowerName = name.toLowerCase();
   
-  // If contains workshop keywords → it's a workshop
+  // Priority 1: Workshop keywords → always workshop
   if (workshopKeywords.some(kw => lowerName.includes(kw))) {
     return false;
   }
   
-  // If paid AND contains product keywords → it's a product
-  if (amount > 0 && productKeywords.some(kw => lowerName.includes(kw))) {
+  // Priority 2: Product keywords → always product (REGARDLESS OF PRICE)
+  if (productKeywords.some(kw => lowerName.includes(kw))) {
     return true;
   }
   
-  // Default: Free = Workshop, Paid without keywords = could be either (treat as product)
+  // Default: Free = Workshop, Paid = Product
   return amount > 0;
 };
 
