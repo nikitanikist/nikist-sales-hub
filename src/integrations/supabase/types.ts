@@ -134,6 +134,143 @@ export type Database = {
           },
         ]
       }
+      customer_onboarding: {
+        Row: {
+          age_group: string | null
+          annual_revenue: string | null
+          area_type: string | null
+          business_type: string | null
+          business_years: string | null
+          city: string | null
+          company_size: string | null
+          completed_at: string | null
+          country: string | null
+          created_at: string
+          current_step: number | null
+          date_of_birth: string | null
+          decision_factors: string[] | null
+          dependents: string | null
+          education_level: string | null
+          email: string
+          field_of_study: string | null
+          full_name: string
+          gender: string | null
+          id: string
+          income_source: string | null
+          industry: string | null
+          interests: string[] | null
+          job_title: string | null
+          lead_id: string | null
+          marital_status: string | null
+          marketing_consent: boolean | null
+          monthly_budget: string | null
+          monthly_income: string | null
+          occupation: string | null
+          phone: string | null
+          preferred_communication: string | null
+          preferred_contact_time: string | null
+          primary_goal: string | null
+          referral_source: string | null
+          state: string | null
+          team_size: string | null
+          terms_accepted: boolean | null
+          updated_at: string
+          years_experience: string | null
+        }
+        Insert: {
+          age_group?: string | null
+          annual_revenue?: string | null
+          area_type?: string | null
+          business_type?: string | null
+          business_years?: string | null
+          city?: string | null
+          company_size?: string | null
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          current_step?: number | null
+          date_of_birth?: string | null
+          decision_factors?: string[] | null
+          dependents?: string | null
+          education_level?: string | null
+          email: string
+          field_of_study?: string | null
+          full_name: string
+          gender?: string | null
+          id?: string
+          income_source?: string | null
+          industry?: string | null
+          interests?: string[] | null
+          job_title?: string | null
+          lead_id?: string | null
+          marital_status?: string | null
+          marketing_consent?: boolean | null
+          monthly_budget?: string | null
+          monthly_income?: string | null
+          occupation?: string | null
+          phone?: string | null
+          preferred_communication?: string | null
+          preferred_contact_time?: string | null
+          primary_goal?: string | null
+          referral_source?: string | null
+          state?: string | null
+          team_size?: string | null
+          terms_accepted?: boolean | null
+          updated_at?: string
+          years_experience?: string | null
+        }
+        Update: {
+          age_group?: string | null
+          annual_revenue?: string | null
+          area_type?: string | null
+          business_type?: string | null
+          business_years?: string | null
+          city?: string | null
+          company_size?: string | null
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          current_step?: number | null
+          date_of_birth?: string | null
+          decision_factors?: string[] | null
+          dependents?: string | null
+          education_level?: string | null
+          email?: string
+          field_of_study?: string | null
+          full_name?: string
+          gender?: string | null
+          id?: string
+          income_source?: string | null
+          industry?: string | null
+          interests?: string[] | null
+          job_title?: string | null
+          lead_id?: string | null
+          marital_status?: string | null
+          marketing_consent?: boolean | null
+          monthly_budget?: string | null
+          monthly_income?: string | null
+          occupation?: string | null
+          phone?: string | null
+          preferred_communication?: string | null
+          preferred_contact_time?: string | null
+          primary_goal?: string | null
+          referral_source?: string | null
+          state?: string | null
+          team_size?: string | null
+          terms_accepted?: boolean | null
+          updated_at?: string
+          years_experience?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_onboarding_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnels: {
         Row: {
           amount: number
