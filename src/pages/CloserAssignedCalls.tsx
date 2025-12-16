@@ -463,51 +463,72 @@ const CloserAssignedCalls = () => {
                 <SelectItem value="refunded">Refunded</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={dateFilter} onValueChange={(value) => {
-              setDateFilter(value);
-              if (value !== "custom") {
-                setCustomDate(undefined);
-              }
-            }}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter by date" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Dates</SelectItem>
-                <SelectItem value="today">Today</SelectItem>
-                <SelectItem value="tomorrow">Tomorrow</SelectItem>
-                <SelectItem value="this_week">This Week</SelectItem>
-                <SelectItem value="future">Future Calls</SelectItem>
-                <SelectItem value="past">Past Calls</SelectItem>
-                <SelectItem value="custom">Custom Date</SelectItem>
-              </SelectContent>
-            </Select>
-            {dateFilter === "custom" && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full sm:w-[180px] justify-start text-left font-normal",
-                      !customDate && "text-muted-foreground"
-                    )}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {customDate ? format(customDate, "PPP") : "Select date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={customDate}
-                    onSelect={setCustomDate}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-[200px] justify-start text-left font-normal"
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {dateFilter === "custom" && customDate
+                    ? format(customDate, "PPP")
+                    : dateFilter === "all"
+                    ? "All Dates"
+                    : dateFilter === "today"
+                    ? "Today"
+                    : dateFilter === "tomorrow"
+                    ? "Tomorrow"
+                    : dateFilter === "this_week"
+                    ? "This Week"
+                    : dateFilter === "future"
+                    ? "Future Calls"
+                    : dateFilter === "past"
+                    ? "Past Calls"
+                    : "Select Date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-3 space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: "all", label: "All" },
+                      { value: "today", label: "Today" },
+                      { value: "tomorrow", label: "Tomorrow" },
+                      { value: "this_week", label: "This Week" },
+                      { value: "future", label: "Future" },
+                      { value: "past", label: "Past" },
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={dateFilter === option.value ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => {
+                          setDateFilter(option.value);
+                          setCustomDate(undefined);
+                        }}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="border-t pt-3">
+                    <p className="text-xs text-muted-foreground mb-2">Or select a specific date:</p>
+                    <CalendarComponent
+                      mode="single"
+                      selected={customDate}
+                      onSelect={(date) => {
+                        setCustomDate(date);
+                        if (date) {
+                          setDateFilter("custom");
+                        }
+                      }}
+                      className="rounded-md border pointer-events-auto"
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
