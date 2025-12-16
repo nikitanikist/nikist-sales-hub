@@ -12,10 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { ArrowLeft, Search, RefreshCw, ChevronDown, ChevronRight, Phone, Mail, Check, Clock, AlertCircle, X, Loader2, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isFuture, isPast, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import { cn } from "@/lib/utils";
 
 type CallStatus = Database["public"]["Enums"]["call_status"];
 type ReminderStatus = Database["public"]["Enums"]["reminder_status"];
@@ -154,6 +157,7 @@ const CloserAssignedCalls = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [dateFilter, setDateFilter] = useState<string>("all");
+  const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -167,7 +171,7 @@ const CloserAssignedCalls = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter, dateFilter]);
+  }, [searchQuery, statusFilter, dateFilter, customDate]);
 
   // Fetch closer profile
   const { data: closer } = useQuery({
@@ -257,6 +261,11 @@ const CloserAssignedCalls = () => {
             return isPast(startOfDay(date)) && !isToday(date);
           case "future":
             return isFuture(endOfDay(date)) && !isToday(date);
+          case "custom":
+            if (customDate) {
+              return format(date, "yyyy-MM-dd") === format(customDate, "yyyy-MM-dd");
+            }
+            return true;
           default:
             return true;
         }
@@ -454,7 +463,12 @@ const CloserAssignedCalls = () => {
                 <SelectItem value="refunded">Refunded</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={dateFilter} onValueChange={setDateFilter}>
+            <Select value={dateFilter} onValueChange={(value) => {
+              setDateFilter(value);
+              if (value !== "custom") {
+                setCustomDate(undefined);
+              }
+            }}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <Calendar className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Filter by date" />
@@ -466,8 +480,34 @@ const CloserAssignedCalls = () => {
                 <SelectItem value="this_week">This Week</SelectItem>
                 <SelectItem value="future">Future Calls</SelectItem>
                 <SelectItem value="past">Past Calls</SelectItem>
+                <SelectItem value="custom">Custom Date</SelectItem>
               </SelectContent>
             </Select>
+            {dateFilter === "custom" && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full sm:w-[180px] justify-start text-left font-normal",
+                      !customDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {customDate ? format(customDate, "PPP") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={customDate}
+                    onSelect={setCustomDate}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </CardHeader>
         <CardContent>
