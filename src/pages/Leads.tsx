@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { ScheduleCallDialog } from "@/components/ScheduleCallDialog";
+import { LeadsFilterSheet, LeadsFilters } from "@/components/LeadsFilterSheet";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-500",
@@ -96,6 +97,24 @@ const Leads = () => {
   const [scheduleCallOpen, setScheduleCallOpen] = useState(false);
   const [selectedLeadForCall, setSelectedLeadForCall] = useState<any>(null);
   const [selectedCloser, setSelectedCloser] = useState<any>(null);
+
+  // Filter Sheet State
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<LeadsFilters>({
+    dateFrom: undefined,
+    dateTo: undefined,
+    productIds: [],
+    country: "all",
+    status: "all",
+  });
+
+  // Check if any filters are active
+  const hasActiveFilters = 
+    filters.dateFrom !== undefined ||
+    filters.dateTo !== undefined ||
+    filters.productIds.length > 0 ||
+    filters.country !== "all" ||
+    filters.status !== "all";
 
   // Real-time subscription for leads and assignments
   useEffect(() => {
@@ -425,11 +444,32 @@ const Leads = () => {
   const filteredAssignments = leadAssignments?.filter((assignment) => {
     const query = searchQuery.toLowerCase();
     const lead = assignment.lead;
-    return (
+    
+    // Search filter
+    const matchesSearch = 
       lead?.contact_name?.toLowerCase().includes(query) ||
       lead?.email?.toLowerCase().includes(query) ||
-      lead?.phone?.toLowerCase().includes(query)
-    );
+      lead?.phone?.toLowerCase().includes(query);
+
+    // Date filter
+    const leadDate = lead?.created_at ? new Date(lead.created_at) : null;
+    const matchesDateFrom = !filters.dateFrom || (leadDate && leadDate >= filters.dateFrom);
+    const matchesDateTo = !filters.dateTo || (leadDate && leadDate <= new Date(filters.dateTo.getTime() + 86400000)); // Add 1 day to include the end date
+
+    // Product filter
+    const matchesProduct = filters.productIds.length === 0 || 
+      (assignment.product_id && filters.productIds.includes(assignment.product_id));
+
+    // Country filter
+    const matchesCountry = filters.country === "all" || lead?.country === filters.country;
+
+    // Status filter (Active/Inactive/Revoked mapping)
+    const matchesStatus = filters.status === "all" || 
+      (filters.status === "active" && lead?.status !== "lost") ||
+      (filters.status === "inactive" && lead?.status === "lost") ||
+      (filters.status === "revoked" && lead?.status === "lost"); // For now map revoked to lost until we add revoked status
+
+    return matchesSearch && matchesDateFrom && matchesDateTo && matchesProduct && matchesCountry && matchesStatus;
   });
 
   // Reset to page 1 when search changes
@@ -438,14 +478,37 @@ const Leads = () => {
     setCurrentPage(1);
   };
 
-  // Filter all leads by search query
+  // Reset to page 1 when filters change
+  const handleFiltersChange = (newFilters: LeadsFilters) => {
+    setFilters(newFilters);
+    setCurrentPage(1);
+  };
+
+  // Filter all leads by search query and filters
   const filteredLeads = allLeads?.filter((lead) => {
     const query = searchQuery.toLowerCase();
-    return (
+    
+    // Search filter
+    const matchesSearch = 
       lead.contact_name?.toLowerCase().includes(query) ||
       lead.email?.toLowerCase().includes(query) ||
-      lead.phone?.toLowerCase().includes(query)
-    );
+      lead.phone?.toLowerCase().includes(query);
+
+    // Date filter
+    const leadDate = lead.created_at ? new Date(lead.created_at) : null;
+    const matchesDateFrom = !filters.dateFrom || (leadDate && leadDate >= filters.dateFrom);
+    const matchesDateTo = !filters.dateTo || (leadDate && leadDate <= new Date(filters.dateTo.getTime() + 86400000));
+
+    // Country filter
+    const matchesCountry = filters.country === "all" || lead.country === filters.country;
+
+    // Status filter
+    const matchesStatus = filters.status === "all" || 
+      (filters.status === "active" && lead.status !== "lost") ||
+      (filters.status === "inactive" && lead.status === "lost") ||
+      (filters.status === "revoked" && lead.status === "lost");
+
+    return matchesSearch && matchesDateFrom && matchesDateTo && matchesCountry && matchesStatus;
   });
 
   // Group assignments by customer for display
@@ -502,8 +565,16 @@ const Leads = () => {
               onChange={(e) => handleSearchChange(e.target.value)}
             />
           </div>
-          <Button variant="outline" size="icon">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => setIsFilterOpen(true)}
+            className="relative"
+          >
             <Filter className="h-4 w-4" />
+            {hasActiveFilters && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-primary rounded-full" />
+            )}
           </Button>
           <Button variant="outline" size="icon" onClick={() => {
             queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
@@ -1019,6 +1090,15 @@ const Leads = () => {
         onOpenChange={setScheduleCallOpen}
         lead={selectedLeadForCall}
         closer={selectedCloser}
+      />
+
+      {/* Filter Sheet */}
+      <LeadsFilterSheet
+        open={isFilterOpen}
+        onOpenChange={setIsFilterOpen}
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        products={products || []}
       />
     </div>
   );
