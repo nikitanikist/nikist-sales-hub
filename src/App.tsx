@@ -29,10 +29,10 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
-              <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/calls" element={<Calls />} />
               <Route path="/sales-closers" element={<SalesClosers />} />
               <Route path="/sales-closers/:closerId/calls" element={<CloserAssignedCalls />} />

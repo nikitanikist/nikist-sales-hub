@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
@@ -96,9 +95,9 @@ const initialData: OnboardingData = {
 };
 
 export default function Onboarding() {
-  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
   const [data, setData] = useState<OnboardingData>(initialData);
 
   const handleChange = (field: string, value: any) => {
@@ -170,9 +169,9 @@ export default function Onboarding() {
         }
         return true;
       case 4:
-        return true; // No required fields
+        return true;
       case 5:
-        return true; // No required fields
+        return true;
       case 6:
         if (!data.terms_accepted) {
           toast({
@@ -207,7 +206,26 @@ export default function Onboarding() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("customer_onboarding").insert({
+      // Step 1: Create lead in leads table
+      const { data: leadData, error: leadError } = await supabase
+        .from("leads")
+        .insert({
+          contact_name: data.full_name,
+          email: data.email,
+          phone: data.phone || null,
+          country: data.country || null,
+          company_name: data.occupation || "Individual",
+          source: "customer_insights_form",
+          status: "new",
+        })
+        .select("id")
+        .single();
+
+      if (leadError) throw leadError;
+
+      // Step 2: Store detailed responses in customer_onboarding
+      const { error: onboardingError } = await supabase.from("customer_onboarding").insert({
+        lead_id: leadData.id,
         full_name: data.full_name,
         email: data.email,
         phone: data.phone || null,
@@ -246,19 +264,29 @@ export default function Onboarding() {
         completed_at: new Date().toISOString(),
       });
 
-      if (error) throw error;
+      if (onboardingError) throw onboardingError;
 
-      toast({
-        title: "Success!",
-        description: "Your onboarding has been completed successfully.",
-      });
+      // Step 3: Get Customer Insights product and create lead_assignment
+      const { data: productData } = await supabase
+        .from("products")
+        .select("id, funnel_id")
+        .eq("product_name", "Customer Insights")
+        .maybeSingle();
 
-      navigate("/leads");
+      if (productData) {
+        await supabase.from("lead_assignments").insert({
+          lead_id: leadData.id,
+          product_id: productData.id,
+          funnel_id: productData.funnel_id,
+        });
+      }
+
+      setIsComplete(true);
     } catch (error: any) {
       console.error("Error submitting onboarding:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to submit onboarding",
+        description: error.message || "Failed to submit. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -355,17 +383,51 @@ export default function Onboarding() {
     }
   };
 
+  // Thank you screen
+  if (isComplete) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10 flex items-center justify-center p-4">
+        <Card className="max-w-lg w-full shadow-2xl border-0">
+          <CardContent className="p-8 md:p-12 text-center">
+            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="h-10 w-10 text-green-600" />
+            </div>
+            <h1 className="text-3xl font-bold text-foreground mb-3">Thank You!</h1>
+            <p className="text-muted-foreground mb-6">
+              Your information has been submitted successfully. Our team will review your details and get in touch with you soon.
+            </p>
+            <div className="bg-muted/50 rounded-lg p-4 text-left">
+              <h3 className="font-semibold text-foreground mb-2">What happens next?</h3>
+              <ul className="text-sm text-muted-foreground space-y-2">
+                <li>• Our team will review your submission</li>
+                <li>• You'll receive a confirmation email</li>
+                <li>• A representative will contact you within 24-48 hours</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-[calc(100vh-8rem)]">
+    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10 py-8 px-4">
       <div className="max-w-3xl mx-auto">
+        {/* Branding Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Customer Onboarding</h1>
-          <p className="text-muted-foreground">Complete the form to register a new customer</p>
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+              <Sparkles className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <span className="text-2xl font-bold text-foreground">Nikist</span>
+          </div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Customer Insights</h1>
+          <p className="text-muted-foreground">Help us understand you better to serve you best</p>
         </div>
 
         <OnboardingProgress currentStep={currentStep} totalSteps={TOTAL_STEPS} />
 
-        <Card className="shadow-lg">
+        <Card className="shadow-2xl border-0">
           <CardContent className="p-6 md:p-8">
             {renderStep()}
 
@@ -393,13 +455,17 @@ export default function Onboarding() {
                       Submitting...
                     </>
                   ) : (
-                    "Complete Onboarding"
+                    "Complete"
                   )}
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
+
+        <p className="text-center text-xs text-muted-foreground mt-6">
+          Your data is secure and will only be used to improve your experience.
+        </p>
       </div>
     </div>
   );
