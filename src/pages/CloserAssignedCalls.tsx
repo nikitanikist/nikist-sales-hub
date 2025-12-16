@@ -158,6 +158,7 @@ const CloserAssignedCalls = () => {
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [dateFilter, setDateFilter] = useState<string>("all");
   const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
+  const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -463,7 +464,7 @@ const CloserAssignedCalls = () => {
                 <SelectItem value="refunded">Refunded</SelectItem>
               </SelectContent>
             </Select>
-            <Popover>
+            <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -487,7 +488,14 @@ const CloserAssignedCalls = () => {
                     : "Select Date"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+              <PopoverContent 
+                className="w-auto p-0" 
+                align="start"
+                side="bottom"
+                sideOffset={4}
+                collisionPadding={10}
+                avoidCollisions={true}
+              >
                 <div className="p-3 space-y-3">
                   <div className="grid grid-cols-3 gap-2">
                     {[
@@ -506,6 +514,7 @@ const CloserAssignedCalls = () => {
                         onClick={() => {
                           setDateFilter(option.value);
                           setCustomDate(undefined);
+                          setIsDatePopoverOpen(false);
                         }}
                       >
                         {option.label}
@@ -522,6 +531,7 @@ const CloserAssignedCalls = () => {
                         if (date) {
                           setDateFilter("custom");
                         }
+                        setIsDatePopoverOpen(false);
                       }}
                       className="rounded-md border pointer-events-auto"
                     />
