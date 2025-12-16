@@ -294,11 +294,37 @@ const SalesClosers = () => {
                             {closer.assigned}
                           </Link>
                         </TableCell>
-                        <TableCell className="text-right">{closer.converted}</TableCell>
-                        <TableCell className="text-right">{closer.not_converted}</TableCell>
-                        <TableCell className="text-right">{closer.rescheduled}</TableCell>
+                        <TableCell className="text-right">
+                          <Link
+                            to={`/sales-closers/${closer.id}/calls?status=converted`}
+                            className="font-medium text-green-600 hover:underline"
+                          >
+                            {closer.converted}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link
+                            to={`/sales-closers/${closer.id}/calls?status=not_converted`}
+                            className="font-medium text-red-600 hover:underline"
+                          >
+                            {closer.not_converted}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link
+                            to={`/sales-closers/${closer.id}/calls?status=reschedule`}
+                            className="font-medium text-purple-600 hover:underline"
+                          >
+                            {closer.rescheduled}
+                          </Link>
+                        </TableCell>
                         <TableCell className="text-right font-semibold">
-                          ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
+                          <Link
+                            to={`/sales-closers/${closer.id}/calls?status=converted`}
+                            className="text-primary hover:underline"
+                          >
+                            ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
+                          </Link>
                         </TableCell>
                       </TableRow>
                     ))
