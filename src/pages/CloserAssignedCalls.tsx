@@ -569,7 +569,12 @@ const CloserAssignedCalls = () => {
                         <>
                           <CollapsibleTrigger asChild>
                             <TableRow
-                              className="cursor-pointer hover:bg-muted/50"
+                              className={cn(
+                                "cursor-pointer",
+                                isToday(new Date(apt.scheduled_date))
+                                  ? "bg-yellow-50 hover:bg-yellow-100"
+                                  : "hover:bg-muted/50"
+                              )}
                               onClick={() => handleExpand(apt.id)}
                             >
                               <TableCell>
