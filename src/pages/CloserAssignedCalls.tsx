@@ -115,6 +115,22 @@ const formatReminderDateTime = (isoString: string): string => {
   return `${dateStr}, ${timeStr}`;
 };
 
+// Helper to check if a today's call time has passed
+const hasCallTimePassed = (dateStr: string, timeStr: string): boolean => {
+  const callDate = new Date(dateStr);
+  
+  // Only relevant for today's calls
+  if (!isToday(callDate)) return false;
+  
+  // Parse scheduled time (HH:MM:SS format)
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const now = new Date();
+  const callDateTime = new Date();
+  callDateTime.setHours(hours, minutes, 0, 0);
+  
+  return now > callDateTime;
+};
+
 // Custom sorting: Today → Future (ascending) → Past (descending)
 const sortAppointments = (appointments: Appointment[]): Appointment[] => {
   const today: Appointment[] = [];
@@ -572,7 +588,9 @@ const CloserAssignedCalls = () => {
                               className={cn(
                                 "cursor-pointer",
                                 isToday(new Date(apt.scheduled_date))
-                                  ? "bg-yellow-50 hover:bg-yellow-100"
+                                  ? hasCallTimePassed(apt.scheduled_date, apt.scheduled_time)
+                                    ? "bg-green-50 hover:bg-green-100"
+                                    : "bg-yellow-50 hover:bg-yellow-100"
                                   : "hover:bg-muted/50"
                               )}
                               onClick={() => handleExpand(apt.id)}
