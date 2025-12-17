@@ -13,6 +13,12 @@ interface PabblyPayload {
   amount: number;
   'Mango Id'?: string;
   'country code'?: string;
+  // UTM tracking fields
+  'Utm Term'?: string | number;
+  'Utm Source'?: string;
+  'Utm Medium'?: string;
+  'Utm Content'?: string | number;
+  'Utm Campaign'?: string | number;
 }
 
 // Target Mango IDs for sending WhatsApp confirmations
@@ -504,7 +510,13 @@ Deno.serve(async (req) => {
               countryCode: countryCode,
               phone: phoneValue.trim(),
               service: normalizedWorkshopName,
-              registrationDate: registrationDate
+              registrationDate: registrationDate,
+              // UTM tracking fields
+              utmTerm: String(payload['Utm Term'] || ''),
+              utmSource: payload['Utm Source'] || '',
+              utmMedium: payload['Utm Medium'] || '',
+              utmContent: String(payload['Utm Content'] || ''),
+              utmCampaign: String(payload['Utm Campaign'] || ''),
             };
 
             console.log('Sending data to Google Sheet:', JSON.stringify(sheetPayload, null, 2));
