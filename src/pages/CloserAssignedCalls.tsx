@@ -131,6 +131,26 @@ const hasCallTimePassed = (dateStr: string, timeStr: string): boolean => {
   return now > callDateTime;
 };
 
+// Helper to check if a call is currently in progress (within 1-hour window)
+const isCallInProgress = (dateStr: string, timeStr: string): boolean => {
+  const callDate = new Date(dateStr);
+  
+  // Only relevant for today's calls
+  if (!isToday(callDate)) return false;
+  
+  // Parse scheduled time (HH:MM:SS format)
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const now = new Date();
+  
+  const callStart = new Date();
+  callStart.setHours(hours, minutes, 0, 0);
+  
+  const callEnd = new Date();
+  callEnd.setHours(hours + 1, minutes, 0, 0); // 1 hour duration
+  
+  return now >= callStart && now < callEnd;
+};
+
 // Custom sorting: Today → Future (ascending) → Past (descending)
 const sortAppointments = (appointments: Appointment[]): Appointment[] => {
   const today: Appointment[] = [];
@@ -587,11 +607,13 @@ const CloserAssignedCalls = () => {
                             <TableRow
                               className={cn(
                                 "cursor-pointer",
-                                isToday(new Date(apt.scheduled_date))
-                                  ? hasCallTimePassed(apt.scheduled_date, apt.scheduled_time)
-                                    ? "bg-green-50 hover:bg-green-100"
-                                    : "bg-yellow-50 hover:bg-yellow-100"
-                                  : "hover:bg-muted/50"
+                                isCallInProgress(apt.scheduled_date, apt.scheduled_time)
+                                  ? "animate-live-pulse"
+                                  : isToday(new Date(apt.scheduled_date))
+                                    ? hasCallTimePassed(apt.scheduled_date, apt.scheduled_time)
+                                      ? "bg-green-50 hover:bg-green-100"
+                                      : "bg-yellow-50 hover:bg-yellow-100"
+                                    : "hover:bg-muted/50"
                               )}
                               onClick={() => handleExpand(apt.id)}
                             >
@@ -603,9 +625,15 @@ const CloserAssignedCalls = () => {
                                 )}
                               </TableCell>
                               <TableCell className="font-medium">
-                                <div>
+                                <div className="flex items-center">
+                                  {isCallInProgress(apt.scheduled_date, apt.scheduled_time) && (
+                                    <Badge className="mr-2 bg-red-500 text-white border-red-500 flex items-center gap-1 animate-pulse">
+                                      <span className="w-2 h-2 bg-white rounded-full animate-ping" />
+                                      LIVE
+                                    </Badge>
+                                  )}
                                   {apt.lead?.contact_name || "Unknown"}
-                                  {isToday(new Date(apt.scheduled_date)) && (
+                                  {isToday(new Date(apt.scheduled_date)) && !isCallInProgress(apt.scheduled_date, apt.scheduled_time) && (
                                     <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">Today</Badge>
                                   )}
                                 </div>
