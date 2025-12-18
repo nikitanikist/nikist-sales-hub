@@ -214,22 +214,49 @@ Deno.serve(async (req) => {
     let isDuplicateAssignment = false;
 
     // ============ DATABASE-FIRST MATCHING ============
-    // STEP 1: Check if name exists in PRODUCTS table first
-    console.log('Checking PRODUCTS table for:', normalizedWorkshopName);
+    // STEP 1: Check PRODUCTS table - first by mango_id (primary), then by name (fallback)
+    let existingProduct = null;
     
-    const { data: existingProduct, error: productCheckError } = await supabase
-      .from('products')
-      .select('id, funnel_id, mango_id')
-      .ilike('product_name', normalizedWorkshopName)
-      .maybeSingle();
+    // Primary match: by mango_id (prevents duplicates from same TagMango product)
+    if (mangoId) {
+      console.log('Checking PRODUCTS table by mango_id:', mangoId);
+      const { data: productByMangoId, error: mangoIdError } = await supabase
+        .from('products')
+        .select('id, funnel_id, mango_id')
+        .eq('mango_id', mangoId)
+        .maybeSingle();
+      
+      if (mangoIdError) {
+        console.error('Error checking products by mango_id:', mangoIdError);
+      }
+      
+      if (productByMangoId) {
+        existingProduct = productByMangoId;
+        console.log('Found existing product by mango_id:', existingProduct.id);
+      }
+    }
+    
+    // Fallback: by name (for backwards compatibility)
+    if (!existingProduct) {
+      console.log('Checking PRODUCTS table by name:', normalizedWorkshopName);
+      const { data: productByName, error: productCheckError } = await supabase
+        .from('products')
+        .select('id, funnel_id, mango_id')
+        .ilike('product_name', normalizedWorkshopName)
+        .maybeSingle();
 
-    if (productCheckError) {
-      console.error('Error checking products:', productCheckError);
+      if (productCheckError) {
+        console.error('Error checking products by name:', productCheckError);
+      }
+      
+      if (productByName) {
+        existingProduct = productByName;
+        console.log('Found existing product by name:', existingProduct.id);
+      }
     }
 
     if (existingProduct) {
       // FOUND IN PRODUCTS → It's a PRODUCT!
-      console.log('Found existing product by name:', existingProduct.id);
       productId = existingProduct.id;
       
       // Update mango_id if the product doesn't have one but we received one
