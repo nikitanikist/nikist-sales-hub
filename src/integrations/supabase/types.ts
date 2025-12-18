@@ -745,6 +745,13 @@ export type Database = {
           id: string
         }[]
       }
+      get_product_user_counts: {
+        Args: never
+        Returns: {
+          product_id: string
+          user_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
