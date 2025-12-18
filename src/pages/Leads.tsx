@@ -1161,8 +1161,8 @@ const Leads = () => {
               </div>
             </div>
             <DialogFooter>
-              <Button type="submit">
-                {editingLead ? "Update" : "Create"} Customer
+              <Button type="submit" disabled={saveMutation.isPending}>
+                {saveMutation.isPending ? "Saving..." : (editingLead ? "Update" : "Create") + " Customer"}
               </Button>
             </DialogFooter>
           </form>
