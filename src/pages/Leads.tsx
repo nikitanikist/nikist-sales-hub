@@ -536,20 +536,76 @@ const Leads = () => {
     return matchesSearch && matchesDateFrom && matchesDateTo && matchesCountry && matchesStatus;
   });
 
-  // Group assignments by customer for display
-  const groupedAssignments = filteredAssignments?.reduce((acc: any, assignment) => {
-    const leadId = assignment.lead?.id;
-    if (!leadId) return acc;
-    
-    if (!acc[leadId]) {
-      acc[leadId] = {
-        lead: assignment.lead,
-        assignments: [],
-      };
+  // Check if both product AND workshop filters are active - for consolidated view
+  const hasBothProductAndWorkshopFilters = filters.productIds.length > 0 && filters.workshopIds.length > 0;
+
+  // Group assignments by customer EMAIL for consolidated display when both filters are active
+  const groupedAssignments = (() => {
+    if (hasBothProductAndWorkshopFilters) {
+      // Consolidated view: group by email and merge workshop + product info into single row
+      const byEmail: Record<string, any> = {};
+      
+      filteredAssignments?.forEach((assignment) => {
+        const email = assignment.lead?.email;
+        if (!email) return;
+        
+        if (!byEmail[email]) {
+          byEmail[email] = {
+            lead: assignment.lead,
+            workshopAssignment: null,
+            productAssignment: null,
+          };
+        }
+        
+        // Find matching workshop assignment
+        if (assignment.workshop_id && filters.workshopIds.includes(assignment.workshop_id)) {
+          byEmail[email].workshopAssignment = assignment;
+        }
+        
+        // Find matching product assignment
+        if (assignment.product_id && filters.productIds.includes(assignment.product_id)) {
+          byEmail[email].productAssignment = assignment;
+        }
+      });
+      
+      // Convert to grouped format with consolidated assignments
+      const result: Record<string, any> = {};
+      Object.entries(byEmail).forEach(([email, data]) => {
+        const leadId = data.lead?.id;
+        if (!leadId) return;
+        
+        // Create a consolidated "virtual" assignment for display
+        result[email] = {
+          lead: data.lead,
+          assignments: [{
+            id: `consolidated-${email}`,
+            workshop: data.workshopAssignment?.workshop,
+            product: data.productAssignment?.product,
+            funnel: data.productAssignment?.funnel,
+            is_connected: data.workshopAssignment && data.productAssignment,
+            _consolidated: true,
+          }],
+        };
+      });
+      
+      return result;
+    } else {
+      // Normal view: group by lead_id and show each assignment as separate row
+      return filteredAssignments?.reduce((acc: any, assignment) => {
+        const leadId = assignment.lead?.id;
+        if (!leadId) return acc;
+        
+        if (!acc[leadId]) {
+          acc[leadId] = {
+            lead: assignment.lead,
+            assignments: [],
+          };
+        }
+        acc[leadId].assignments.push(assignment);
+        return acc;
+      }, {});
     }
-    acc[leadId].assignments.push(assignment);
-    return acc;
-  }, {});
+  })();
 
   // Add leads without assignments ONLY when product/workshop filters are NOT active
   const hasProductOrWorkshopFilter = filters.productIds.length > 0 || filters.workshopIds.length > 0;
