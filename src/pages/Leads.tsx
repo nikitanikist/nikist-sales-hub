@@ -252,7 +252,7 @@ const Leads = () => {
         .from("products")
         .select(`
           *,
-          funnel:funnels(id, funnel_name)
+          funnel:funnels!products_funnel_id_fkey(id, funnel_name)
         `)
         .eq("is_active", true)
         .order("product_name");
