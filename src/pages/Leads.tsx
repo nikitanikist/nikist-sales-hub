@@ -443,24 +443,25 @@ const Leads = () => {
     });
   };
 
-  // Group all assignments by lead_id for lead-level product/workshop filtering
-  const assignmentsByLeadId = leadAssignments?.reduce((acc, assignment) => {
-    const leadId = assignment.lead?.id;
-    if (!leadId) return acc;
-    if (!acc[leadId]) acc[leadId] = [];
-    acc[leadId].push(assignment);
+  // Group all assignments by customer EMAIL for customer-level product/workshop filtering
+  // This ensures customers with multiple lead records (one for workshop, one for product) are matched correctly
+  const assignmentsByEmail = leadAssignments?.reduce((acc, assignment) => {
+    const email = assignment.lead?.email;
+    if (!email) return acc;
+    if (!acc[email]) acc[email] = [];
+    acc[email].push(assignment);
     return acc;
   }, {} as Record<string, typeof leadAssignments>);
 
-  // Helper to check if a lead matches product/workshop filters across ANY of their assignments
-  const leadMatchesProductWorkshopFilters = (leadId: string) => {
-    const assignments = assignmentsByLeadId?.[leadId] || [];
+  // Helper to check if a customer (by email) matches product/workshop filters across ALL their assignments
+  const customerMatchesProductWorkshopFilters = (email: string) => {
+    const customerAssignments = assignmentsByEmail?.[email] || [];
     
     const matchesProduct = filters.productIds.length === 0 || 
-      assignments.some(a => a.product_id && filters.productIds.includes(a.product_id));
+      customerAssignments.some(a => a.product_id && filters.productIds.includes(a.product_id));
     
     const matchesWorkshop = filters.workshopIds.length === 0 || 
-      assignments.some(a => a.workshop_id && filters.workshopIds.includes(a.workshop_id));
+      customerAssignments.some(a => a.workshop_id && filters.workshopIds.includes(a.workshop_id));
     
     return matchesProduct && matchesWorkshop;
   };
@@ -468,7 +469,7 @@ const Leads = () => {
   const filteredAssignments = leadAssignments?.filter((assignment) => {
     const query = searchQuery.toLowerCase();
     const lead = assignment.lead;
-    const leadId = lead?.id;
+    const email = lead?.email;
     
     // Search filter
     const matchesSearch = 
@@ -481,8 +482,8 @@ const Leads = () => {
     const matchesDateFrom = !filters.dateFrom || (leadDate && leadDate >= filters.dateFrom);
     const matchesDateTo = !filters.dateTo || (leadDate && leadDate <= new Date(filters.dateTo.getTime() + 86400000)); // Add 1 day to include the end date
 
-    // Product/Workshop filter at LEAD level (check across all lead's assignments)
-    const matchesProductWorkshop = leadId ? leadMatchesProductWorkshopFilters(leadId) : false;
+    // Product/Workshop filter at CUSTOMER level (check across all customer's assignments by email)
+    const matchesProductWorkshop = email ? customerMatchesProductWorkshopFilters(email) : false;
 
     // Country filter
     const matchesCountry = filters.country === "all" || lead?.country === filters.country;
