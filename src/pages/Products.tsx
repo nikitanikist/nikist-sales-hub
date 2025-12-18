@@ -94,16 +94,13 @@ const Products = () => {
     },
   });
 
-  // Fetch lead assignments for user count
-  const { data: leadAssignments = [] } = useQuery({
-    queryKey: ["lead-assignments-products"],
+  // Fetch user counts per product using database aggregation
+  const { data: productUserCounts = [] } = useQuery({
+    queryKey: ["product-user-counts"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lead_assignments")
-        .select("product_id");
-
+      const { data, error } = await supabase.rpc("get_product_user_counts");
       if (error) throw error;
-      return data;
+      return data as { product_id: string; user_count: number }[];
     },
   });
 
@@ -192,7 +189,8 @@ const Products = () => {
   });
 
   const getUserCount = (productId: string) => {
-    return leadAssignments.filter((assignment: any) => assignment.product_id === productId).length;
+    const countData = productUserCounts.find((item) => item.product_id === productId);
+    return countData?.user_count || 0;
   };
 
   // Real-time updates
@@ -207,7 +205,7 @@ const Products = () => {
           table: 'lead_assignments'
         },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["lead-assignments-products"] });
+          queryClient.invalidateQueries({ queryKey: ["product-user-counts"] });
           queryClient.invalidateQueries({ queryKey: ["products"] });
         }
       )
