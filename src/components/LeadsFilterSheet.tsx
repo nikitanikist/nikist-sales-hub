@@ -183,7 +183,7 @@ export function LeadsFilterSheet({
                 <SelectTrigger>
                   <SelectValue placeholder="All Products" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   <SelectItem value="all">All Products</SelectItem>
                   {products.map((product) => (
                     <SelectItem key={product.id} value={product.id}>
@@ -209,7 +209,7 @@ export function LeadsFilterSheet({
                 <SelectTrigger>
                   <SelectValue placeholder="All Workshops" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   <SelectItem value="all">All Workshops</SelectItem>
                   {workshops.map((workshop) => (
                     <SelectItem key={workshop.id} value={workshop.id}>
