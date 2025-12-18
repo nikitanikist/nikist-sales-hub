@@ -532,19 +532,23 @@ const Leads = () => {
     return acc;
   }, {});
 
-  // Add leads without assignments
-  filteredLeads?.forEach((lead) => {
-    if (!groupedAssignments?.[lead.id]) {
-      if (!groupedAssignments) return;
-      groupedAssignments[lead.id] = {
-        lead: {
-          ...lead,
-          assigned_to: lead.assigned_to,
-        },
-        assignments: [],
-      };
-    }
-  });
+  // Add leads without assignments ONLY when product/workshop filters are NOT active
+  const hasProductOrWorkshopFilter = filters.productIds.length > 0 || filters.workshopIds.length > 0;
+  
+  if (!hasProductOrWorkshopFilter) {
+    filteredLeads?.forEach((lead) => {
+      if (!groupedAssignments?.[lead.id]) {
+        if (!groupedAssignments) return;
+        groupedAssignments[lead.id] = {
+          lead: {
+            ...lead,
+            assigned_to: lead.assigned_to,
+          },
+          assignments: [],
+        };
+      }
+    });
+  }
 
   // Paginate grouped assignments - sort by newest first
   const groupedAssignmentsArray = Object.values(groupedAssignments || {}).sort((a: any, b: any) => {
