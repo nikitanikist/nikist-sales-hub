@@ -804,34 +804,30 @@ const Leads = () => {
                     );
                   }
                   
-                  return group.assignments.map((assignment: any, idx: number) => (
-                    <TableRow key={assignment.id} className={idx > 0 ? "bg-muted/30" : ""}>
-                      {idx === 0 ? (
-                        <TableCell rowSpan={group.assignments.length}>
-                          <div className="space-y-1">
-                            <div className="font-medium">{lead.contact_name}</div>
-                            {(() => {
-                              const { countryInfo } = formatPhoneDisplay(lead.phone, lead.country);
-                              return countryInfo ? (
-                                <div className="flex items-center gap-1.5 mt-1">
-                                  <span className="text-base">{countryInfo.flag}</span>
-                                  <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 bg-muted/50 border-muted-foreground/20">
-                                    {countryInfo.name}
-                                  </Badge>
-                                </div>
-                              ) : null;
-                            })()}
-                          </div>
-                        </TableCell>
-                      ) : null}
-                      {idx === 0 ? (
-                        <TableCell rowSpan={group.assignments.length}>
-                          <div className="space-y-1">
-                            <div className="text-sm text-blue-600">{formatPhoneDisplay(lead.phone, lead.country).display}</div>
-                            <div className="text-sm text-blue-600">{lead.email}</div>
-                          </div>
-                        </TableCell>
-                      ) : null}
+                  return group.assignments.map((assignment: any) => (
+                    <TableRow key={assignment.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="font-medium">{lead.contact_name}</div>
+                          {(() => {
+                            const { countryInfo } = formatPhoneDisplay(lead.phone, lead.country);
+                            return countryInfo ? (
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className="text-base">{countryInfo.flag}</span>
+                                <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 bg-muted/50 border-muted-foreground/20">
+                                  {countryInfo.name}
+                                </Badge>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="text-sm text-blue-600">{formatPhoneDisplay(lead.phone, lead.country).display}</div>
+                          <div className="text-sm text-blue-600">{lead.email}</div>
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <span className="text-sm">{assignment.workshop?.title || "-"}</span>
@@ -851,87 +847,78 @@ const Leads = () => {
                           <span className="text-sm">-</span>
                         )}
                       </TableCell>
-                      {idx === 0 ? (
-                        <TableCell rowSpan={group.assignments.length}>
-                          <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
-                        </TableCell>
-                      ) : null}
-                      {idx === 0 ? (
-                        <TableCell rowSpan={group.assignments.length}>
-                          <div className="text-sm">
-                            {lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : "-"}
-                          </div>
-                        </TableCell>
-                      ) : null}
-                      {idx === 0 ? (
-                        <TableCell rowSpan={group.assignments.length}>
-                          <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
-                            ACTIVE
-                          </Badge>
-                        </TableCell>
-                      ) : null}
-                      {idx === 0 ? (
-                        <TableCell rowSpan={group.assignments.length}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={() => {
-                                  setEditingLead(lead);
-                                  // Load existing assignments
-                                  const workshopIds = group.assignments
-                                    .filter((a: any) => a.workshop_id)
-                                    .map((a: any) => a.workshop_id);
-                                  const productIds = group.assignments
-                                    .filter((a: any) => a.product_id)
-                                    .map((a: any) => a.product_id);
-                                  setSelectedWorkshops(workshopIds);
-                                  setSelectedProducts(productIds);
-                                  setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
-                                  setIsOpen(true);
-                                }}
-                              >
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit details
-                              </DropdownMenuItem>
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger className="cursor-pointer">
-                                  <Calendar className="mr-2 h-4 w-4" />
-                                  Schedule Call
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                                  {salesClosers?.map((closer: any) => (
-                                    <DropdownMenuItem
-                                      key={closer.id}
-                                      className="cursor-pointer"
-                                      onClick={() => {
-                                        setSelectedLeadForCall(lead);
-                                        setSelectedCloser(closer);
-                                        setScheduleCallOpen(true);
-                                      }}
-                                    >
-                                      {closer.full_name}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-red-600 cursor-pointer"
-                                onClick={() => deleteMutation.mutate(lead.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete customer
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      ) : null}
+                      <TableCell>
+                        <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          {lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : "-"}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
+                          ACTIVE
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => {
+                                setEditingLead(lead);
+                                const workshopIds = group.assignments
+                                  .filter((a: any) => a.workshop_id)
+                                  .map((a: any) => a.workshop_id);
+                                const productIds = group.assignments
+                                  .filter((a: any) => a.product_id)
+                                  .map((a: any) => a.product_id);
+                                setSelectedWorkshops(workshopIds);
+                                setSelectedProducts(productIds);
+                                setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
+                                setIsOpen(true);
+                              }}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit details
+                            </DropdownMenuItem>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger className="cursor-pointer">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                Schedule Call
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
+                                {salesClosers?.map((closer: any) => (
+                                  <DropdownMenuItem
+                                    key={closer.id}
+                                    className="cursor-pointer"
+                                    onClick={() => {
+                                      setSelectedLeadForCall(lead);
+                                      setSelectedCloser(closer);
+                                      setScheduleCallOpen(true);
+                                    }}
+                                  >
+                                    {closer.full_name}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600 cursor-pointer"
+                              onClick={() => deleteMutation.mutate(lead.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete customer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   ));
                 })}
