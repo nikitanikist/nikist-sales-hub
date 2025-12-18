@@ -116,12 +116,12 @@ export function LeadsFilterSheet({
                       <Button
                         variant="outline"
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-left font-normal truncate",
                           !localFilters.dateFrom && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {localFilters.dateFrom ? format(localFilters.dateFrom, "PPP") : "Pick date"}
+                        <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+                        {localFilters.dateFrom ? format(localFilters.dateFrom, "MMM d, yyyy") : "Pick date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -144,12 +144,12 @@ export function LeadsFilterSheet({
                       <Button
                         variant="outline"
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-left font-normal truncate",
                           !localFilters.dateTo && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {localFilters.dateTo ? format(localFilters.dateTo, "PPP") : "Pick date"}
+                        <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+                        {localFilters.dateTo ? format(localFilters.dateTo, "MMM d, yyyy") : "Pick date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">

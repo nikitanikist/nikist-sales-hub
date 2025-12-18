@@ -443,9 +443,32 @@ const Leads = () => {
     });
   };
 
+  // Group all assignments by lead_id for lead-level product/workshop filtering
+  const assignmentsByLeadId = leadAssignments?.reduce((acc, assignment) => {
+    const leadId = assignment.lead?.id;
+    if (!leadId) return acc;
+    if (!acc[leadId]) acc[leadId] = [];
+    acc[leadId].push(assignment);
+    return acc;
+  }, {} as Record<string, typeof leadAssignments>);
+
+  // Helper to check if a lead matches product/workshop filters across ANY of their assignments
+  const leadMatchesProductWorkshopFilters = (leadId: string) => {
+    const assignments = assignmentsByLeadId?.[leadId] || [];
+    
+    const matchesProduct = filters.productIds.length === 0 || 
+      assignments.some(a => a.product_id && filters.productIds.includes(a.product_id));
+    
+    const matchesWorkshop = filters.workshopIds.length === 0 || 
+      assignments.some(a => a.workshop_id && filters.workshopIds.includes(a.workshop_id));
+    
+    return matchesProduct && matchesWorkshop;
+  };
+
   const filteredAssignments = leadAssignments?.filter((assignment) => {
     const query = searchQuery.toLowerCase();
     const lead = assignment.lead;
+    const leadId = lead?.id;
     
     // Search filter
     const matchesSearch = 
@@ -458,13 +481,8 @@ const Leads = () => {
     const matchesDateFrom = !filters.dateFrom || (leadDate && leadDate >= filters.dateFrom);
     const matchesDateTo = !filters.dateTo || (leadDate && leadDate <= new Date(filters.dateTo.getTime() + 86400000)); // Add 1 day to include the end date
 
-    // Product filter
-    const matchesProduct = filters.productIds.length === 0 || 
-      (assignment.product_id && filters.productIds.includes(assignment.product_id));
-
-    // Workshop filter
-    const matchesWorkshop = filters.workshopIds.length === 0 || 
-      (assignment.workshop_id && filters.workshopIds.includes(assignment.workshop_id));
+    // Product/Workshop filter at LEAD level (check across all lead's assignments)
+    const matchesProductWorkshop = leadId ? leadMatchesProductWorkshopFilters(leadId) : false;
 
     // Country filter
     const matchesCountry = filters.country === "all" || lead?.country === filters.country;
@@ -475,7 +493,7 @@ const Leads = () => {
       (filters.status === "inactive" && lead?.status === "lost") ||
       (filters.status === "revoked" && lead?.status === "lost"); // For now map revoked to lost until we add revoked status
 
-    return matchesSearch && matchesDateFrom && matchesDateTo && matchesProduct && matchesWorkshop && matchesCountry && matchesStatus;
+    return matchesSearch && matchesDateFrom && matchesDateTo && matchesProductWorkshop && matchesCountry && matchesStatus;
   });
 
   // Reset to page 1 when search changes
