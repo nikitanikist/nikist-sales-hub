@@ -127,20 +127,32 @@ Deno.serve(async (req) => {
     const normalizedWorkshopName = payload.workshop_name.trim();
     const mangoId = payload['Mango Id'] || null;
 
-    // Check for duplicate lead (same email + workshop_name)
-    const { data: existingLead, error: duplicateCheckError } = await supabase
+    // Format country code - strip + if present, default to 91 for India
+    let countryCode = '91';
+    if (payload['country code']) {
+      countryCode = String(payload['country code']).replace('+', '').trim();
+    }
+
+    let workshopId: string | null = null;
+    let productId: string | null = null;
+    let leadId: string | null = null;
+    let isExistingLead = false;
+
+    // STEP 1: Check if a lead with this email already exists (ONE lead per customer)
+    const { data: existingLead, error: leadCheckError } = await supabase
       .from('leads')
       .select('id')
       .eq('email', normalizedEmail)
-      .eq('workshop_name', normalizedWorkshopName)
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
-    if (duplicateCheckError) {
-      console.error('Error checking for duplicate lead:', duplicateCheckError);
+    if (leadCheckError) {
+      console.error('Error checking for existing lead:', leadCheckError);
       return new Response(
         JSON.stringify({ 
-          error: 'Duplicate check error', 
-          details: duplicateCheckError.message 
+          error: 'Lead check error', 
+          details: leadCheckError.message 
         }),
         { 
           status: 500, 
@@ -149,26 +161,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Track if this is a duplicate - we'll still send WhatsApp but skip DB operations
-    const isDuplicate = !!existingLead;
-    let leadId: string | null = existingLead?.id || null;
-    let workshopId: string | null = null;
-    let productId: string | null = null;
-
-    if (isDuplicate) {
-      console.log('Duplicate lead detected for email:', normalizedEmail, 'and workshop:', normalizedWorkshopName);
-      console.log('Will still send WhatsApp confirmation for duplicate registration');
-    }
-
-    // Format country code - strip + if present, default to 91 for India
-    let countryCode = '91';
-    if (payload['country code']) {
-      countryCode = String(payload['country code']).replace('+', '').trim();
-    }
-
-    // Only create lead and assignments if NOT a duplicate
-    if (!isDuplicate) {
-      // Map Pabbly fields to database columns
+    if (existingLead) {
+      // Reuse existing lead - ONE lead per customer
+      leadId = existingLead.id;
+      isExistingLead = true;
+      console.log('Found existing lead for email:', normalizedEmail, 'using lead_id:', leadId);
+    } else {
+      // Create new lead only if customer doesn't exist
       const leadData = {
         contact_name: payload.name.trim(),
         email: normalizedEmail,
@@ -185,9 +184,8 @@ Deno.serve(async (req) => {
         country: countryCode,
       };
 
-      console.log('Inserting lead data:', JSON.stringify(leadData, null, 2));
+      console.log('Creating new lead:', JSON.stringify(leadData, null, 2));
 
-      // Insert into leads table
       const { data, error } = await supabase
         .from('leads')
         .insert(leadData)
@@ -209,41 +207,57 @@ Deno.serve(async (req) => {
       }
 
       leadId = data.id;
-      console.log('Lead created successfully:', leadId);
+      console.log('New lead created:', leadId);
+    }
 
-      // ============ DATABASE-FIRST MATCHING ============
-      // STEP 1: Check if name exists in PRODUCTS table first
-      console.log('Checking PRODUCTS table for:', normalizedWorkshopName);
+    // Track if this is a duplicate assignment (same workshop/product for this lead)
+    let isDuplicateAssignment = false;
+
+    // ============ DATABASE-FIRST MATCHING ============
+    // STEP 1: Check if name exists in PRODUCTS table first
+    console.log('Checking PRODUCTS table for:', normalizedWorkshopName);
+    
+    const { data: existingProduct, error: productCheckError } = await supabase
+      .from('products')
+      .select('id, funnel_id, mango_id')
+      .ilike('product_name', normalizedWorkshopName)
+      .maybeSingle();
+
+    if (productCheckError) {
+      console.error('Error checking products:', productCheckError);
+    }
+
+    if (existingProduct) {
+      // FOUND IN PRODUCTS → It's a PRODUCT!
+      console.log('Found existing product by name:', existingProduct.id);
+      productId = existingProduct.id;
       
-      const { data: existingProduct, error: productCheckError } = await supabase
-        .from('products')
-        .select('id, funnel_id, mango_id')
-        .ilike('product_name', normalizedWorkshopName)
+      // Update mango_id if the product doesn't have one but we received one
+      if (mangoId && !existingProduct.mango_id) {
+        const { error: updateError } = await supabase
+          .from('products')
+          .update({ mango_id: mangoId })
+          .eq('id', productId);
+        
+        if (updateError) {
+          console.error('Error updating product mango_id:', updateError);
+        } else {
+          console.log('Updated product mango_id to:', mangoId);
+        }
+      }
+      
+      // Check if this assignment already exists
+      const { data: existingAssignment } = await supabase
+        .from('lead_assignments')
+        .select('id')
+        .eq('lead_id', leadId)
+        .eq('product_id', productId)
         .maybeSingle();
 
-      if (productCheckError) {
-        console.error('Error checking products:', productCheckError);
-      }
-
-      if (existingProduct) {
-        // FOUND IN PRODUCTS → It's a PRODUCT!
-        console.log('Found existing product by name:', existingProduct.id);
-        productId = existingProduct.id;
-        
-        // Update mango_id if the product doesn't have one but we received one
-        if (mangoId && !existingProduct.mango_id) {
-          const { error: updateError } = await supabase
-            .from('products')
-            .update({ mango_id: mangoId })
-            .eq('id', productId);
-          
-          if (updateError) {
-            console.error('Error updating product mango_id:', updateError);
-          } else {
-            console.log('Updated product mango_id to:', mangoId);
-          }
-        }
-        
+      if (existingAssignment) {
+        console.log('Duplicate assignment detected - lead already assigned to this product');
+        isDuplicateAssignment = true;
+      } else {
         // Create lead assignment with product
         const assignmentData = {
           lead_id: leadId,
@@ -263,26 +277,39 @@ Deno.serve(async (req) => {
         } else {
           console.log('Lead assignment created with existing product');
         }
+      }
+      
+    } else {
+      // STEP 2: Not in products → Check WORKSHOPS table by name
+      console.log('Not found in products, checking WORKSHOPS table for:', normalizedWorkshopName);
+      
+      const { data: existingWorkshop, error: workshopCheckError } = await supabase
+        .from('workshops')
+        .select('id')
+        .ilike('title', normalizedWorkshopName)
+        .maybeSingle();
+
+      if (workshopCheckError) {
+        console.error('Error checking workshops:', workshopCheckError);
+      }
+
+      if (existingWorkshop) {
+        // FOUND IN WORKSHOPS → It's a WORKSHOP!
+        console.log('Found existing workshop by name:', existingWorkshop.id);
+        workshopId = existingWorkshop.id;
         
-      } else {
-        // STEP 2: Not in products → Check WORKSHOPS table by name
-        console.log('Not found in products, checking WORKSHOPS table for:', normalizedWorkshopName);
-        
-        const { data: existingWorkshop, error: workshopCheckError } = await supabase
-          .from('workshops')
+        // Check if this assignment already exists
+        const { data: existingAssignment } = await supabase
+          .from('lead_assignments')
           .select('id')
-          .ilike('title', normalizedWorkshopName)
+          .eq('lead_id', leadId)
+          .eq('workshop_id', workshopId)
           .maybeSingle();
 
-        if (workshopCheckError) {
-          console.error('Error checking workshops:', workshopCheckError);
-        }
-
-        if (existingWorkshop) {
-          // FOUND IN WORKSHOPS → It's a WORKSHOP!
-          console.log('Found existing workshop by name:', existingWorkshop.id);
-          workshopId = existingWorkshop.id;
-          
+        if (existingAssignment) {
+          console.log('Duplicate assignment detected - lead already assigned to this workshop');
+          isDuplicateAssignment = true;
+        } else {
           // Create lead assignment with workshop
           const assignmentData = {
             lead_id: leadId,
@@ -302,103 +329,55 @@ Deno.serve(async (req) => {
           } else {
             console.log('Lead assignment created with existing workshop');
           }
+        }
+        
+      } else {
+        // STEP 3: NOT FOUND IN EITHER → Use classification to CREATE new entry
+        const isProductItem = isProduct(normalizedWorkshopName, payload.amount);
+        console.log(`New item "${normalizedWorkshopName}" not found in DB, classified as: ${isProductItem ? 'PRODUCT' : 'WORKSHOP'}`);
+        
+        if (isProductItem) {
+          // CREATE NEW PRODUCT
+          console.log('Creating new product:', normalizedWorkshopName);
           
-        } else {
-          // STEP 3: NOT FOUND IN EITHER → Use classification to CREATE new entry
-          const isProductItem = isProduct(normalizedWorkshopName, payload.amount);
-          console.log(`New item "${normalizedWorkshopName}" not found in DB, classified as: ${isProductItem ? 'PRODUCT' : 'WORKSHOP'}`);
-          
-          if (isProductItem) {
-            // CREATE NEW PRODUCT
-            console.log('Creating new product:', normalizedWorkshopName);
-            
-            // Get the first available funnel for the new product
-            const { data: defaultFunnel } = await supabase
-              .from('funnels')
-              .select('id')
-              .limit(1)
-              .maybeSingle();
+          // Get the first available funnel for the new product
+          const { data: defaultFunnel } = await supabase
+            .from('funnels')
+            .select('id')
+            .limit(1)
+            .maybeSingle();
 
-            const funnelId = defaultFunnel?.id || null;
+          const funnelId = defaultFunnel?.id || null;
 
-            if (funnelId) {
-              const newProductData = {
-                product_name: normalizedWorkshopName,
-                description: `Product created via TagMango webhook`,
-                price: payload.amount,
-                funnel_id: funnelId,
-                is_active: true,
-                mango_id: mangoId,
-                created_by: null,
-              };
-
-              const { data: newProduct, error: productCreateError } = await supabase
-                .from('products')
-                .insert(newProductData)
-                .select()
-                .single();
-
-              if (productCreateError) {
-                console.error('Error creating product:', productCreateError);
-              } else {
-                productId = newProduct.id;
-                console.log('Created new product:', productId);
-
-                // Create lead assignment with new product
-                const assignmentData = {
-                  lead_id: leadId,
-                  workshop_id: null,
-                  funnel_id: funnelId,
-                  product_id: productId,
-                  is_connected: false,
-                  created_by: null,
-                };
-
-                const { error: assignmentError } = await supabase
-                  .from('lead_assignments')
-                  .insert(assignmentData);
-
-                if (assignmentError) {
-                  console.error('Error creating lead assignment:', assignmentError);
-                } else {
-                  console.log('Lead assignment created with new product');
-                }
-              }
-            } else {
-              console.error('No funnel available for new product');
-            }
-          } else {
-            // CREATE NEW WORKSHOP
-            console.log('Creating new workshop:', normalizedWorkshopName);
-            
-            const newWorkshopData = {
-              title: normalizedWorkshopName,
-              start_date: new Date().toISOString(),
-              end_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-              status: 'planned',
-              is_free: payload.amount === 0,
-              ad_spend: 0,
-              created_by: 'efff01b2-c24a-4256-9a91-11459fe27386',
+          if (funnelId) {
+            const newProductData = {
+              product_name: normalizedWorkshopName,
+              description: `Product created via TagMango webhook`,
+              price: payload.amount,
+              funnel_id: funnelId,
+              is_active: true,
+              mango_id: mangoId,
+              created_by: null,
             };
 
-            const { data: newWorkshop, error: workshopCreateError } = await supabase
-              .from('workshops')
-              .insert(newWorkshopData)
+            const { data: newProduct, error: productCreateError } = await supabase
+              .from('products')
+              .insert(newProductData)
               .select()
               .single();
 
-            if (workshopCreateError) {
-              console.error('Error creating workshop:', workshopCreateError);
+            if (productCreateError) {
+              console.error('Error creating product:', productCreateError);
             } else {
-              workshopId = newWorkshop.id;
-              console.log('Created new workshop:', workshopId);
+              productId = newProduct.id;
+              console.log('Created new product:', productId);
 
-              // Create lead assignment with new workshop
+              // Create lead assignment with new product
               const assignmentData = {
                 lead_id: leadId,
-                workshop_id: workshopId,
-                funnel_id: null,
-                product_id: null,
+                workshop_id: null,
+                funnel_id: funnelId,
+                product_id: productId,
                 is_connected: false,
                 created_by: null,
               };
@@ -410,8 +389,56 @@ Deno.serve(async (req) => {
               if (assignmentError) {
                 console.error('Error creating lead assignment:', assignmentError);
               } else {
-                console.log('Lead assignment created with new workshop');
+                console.log('Lead assignment created with new product');
               }
+            }
+          } else {
+            console.error('No funnel available for new product');
+          }
+        } else {
+          // CREATE NEW WORKSHOP
+          console.log('Creating new workshop:', normalizedWorkshopName);
+          
+          const newWorkshopData = {
+            title: normalizedWorkshopName,
+            start_date: new Date().toISOString(),
+            end_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            status: 'planned',
+            is_free: payload.amount === 0,
+            ad_spend: 0,
+            created_by: 'efff01b2-c24a-4256-9a91-11459fe27386',
+          };
+
+          const { data: newWorkshop, error: workshopCreateError } = await supabase
+            .from('workshops')
+            .insert(newWorkshopData)
+            .select()
+            .single();
+
+          if (workshopCreateError) {
+            console.error('Error creating workshop:', workshopCreateError);
+          } else {
+            workshopId = newWorkshop.id;
+            console.log('Created new workshop:', workshopId);
+
+            // Create lead assignment with new workshop
+            const assignmentData = {
+              lead_id: leadId,
+              workshop_id: workshopId,
+              funnel_id: null,
+              product_id: null,
+              is_connected: false,
+              created_by: null,
+            };
+
+            const { error: assignmentError } = await supabase
+              .from('lead_assignments')
+              .insert(assignmentData);
+
+            if (assignmentError) {
+              console.error('Error creating lead assignment:', assignmentError);
+            } else {
+              console.log('Lead assignment created with new workshop');
             }
           }
         }
@@ -436,7 +463,7 @@ Deno.serve(async (req) => {
     if (mangoId === TARGET_MANGO_ID_CRYPTO) {
       // Crypto registration confirmation
       console.log('Mango ID matches CRYPTO target, sending WhatsApp confirmation...');
-      if (isDuplicate) {
+      if (isDuplicateAssignment) {
         console.log('Sending WhatsApp for DUPLICATE registration');
       }
       
@@ -487,7 +514,7 @@ Deno.serve(async (req) => {
       }
 
       // Send data to Google Sheet for Crypto Mango ID (only for new leads)
-      if (!isDuplicate) {
+      if (!isDuplicateAssignment) {
         try {
           const GOOGLE_SHEET_WEBHOOK_URL = Deno.env.get('GOOGLE_SHEET_WEBHOOK_URL');
           
@@ -548,7 +575,7 @@ Deno.serve(async (req) => {
     } else if (mangoId === TARGET_MANGO_ID_YOUTUBE) {
       // YouTube registration confirmation
       console.log('Mango ID matches YOUTUBE target, sending WhatsApp confirmation...');
-      if (isDuplicate) {
+      if (isDuplicateAssignment) {
         console.log('Sending WhatsApp for DUPLICATE registration');
       }
       
@@ -652,7 +679,7 @@ Deno.serve(async (req) => {
     }
 
     // Return appropriate response based on duplicate status
-    if (isDuplicate) {
+    if (isDuplicateAssignment) {
       return new Response(
         JSON.stringify({ 
           success: true, 
