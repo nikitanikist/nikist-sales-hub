@@ -23,6 +23,7 @@ interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  mango_id: string | null;
   funnel?: {
     funnel_name: string;
   };
@@ -446,7 +447,16 @@ const Products = () => {
                   ) : (
                     filteredProducts.map((product) => (
                       <TableRow key={product.id}>
-                        <TableCell className="font-medium">{product.product_name}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{product.product_name}</div>
+                            {product.mango_id && (
+                              <div className="text-xs text-muted-foreground/60 mt-0.5">
+                                {product.mango_id}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{product.funnel?.funnel_name || "N/A"}</TableCell>
                         <TableCell>
                           {Number(product.price || 0) === 0 ? (
