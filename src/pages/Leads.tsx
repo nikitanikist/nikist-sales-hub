@@ -639,6 +639,21 @@ const Leads = () => {
 
   return (
     <div className="space-y-6">
+      {/* Customer Count Card */}
+      <Card className="w-fit">
+        <CardContent className="py-3 px-4 flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Users className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">
+              {hasActiveFilters ? "Filtered Customers" : "Total Customers"}
+            </p>
+            <p className="text-2xl font-semibold">{groupedAssignmentsArray.length}</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Header with Search */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
