@@ -50,14 +50,20 @@ const Workshops = () => {
         .from("leads")
         .select("id, workshop_name");
 
-      // Fetch lead_assignments with the ₹497 product to count workshop sales
-      const { data: productAssignments } = await supabase
+      // Fetch lead_assignments with BOTH workshop_id AND the ₹497 product for sales counting
+      const { data: salesAssignments } = await supabase
         .from("lead_assignments")
-        .select("lead_id")
-        .eq("product_id", WORKSHOP_SALES_PRODUCT_ID);
+        .select("lead_id, workshop_id")
+        .eq("product_id", WORKSHOP_SALES_PRODUCT_ID)
+        .not("workshop_id", "is", null);
 
-      // Create a set of lead IDs that have the ₹497 product
-      const leadsWithProduct = new Set(productAssignments?.map(la => la.lead_id) || []);
+      // Group sales by workshop_id
+      const salesByWorkshop = (salesAssignments || []).reduce((acc, la) => {
+        if (la.workshop_id) {
+          acc[la.workshop_id] = (acc[la.workshop_id] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
 
       // Calculate metrics for each workshop
       const workshopsWithMetrics = workshopsData.map((workshop) => {
@@ -66,10 +72,8 @@ const Workshops = () => {
           lead => lead.workshop_name === workshop.title
         ).length || 0;
 
-        // Count sales: leads with BOTH matching workshop_name AND the ₹497 product
-        const salesCount = allLeads?.filter(
-          lead => lead.workshop_name === workshop.title && leadsWithProduct.has(lead.id)
-        ).length || 0;
+        // Count sales: leads with BOTH workshop_id matching AND the ₹497 product
+        const salesCount = salesByWorkshop[workshop.id] || 0;
 
         // Calculate revenue and P&L
         const totalRevenue = salesCount * PRODUCT_PRICE;
