@@ -34,19 +34,30 @@ const Workshops = () => {
   const WORKSHOP_SALES_PRODUCT_ID = "b8709b0b-1160-4d73-b59b-2849490d2053";
   const PRODUCT_PRICE = 497;
 
-  const { data: workshops, isLoading, refetch } = useQuery({
+  const { data: workshops, isLoading, error, refetch } = useQuery({
     queryKey: ["workshops"],
     queryFn: async () => {
+      console.log("Fetching workshops...");
       const { data: workshopsData, error } = await supabase
         .from("workshops")
         .select("*")
         .is("product_id", null) // Hide workshops converted to products
         .order("start_date", { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching workshops:", error);
+        throw error;
+      }
+      console.log("Workshops data:", workshopsData);
 
       // Get all workshop metrics from the database function (single efficient query)
-      const { data: metricsData } = await supabase.rpc("get_workshop_metrics");
+      const { data: metricsData, error: metricsError } = await supabase.rpc("get_workshop_metrics");
+      
+      if (metricsError) {
+        console.error("Error fetching workshop metrics:", metricsError);
+        // Continue with empty metrics - workshops will still show but with 0 counts
+      }
+      console.log("Metrics data:", metricsData);
 
       // Create lookup maps for registrations and sales
       const metricsMap = (metricsData || []).reduce((acc, item) => {
@@ -77,6 +88,7 @@ const Workshops = () => {
         };
       });
       
+      console.log("Workshops with metrics:", workshopsWithMetrics);
       return workshopsWithMetrics;
     },
   });
@@ -561,6 +573,11 @@ const Workshops = () => {
           </div>
         </CardHeader>
         <CardContent>
+          {error && (
+            <div className="text-center py-4 text-red-500 bg-red-50 rounded-md mb-4">
+              Error loading workshops: {error.message}
+            </div>
+          )}
           {isLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : (
