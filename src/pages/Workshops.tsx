@@ -30,6 +30,10 @@ const Workshops = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
+  // The ₹497 product ID for "One To One Strategy Call with Crypto Expert"
+  const WORKSHOP_SALES_PRODUCT_ID = "b8709b0b-1160-4d73-b59b-2849490d2053";
+  const PRODUCT_PRICE = 497;
+
   const { data: workshops, isLoading, refetch } = useQuery({
     queryKey: ["workshops"],
     queryFn: async () => {
@@ -41,47 +45,45 @@ const Workshops = () => {
       
       if (error) throw error;
 
-      // Fetch registration counts from lead_assignments
-      const { data: registrations } = await supabase
+      // Fetch all leads with their workshop_name for registration counts
+      const { data: allLeads } = await supabase
+        .from("leads")
+        .select("id, workshop_name");
+
+      // Fetch lead_assignments with the ₹497 product to count workshop sales
+      const { data: productAssignments } = await supabase
         .from("lead_assignments")
-        .select("workshop_id")
-        .not("workshop_id", "is", null);
-      
-      // Count registrations per workshop
-      const registrationCounts = registrations?.reduce((acc, la) => {
-        if (la.workshop_id) {
-          acc[la.workshop_id] = (acc[la.workshop_id] || 0) + 1;
-        }
-        return acc;
-      }, {} as Record<string, number>) || {};
-      
-      // Fetch sales data for each workshop to calculate metrics
-      const workshopsWithMetrics = await Promise.all(
-        workshopsData.map(async (workshop) => {
-          // Only fetch sales if workshop has a valid lead_id
-          let salesData = null;
-          if (workshop.lead_id) {
-            const { data } = await supabase
-              .from("sales")
-              .select("amount")
-              .eq("lead_id", workshop.lead_id);
-            salesData = data;
-          }
-          
-          const salesCount = salesData?.length || 0;
-          const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.amount || 0), 0) || 0;
-          const adSpend = Number(workshop.ad_spend || 0);
-          const roughPL = totalRevenue - adSpend;
-          
-          return {
-            ...workshop,
-            sales_count: salesCount,
-            total_revenue: totalRevenue,
-            rough_pl: roughPL,
-            registration_count: registrationCounts[workshop.id] || 0,
-          };
-        })
-      );
+        .select("lead_id")
+        .eq("product_id", WORKSHOP_SALES_PRODUCT_ID);
+
+      // Create a set of lead IDs that have the ₹497 product
+      const leadsWithProduct = new Set(productAssignments?.map(la => la.lead_id) || []);
+
+      // Calculate metrics for each workshop
+      const workshopsWithMetrics = workshopsData.map((workshop) => {
+        // Count registrations: leads where workshop_name matches workshop title
+        const registrationCount = allLeads?.filter(
+          lead => lead.workshop_name === workshop.title
+        ).length || 0;
+
+        // Count sales: leads with BOTH matching workshop_name AND the ₹497 product
+        const salesCount = allLeads?.filter(
+          lead => lead.workshop_name === workshop.title && leadsWithProduct.has(lead.id)
+        ).length || 0;
+
+        // Calculate revenue and P&L
+        const totalRevenue = salesCount * PRODUCT_PRICE;
+        const adSpend = Number(workshop.ad_spend || 0);
+        const roughPL = totalRevenue - adSpend;
+
+        return {
+          ...workshop,
+          sales_count: salesCount,
+          total_revenue: totalRevenue,
+          rough_pl: roughPL,
+          registration_count: registrationCount,
+        };
+      });
       
       return workshopsWithMetrics;
     },
@@ -279,10 +281,21 @@ const Workshops = () => {
     setSelectedFunnelId(editingWorkshop?.funnel_id || null);
   }, [editingWorkshop]);
 
-  // Real-time updates
+  // Real-time updates for leads and lead_assignments
   useEffect(() => {
     const channel = supabase
       .channel('workshops-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leads'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
       .on(
         'postgres_changes',
         {
