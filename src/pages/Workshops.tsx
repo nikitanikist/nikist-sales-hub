@@ -45,61 +45,23 @@ const Workshops = () => {
       
       if (error) throw error;
 
-      // Get registration counts using database aggregation for each workshop
-      const registrationCounts = await Promise.all(
-        workshopsData.map(async (workshop) => {
-          const { count } = await supabase
-            .from("leads")
-            .select("*", { count: "exact", head: true })
-            .eq("workshop_name", workshop.title);
-          return { workshopId: workshop.id, count: count || 0 };
-        })
-      );
+      // Get all workshop metrics from the database function (single efficient query)
+      const { data: metricsData } = await supabase.rpc("get_workshop_metrics");
 
-      // Create a map of workshop_id -> registration count
-      const registrationsByWorkshop = registrationCounts.reduce((acc, item) => {
-        acc[item.workshopId] = item.count;
+      // Create lookup maps for registrations and sales
+      const metricsMap = (metricsData || []).reduce((acc, item) => {
+        acc[item.workshop_id] = {
+          registrations: Number(item.registration_count) || 0,
+          sales: Number(item.sales_count) || 0
+        };
         return acc;
-      }, {} as Record<string, number>);
-
-      // Get sales counts for each workshop using the CORRECT logic:
-      // Step 1: Get leads assigned to workshop (via workshop_id in lead_assignments)
-      // Step 2: Count how many of those leads ALSO have the ₹497 product (in a SEPARATE row)
-      const salesCounts = await Promise.all(
-        workshopsData.map(async (workshop) => {
-          // Get all lead_ids assigned to this workshop
-          const { data: workshopLeads } = await supabase
-            .from("lead_assignments")
-            .select("lead_id")
-            .eq("workshop_id", workshop.id);
-          
-          const leadIds = workshopLeads?.map(la => la.lead_id) || [];
-          
-          if (leadIds.length === 0) {
-            return { workshopId: workshop.id, sales: 0 };
-          }
-          
-          // Count how many of those leads ALSO have the ₹497 product (in a SEPARATE entry)
-          const { count } = await supabase
-            .from("lead_assignments")
-            .select("lead_id", { count: "exact", head: true })
-            .eq("product_id", WORKSHOP_SALES_PRODUCT_ID)
-            .in("lead_id", leadIds);
-          
-          return { workshopId: workshop.id, sales: count || 0 };
-        })
-      );
-
-      // Create a map of workshop_id -> sales count
-      const salesByWorkshop = salesCounts.reduce((acc, item) => {
-        acc[item.workshopId] = item.sales;
-        return acc;
-      }, {} as Record<string, number>);
+      }, {} as Record<string, { registrations: number; sales: number }>);
 
       // Calculate metrics for each workshop
       const workshopsWithMetrics = workshopsData.map((workshop) => {
-        const registrationCount = registrationsByWorkshop[workshop.id] || 0;
-        const salesCount = salesByWorkshop[workshop.id] || 0;
+        const metrics = metricsMap[workshop.id] || { registrations: 0, sales: 0 };
+        const registrationCount = metrics.registrations;
+        const salesCount = metrics.sales;
 
         // Calculate revenue and P&L
         const totalRevenue = salesCount * PRODUCT_PRICE;
