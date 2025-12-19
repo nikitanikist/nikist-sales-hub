@@ -118,6 +118,18 @@ const Leads = () => {
     filters.country !== "all" ||
     filters.status !== "all";
 
+  // Query for exact total count (same as Dashboard)
+  const { data: leadsCount } = useQuery({
+    queryKey: ["leads-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("leads")
+        .select("*", { count: "exact", head: true });
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
   // Real-time subscription for leads and assignments
   useEffect(() => {
     const channel = supabase
@@ -125,6 +137,7 @@ const Leads = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
         queryClient.invalidateQueries({ queryKey: ["all-leads"] });
         queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+        queryClient.invalidateQueries({ queryKey: ["leads-count"] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_assignments' }, () => {
         queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
@@ -650,7 +663,7 @@ const Leads = () => {
               {hasActiveFilters ? "Filtered Customers" : "Total Customers"}
             </p>
             <p className="text-2xl font-semibold">
-              {hasActiveFilters ? groupedAssignmentsArray.length : (allLeads?.length || 0)}
+              {hasActiveFilters ? groupedAssignmentsArray.length : (leadsCount ?? 0)}
             </p>
           </div>
         </CardContent>
