@@ -649,7 +649,9 @@ const Leads = () => {
             <p className="text-sm text-muted-foreground">
               {hasActiveFilters ? "Filtered Customers" : "Total Customers"}
             </p>
-            <p className="text-2xl font-semibold">{groupedAssignmentsArray.length}</p>
+            <p className="text-2xl font-semibold">
+              {hasActiveFilters ? groupedAssignmentsArray.length : (allLeads?.length || 0)}
+            </p>
           </div>
         </CardContent>
       </Card>
