@@ -153,7 +153,8 @@ const Leads = () => {
             status,
             updated_at,
             created_at,
-            assigned_to:profiles!leads_assigned_to_fkey(full_name)
+            assigned_to,
+            assigned_profile:profiles!leads_assigned_to_fkey(id, full_name)
           ),
           workshop:workshops(id, title),
           funnel:funnels(id, funnel_name),
@@ -173,7 +174,7 @@ const Leads = () => {
         .from("leads")
         .select(`
           *,
-          assigned_to:profiles!leads_assigned_to_fkey(full_name)
+          assigned_profile:profiles!leads_assigned_to_fkey(id, full_name)
         `)
         .order("created_at", { ascending: false });
 
@@ -735,7 +736,7 @@ const Leads = () => {
                           <span className="text-sm text-muted-foreground">-</span>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
+                        <div className="text-sm">{lead.assigned_profile?.full_name || "-"}</div>
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">
@@ -848,7 +849,7 @@ const Leads = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm">{lead.assigned_to?.full_name || "-"}</div>
+                        <div className="text-sm">{lead.assigned_profile?.full_name || "-"}</div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
