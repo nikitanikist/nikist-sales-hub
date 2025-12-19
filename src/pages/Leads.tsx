@@ -424,7 +424,7 @@ const Leads = () => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const leadData = {
-      company_name: formData.get("company_name"),
+      company_name: editingLead?.company_name || formData.get("contact_name") || "Customer",
       contact_name: formData.get("contact_name"),
       email: formData.get("email"),
       phone: formData.get("phone"),
@@ -1006,14 +1006,6 @@ const Leads = () => {
                     placeholder="+91-9876543210"
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="company_name">Company Name</Label>
-                <Input
-                  id="company_name"
-                  name="company_name"
-                  defaultValue={editingLead?.company_name}
-                />
               </div>
               <div className="space-y-3 border-t pt-4">
                 <Label>Workshops & Products</Label>
