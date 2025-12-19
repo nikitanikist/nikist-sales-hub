@@ -432,7 +432,7 @@ const Leads = () => {
       status: formData.get("status"),
       value: formData.get("value") ? Number(formData.get("value")) : null,
       notes: formData.get("notes"),
-      assigned_to: formData.get("assigned_to") || null,
+      assigned_to: formData.get("assigned_to") === "none" ? null : (formData.get("assigned_to") || null),
     };
 
     saveMutation.mutate({
@@ -1088,11 +1088,12 @@ const Leads = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="assigned_to">Assign To</Label>
-                  <Select name="assigned_to" defaultValue={editingLead?.assigned_to || ""}>
+                  <Select name="assigned_to" defaultValue={editingLead?.assigned_to || "none"}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a closer" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
                       {profiles?.map((profile) => (
                         <SelectItem key={profile.id} value={profile.id}>
                           {profile.full_name}
