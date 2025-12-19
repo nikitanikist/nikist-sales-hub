@@ -752,6 +752,14 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_workshop_metrics: {
+        Args: never
+        Returns: {
+          registration_count: number
+          sales_count: number
+          workshop_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
