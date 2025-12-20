@@ -767,6 +767,10 @@ export type Database = {
           workshop_id: string
         }[]
       }
+      get_workshop_name_for_lead: {
+        Args: { p_lead_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
