@@ -259,12 +259,13 @@ const CloserAssignedCalls = () => {
             .select("reminder_type, status, sent_at, reminder_time")
             .eq("appointment_id", apt.id);
 
-          // Smart match workshop name if lead doesn't have one
-          let workshopName = apt.lead?.workshop_name || null;
-          if (apt.lead && !workshopName) {
+          // Always use the database function to get correct workshop name
+          // (prioritizes lead_assignments over leads.workshop_name)
+          let workshopName = null;
+          if (apt.lead) {
             const { data: matchedWorkshop } = await supabase
               .rpc('get_workshop_name_for_lead', { p_lead_id: apt.lead.id });
-            workshopName = matchedWorkshop || null;
+            workshopName = matchedWorkshop || apt.lead.workshop_name || null;
           }
 
           return {
