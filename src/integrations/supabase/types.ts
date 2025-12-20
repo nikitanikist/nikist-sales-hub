@@ -755,8 +755,15 @@ export type Database = {
       get_workshop_metrics: {
         Args: never
         Returns: {
+          booking_amount_calls: number
+          converted_calls: number
+          not_converted_calls: number
           registration_count: number
+          remaining_calls: number
+          rescheduled_calls: number
           sales_count: number
+          total_cash_received: number
+          total_offer_amount: number
           workshop_id: string
         }[]
       }
