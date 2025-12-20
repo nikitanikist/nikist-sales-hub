@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown, ChevronRight, Phone, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const statusColors: Record<string, string> = {
   planned: "bg-blue-500",
@@ -27,8 +28,21 @@ const Workshops = () => {
   const [editingWorkshop, setEditingWorkshop] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  const toggleRowExpand = (workshopId: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(workshopId)) {
+        newSet.delete(workshopId);
+      } else {
+        newSet.add(workshopId);
+      }
+      return newSet;
+    });
+  };
 
   // The ₹497 product ID for "One To One Strategy Call with Crypto Expert"
   const WORKSHOP_SALES_PRODUCT_ID = "b8709b0b-1160-4d73-b59b-2849490d2053";
@@ -59,18 +73,45 @@ const Workshops = () => {
       }
       console.log("Metrics data:", metricsData);
 
-      // Create lookup maps for registrations and sales
+      // Create lookup maps for all metrics
       const metricsMap = (metricsData || []).reduce((acc, item) => {
         acc[item.workshop_id] = {
           registrations: Number(item.registration_count) || 0,
-          sales: Number(item.sales_count) || 0
+          sales: Number(item.sales_count) || 0,
+          converted_calls: Number(item.converted_calls) || 0,
+          not_converted_calls: Number(item.not_converted_calls) || 0,
+          rescheduled_calls: Number(item.rescheduled_calls) || 0,
+          remaining_calls: Number(item.remaining_calls) || 0,
+          booking_amount_calls: Number(item.booking_amount_calls) || 0,
+          total_offer_amount: Number(item.total_offer_amount) || 0,
+          total_cash_received: Number(item.total_cash_received) || 0,
         };
         return acc;
-      }, {} as Record<string, { registrations: number; sales: number }>);
+      }, {} as Record<string, { 
+        registrations: number; 
+        sales: number;
+        converted_calls: number;
+        not_converted_calls: number;
+        rescheduled_calls: number;
+        remaining_calls: number;
+        booking_amount_calls: number;
+        total_offer_amount: number;
+        total_cash_received: number;
+      }>);
 
       // Calculate metrics for each workshop
       const workshopsWithMetrics = workshopsData.map((workshop) => {
-        const metrics = metricsMap[workshop.id] || { registrations: 0, sales: 0 };
+        const metrics = metricsMap[workshop.id] || { 
+          registrations: 0, 
+          sales: 0,
+          converted_calls: 0,
+          not_converted_calls: 0,
+          rescheduled_calls: 0,
+          remaining_calls: 0,
+          booking_amount_calls: 0,
+          total_offer_amount: 0,
+          total_cash_received: 0,
+        };
         const registrationCount = metrics.registrations;
         const salesCount = metrics.sales;
 
@@ -79,12 +120,23 @@ const Workshops = () => {
         const adSpend = Number(workshop.ad_spend || 0);
         const roughPL = totalRevenue - adSpend;
 
+        // Calculate total P&L including high ticket
+        const totalPL = totalRevenue + metrics.total_cash_received - adSpend;
+
         return {
           ...workshop,
           sales_count: salesCount,
           total_revenue: totalRevenue,
           rough_pl: roughPL,
           registration_count: registrationCount,
+          converted_calls: metrics.converted_calls,
+          not_converted_calls: metrics.not_converted_calls,
+          rescheduled_calls: metrics.rescheduled_calls,
+          remaining_calls: metrics.remaining_calls,
+          booking_amount_calls: metrics.booking_amount_calls,
+          total_offer_amount: metrics.total_offer_amount,
+          total_cash_received: metrics.total_cash_received,
+          total_pl: totalPL,
         };
       });
       
@@ -584,78 +636,164 @@ const Workshops = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]"></TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Workshop Name</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Total Registrations</TableHead>
+                  <TableHead className="text-right">Registrations</TableHead>
                   <TableHead className="text-right">Ad Spend</TableHead>
-                  <TableHead className="text-right">Number of Workshop Sales</TableHead>
+                  <TableHead className="text-right">Workshop Sales</TableHead>
                   <TableHead className="text-right">Rough P&L</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredWorkshops?.map((workshop) => (
-                  <TableRow key={workshop.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        {workshop.start_date ? format(new Date(workshop.start_date), "MMM dd, yyyy") : "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{workshop.title}</TableCell>
-                    <TableCell>
-                      {Number(workshop.amount || 0) === 0 ? (
-                        <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200">
-                          Free
-                        </Badge>
-                      ) : (
-                        <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200">
-                          Paid ₹{Number(workshop.amount).toLocaleString("en-IN")}
-                        </Badge>
+                {filteredWorkshops?.map((workshop) => {
+                  const isExpanded = expandedRows.has(workshop.id);
+                  const hasCallData = workshop.converted_calls > 0 || workshop.not_converted_calls > 0 || 
+                                     workshop.remaining_calls > 0 || workshop.rescheduled_calls > 0 ||
+                                     workshop.booking_amount_calls > 0;
+                  
+                  return (
+                    <>
+                      <TableRow key={workshop.id} className="cursor-pointer hover:bg-muted/50" onClick={() => toggleRowExpand(workshop.id)}>
+                        <TableCell className="w-[40px]">
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            {workshop.start_date ? format(new Date(workshop.start_date), "MMM dd, yyyy") : "N/A"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{workshop.title}</TableCell>
+                        <TableCell>
+                          {Number(workshop.amount || 0) === 0 ? (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200">
+                              Free
+                            </Badge>
+                          ) : (
+                            <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200">
+                              Paid ₹{Number(workshop.amount).toLocaleString("en-IN")}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {workshop.registration_count || 0}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ₹{Number(workshop.ad_spend || 0).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {workshop.sales_count || 0}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={workshop.rough_pl >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                            ₹{Number(workshop.rough_pl || 0).toLocaleString("en-IN")}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setEditingWorkshop(workshop);
+                              setIsOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteMutation.mutate(workshop.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      
+                      {/* Expanded Row with Call Statistics and Revenue */}
+                      {isExpanded && (
+                        <TableRow className="bg-muted/30 hover:bg-muted/30">
+                          <TableCell colSpan={9} className="p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {/* Call Statistics */}
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                  <Phone className="h-4 w-4" />
+                                  Call Statistics
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className="text-2xl font-bold text-green-600">{workshop.converted_calls || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Converted</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className="text-2xl font-bold text-red-500">{workshop.not_converted_calls || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Not Converted</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className="text-2xl font-bold text-orange-500">{workshop.rescheduled_calls || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Rescheduled</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className="text-2xl font-bold text-blue-500">{workshop.remaining_calls || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Remaining</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border col-span-2">
+                                    <div className="text-2xl font-bold text-purple-600">{workshop.booking_amount_calls || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Booking Amount</div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              {/* Revenue Breakdown */}
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                  <IndianRupee className="h-4 w-4" />
+                                  Revenue Breakdown
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className="text-lg font-bold text-foreground">
+                                      ₹{Number(workshop.total_revenue || 0).toLocaleString("en-IN")}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Workshop Revenue (₹497 × {workshop.sales_count})</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className="text-lg font-bold text-foreground">
+                                      ₹{Number(workshop.total_offer_amount || 0).toLocaleString("en-IN")}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">High Ticket Offer Amount</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className="text-lg font-bold text-green-600">
+                                      ₹{Number(workshop.total_cash_received || 0).toLocaleString("en-IN")}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Cash Collected</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border">
+                                    <div className={`text-lg font-bold ${(workshop.total_pl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      ₹{Number(workshop.total_pl || 0).toLocaleString("en-IN")}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">Total P&L (incl. High Ticket)</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {workshop.registration_count || 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ₹{Number(workshop.ad_spend || 0).toLocaleString("en-US", { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
-                      })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {workshop.sales_count || 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={workshop.rough_pl >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
-                        ₹{Number(workshop.rough_pl || 0).toLocaleString("en-US", { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2 
-                        })}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEditingWorkshop(workshop);
-                          setIsOpen(true);
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteMutation.mutate(workshop.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                    </>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
