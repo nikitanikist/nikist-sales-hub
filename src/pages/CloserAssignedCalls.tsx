@@ -251,7 +251,7 @@ const CloserAssignedCalls = () => {
 
       if (error) throw error;
 
-      // Fetch reminders for each appointment
+      // Fetch reminders for each appointment and smart-match workshop names
       const appointmentsWithReminders = await Promise.all(
         (data || []).map(async (apt) => {
           const { data: reminders } = await supabase
@@ -259,8 +259,17 @@ const CloserAssignedCalls = () => {
             .select("reminder_type, status, sent_at, reminder_time")
             .eq("appointment_id", apt.id);
 
+          // Smart match workshop name if lead doesn't have one
+          let workshopName = apt.lead?.workshop_name || null;
+          if (apt.lead && !workshopName) {
+            const { data: matchedWorkshop } = await supabase
+              .rpc('get_workshop_name_for_lead', { p_lead_id: apt.lead.id });
+            workshopName = matchedWorkshop || null;
+          }
+
           return {
             ...apt,
+            lead: apt.lead ? { ...apt.lead, workshop_name: workshopName } : null,
             reminders: reminders || [],
           };
         })
