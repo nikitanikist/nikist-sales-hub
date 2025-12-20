@@ -39,6 +39,7 @@ interface Appointment {
     email: string;
     phone: string | null;
     country: string | null;
+    workshop_name: string | null;
   } | null;
   reminders: {
     reminder_type: string;
@@ -132,7 +133,10 @@ const hasCallTimePassed = (dateStr: string, timeStr: string): boolean => {
 };
 
 // Helper to check if a call is currently in progress (within 1-hour window)
-const isCallInProgress = (dateStr: string, timeStr: string): boolean => {
+const isCallInProgress = (dateStr: string, timeStr: string, status: CallStatus): boolean => {
+  // If status is no longer 'scheduled', the call is done - not live
+  if (status !== 'scheduled') return false;
+  
   const callDate = new Date(dateStr);
   
   // Only relevant for today's calls
@@ -241,7 +245,7 @@ const CloserAssignedCalls = () => {
           due_amount,
           closer_remarks,
           additional_comments,
-          lead:leads(id, contact_name, email, phone, country)
+          lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
         .eq("closer_id", closerId!);
 
@@ -448,7 +452,11 @@ const CloserAssignedCalls = () => {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Assigned Calls</h1>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {statusFilter === 'converted' ? 'Converted Calls' : 
+             statusFilter === 'not_converted' ? 'Not Converted Calls' : 
+             statusFilter === 'reschedule' ? 'Rescheduled Calls' : 'Assigned Calls'}
+          </h1>
           <p className="text-muted-foreground mt-1">
             {closer?.full_name || "Loading..."}
           </p>
@@ -459,7 +467,11 @@ const CloserAssignedCalls = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>All Assigned Calls</CardTitle>
+              <CardTitle>
+                {statusFilter === 'converted' ? 'All Converted Calls' : 
+                 statusFilter === 'not_converted' ? 'All Not Converted Calls' : 
+                 statusFilter === 'reschedule' ? 'All Rescheduled Calls' : 'All Assigned Calls'}
+              </CardTitle>
               <CardDescription>
                 {processedAppointments.length} calls found
               </CardDescription>
@@ -607,7 +619,7 @@ const CloserAssignedCalls = () => {
                             <TableRow
                               className={cn(
                                 "cursor-pointer",
-                                isCallInProgress(apt.scheduled_date, apt.scheduled_time)
+                                isCallInProgress(apt.scheduled_date, apt.scheduled_time, apt.status)
                                   ? "animate-live-pulse"
                                   : isToday(new Date(apt.scheduled_date))
                                     ? hasCallTimePassed(apt.scheduled_date, apt.scheduled_time)
@@ -625,16 +637,23 @@ const CloserAssignedCalls = () => {
                                 )}
                               </TableCell>
                               <TableCell className="font-medium">
-                                <div className="flex items-center">
-                                  {isCallInProgress(apt.scheduled_date, apt.scheduled_time) && (
-                                    <Badge className="mr-2 bg-red-500 text-white border-red-500 flex items-center gap-1 animate-pulse">
-                                      <span className="w-2 h-2 bg-white rounded-full animate-ping" />
-                                      LIVE
-                                    </Badge>
-                                  )}
-                                  {apt.lead?.contact_name || "Unknown"}
-                                  {isToday(new Date(apt.scheduled_date)) && !isCallInProgress(apt.scheduled_date, apt.scheduled_time) && (
-                                    <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">Today</Badge>
+                                <div className="flex flex-col">
+                                  <div className="flex items-center">
+                                    {isCallInProgress(apt.scheduled_date, apt.scheduled_time, apt.status) && (
+                                      <Badge className="mr-2 bg-red-500 text-white border-red-500 flex items-center gap-1 animate-pulse">
+                                        <span className="w-2 h-2 bg-white rounded-full animate-ping" />
+                                        LIVE
+                                      </Badge>
+                                    )}
+                                    {apt.lead?.contact_name || "Unknown"}
+                                    {isToday(new Date(apt.scheduled_date)) && !isCallInProgress(apt.scheduled_date, apt.scheduled_time, apt.status) && (
+                                      <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">Today</Badge>
+                                    )}
+                                  </div>
+                                  {apt.lead?.workshop_name && (
+                                    <span className="text-xs text-muted-foreground mt-0.5">
+                                      {apt.lead.workshop_name}
+                                    </span>
                                   )}
                                 </div>
                               </TableCell>
