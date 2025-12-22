@@ -363,7 +363,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     setSelectedFunnelId(editingWorkshop?.funnel_id || null);
   }, [editingWorkshop]);
 
-  // Real-time updates for leads and lead_assignments
+  // Real-time updates for leads, lead_assignments, call_appointments, and workshops
   useEffect(() => {
     const channel = supabase
       .channel('workshops-realtime')
@@ -384,6 +384,28 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           event: '*',
           schema: 'public',
           table: 'lead_assignments'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'call_appointments'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workshops'
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["workshops"] });
