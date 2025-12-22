@@ -15,6 +15,15 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
+
+type CallCategory = 
+  | "converted" 
+  | "not_converted" 
+  | "rescheduled_remaining" 
+  | "rescheduled_done" 
+  | "booking_amount" 
+  | "remaining";
 
 const statusColors: Record<string, string> = {
   planned: "bg-blue-500",
@@ -28,9 +37,18 @@ const Workshops = () => {
   const [editingWorkshop, setEditingWorkshop] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [callsDialogOpen, setCallsDialogOpen] = useState(false);
+  const [selectedWorkshopTitle, setSelectedWorkshopTitle] = useState<string>("");
+  const [selectedCallCategory, setSelectedCallCategory] = useState<CallCategory>("converted");
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  const openCallsDialog = (workshopTitle: string, category: CallCategory) => {
+    setSelectedWorkshopTitle(workshopTitle);
+    setSelectedCallCategory(category);
+    setCallsDialogOpen(true);
+  };
 
   const toggleRowExpand = (workshopId: string) => {
     setExpandedRows(prev => {
@@ -80,7 +98,8 @@ const Workshops = () => {
           sales: Number(item.sales_count) || 0,
           converted_calls: Number(item.converted_calls) || 0,
           not_converted_calls: Number(item.not_converted_calls) || 0,
-          rescheduled_calls: Number(item.rescheduled_calls) || 0,
+          rescheduled_remaining: Number(item.rescheduled_remaining) || 0,
+          rescheduled_done: Number(item.rescheduled_done) || 0,
           remaining_calls: Number(item.remaining_calls) || 0,
           booking_amount_calls: Number(item.booking_amount_calls) || 0,
           total_offer_amount: Number(item.total_offer_amount) || 0,
@@ -92,7 +111,8 @@ const Workshops = () => {
         sales: number;
         converted_calls: number;
         not_converted_calls: number;
-        rescheduled_calls: number;
+        rescheduled_remaining: number;
+        rescheduled_done: number;
         remaining_calls: number;
         booking_amount_calls: number;
         total_offer_amount: number;
@@ -106,7 +126,8 @@ const Workshops = () => {
           sales: 0,
           converted_calls: 0,
           not_converted_calls: 0,
-          rescheduled_calls: 0,
+          rescheduled_remaining: 0,
+          rescheduled_done: 0,
           remaining_calls: 0,
           booking_amount_calls: 0,
           total_offer_amount: 0,
@@ -131,7 +152,8 @@ const Workshops = () => {
           registration_count: registrationCount,
           converted_calls: metrics.converted_calls,
           not_converted_calls: metrics.not_converted_calls,
-          rescheduled_calls: metrics.rescheduled_calls,
+          rescheduled_remaining: metrics.rescheduled_remaining,
+          rescheduled_done: metrics.rescheduled_done,
           remaining_calls: metrics.remaining_calls,
           booking_amount_calls: metrics.booking_amount_calls,
           total_offer_amount: metrics.total_offer_amount,
@@ -651,8 +673,8 @@ const Workshops = () => {
                 {filteredWorkshops?.map((workshop) => {
                   const isExpanded = expandedRows.has(workshop.id);
                   const hasCallData = workshop.converted_calls > 0 || workshop.not_converted_calls > 0 || 
-                                     workshop.remaining_calls > 0 || workshop.rescheduled_calls > 0 ||
-                                     workshop.booking_amount_calls > 0;
+                                     workshop.remaining_calls > 0 || workshop.rescheduled_remaining > 0 ||
+                                     workshop.rescheduled_done > 0 || workshop.booking_amount_calls > 0;
                   
                   return (
                     <>
@@ -730,24 +752,46 @@ const Workshops = () => {
                                   <Phone className="h-4 w-4" />
                                   Call Statistics
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="bg-background rounded-lg p-3 border">
+                                <div className="grid grid-cols-3 gap-3">
+                                  <div 
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-green-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "converted"); }}
+                                  >
                                     <div className="text-2xl font-bold text-green-600">{workshop.converted_calls || 0}</div>
                                     <div className="text-xs text-muted-foreground">Converted</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border">
+                                  <div 
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-red-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "not_converted"); }}
+                                  >
                                     <div className="text-2xl font-bold text-red-500">{workshop.not_converted_calls || 0}</div>
                                     <div className="text-xs text-muted-foreground">Not Converted</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border">
-                                    <div className="text-2xl font-bold text-orange-500">{workshop.rescheduled_calls || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Rescheduled</div>
-                                  </div>
-                                  <div className="bg-background rounded-lg p-3 border">
+                                  <div 
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "remaining"); }}
+                                  >
                                     <div className="text-2xl font-bold text-blue-500">{workshop.remaining_calls || 0}</div>
                                     <div className="text-xs text-muted-foreground">Remaining</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border col-span-2">
+                                  <div 
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-orange-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_remaining"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-orange-500">{workshop.rescheduled_remaining || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Rescheduled Remaining</div>
+                                  </div>
+                                  <div 
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-teal-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_done"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-teal-500">{workshop.rescheduled_done || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Rescheduled Done</div>
+                                  </div>
+                                  <div 
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-purple-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "booking_amount"); }}
+                                  >
                                     <div className="text-2xl font-bold text-purple-600">{workshop.booking_amount_calls || 0}</div>
                                     <div className="text-xs text-muted-foreground">Booking Amount</div>
                                   </div>
@@ -799,6 +843,14 @@ const Workshops = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Workshop Calls Dialog */}
+      <WorkshopCallsDialog
+        open={callsDialogOpen}
+        onOpenChange={setCallsDialogOpen}
+        workshopTitle={selectedWorkshopTitle}
+        category={selectedCallCategory}
+      />
     </div>
   );
 };
