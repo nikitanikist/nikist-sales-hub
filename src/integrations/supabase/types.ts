@@ -420,6 +420,7 @@ export type Database = {
           mango_id: string | null
           notes: string | null
           phone: string | null
+          previous_assigned_to: string | null
           source: string | null
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string
@@ -438,6 +439,7 @@ export type Database = {
           mango_id?: string | null
           notes?: string | null
           phone?: string | null
+          previous_assigned_to?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
@@ -456,6 +458,7 @@ export type Database = {
           mango_id?: string | null
           notes?: string | null
           phone?: string | null
+          previous_assigned_to?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
@@ -473,6 +476,13 @@ export type Database = {
           {
             foreignKeyName: "leads_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_previous_assigned_to_fkey"
+            columns: ["previous_assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
