@@ -149,6 +149,22 @@ const Leads = () => {
     };
   }, [queryClient]);
 
+  // Server-side search results (used when searchQuery is not empty)
+  const { data: searchResults, isLoading: isLoadingSearch } = useQuery({
+    queryKey: ["search-leads", searchQuery],
+    queryFn: async () => {
+      if (!searchQuery.trim()) return null;
+      
+      const { data, error } = await supabase.rpc("search_leads", {
+        search_query: searchQuery.trim()
+      });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: searchQuery.trim().length > 0,
+  });
+
   const { data: leadAssignments, isLoading: isLoadingAssignments } = useQuery({
     queryKey: ["lead-assignments"],
     queryFn: async () => {
@@ -196,7 +212,7 @@ const Leads = () => {
     },
   });
 
-  const isLoading = isLoadingAssignments || isLoadingLeads;
+  const isLoading = isLoadingAssignments || isLoadingLeads || isLoadingSearch;
 
   const { data: profiles } = useQuery({
     queryKey: ["profiles"],
@@ -553,8 +569,59 @@ const Leads = () => {
   // Check if both product AND workshop filters are active - for consolidated view
   const hasBothProductAndWorkshopFilters = filters.productIds.length > 0 && filters.workshopIds.length > 0;
 
+  // Use server-side search results when search query is present
+  const isUsingServerSearch = searchQuery.trim().length > 0 && searchResults;
+
   // Group assignments by customer EMAIL for consolidated display when both filters are active
   const groupedAssignments = (() => {
+    // When using server-side search, convert searchResults to the expected format
+    if (isUsingServerSearch) {
+      const grouped: Record<string, any> = {};
+      
+      searchResults.forEach((result: any) => {
+        const leadId = result.id;
+        if (!leadId) return;
+        
+        if (!grouped[leadId]) {
+          grouped[leadId] = {
+            lead: {
+              id: result.id,
+              contact_name: result.contact_name,
+              company_name: result.company_name,
+              email: result.email,
+              phone: result.phone,
+              country: result.country,
+              status: result.status,
+              notes: result.notes,
+              workshop_name: result.workshop_name,
+              source: result.source,
+              created_at: result.created_at,
+              updated_at: result.updated_at,
+              assigned_to: result.assigned_to,
+              assigned_profile: result.assigned_to_name ? { id: result.assigned_to, full_name: result.assigned_to_name } : null,
+            },
+            assignments: [],
+          };
+        }
+        
+        // Add assignment if it exists
+        if (result.assignment_id) {
+          grouped[leadId].assignments.push({
+            id: result.assignment_id,
+            workshop_id: result.workshop_id,
+            workshop: result.workshop_title ? { id: result.workshop_id, title: result.workshop_title } : null,
+            product_id: result.product_id,
+            product: result.product_name ? { id: result.product_id, product_name: result.product_name, price: result.product_price } : null,
+            funnel_id: result.funnel_id,
+            funnel: result.funnel_name ? { id: result.funnel_id, funnel_name: result.funnel_name } : null,
+            is_connected: result.is_connected,
+          });
+        }
+      });
+      
+      return grouped;
+    }
+    
     if (hasBothProductAndWorkshopFilters) {
       // Consolidated view: group by email and merge workshop + product info into single row
       const byEmail: Record<string, any> = {};
@@ -621,10 +688,10 @@ const Leads = () => {
     }
   })();
 
-  // Add leads without assignments ONLY when product/workshop filters are NOT active
+  // Add leads without assignments ONLY when product/workshop filters are NOT active AND not using server search
   const hasProductOrWorkshopFilter = filters.productIds.length > 0 || filters.workshopIds.length > 0;
   
-  if (!hasProductOrWorkshopFilter) {
+  if (!hasProductOrWorkshopFilter && !isUsingServerSearch) {
     filteredLeads?.forEach((lead) => {
       if (!groupedAssignments?.[lead.id]) {
         if (!groupedAssignments) return;

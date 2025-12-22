@@ -799,6 +799,34 @@ export type Database = {
         }
         Returns: boolean
       }
+      search_leads: {
+        Args: { search_query: string }
+        Returns: {
+          assigned_to: string
+          assigned_to_name: string
+          assignment_id: string
+          company_name: string
+          contact_name: string
+          country: string
+          created_at: string
+          email: string
+          funnel_id: string
+          funnel_name: string
+          id: string
+          is_connected: boolean
+          notes: string
+          phone: string
+          product_id: string
+          product_name: string
+          product_price: number
+          source: string
+          status: string
+          updated_at: string
+          workshop_id: string
+          workshop_name: string
+          workshop_title: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "sales_rep" | "viewer"
