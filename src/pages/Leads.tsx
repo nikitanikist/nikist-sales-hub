@@ -183,7 +183,9 @@ const Leads = () => {
             updated_at,
             created_at,
             assigned_to,
-            assigned_profile:profiles!leads_assigned_to_fkey(id, full_name)
+            previous_assigned_to,
+            assigned_profile:profiles!leads_assigned_to_fkey(id, full_name),
+            previous_assigned_profile:profiles!leads_previous_assigned_to_fkey(id, full_name)
           ),
           workshop:workshops(id, title),
           funnel:funnels(id, funnel_name),
@@ -203,7 +205,8 @@ const Leads = () => {
         .from("leads")
         .select(`
           *,
-          assigned_profile:profiles!leads_assigned_to_fkey(id, full_name)
+          assigned_profile:profiles!leads_assigned_to_fkey(id, full_name),
+          previous_assigned_profile:profiles!leads_previous_assigned_to_fkey(id, full_name)
         `)
         .order("created_at", { ascending: false });
 
@@ -293,13 +296,19 @@ const Leads = () => {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ leadData, workshopIds, productIds, isConnected }: any) => {
+    mutationFn: async ({ leadData, workshopIds, productIds, isConnected, previousAssignedTo }: any) => {
       // Upsert lead basic info
       let leadId = editingLead?.id;
       if (editingLead) {
+        // If assigned_to is changing, track the previous assignee
+        const updateData = { ...leadData };
+        if (previousAssignedTo && previousAssignedTo !== leadData.assigned_to) {
+          updateData.previous_assigned_to = previousAssignedTo;
+        }
+        
         const { error } = await supabase
           .from("leads")
-          .update(leadData)
+          .update(updateData)
           .eq("id", leadId);
         if (error) throw error;
       } else {
@@ -433,10 +442,16 @@ const Leads = () => {
   });
 
   const assignMutation = useMutation({
-    mutationFn: async ({ leadId, assignedTo }: { leadId: string; assignedTo: string }) => {
+    mutationFn: async ({ leadId, assignedTo, currentAssignedTo }: { leadId: string; assignedTo: string; currentAssignedTo: string | null }) => {
+      // If there's a current assignee and it's different from the new one, save it as previous
+      const updateData: any = { assigned_to: assignedTo };
+      if (currentAssignedTo && currentAssignedTo !== assignedTo) {
+        updateData.previous_assigned_to = currentAssignedTo;
+      }
+      
       const { error } = await supabase
         .from("leads")
-        .update({ assigned_to: assignedTo })
+        .update(updateData)
         .eq("id", leadId);
       if (error) throw error;
     },
@@ -470,6 +485,7 @@ const Leads = () => {
       workshopIds: selectedWorkshops,
       productIds: selectedProducts,
       isConnected: connectWorkshopFunnel,
+      previousAssignedTo: editingLead?.assigned_to,
     });
   };
 
@@ -946,7 +962,14 @@ const Leads = () => {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="text-sm">{lead.assigned_profile?.full_name || "-"}</div>
+                        <div className="space-y-0.5">
+                          <div className="text-sm">{lead.assigned_profile?.full_name || "-"}</div>
+                          {lead.previous_assigned_profile?.full_name && (
+                            <div className="text-xs text-muted-foreground">
+                              Previously: {lead.previous_assigned_profile.full_name}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
