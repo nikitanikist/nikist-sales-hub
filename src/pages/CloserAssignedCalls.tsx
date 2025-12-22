@@ -155,6 +155,12 @@ const isCallInProgress = (dateStr: string, timeStr: string, status: CallStatus):
   return now >= callStart && now < callEnd;
 };
 
+// Helper to check if a call is overdue (past date + still scheduled)
+const isOverdueCall = (dateStr: string, status: CallStatus): boolean => {
+  const callDate = new Date(dateStr);
+  return isPast(startOfDay(callDate)) && !isToday(callDate) && status === 'scheduled';
+};
+
 // Custom sorting: Today → Future (ascending) → Past (descending)
 const sortAppointments = (appointments: Appointment[]): Appointment[] => {
   const today: Appointment[] = [];
@@ -629,13 +635,15 @@ const CloserAssignedCalls = () => {
                             <TableRow
                               className={cn(
                                 "cursor-pointer",
-                                isCallInProgress(apt.scheduled_date, apt.scheduled_time, apt.status)
-                                  ? "animate-live-pulse"
-                                  : isToday(new Date(apt.scheduled_date))
-                                    ? hasCallTimePassed(apt.scheduled_date, apt.scheduled_time)
-                                      ? "bg-green-50 hover:bg-green-100"
-                                      : "bg-yellow-50 hover:bg-yellow-100"
-                                    : "hover:bg-muted/50"
+                                isOverdueCall(apt.scheduled_date, apt.status)
+                                  ? "animate-overdue-pulse border-l-4 border-l-red-500"
+                                  : isCallInProgress(apt.scheduled_date, apt.scheduled_time, apt.status)
+                                    ? "animate-live-pulse"
+                                    : isToday(new Date(apt.scheduled_date))
+                                      ? hasCallTimePassed(apt.scheduled_date, apt.scheduled_time)
+                                        ? "bg-green-50 hover:bg-green-100"
+                                        : "bg-yellow-50 hover:bg-yellow-100"
+                                      : "hover:bg-muted/50"
                               )}
                               onClick={() => handleExpand(apt.id)}
                             >
@@ -648,7 +656,13 @@ const CloserAssignedCalls = () => {
                               </TableCell>
                               <TableCell className="font-medium">
                                 <div className="flex flex-col">
-                                  <div className="flex items-center">
+                                  <div className="flex items-center flex-wrap gap-1">
+                                    {isOverdueCall(apt.scheduled_date, apt.status) && (
+                                      <Badge className="mr-1 bg-red-500 text-white border-red-500 flex items-center gap-1 animate-pulse">
+                                        <AlertCircle className="h-3 w-3" />
+                                        Update Status
+                                      </Badge>
+                                    )}
                                     {isCallInProgress(apt.scheduled_date, apt.scheduled_time, apt.status) && (
                                       <Badge className="mr-2 bg-red-500 text-white border-red-500 flex items-center gap-1 animate-pulse">
                                         <span className="w-2 h-2 bg-white rounded-full animate-ping" />
