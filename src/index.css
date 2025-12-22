@@ -115,3 +115,17 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Overdue call pulse animation */
+@keyframes overdue-pulse {
+  0%, 100% { 
+    background-color: hsl(0 93% 94%); /* red-100 */
+  }
+  50% { 
+    background-color: hsl(0 96% 89%); /* red-200 */
+  }
+}
+
+.animate-overdue-pulse {
+  animation: overdue-pulse 1.5s ease-in-out infinite;
+}
