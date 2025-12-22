@@ -755,6 +755,23 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_workshop_calls_by_category: {
+        Args: { p_category: string; p_workshop_title: string }
+        Returns: {
+          cash_received: number
+          closer_name: string
+          contact_name: string
+          email: string
+          id: string
+          lead_id: string
+          offer_amount: number
+          phone: string
+          scheduled_date: string
+          scheduled_time: string
+          status: string
+          was_rescheduled: boolean
+        }[]
+      }
       get_workshop_metrics: {
         Args: never
         Returns: {

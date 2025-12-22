@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -66,6 +65,21 @@ const statusLabels: Record<string, string> = {
   refunded: "Refunded",
 };
 
+interface WorkshopCall {
+  id: string;
+  lead_id: string;
+  scheduled_date: string;
+  scheduled_time: string;
+  status: string;
+  was_rescheduled: boolean;
+  offer_amount: number;
+  cash_received: number;
+  closer_name: string | null;
+  contact_name: string;
+  email: string;
+  phone: string | null;
+}
+
 export function WorkshopCallsDialog({
   open,
   onOpenChange,
@@ -75,84 +89,15 @@ export function WorkshopCallsDialog({
   const { data: calls, isLoading } = useQuery({
     queryKey: ["workshop-calls", workshopTitle, category],
     queryFn: async () => {
-      // First get leads for this workshop
-      const { data: leads, error: leadsError } = await supabase
-        .from("leads")
-        .select("id, contact_name, email, phone")
-        .eq("workshop_name", workshopTitle);
+      const { data, error } = await supabase.rpc('get_workshop_calls_by_category', {
+        p_workshop_title: workshopTitle,
+        p_category: category,
+      });
 
-      if (leadsError) throw leadsError;
-      if (!leads || leads.length === 0) return [];
-
-      const leadIds = leads.map((l) => l.id);
-      const leadMap = leads.reduce((acc, lead) => {
-        acc[lead.id] = lead;
-        return acc;
-      }, {} as Record<string, typeof leads[0]>);
-
-      // Build status filter based on category
-      type CallStatus = "scheduled" | "converted_beginner" | "converted_intermediate" | "converted_advance" | "booking_amount" | "not_converted" | "not_decided" | "so_so" | "reschedule" | "pending" | "refunded";
-      
-      let statusFilter: CallStatus[] = [];
-      let wasRescheduledFilter: boolean | null = null;
-
-      switch (category) {
-        case "converted":
-          statusFilter = ["converted_beginner", "converted_intermediate", "converted_advance"];
-          break;
-        case "not_converted":
-          statusFilter = ["not_converted"];
-          break;
-        case "rescheduled_remaining":
-          statusFilter = ["reschedule"];
-          break;
-        case "rescheduled_done":
-          // Calls that were rescheduled but now have a completion status
-          statusFilter = ["converted_beginner", "converted_intermediate", "converted_advance", "not_converted", "booking_amount", "refunded"];
-          wasRescheduledFilter = true;
-          break;
-        case "booking_amount":
-          statusFilter = ["booking_amount"];
-          break;
-        case "remaining":
-          statusFilter = ["scheduled", "pending", "not_decided", "so_so"];
-          break;
-      }
-
-      // Fetch call appointments
-      let query = supabase
-        .from("call_appointments")
-        .select(`
-          id,
-          lead_id,
-          scheduled_date,
-          scheduled_time,
-          status,
-          was_rescheduled,
-          offer_amount,
-          cash_received,
-          closer:profiles!call_appointments_closer_id_fkey(full_name)
-        `)
-        .in("lead_id", leadIds)
-        .in("status", statusFilter)
-        .order("scheduled_date", { ascending: false });
-
-      // Add was_rescheduled filter if needed
-      if (wasRescheduledFilter !== null) {
-        query = query.eq("was_rescheduled", wasRescheduledFilter);
-      }
-
-      const { data: appointments, error: appointmentsError } = await query;
-
-      if (appointmentsError) throw appointmentsError;
-
-      // Merge lead info into appointments
-      return (appointments || []).map((apt) => ({
-        ...apt,
-        lead: leadMap[apt.lead_id],
-      }));
+      if (error) throw error;
+      return (data || []) as WorkshopCall[];
     },
-    enabled: open,
+    enabled: open && !!workshopTitle,
   });
 
   return (
@@ -192,32 +137,32 @@ export function WorkshopCallsDialog({
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      {call.lead?.contact_name || "Unknown"}
+                      {call.contact_name || "Unknown"}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      {call.lead?.phone && (
+                      {call.phone && (
                         <div className="flex items-center gap-1 text-sm">
                           <Phone className="h-3 w-3 text-muted-foreground" />
                           <a 
-                            href={`tel:${call.lead.phone}`} 
+                            href={`tel:${call.phone}`} 
                             className="text-primary hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {call.lead.phone}
+                            {call.phone}
                           </a>
                         </div>
                       )}
-                      {call.lead?.email && (
+                      {call.email && (
                         <div className="flex items-center gap-1 text-sm">
                           <Mail className="h-3 w-3 text-muted-foreground" />
                           <a 
-                            href={`mailto:${call.lead.email}`} 
+                            href={`mailto:${call.email}`} 
                             className="text-primary hover:underline"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {call.lead.email}
+                            {call.email}
                           </a>
                         </div>
                       )}
@@ -246,7 +191,7 @@ export function WorkshopCallsDialog({
                     )}
                   </TableCell>
                   <TableCell>
-                    {call.closer?.full_name || "Unassigned"}
+                    {call.closer_name || "Unassigned"}
                   </TableCell>
                   {(category === "converted" || category === "rescheduled_done") && (
                     <>
