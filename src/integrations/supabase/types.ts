@@ -783,6 +783,7 @@ export type Database = {
           rescheduled_done: number
           rescheduled_remaining: number
           sales_count: number
+          total_calls_booked: number
           total_cash_received: number
           total_offer_amount: number
           workshop_id: string

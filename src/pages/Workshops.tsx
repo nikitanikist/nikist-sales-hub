@@ -104,6 +104,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           booking_amount_calls: Number(item.booking_amount_calls) || 0,
           total_offer_amount: Number(item.total_offer_amount) || 0,
           total_cash_received: Number(item.total_cash_received) || 0,
+          total_calls_booked: Number(item.total_calls_booked) || 0,
         };
         return acc;
       }, {} as Record<string, { 
@@ -117,6 +118,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
         booking_amount_calls: number;
         total_offer_amount: number;
         total_cash_received: number;
+        total_calls_booked: number;
       }>);
 
       // Calculate metrics for each workshop
@@ -132,6 +134,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           booking_amount_calls: 0,
           total_offer_amount: 0,
           total_cash_received: 0,
+          total_calls_booked: 0,
         };
         const registrationCount = metrics.registrations;
         const salesCount = metrics.sales;
@@ -159,6 +162,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           total_offer_amount: metrics.total_offer_amount,
           total_cash_received: metrics.total_cash_received,
           total_pl: totalPL,
+          total_calls_booked: metrics.total_calls_booked,
         };
       });
       
@@ -754,13 +758,19 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                 </div>
                                 <div className="grid grid-cols-3 gap-3">
                                   <div 
+                                    className="bg-slate-100 dark:bg-slate-800 rounded-lg p-3 border-2 border-slate-300 dark:border-slate-600"
+                                  >
+                                    <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{workshop.total_calls_booked || 0}</div>
+                                    <div className="text-xs text-muted-foreground font-medium">Total Calls Booked</div>
+                                  </div>
+                                  <div 
                                     className="bg-background rounded-lg p-3 border cursor-pointer hover:border-green-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "converted"); }}
                                   >
                                     <div className="text-2xl font-bold text-green-600">{workshop.converted_calls || 0}</div>
                                     <div className="text-xs text-muted-foreground">Converted</div>
                                   </div>
-                                  <div 
+                                  <div
                                     className="bg-background rounded-lg p-3 border cursor-pointer hover:border-red-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "not_converted"); }}
                                   >
