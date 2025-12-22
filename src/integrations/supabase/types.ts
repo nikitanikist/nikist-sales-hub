@@ -32,6 +32,7 @@ export type Database = {
           scheduled_time: string
           status: Database["public"]["Enums"]["call_status"]
           updated_at: string
+          was_rescheduled: boolean | null
           zoom_link: string | null
         }
         Insert: {
@@ -51,6 +52,7 @@ export type Database = {
           scheduled_time: string
           status?: Database["public"]["Enums"]["call_status"]
           updated_at?: string
+          was_rescheduled?: boolean | null
           zoom_link?: string | null
         }
         Update: {
@@ -70,6 +72,7 @@ export type Database = {
           scheduled_time?: string
           status?: Database["public"]["Enums"]["call_status"]
           updated_at?: string
+          was_rescheduled?: boolean | null
           zoom_link?: string | null
         }
         Relationships: [
@@ -760,7 +763,8 @@ export type Database = {
           not_converted_calls: number
           registration_count: number
           remaining_calls: number
-          rescheduled_calls: number
+          rescheduled_done: number
+          rescheduled_remaining: number
           sales_count: number
           total_cash_received: number
           total_offer_amount: number
