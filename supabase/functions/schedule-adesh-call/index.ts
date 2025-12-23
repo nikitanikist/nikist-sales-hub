@@ -63,7 +63,7 @@ async function createZoomMeeting(
   console.log('Creating Zoom meeting:', {
     topic: `1:1 Call with ${customerName}`,
     start_time: startTimeISO,
-    duration: 60,
+    duration: 90,
   });
 
   const meetingResponse = await fetch('https://api.zoom.us/v2/users/me/meetings', {
@@ -76,7 +76,7 @@ async function createZoomMeeting(
       topic: `1:1 Call with ${customerName}`,
       type: 2, // Scheduled meeting
       start_time: startTimeISO,
-      duration: 60, // 1 hour
+      duration: 90, // 1.5 hours
       timezone: 'Asia/Kolkata',
       settings: {
         host_video: true,
@@ -87,7 +87,7 @@ async function createZoomMeeting(
         use_pmi: false,
         approval_type: 2, // No registration required
         audio: 'both',
-        auto_recording: 'none',
+        auto_recording: 'cloud',
       },
     }),
   });
