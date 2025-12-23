@@ -14,7 +14,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { ArrowLeft, Search, RefreshCw, ChevronDown, ChevronRight, Phone, Mail, Check, Clock, AlertCircle, X, Loader2, Calendar } from "lucide-react";
+import { ArrowLeft, Search, RefreshCw, ChevronDown, ChevronRight, Phone, Mail, Check, Clock, AlertCircle, X, Loader2, Calendar, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isFuture, isPast, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -217,6 +219,9 @@ const CloserAssignedCalls = () => {
     cash_received: number;
     closer_remarks: string;
   } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const { isAdmin } = useUserRole();
 
   // Reset page when filters change
   useEffect(() => {
@@ -402,7 +407,27 @@ const CloserAssignedCalls = () => {
       setEditingId(null);
       setEditData(null);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // First delete related reminders
+      await supabase.from("call_reminders").delete().eq("appointment_id", id);
+      
+      // Then delete the appointment
+      const { error } = await supabase.from("call_appointments").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["closer-appointments", closerId] });
+      queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
+      toast({ title: "Deleted", description: "Appointment has been deleted" });
+      setDeletingId(null);
+    },
+    onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
   });
@@ -854,9 +879,21 @@ const CloserAssignedCalls = () => {
                                             <span className="text-muted-foreground">Remarks:</span> {apt.closer_remarks}
                                           </div>
                                         )}
-                                        <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
-                                          Edit Details
-                                        </Button>
+                                        <div className="flex gap-2">
+                                          <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
+                                            Edit Details
+                                          </Button>
+                                          {isAdmin && (
+                                            <Button 
+                                              size="sm" 
+                                              variant="destructive" 
+                                              onClick={() => setDeletingId(apt.id)}
+                                            >
+                                              <Trash2 className="h-4 w-4 mr-1" />
+                                              Delete
+                                            </Button>
+                                          )}
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -922,6 +959,28 @@ const CloserAssignedCalls = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Appointment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this call appointment and all its reminders. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingId && deleteMutation.mutate(deletingId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
