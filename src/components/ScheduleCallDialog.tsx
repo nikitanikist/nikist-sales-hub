@@ -18,6 +18,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
 const DIPANSHU_CALENDLY_URL = "https://calendly.com/nikist/1-1-call-with-dipanshu-malasi-clone";
 
+// Adesh's configuration for direct Zoom API integration
+const ADESH_EMAIL = "aadeshnikist@gmail.com";
+
 interface ScheduleCallDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,8 +49,9 @@ export const ScheduleCallDialog = ({
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Check if this is Dipanshu (for showing Calendly indicator)
+  // Check closer types
   const isDipanshu = closer?.email?.toLowerCase() === DIPANSHU_EMAIL.toLowerCase();
+  const isAdesh = closer?.email?.toLowerCase() === ADESH_EMAIL.toLowerCase();
 
   const scheduleCallMutation = useMutation({
     mutationFn: async () => {
@@ -57,8 +61,11 @@ export const ScheduleCallDialog = ({
 
       const scheduledDate = format(selectedDate, "yyyy-MM-dd");
 
-      // Call the edge function to handle scheduling (with Calendly for Dipanshu)
-      const { data, error } = await supabase.functions.invoke("schedule-calendly-call", {
+      // Determine which edge function to call based on closer
+      const edgeFunctionName = isAdesh ? "schedule-adesh-call" : "schedule-calendly-call";
+
+      // Call the appropriate edge function
+      const { data, error } = await supabase.functions.invoke(edgeFunctionName, {
         body: {
           lead_id: lead.id,
           closer_id: closer.id,
@@ -78,8 +85,8 @@ export const ScheduleCallDialog = ({
       queryClient.invalidateQueries({ queryKey: ["all-leads"] });
       queryClient.invalidateQueries({ queryKey: ["call-appointments"] });
       
-      if (data?.calendly && data?.zoom_link) {
-        toast.success(`Call scheduled with ${closer?.full_name}. Calendly booking created with Zoom link!`);
+      if (data?.zoom_link) {
+        toast.success(`Call scheduled with ${closer?.full_name}. Zoom meeting created!`);
       } else if (data?.calendly) {
         toast.success(`Call scheduled with ${closer?.full_name}. Calendly booking created.`);
       } else {
@@ -141,6 +148,12 @@ export const ScheduleCallDialog = ({
                   <span className="flex items-center gap-1 text-xs text-muted-foreground bg-background px-2 py-1 rounded">
                     <Video className="h-3 w-3" />
                     Calendly + WhatsApp
+                  </span>
+                )}
+                {isAdesh && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground bg-background px-2 py-1 rounded">
+                    <Video className="h-3 w-3" />
+                    Zoom + WhatsApp
                   </span>
                 )}
               </div>

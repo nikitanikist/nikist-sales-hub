@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.schedule-calendly-call]
 verify_jwt = false
 
+[functions.schedule-adesh-call]
+verify_jwt = false
+
 [functions.send-whatsapp-reminder]
 verify_jwt = false
 
