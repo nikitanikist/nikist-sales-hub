@@ -95,10 +95,11 @@ serve(async (req) => {
     // Check who is the closer
     const isDipanshu = closer?.email?.toLowerCase() === 'nikistofficial@gmail.com';
     const isAkansha = closer?.email?.toLowerCase() === 'akanshanikist@gmail.com';
+    const isAdesh = closer?.email?.toLowerCase() === 'aadeshnikist@gmail.com';
     
-    // Only process reminders for Dipanshu or Akansha
-    if (!isDipanshu && !isAkansha) {
-      console.log('Not Dipanshu or Akansha closer, skipping WhatsApp');
+    // Only process reminders for Dipanshu, Akansha, or Adesh
+    if (!isDipanshu && !isAkansha && !isAdesh) {
+      console.log('Not Dipanshu, Akansha, or Adesh closer, skipping WhatsApp');
       // Mark as sent anyway to prevent re-processing
       await supabase
         .from('call_reminders')
@@ -106,12 +107,13 @@ serve(async (req) => {
         .eq('id', reminder_id);
       
       return new Response(
-        JSON.stringify({ success: true, skipped: true, reason: 'Not Dipanshu or Akansha closer' }),
+        JSON.stringify({ success: true, skipped: true, reason: 'Not Dipanshu, Akansha, or Adesh closer' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Select appropriate template map and video URL based on closer
+    // Adesh uses same templates as Akansha
     const templateMap = isDipanshu ? DIPANSHU_TEMPLATE_MAP : AKANSHA_TEMPLATE_MAP;
     const videoUrl = isDipanshu ? DIPANSHU_VIDEO_URL : AKANSHA_VIDEO_URL;
 
@@ -259,7 +261,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: whatsappResponse.ok, 
         status: newStatus,
-        closer: isDipanshu ? 'Dipanshu' : 'Akansha',
+        closer: isDipanshu ? 'Dipanshu' : (isAdesh ? 'Adesh' : 'Akansha'),
         whatsapp_response: whatsappResult,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
