@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // Template mapping for Dipanshu's reminders
-const TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> = {
+const DIPANSHU_TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> = {
   'call_booked': { name: '1_to_1_call_booking_crypto_dipanshu', isVideo: true },
   'two_days': { name: 'cryptoreminder2days', isVideo: false },
   'one_day': { name: 'cryptoreminder1days', isVideo: false },
@@ -18,7 +18,21 @@ const TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> = {
   'we_are_live': { name: '1_1_live', isVideo: false },
 };
 
-const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/227807_Updated 11.mp4';
+// Template mapping for Akansha's reminders
+// Booking confirmation uses different template, but reminders are same as Dipanshu
+const AKANSHA_TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> = {
+  'call_booked': { name: '1_to_1_call_booking_crypto_nikist_video', isVideo: true },
+  'two_days': { name: 'cryptoreminder2days', isVideo: false },
+  'one_day': { name: 'cryptoreminder1days', isVideo: false },
+  'three_hours': { name: 'cryptoreminder3hrs', isVideo: false },
+  'one_hour': { name: 'cryptoreminder1hr', isVideo: false },
+  'thirty_minutes': { name: 'cryptoreminder30min', isVideo: false },
+  'ten_minutes': { name: 'cryptoreminder10min', isVideo: false },
+  'we_are_live': { name: '1_1_live', isVideo: false },
+};
+
+const DIPANSHU_VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/227807_Updated 11.mp4';
+const AKANSHA_VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -45,7 +59,6 @@ serve(async (req) => {
     console.log('Processing reminder:', reminder_id);
 
     // Fetch reminder with appointment and lead details
-    // Use explicit foreign key for profiles to avoid ambiguity
     const { data: reminder, error: reminderError } = await supabase
       .from('call_reminders')
       .select(`
@@ -79,11 +92,13 @@ serve(async (req) => {
       );
     }
 
-    // Check if this is Dipanshu (only send WhatsApp for Dipanshu)
+    // Check who is the closer
     const isDipanshu = closer?.email?.toLowerCase() === 'nikistofficial@gmail.com';
+    const isAkansha = closer?.email?.toLowerCase() === 'akanshanikist@gmail.com';
     
-    if (!isDipanshu) {
-      console.log('Not Dipanshu closer, skipping WhatsApp');
+    // Only process reminders for Dipanshu or Akansha
+    if (!isDipanshu && !isAkansha) {
+      console.log('Not Dipanshu or Akansha closer, skipping WhatsApp');
       // Mark as sent anyway to prevent re-processing
       await supabase
         .from('call_reminders')
@@ -91,12 +106,16 @@ serve(async (req) => {
         .eq('id', reminder_id);
       
       return new Response(
-        JSON.stringify({ success: true, skipped: true, reason: 'Not Dipanshu closer' }),
+        JSON.stringify({ success: true, skipped: true, reason: 'Not Dipanshu or Akansha closer' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const template = TEMPLATE_MAP[reminder.reminder_type];
+    // Select appropriate template map and video URL based on closer
+    const templateMap = isDipanshu ? DIPANSHU_TEMPLATE_MAP : AKANSHA_TEMPLATE_MAP;
+    const videoUrl = isDipanshu ? DIPANSHU_VIDEO_URL : AKANSHA_VIDEO_URL;
+
+    const template = templateMap[reminder.reminder_type];
     if (!template) {
       console.error('Unknown reminder type:', reminder.reminder_type);
       return new Response(
@@ -123,18 +142,31 @@ serve(async (req) => {
     const formattedTime = `${hour12}:${minutes} ${ampm} IST`;
     const dateTimeCombo = `${formattedDate}, ${formattedTime}`;
 
-    // Build template params based on reminder type
+    // Build template params based on reminder type and closer
     let templateParams: string[] = [];
     
     switch (reminder.reminder_type) {
       case 'call_booked':
-        templateParams = [
-          lead.contact_name,
-          formattedDate,
-          formattedTime,
-          'Zoom link will be shared 10 minutes before the call', // Always static message
-          '+919266395637',
-        ];
+        if (isDipanshu) {
+          // Dipanshu: 5 params
+          templateParams = [
+            lead.contact_name,
+            formattedDate,
+            formattedTime,
+            'Zoom link will be shared 10 minutes before the call',
+            '+919266395637',
+          ];
+        } else {
+          // Akansha: 6 params
+          templateParams = [
+            lead.contact_name,
+            'Our Crypto Expert',
+            formattedDate,
+            formattedTime,
+            'you will get zoom link 30 minutes before the zoom call',
+            '+919266395637',
+          ];
+        }
         break;
       case 'two_days':
       case 'one_day':
@@ -177,6 +209,7 @@ serve(async (req) => {
     }
 
     console.log('Sending WhatsApp:', {
+      closer: isDipanshu ? 'Dipanshu' : 'Akansha',
       template: template.name,
       phone: phoneWithCountry,
       params: templateParams,
@@ -195,7 +228,7 @@ serve(async (req) => {
     // Add media for video templates
     if (template.isVideo) {
       whatsappPayload.media = {
-        url: VIDEO_URL,
+        url: videoUrl,
         filename: 'reminder.mp4',
       };
     }
@@ -226,6 +259,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: whatsappResponse.ok, 
         status: newStatus,
+        closer: isDipanshu ? 'Dipanshu' : 'Akansha',
         whatsapp_response: whatsappResult,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
