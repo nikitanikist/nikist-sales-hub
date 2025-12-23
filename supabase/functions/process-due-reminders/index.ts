@@ -35,6 +35,7 @@ serve(async (req) => {
 
     // Query pending reminders where reminder_time is due
     // Exclude 'call_booked' as it's handled immediately during scheduling
+    // Include appointment created_at to check if reminder was already past at booking time
     const { data: dueReminders, error: queryError } = await supabase
       .from('call_reminders')
       .select(`
@@ -43,6 +44,7 @@ serve(async (req) => {
         reminder_time,
         appointment:call_appointments(
           id,
+          created_at,
           closer:profiles!call_appointments_closer_id_fkey(email)
         )
       `)
@@ -68,15 +70,59 @@ serve(async (req) => {
       );
     }
 
-    // Filter to only process reminders for enabled closers (Dipanshu and Akansha)
-    const enabledReminders = dueReminders.filter((r: any) => {
-      const closerEmail = r.appointment?.closer?.email?.toLowerCase();
-      return closerEmail && ENABLED_CLOSER_EMAILS.includes(closerEmail);
-    });
+    // Separate reminders into: to-skip (past at booking), enabled, and non-enabled
+    const remindersToSkip: any[] = [];
+    const enabledReminders: any[] = [];
+    const nonEnabledReminders: any[] = [];
 
-    console.log(`${enabledReminders.length} reminders are for enabled closers (Dipanshu/Akansha)`);
+    for (const reminder of dueReminders) {
+      const appointment = Array.isArray(reminder.appointment) ? reminder.appointment[0] : reminder.appointment;
+      const closer = Array.isArray(appointment?.closer) ? appointment.closer[0] : appointment?.closer;
+      const closerEmail = closer?.email?.toLowerCase();
+      const appointmentCreatedAt = appointment?.created_at;
+      const reminderTime = reminder.reminder_time;
 
-    // Process each reminder
+      // Check if this reminder was already past when the appointment was booked
+      if (appointmentCreatedAt && reminderTime) {
+        const createdAt = new Date(appointmentCreatedAt);
+        const reminderDateTime = new Date(reminderTime);
+        
+        if (reminderDateTime < createdAt) {
+          // This reminder was already supposed to go before the call was booked
+          remindersToSkip.push(reminder);
+          console.log(`Reminder ${reminder.id} (${reminder.reminder_type}) was past at booking time - will skip`);
+          continue;
+        }
+      }
+
+      // Check if this closer is enabled for WhatsApp reminders
+      if (closerEmail && ENABLED_CLOSER_EMAILS.includes(closerEmail)) {
+        enabledReminders.push(reminder);
+      } else {
+        nonEnabledReminders.push(reminder);
+      }
+    }
+
+    console.log(`${remindersToSkip.length} reminders to skip (past at booking time)`);
+    console.log(`${enabledReminders.length} reminders for enabled closers (Dipanshu/Akansha)`);
+    console.log(`${nonEnabledReminders.length} reminders for non-enabled closers`);
+
+    // Mark reminders that were past at booking time as 'skipped'
+    if (remindersToSkip.length > 0) {
+      const skipIds = remindersToSkip.map((r: any) => r.id);
+      const { error: skipError } = await supabase
+        .from('call_reminders')
+        .update({ status: 'skipped' })
+        .in('id', skipIds);
+      
+      if (skipError) {
+        console.error('Error marking reminders as skipped:', skipError);
+      } else {
+        console.log(`Marked ${skipIds.length} reminders as skipped (were past at booking time)`);
+      }
+    }
+
+    // Process each enabled reminder
     const results = [];
     for (const reminder of enabledReminders) {
       console.log(`Processing reminder ${reminder.id} (${reminder.reminder_type})`);
@@ -122,11 +168,6 @@ serve(async (req) => {
     }
 
     // Mark non-enabled reminders as sent to prevent reprocessing
-    const nonEnabledReminders = dueReminders.filter((r: any) => {
-      const closerEmail = r.appointment?.closer?.email?.toLowerCase();
-      return !closerEmail || !ENABLED_CLOSER_EMAILS.includes(closerEmail);
-    });
-
     if (nonEnabledReminders.length > 0) {
       const nonEnabledIds = nonEnabledReminders.map((r: any) => r.id);
       await supabase
@@ -141,7 +182,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         processed: results.length,
-        skipped: nonEnabledReminders.length,
+        skipped: remindersToSkip.length,
+        nonEnabled: nonEnabledReminders.length,
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
