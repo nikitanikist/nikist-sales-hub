@@ -10,6 +10,7 @@ const corsHeaders = {
 const ENABLED_CLOSER_EMAILS = [
   'nikistofficial@gmail.com',  // Dipanshu
   'akanshanikist@gmail.com',   // Akansha
+  'aadeshnikist@gmail.com',    // Adesh
 ];
 
 serve(async (req) => {
@@ -104,7 +105,7 @@ serve(async (req) => {
     }
 
     console.log(`${remindersToSkip.length} reminders to skip (past at booking time)`);
-    console.log(`${enabledReminders.length} reminders for enabled closers (Dipanshu/Akansha)`);
+    console.log(`${enabledReminders.length} reminders for enabled closers (Dipanshu/Akansha/Adesh)`);
     console.log(`${nonEnabledReminders.length} reminders for non-enabled closers`);
 
     // Mark reminders that were past at booking time as 'skipped'
