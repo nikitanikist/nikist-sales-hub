@@ -1,8 +1,9 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useEffect } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger } from "@/components/ui/sidebar";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList, UsersRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -10,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 
 const AppLayout = () => {
   const { user, signOut, loading } = useAuth();
+  const { isAdmin, isCloser, isLoading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -19,7 +21,17 @@ const AppLayout = () => {
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  // Redirect closers away from admin-only pages
+  useEffect(() => {
+    if (!roleLoading && isCloser && !isAdmin) {
+      const adminOnlyPaths = ['/', '/leads', '/onboarding', '/workshops', '/sales', '/funnels', '/products', '/users'];
+      if (adminOnlyPaths.includes(location.pathname)) {
+        navigate("/calls");
+      }
+    }
+  }, [isCloser, isAdmin, roleLoading, location.pathname, navigate]);
+
+  if (loading || roleLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-lg">Loading...</div>
@@ -31,7 +43,8 @@ const AppLayout = () => {
     return null;
   }
 
-  const menuItems = [
+  // All menu items for admin
+  const adminMenuItems = [
     { title: "Dashboard", icon: LayoutDashboard, path: "/" },
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Customer Insights", icon: ClipboardList, path: "/onboarding" },
@@ -41,7 +54,17 @@ const AppLayout = () => {
     { title: "Sales", icon: DollarSign, path: "/sales" },
     { title: "Active Funnels", icon: TrendingUp, path: "/funnels" },
     { title: "Products", icon: Package, path: "/products" },
+    { title: "Users", icon: UsersRound, path: "/users" },
   ];
+
+  // Limited menu items for closers
+  const closerMenuItems = [
+    { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
+    { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
+  ];
+
+  // Choose menu items based on role
+  const menuItems = isAdmin ? adminMenuItems : closerMenuItems;
 
   const notificationCount = 10; // Demo value
 

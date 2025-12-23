@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.send-status-to-pabbly]
 verify_jwt = false
+
+[functions.manage-users]
+verify_jwt = false
