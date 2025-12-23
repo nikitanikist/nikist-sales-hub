@@ -15,6 +15,7 @@ import Funnels from "./pages/Funnels";
 import Calls from "./pages/Calls";
 import Products from "./pages/Products";
 import Onboarding from "./pages/Onboarding";
+import Users from "./pages/Users";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -40,6 +41,7 @@ const App = () => (
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />
               <Route path="/products" element={<Products />} />
+              <Route path="/users" element={<Users />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

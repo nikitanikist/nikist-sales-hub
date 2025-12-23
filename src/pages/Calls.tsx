@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
 import { format, addDays, subDays } from "date-fns";
 import { Calendar as CalendarIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +30,7 @@ type Appointment = {
   due_amount: number | null;
   closer_remarks: string | null;
   additional_comments: string | null;
+  closer_id: string;
   lead: {
     id: string;
     contact_name: string;
@@ -57,6 +59,7 @@ const Calls = () => {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const queryClient = useQueryClient();
+  const { isAdmin, isCloser, profileId, isLoading: roleLoading } = useUserRole();
 
   const getSelectedDate = () => {
     const today = new Date();
@@ -78,9 +81,9 @@ const Calls = () => {
 
   // Fetch appointments
   const { data: appointments, isLoading } = useQuery<Appointment[]>({
-    queryKey: ["call-appointments", selectedDate],
+    queryKey: ["call-appointments", selectedDate, profileId, isCloser],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("call_appointments")
         .select(`
           *,
@@ -107,22 +110,39 @@ const Calls = () => {
         .eq("scheduled_date", selectedDate)
         .order("scheduled_time", { ascending: true });
 
+      // If user is a closer, filter to only their appointments
+      if (isCloser && !isAdmin && profileId) {
+        query = query.eq("closer_id", profileId);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
       return data as unknown as Appointment[];
     },
+    enabled: !roleLoading,
   });
 
   // Fetch closers with call counts
   const { data: closers } = useQuery<{ id: string; full_name: string; call_count: number }[]>({
-    queryKey: ["closers-with-calls", selectedDate],
+    queryKey: ["closers-with-calls", selectedDate, profileId, isCloser],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc('get_closer_call_counts', {
         target_date: selectedDate
       });
 
       if (error) throw error;
+      
+      // If user is a closer, filter to only their card
+      if (isCloser && !isAdmin && profileId) {
+        return (data as { id: string; full_name: string; call_count: number }[]).filter(
+          (closer) => closer.id === profileId
+        );
+      }
+      
       return data as unknown as { id: string; full_name: string; call_count: number }[];
     },
+    enabled: !roleLoading,
   });
 
   // Update appointment mutation
@@ -275,7 +295,7 @@ const Calls = () => {
           <CardTitle>Appointments for {format(new Date(selectedDate), 'MMMM dd, yyyy')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoading || roleLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : !appointments || appointments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -290,7 +310,8 @@ const Calls = () => {
                     <TableHead>Contact</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Time</TableHead>
-                    <TableHead>Closer</TableHead>
+                    {/* Only show Closer column for admins */}
+                    {isAdmin && <TableHead>Closer</TableHead>}
                     <TableHead>Status</TableHead>
                     <TableHead>Offer</TableHead>
                     <TableHead>Cash</TableHead>
@@ -311,7 +332,8 @@ const Calls = () => {
                         </TableCell>
                         <TableCell>{format(new Date(appointment.scheduled_date), 'yyyy-MM-dd')}</TableCell>
                         <TableCell>{appointment.scheduled_time}</TableCell>
-                        <TableCell>{appointment.closer[0]?.full_name}</TableCell>
+                        {/* Only show Closer column for admins */}
+                        {isAdmin && <TableCell>{appointment.closer[0]?.full_name}</TableCell>}
                         <TableCell>
                           <Badge className={cn("text-white", getStatusColor(appointment.status))}>
                             {appointment.status}
@@ -338,7 +360,7 @@ const Calls = () => {
                       {/* Expanded Details Row */}
                       {expandedRow === appointment.id && (
                         <TableRow>
-                          <TableCell colSpan={10}>
+                          <TableCell colSpan={isAdmin ? 10 : 9}>
                             <div className="p-4 bg-muted/50 rounded-lg space-y-4">
                               <div>
                                 <h4 className="font-semibold mb-2">Reminders</h4>

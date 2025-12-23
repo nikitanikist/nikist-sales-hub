@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -29,9 +30,10 @@ const SalesClosers = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ full_name: "", email: "", phone: "" });
   const { toast } = useToast();
+  const { isAdmin, isCloser, profileId, isLoading: roleLoading } = useUserRole();
 
   const { data: closers, isLoading, refetch } = useQuery({
-    queryKey: ["sales-closers"],
+    queryKey: ["sales-closers", profileId, isCloser],
     queryFn: async () => {
       // Get all users with sales_rep or admin roles
       const { data: userRoles, error: rolesError } = await supabase
@@ -41,7 +43,12 @@ const SalesClosers = () => {
 
       if (rolesError) throw rolesError;
 
-      const userIds = userRoles.map(ur => ur.user_id);
+      let userIds = userRoles.map(ur => ur.user_id);
+
+      // If user is a closer (not admin), filter to only their ID
+      if (isCloser && !isAdmin && profileId) {
+        userIds = userIds.filter(id => id === profileId);
+      }
 
       // Get profiles for these users
       const { data: profiles, error: profilesError } = await supabase
@@ -103,6 +110,7 @@ const SalesClosers = () => {
 
       return closersWithMetrics;
     },
+    enabled: !roleLoading,
   });
 
   const handleRefresh = () => {
@@ -172,92 +180,111 @@ const SalesClosers = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Sales Closers</h1>
           <p className="text-muted-foreground mt-2">
-            View and manage sales team performance metrics
+            {isCloser && !isAdmin 
+              ? "View your performance metrics" 
+              : "View and manage sales team performance metrics"
+            }
           </p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Closer
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Closer</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAddCloser} className="space-y-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="full_name">Full Name *</Label>
-                <Input
-                  id="full_name"
-                  placeholder="Enter full name"
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter email address"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  placeholder="Enter phone number (optional)"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Adding..." : "Add Closer"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {/* Only show Add Closer button for admins */}
+        {isAdmin && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Closer
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Closer</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleAddCloser} className="space-y-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="full_name">Full Name *</Label>
+                  <Input
+                    id="full_name"
+                    placeholder="Enter full name"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter email address"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    placeholder="Enter phone number (optional)"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Adding..." : "Add Closer"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Closers Performance</CardTitle>
-              <CardDescription>Track sales team metrics and performance</CardDescription>
+              <CardTitle>
+                {isCloser && !isAdmin ? "Your Performance" : "Closers Performance"}
+              </CardTitle>
+              <CardDescription>
+                {isCloser && !isAdmin 
+                  ? "Track your sales metrics and performance" 
+                  : "Track sales team metrics and performance"
+                }
+              </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" onClick={handleRefresh}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon">
-                <Filter className="h-4 w-4" />
-              </Button>
+              {/* Only show filter button for admins */}
+              {isAdmin && (
+                <Button variant="outline" size="icon">
+                  <Filter className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
-          <div className="relative mt-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, email, or phone..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          {/* Only show search for admins */}
+          {isAdmin && (
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          )}
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoading || roleLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading closers...</div>
           ) : (
             <div className="rounded-md border">
