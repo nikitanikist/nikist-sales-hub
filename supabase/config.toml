@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.manage-users]
 verify_jwt = false
+
+[functions.calendly-webhook-akansha]
+verify_jwt = false
+
+[functions.setup-calendly-webhook-akansha]
+verify_jwt = false

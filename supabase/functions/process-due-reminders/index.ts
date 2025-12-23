@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Closers who should receive WhatsApp reminders
+const ENABLED_CLOSER_EMAILS = [
+  'nikistofficial@gmail.com',  // Dipanshu
+  'akanshanikist@gmail.com',   // Akansha
+];
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -62,16 +68,17 @@ serve(async (req) => {
       );
     }
 
-    // Filter to only process reminders for Dipanshu
-    const dipanshuReminders = dueReminders.filter((r: any) => 
-      r.appointment?.closer?.email?.toLowerCase() === 'nikistofficial@gmail.com'
-    );
+    // Filter to only process reminders for enabled closers (Dipanshu and Akansha)
+    const enabledReminders = dueReminders.filter((r: any) => {
+      const closerEmail = r.appointment?.closer?.email?.toLowerCase();
+      return closerEmail && ENABLED_CLOSER_EMAILS.includes(closerEmail);
+    });
 
-    console.log(`${dipanshuReminders.length} reminders are for Dipanshu`);
+    console.log(`${enabledReminders.length} reminders are for enabled closers (Dipanshu/Akansha)`);
 
     // Process each reminder
     const results = [];
-    for (const reminder of dipanshuReminders) {
+    for (const reminder of enabledReminders) {
       console.log(`Processing reminder ${reminder.id} (${reminder.reminder_type})`);
       
       try {
@@ -114,26 +121,27 @@ serve(async (req) => {
       }
     }
 
-    // Mark non-Dipanshu reminders as sent to prevent reprocessing
-    const nonDipanshuReminders = dueReminders.filter((r: any) => 
-      r.appointment?.closer?.email?.toLowerCase() !== 'nikistofficial@gmail.com'
-    );
+    // Mark non-enabled reminders as sent to prevent reprocessing
+    const nonEnabledReminders = dueReminders.filter((r: any) => {
+      const closerEmail = r.appointment?.closer?.email?.toLowerCase();
+      return !closerEmail || !ENABLED_CLOSER_EMAILS.includes(closerEmail);
+    });
 
-    if (nonDipanshuReminders.length > 0) {
-      const nonDipanshuIds = nonDipanshuReminders.map((r: any) => r.id);
+    if (nonEnabledReminders.length > 0) {
+      const nonEnabledIds = nonEnabledReminders.map((r: any) => r.id);
       await supabase
         .from('call_reminders')
         .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .in('id', nonDipanshuIds);
+        .in('id', nonEnabledIds);
       
-      console.log(`Marked ${nonDipanshuIds.length} non-Dipanshu reminders as sent`);
+      console.log(`Marked ${nonEnabledIds.length} non-enabled reminders as sent`);
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         processed: results.length,
-        skipped: nonDipanshuReminders.length,
+        skipped: nonEnabledReminders.length,
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
