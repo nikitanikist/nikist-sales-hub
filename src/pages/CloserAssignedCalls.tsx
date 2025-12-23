@@ -77,7 +77,7 @@ const statusLabels: Record<CallStatus, string> = {
   refunded: "Refunded",
 };
 
-const reminderTypeOrder = ["two_days", "one_day", "three_hours", "one_hour", "thirty_minutes", "ten_minutes"];
+const reminderTypeOrder = ["two_days", "one_day", "three_hours", "one_hour", "thirty_minutes", "ten_minutes", "we_are_live"];
 const reminderTypeLabels: Record<string, string> = {
   two_days: "2 Days",
   one_day: "1 Day",
@@ -85,6 +85,7 @@ const reminderTypeLabels: Record<string, string> = {
   one_hour: "1 Hour",
   thirty_minutes: "30 Min",
   ten_minutes: "10 Min",
+  we_are_live: "We're Live",
 };
 
 const ITEMS_PER_PAGE = 10;
@@ -97,23 +98,25 @@ const formatTimeString = (timeStr: string): string => {
   return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
 };
 
-// Helper function to format reminder time without timezone conversion
+// Helper function to format reminder time in IST timezone
 const formatReminderDateTime = (isoString: string): string => {
-  const [datePart, timePart] = isoString.split('T');
-  const timeOnly = timePart?.split('+')[0]?.split('-')[0]?.substring(0, 5) || '';
-  
-  if (!timeOnly) return '';
-  
-  const [year, month, day] = datePart.split('-').map(Number);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dateStr = `${day.toString().padStart(2, '0')} ${months[month - 1]}`;
-  
-  const [hours, minutesStr] = timeOnly.split(':').map(Number);
-  const period = hours >= 12 ? 'PM' : 'AM';
-  const hour12 = hours % 12 || 12;
-  const timeStr = `${hour12}:${minutesStr.toString().padStart(2, '0')} ${period}`;
-  
-  return `${dateStr}, ${timeStr}`;
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return '';
+    
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    
+    return formatter.format(date) + ' IST';
+  } catch {
+    return '';
+  }
 };
 
 // Helper to check if a today's call time has passed
@@ -455,6 +458,8 @@ const CloserAssignedCalls = () => {
         return <Check className="h-4 w-4 text-green-600" />;
       case "failed":
         return <X className="h-4 w-4 text-red-600" />;
+      case "skipped":
+        return <AlertCircle className="h-4 w-4 text-gray-400" />;
       case "pending":
       default:
         return <Clock className="h-4 w-4 text-blue-600" />;

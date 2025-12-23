@@ -861,7 +861,7 @@ export type Database = {
         | "negotiation"
         | "won"
         | "lost"
-      reminder_status: "pending" | "sent" | "failed"
+      reminder_status: "pending" | "sent" | "failed" | "skipped"
       reminder_type:
         | "two_days"
         | "one_day"
@@ -1022,7 +1022,7 @@ export const Constants = {
         "won",
         "lost",
       ],
-      reminder_status: ["pending", "sent", "failed"],
+      reminder_status: ["pending", "sent", "failed", "skipped"],
       reminder_type: [
         "two_days",
         "one_day",
