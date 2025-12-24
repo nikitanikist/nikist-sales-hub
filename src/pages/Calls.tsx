@@ -38,11 +38,11 @@ type Appointment = {
     email: string;
     phone: string | null;
     country: string | null;
-  }[];
+  } | null;
   closer: {
     id: string;
     full_name: string;
-  }[];
+  } | null;
   reminders: {
     id: string;
     reminder_type: string;
@@ -347,21 +347,24 @@ const Calls = () => {
                 <TableBody>
                   {appointments
                     .filter(apt => selectedCloserId ? apt.closer_id === selectedCloserId : true)
-                    .map((appointment) => (
+                    .map((appointment) => {
+                      const lead = Array.isArray(appointment.lead) ? appointment.lead[0] : appointment.lead;
+                      const closer = Array.isArray(appointment.closer) ? appointment.closer[0] : appointment.closer;
+                      return (
                     <>
                       <TableRow key={appointment.id}>
                         <TableCell className="font-medium">
-                          <div>{appointment.lead[0]?.contact_name || 'N/A'}</div>
+                          <div>{lead?.contact_name || 'N/A'}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm">{appointment.lead[0]?.email || 'N/A'}</div>
-                          <div className="text-sm text-muted-foreground">{appointment.lead[0]?.phone || '-'}</div>
+                          <div className="text-sm">{lead?.email || 'N/A'}</div>
+                          <div className="text-sm text-muted-foreground">{lead?.phone || '-'}</div>
                         </TableCell>
                         <TableCell>{format(new Date(appointment.scheduled_date), 'dd-MM-yyyy')}</TableCell>
                         <TableCell>
                           {format(parse(appointment.scheduled_time.substring(0, 5), 'HH:mm', new Date()), 'h:mm a')}
                         </TableCell>
-                        <TableCell>{appointment.closer[0]?.full_name || 'N/A'}</TableCell>
+                        <TableCell>{closer?.full_name || 'N/A'}</TableCell>
                         <TableCell>
                           <Badge className={cn("text-white", getStatusColor(appointment.status))}>
                             {appointment.status}
@@ -431,7 +434,8 @@ const Calls = () => {
                         </TableRow>
                       )}
                     </>
-                  ))}
+                  );
+                  })}
                 </TableBody>
               </Table>
             </div>
