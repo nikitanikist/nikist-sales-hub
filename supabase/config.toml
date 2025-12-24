@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.setup-calendly-webhook-akansha]
 verify_jwt = false
+
+[functions.manual-call-assignment]
+verify_jwt = false
