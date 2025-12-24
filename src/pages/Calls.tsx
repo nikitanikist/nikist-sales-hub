@@ -84,11 +84,11 @@ const Calls = () => {
   const { data: appointments, isLoading } = useQuery<Appointment[]>({
     queryKey: ["call-appointments", selectedDate, profileId, isCloser],
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = supabase
         .from("call_appointments")
         .select(`
           *,
-          lead:leads(
+          lead:leads!call_appointments_lead_id_fkey(
             id,
             contact_name,
             company_name,
@@ -96,7 +96,7 @@ const Calls = () => {
             phone,
             country
           ),
-          closer:profiles!closer_id(
+          closer:profiles!call_appointments_closer_id_fkey(
             id,
             full_name
           ),
