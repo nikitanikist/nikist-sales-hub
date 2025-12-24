@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
-import { format, addDays, subDays } from "date-fns";
+import { format, addDays, subDays, parse } from "date-fns";
 import { Calendar as CalendarIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ const Calls = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [selectedCloserId, setSelectedCloserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { isAdmin, isCloser, profileId, isLoading: roleLoading } = useUserRole();
 
@@ -275,9 +276,34 @@ const Calls = () => {
       </Card>
 
       {/* Closer Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Show All Card */}
+        <Card 
+          className={cn(
+            "cursor-pointer transition-all hover:shadow-md",
+            selectedCloserId === null && "ring-2 ring-primary"
+          )}
+          onClick={() => setSelectedCloserId(null)}
+        >
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">All Closers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-bold">
+              {closers?.reduce((sum, c) => sum + c.call_count, 0) || 0}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Total calls</p>
+          </CardContent>
+        </Card>
         {closers?.map((closer) => (
-          <Card key={closer.id}>
+          <Card 
+            key={closer.id}
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-md",
+              selectedCloserId === closer.id && "ring-2 ring-primary"
+            )}
+            onClick={() => setSelectedCloserId(selectedCloserId === closer.id ? null : closer.id)}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">{closer.full_name}</CardTitle>
             </CardHeader>
@@ -310,8 +336,7 @@ const Calls = () => {
                     <TableHead>Contact</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Time</TableHead>
-                    {/* Only show Closer column for admins */}
-                    {isAdmin && <TableHead>Closer</TableHead>}
+                    <TableHead>Closer</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Offer</TableHead>
                     <TableHead>Cash</TableHead>
@@ -320,20 +345,23 @@ const Calls = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {appointments.map((appointment) => (
+                  {appointments
+                    .filter(apt => selectedCloserId ? apt.closer_id === selectedCloserId : true)
+                    .map((appointment) => (
                     <>
                       <TableRow key={appointment.id}>
                         <TableCell className="font-medium">
-                          <div>{appointment.lead[0]?.contact_name}</div>
+                          <div>{appointment.lead[0]?.contact_name || 'N/A'}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm">{appointment.lead[0]?.email}</div>
-                          <div className="text-sm text-muted-foreground">{appointment.lead[0]?.phone}</div>
+                          <div className="text-sm">{appointment.lead[0]?.email || 'N/A'}</div>
+                          <div className="text-sm text-muted-foreground">{appointment.lead[0]?.phone || '-'}</div>
                         </TableCell>
-                        <TableCell>{format(new Date(appointment.scheduled_date), 'yyyy-MM-dd')}</TableCell>
-                        <TableCell>{appointment.scheduled_time}</TableCell>
-                        {/* Only show Closer column for admins */}
-                        {isAdmin && <TableCell>{appointment.closer[0]?.full_name}</TableCell>}
+                        <TableCell>{format(new Date(appointment.scheduled_date), 'dd-MM-yyyy')}</TableCell>
+                        <TableCell>
+                          {format(parse(appointment.scheduled_time.substring(0, 5), 'HH:mm', new Date()), 'h:mm a')}
+                        </TableCell>
+                        <TableCell>{appointment.closer[0]?.full_name || 'N/A'}</TableCell>
                         <TableCell>
                           <Badge className={cn("text-white", getStatusColor(appointment.status))}>
                             {appointment.status}
@@ -360,7 +388,7 @@ const Calls = () => {
                       {/* Expanded Details Row */}
                       {expandedRow === appointment.id && (
                         <TableRow>
-                          <TableCell colSpan={isAdmin ? 10 : 9}>
+                          <TableCell colSpan={10}>
                             <div className="p-4 bg-muted/50 rounded-lg space-y-4">
                               <div>
                                 <h4 className="font-semibold mb-2">Reminders</h4>
