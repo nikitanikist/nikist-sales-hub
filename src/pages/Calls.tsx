@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { format, addDays, subDays, parse } from "date-fns";
-import { Calendar as CalendarIcon, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -56,7 +56,7 @@ const Calls = () => {
   const [dateFilter, setDateFilter] = useState<DateFilter>('today');
   const [customDate, setCustomDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [selectedCloserId, setSelectedCloserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -338,10 +338,6 @@ const Calls = () => {
                     <TableHead>Time</TableHead>
                     <TableHead>Closer</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Offer</TableHead>
-                    <TableHead>Cash</TableHead>
-                    <TableHead>Due</TableHead>
-                    <TableHead>Details</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -351,90 +347,26 @@ const Calls = () => {
                       const lead = Array.isArray(appointment.lead) ? appointment.lead[0] : appointment.lead;
                       const closer = Array.isArray(appointment.closer) ? appointment.closer[0] : appointment.closer;
                       return (
-                    <>
-                      <TableRow key={appointment.id}>
-                        <TableCell className="font-medium">
-                          <div>{lead?.contact_name || 'N/A'}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">{lead?.email || 'N/A'}</div>
-                          <div className="text-sm text-muted-foreground">{lead?.phone || '-'}</div>
-                        </TableCell>
-                        <TableCell>{format(new Date(appointment.scheduled_date), 'dd-MM-yyyy')}</TableCell>
-                        <TableCell>
-                          {format(parse(appointment.scheduled_time.substring(0, 5), 'HH:mm', new Date()), 'h:mm a')}
-                        </TableCell>
-                        <TableCell>{closer?.full_name || 'N/A'}</TableCell>
-                        <TableCell>
-                          <Badge className={cn("text-white", getStatusColor(appointment.status))}>
-                            {appointment.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>₹{appointment.offer_amount?.toLocaleString('en-IN')}</TableCell>
-                        <TableCell>₹{appointment.cash_received?.toLocaleString('en-IN')}</TableCell>
-                        <TableCell>₹{appointment.due_amount?.toLocaleString('en-IN')}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setExpandedRow(expandedRow === appointment.id ? null : appointment.id)}
-                          >
-                            {expandedRow === appointment.id ? (
-                              <><ChevronUp className="h-4 w-4 mr-1" /> Hide</>
-                            ) : (
-                              <><ChevronDown className="h-4 w-4 mr-1" /> Details</>
-                            )}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                      
-                      {/* Expanded Details Row */}
-                      {expandedRow === appointment.id && (
-                        <TableRow>
-                          <TableCell colSpan={10}>
-                            <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-                              <div>
-                                <h4 className="font-semibold mb-2">Reminders</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                  {appointment.reminders?.map((reminder: any) => (
-                                    <div key={reminder.id} className="flex items-center gap-2 text-sm">
-                                      <span className="font-medium capitalize">
-                                        {reminder.reminder_type.replace('_', ' ')}:
-                                      </span>
-                                      <span>{format(new Date(reminder.reminder_time), 'MM/dd HH:mm')}</span>
-                                      {reminder.status === 'sent' && (
-                                        <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                                          sent
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              
-                              {appointment.closer_remarks && (
-                                <div>
-                                  <p className="font-semibold">Closer remarks:</p>
-                                  <p className="text-sm text-muted-foreground">{appointment.closer_remarks}</p>
-                                </div>
-                              )}
-                              
-                              {appointment.additional_comments && (
-                                <div>
-                                  <p className="font-semibold">Additional comments:</p>
-                                  <p className="text-sm text-muted-foreground">{appointment.additional_comments}</p>
-                                </div>
-                              )}
-                              
-                              <Button onClick={() => setEditingAppointment(appointment)}>
-                                Edit Appointment
-                              </Button>
-                            </div>
+                        <TableRow key={appointment.id}>
+                          <TableCell className="font-medium">
+                            <div>{lead?.contact_name || 'N/A'}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">{lead?.email || 'N/A'}</div>
+                            <div className="text-sm text-muted-foreground">{lead?.phone || '-'}</div>
+                          </TableCell>
+                          <TableCell>{format(new Date(appointment.scheduled_date), 'dd-MM-yyyy')}</TableCell>
+                          <TableCell>
+                            {format(parse(appointment.scheduled_time.substring(0, 5), 'HH:mm', new Date()), 'h:mm a')}
+                          </TableCell>
+                          <TableCell>{closer?.full_name || 'N/A'}</TableCell>
+                          <TableCell>
+                            <Badge className={cn("text-white", getStatusColor(appointment.status))}>
+                              {appointment.status}
+                            </Badge>
                           </TableCell>
                         </TableRow>
-                      )}
-                    </>
-                  );
+                      );
                   })}
                 </TableBody>
               </Table>
