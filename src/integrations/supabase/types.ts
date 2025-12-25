@@ -28,6 +28,9 @@ export type Database = {
           id: string
           lead_id: string
           offer_amount: number | null
+          previous_scheduled_date: string | null
+          previous_scheduled_time: string | null
+          rescheduled_at: string | null
           scheduled_date: string
           scheduled_time: string
           status: Database["public"]["Enums"]["call_status"]
@@ -48,6 +51,9 @@ export type Database = {
           id?: string
           lead_id: string
           offer_amount?: number | null
+          previous_scheduled_date?: string | null
+          previous_scheduled_time?: string | null
+          rescheduled_at?: string | null
           scheduled_date: string
           scheduled_time: string
           status?: Database["public"]["Enums"]["call_status"]
@@ -68,6 +74,9 @@ export type Database = {
           id?: string
           lead_id?: string
           offer_amount?: number | null
+          previous_scheduled_date?: string | null
+          previous_scheduled_time?: string | null
+          rescheduled_at?: string | null
           scheduled_date?: string
           scheduled_time?: string
           status?: Database["public"]["Enums"]["call_status"]

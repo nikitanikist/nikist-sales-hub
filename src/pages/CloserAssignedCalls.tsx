@@ -14,13 +14,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { ArrowLeft, Search, RefreshCw, ChevronDown, ChevronRight, Phone, Mail, Check, Clock, AlertCircle, X, Loader2, Calendar, Trash2 } from "lucide-react";
+import { ArrowLeft, Search, RefreshCw, ChevronDown, ChevronRight, Phone, Mail, Check, Clock, AlertCircle, X, Loader2, Calendar, Trash2, RotateCcw } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isFuture, isPast, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
+import { RebookCallDialog } from "@/components/RebookCallDialog";
 
 type CallStatus = Database["public"]["Enums"]["call_status"];
 type ReminderStatus = Database["public"]["Enums"]["reminder_status"];
@@ -220,6 +221,7 @@ const CloserAssignedCalls = () => {
     closer_remarks: string;
   } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [rebookingAppointment, setRebookingAppointment] = useState<Appointment | null>(null);
 
   const { isAdmin } = useUserRole();
 
@@ -883,6 +885,17 @@ const CloserAssignedCalls = () => {
                                           <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
                                             Edit Details
                                           </Button>
+                                          {apt.status === 'reschedule' && (
+                                            <Button 
+                                              size="sm" 
+                                              variant="default"
+                                              onClick={() => setRebookingAppointment(apt)}
+                                              className="bg-primary hover:bg-primary/90"
+                                            >
+                                              <RotateCcw className="h-4 w-4 mr-1" />
+                                              Book Call Again
+                                            </Button>
+                                          )}
                                           {isAdmin && (
                                             <Button 
                                               size="sm" 
@@ -981,6 +994,24 @@ const CloserAssignedCalls = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Rebook Call Dialog */}
+      {rebookingAppointment && (
+        <RebookCallDialog
+          open={!!rebookingAppointment}
+          onOpenChange={(open) => !open && setRebookingAppointment(null)}
+          appointment={{
+            id: rebookingAppointment.id,
+            scheduled_date: rebookingAppointment.scheduled_date,
+            scheduled_time: rebookingAppointment.scheduled_time,
+            lead: rebookingAppointment.lead,
+          }}
+          onSuccess={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
+          }}
+        />
+      )}
     </div>
   );
 };

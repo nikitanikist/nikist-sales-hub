@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.manual-call-assignment]
 verify_jwt = false
+
+[functions.rebook-call]
+verify_jwt = false
