@@ -36,6 +36,9 @@ interface Appointment {
   due_amount: number | null;
   closer_remarks: string | null;
   additional_comments: string | null;
+  was_rescheduled: boolean | null;
+  previous_scheduled_date: string | null;
+  previous_scheduled_time: string | null;
   lead: {
     id: string;
     contact_name: string;
@@ -261,6 +264,9 @@ const CloserAssignedCalls = () => {
           due_amount,
           closer_remarks,
           additional_comments,
+          was_rescheduled,
+          previous_scheduled_date,
+          previous_scheduled_time,
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
         .eq("closer_id", closerId!);
@@ -706,6 +712,12 @@ const CloserAssignedCalls = () => {
                                       <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">Today</Badge>
                                     )}
                                   </div>
+                                  {apt.was_rescheduled && apt.previous_scheduled_date && apt.previous_scheduled_time && (
+                                    <span className="text-xs text-purple-600 mt-0.5 flex items-center gap-1">
+                                      <RotateCcw className="h-3 w-3" />
+                                      Rescheduled from {format(new Date(apt.previous_scheduled_date), "dd MMM")} {formatTimeString(apt.previous_scheduled_time)}
+                                    </span>
+                                  )}
                                   {apt.lead?.workshop_name && (
                                     <span className="text-xs text-muted-foreground mt-0.5">
                                       {apt.lead.workshop_name}
