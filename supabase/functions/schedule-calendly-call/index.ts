@@ -113,11 +113,29 @@ serve(async (req) => {
 
     console.log('Appointment created:', appointment.id);
 
+    // Send notification to closer
+    let closerNotificationSent = false;
+    try {
+      console.log('Sending notification to closer for appointment:', appointment.id);
+      const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-closer-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ appointment_id: appointment.id }),
+      });
+      const notificationResult = await notificationResponse.json();
+      console.log('Closer notification result:', notificationResult);
+      closerNotificationSent = notificationResponse.ok;
+    } catch (notificationError) {
+      console.error('Error sending closer notification:', notificationError);
+    }
+
     return new Response(
-      JSON.stringify({ success: true, appointment, calendly: false }),
+      JSON.stringify({ success: true, appointment, calendly: false, closer_notification_sent: closerNotificationSent }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error: any) {
     console.error('Error in schedule-calendly-call:', error);
     return new Response(

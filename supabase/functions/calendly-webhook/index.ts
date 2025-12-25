@@ -312,6 +312,25 @@ serve(async (req) => {
       console.log('Skipping WhatsApp: missing phone or AiSensy config');
     }
 
+    // Send notification to closer (Dipanshu)
+    let closerNotificationSent = false;
+    try {
+      console.log('Sending notification to closer for appointment:', appointment.id);
+      const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-closer-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ appointment_id: appointment.id }),
+      });
+      const notificationResult = await notificationResponse.json();
+      console.log('Closer notification result:', notificationResult);
+      closerNotificationSent = notificationResponse.ok;
+    } catch (notificationError) {
+      console.error('Error sending closer notification:', notificationError);
+    }
+
     console.log('Calendly webhook processed successfully');
 
     return new Response(
@@ -320,6 +339,7 @@ serve(async (req) => {
         appointment_id: appointment.id,
         lead_id: lead.id,
         whatsapp_sent: whatsappSent,
+        closer_notification_sent: closerNotificationSent,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
