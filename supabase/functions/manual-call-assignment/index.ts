@@ -99,10 +99,32 @@ serve(async (req) => {
     console.log('Appointment created successfully:', appointment.id);
     console.log('Reminders will be created automatically by database trigger');
 
+    // Send notification to closer
+    let closerNotificationSent = false;
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      console.log('Sending notification to closer for appointment:', appointment.id);
+      const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-closer-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ appointment_id: appointment.id }),
+      });
+      const notificationResult = await notificationResponse.json();
+      console.log('Closer notification result:', notificationResult);
+      closerNotificationSent = notificationResponse.ok;
+    } catch (notificationError) {
+      console.error('Error sending closer notification:', notificationError);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: 'Call assigned successfully (without Zoom creation or confirmation message)',
+        message: 'Call assigned successfully',
+        closer_notification_sent: closerNotificationSent,
         appointment: {
           id: appointment.id,
           lead_name: lead.contact_name,

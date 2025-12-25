@@ -308,6 +308,25 @@ serve(async (req) => {
       console.log('Skipping WhatsApp: missing phone or AiSensy config');
     }
 
+    // Step 6: Send notification to closer (Adesh)
+    let closerNotificationSent = false;
+    try {
+      console.log('Sending notification to closer for appointment:', appointment.id);
+      const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-closer-notification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ appointment_id: appointment.id }),
+      });
+      const notificationResult = await notificationResponse.json();
+      console.log('Closer notification result:', notificationResult);
+      closerNotificationSent = notificationResponse.ok;
+    } catch (notificationError) {
+      console.error('Error sending closer notification:', notificationError);
+    }
+
     console.log('Adesh call scheduled successfully');
 
     return new Response(
@@ -316,11 +335,11 @@ serve(async (req) => {
         appointment_id: appointment.id,
         zoom_link: meeting.join_url,
         whatsapp_sent: whatsappSent,
+        closer_notification_sent: closerNotificationSent,
         closer: 'adesh',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error: any) {
     console.error('Error in schedule-adesh-call:', error);
     return new Response(
