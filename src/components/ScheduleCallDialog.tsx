@@ -297,7 +297,10 @@ export const ScheduleCallDialog = ({
                             )}
                           >
                             {isBooked ? (
-                              <span className="text-[10px]">Booked</span>
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px]">Booked</span>
+                                <span className="text-[10px] font-medium text-black">{formatTimeDisplay(time)}</span>
+                              </div>
                             ) : (
                               formatTimeDisplay(time)
                             )}

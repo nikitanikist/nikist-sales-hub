@@ -893,19 +893,27 @@ const Leads = () => {
                                     Schedule Call
                                   </DropdownMenuSubTrigger>
                                   <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                                    {salesClosers?.map((closer: any) => (
-                                      <DropdownMenuItem
-                                        key={closer.id}
-                                        className="cursor-pointer"
-                                        onClick={() => {
-                                          setSelectedLeadForCall(lead);
-                                          setSelectedCloser(closer);
-                                          setScheduleCallOpen(true);
-                                        }}
-                                      >
-                                        {closer.full_name}
-                                      </DropdownMenuItem>
-                                    ))}
+                                    {salesClosers?.map((closer: any) => {
+                                      const isAdesh = closer.email?.toLowerCase() === "aadeshnikist@gmail.com";
+                                      return (
+                                        <DropdownMenuItem
+                                          key={closer.id}
+                                          className={isAdesh ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
+                                          disabled={!isAdesh}
+                                          onClick={() => {
+                                            if (!isAdesh) return;
+                                            setSelectedLeadForCall(lead);
+                                            setSelectedCloser(closer);
+                                            setScheduleCallOpen(true);
+                                          }}
+                                        >
+                                          <span className="flex items-center gap-2">
+                                            {closer.full_name}
+                                            {!isAdesh && <span className="text-xs text-muted-foreground">(Calendly)</span>}
+                                          </span>
+                                        </DropdownMenuItem>
+                                      );
+                                    })}
                                   </DropdownMenuSubContent>
                                 </DropdownMenuSub>
                                 <DropdownMenuSeparator />
@@ -1021,19 +1029,27 @@ const Leads = () => {
                                   Schedule Call
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                                  {salesClosers?.map((closer: any) => (
-                                    <DropdownMenuItem
-                                      key={closer.id}
-                                      className="cursor-pointer"
-                                      onClick={() => {
-                                        setSelectedLeadForCall(lead);
-                                        setSelectedCloser(closer);
-                                        setScheduleCallOpen(true);
-                                      }}
-                                    >
-                                      {closer.full_name}
-                                    </DropdownMenuItem>
-                                  ))}
+                                  {salesClosers?.map((closer: any) => {
+                                    const isAdesh = closer.email?.toLowerCase() === "aadeshnikist@gmail.com";
+                                    return (
+                                      <DropdownMenuItem
+                                        key={closer.id}
+                                        className={isAdesh ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
+                                        disabled={!isAdesh}
+                                        onClick={() => {
+                                          if (!isAdesh) return;
+                                          setSelectedLeadForCall(lead);
+                                          setSelectedCloser(closer);
+                                          setScheduleCallOpen(true);
+                                        }}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          {closer.full_name}
+                                          {!isAdesh && <span className="text-xs text-muted-foreground">(Calendly)</span>}
+                                        </span>
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
                                 </DropdownMenuSubContent>
                               </DropdownMenuSub>
                               <DropdownMenuSeparator />
