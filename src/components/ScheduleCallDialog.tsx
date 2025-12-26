@@ -162,13 +162,13 @@ export const ScheduleCallDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
+      <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Schedule Call</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+          <div className="space-y-4 py-4 overflow-y-auto flex-1">
             {/* Customer Info (Read-only) */}
             <div className="space-y-3 p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2 text-sm">
@@ -323,7 +323,7 @@ export const ScheduleCallDialog = ({
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-shrink-0 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
