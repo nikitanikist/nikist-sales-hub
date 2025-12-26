@@ -65,8 +65,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    navigate("/auth");
+    // Clear local state immediately to prevent redirect loops
+    setUser(null);
+    setSession(null);
+    
+    // Attempt to sign out from Supabase (best effort)
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        // If session not found or other error, still proceed with local logout
+        console.log("Sign out completed with note:", error.message);
+      }
+    } catch (err) {
+      // Network error or other issue - still proceed with local logout
+      console.log("Sign out error handled:", err);
+    }
+    
+    // Navigate to auth page
+    navigate("/auth", { replace: true });
   };
 
   return (
