@@ -10,6 +10,10 @@ const corsHeaders = {
 const ADESH_EMAIL = "aadeshnikist@gmail.com";
 const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
 
+// Kamal's configuration (call booker notification)
+const KAMAL_NAME = "Kamal";
+const KAMAL_PHONE = "918285632307";
+
 // Get Zoom access token using Server-to-Server OAuth
 async function getZoomAccessToken(): Promise<string> {
   const accountId = Deno.env.get('ZOOM_ADESH_ACCOUNT_ID');
@@ -327,6 +331,57 @@ serve(async (req) => {
       console.error('Error sending closer notification:', notificationError);
     }
 
+    // Step 7: Send notification to Kamal (call booker for Adesh)
+    let kamalNotificationSent = false;
+    if (aisensyApiKey && aisensySource) {
+      console.log('Sending notification to Kamal (call booker) for appointment:', appointment.id);
+      
+      // Format date and time for the template
+      const callDate = new Date(scheduled_date);
+      const kamalFormattedDate = `${callDate.getDate()} ${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][callDate.getMonth()]}`;
+      
+      const [kamalHours, kamalMinutes] = scheduled_time.split(':').map(Number);
+      const kamalPeriod = kamalHours >= 12 ? 'PM' : 'AM';
+      const kamalDisplayHours = kamalHours % 12 || 12;
+      const kamalFormattedTime = `${kamalDisplayHours}:${kamalMinutes.toString().padStart(2, '0')} ${kamalPeriod}`;
+      
+      // Lead name with phone for identification
+      const leadPhone = (lead.phone || '').replace(/\D/g, '');
+      const leadNameWithPhone = leadPhone ? `${lead.contact_name} (+${leadPhone})` : lead.contact_name;
+      
+      const kamalPayload = {
+        apiKey: aisensyApiKey,
+        campaignName: '1_to_1_call_booking',
+        destination: KAMAL_PHONE,
+        userName: KAMAL_NAME,
+        source: aisensySource,
+        templateParams: [
+          KAMAL_NAME,           // {{1}} - Recipient name (Kamal)
+          leadNameWithPhone,    // {{2}} - Lead's name with phone
+          kamalFormattedDate,   // {{3}} - Meeting date
+          kamalFormattedTime,   // {{4}} - Meeting time
+        ],
+      };
+      
+      console.log('Kamal notification payload:', JSON.stringify(kamalPayload, null, 2));
+      
+      try {
+        const kamalResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(kamalPayload),
+        });
+        
+        const kamalResult = await kamalResponse.json();
+        console.log('Kamal notification response:', kamalResult);
+        kamalNotificationSent = kamalResponse.ok;
+      } catch (kamalError) {
+        console.error('Error sending notification to Kamal:', kamalError);
+      }
+    } else {
+      console.log('Skipping Kamal notification: missing AiSensy config');
+    }
+
     console.log('Adesh call scheduled successfully');
 
     return new Response(
@@ -336,6 +391,7 @@ serve(async (req) => {
         zoom_link: meeting.join_url,
         whatsapp_sent: whatsappSent,
         closer_notification_sent: closerNotificationSent,
+        kamal_notification_sent: kamalNotificationSent,
         closer: 'adesh',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
