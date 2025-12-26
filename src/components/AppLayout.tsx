@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 
 const AppLayout = () => {
   const { user, signOut, loading } = useAuth();
-  const { isAdmin, isCloser, isLoading: roleLoading } = useUserRole();
+  const { isAdmin, isCloser, isManager, isLoading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -23,13 +23,23 @@ const AppLayout = () => {
 
   // Redirect closers away from admin-only pages
   useEffect(() => {
-    if (!roleLoading && isCloser && !isAdmin) {
+    if (!roleLoading && isCloser && !isAdmin && !isManager) {
       const adminOnlyPaths = ['/', '/leads', '/onboarding', '/workshops', '/sales', '/funnels', '/products', '/users'];
       if (adminOnlyPaths.includes(location.pathname)) {
         navigate("/calls");
       }
     }
-  }, [isCloser, isAdmin, roleLoading, location.pathname, navigate]);
+  }, [isCloser, isAdmin, isManager, roleLoading, location.pathname, navigate]);
+
+  // Redirect managers away from admin-only pages (more restricted than closers)
+  useEffect(() => {
+    if (!roleLoading && isManager && !isAdmin) {
+      const managerRestrictedPaths = ['/', '/leads', '/onboarding', '/sales', '/funnels', '/products', '/users', '/calls'];
+      if (managerRestrictedPaths.includes(location.pathname)) {
+        navigate("/sales-closers");
+      }
+    }
+  }, [isManager, isAdmin, roleLoading, location.pathname, navigate]);
 
   if (loading || roleLoading) {
     return (
@@ -63,8 +73,14 @@ const AppLayout = () => {
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
   ];
 
+  // Manager menu items - can see closers and workshops, no financial data
+  const managerMenuItems = [
+    { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
+    { title: "All Workshops", icon: Calendar, path: "/workshops" },
+  ];
+
   // Choose menu items based on role
-  const menuItems = isAdmin ? adminMenuItems : closerMenuItems;
+  const menuItems = isAdmin ? adminMenuItems : isManager ? managerMenuItems : closerMenuItems;
 
   const notificationCount = 10; // Demo value
 

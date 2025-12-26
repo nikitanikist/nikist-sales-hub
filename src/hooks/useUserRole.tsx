@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-type UserRole = 'admin' | 'sales_rep' | 'viewer' | null;
+type UserRole = 'admin' | 'sales_rep' | 'viewer' | 'manager' | null;
 
 interface UseUserRoleReturn {
   role: UserRole;
   isAdmin: boolean;
   isCloser: boolean;
+  isManager: boolean;
   isLoading: boolean;
   profileId: string | null;
 }
@@ -77,6 +78,7 @@ export const useUserRole = (): UseUserRoleReturn => {
     role,
     isAdmin: role === 'admin',
     isCloser: role === 'sales_rep',
+    isManager: role === 'manager',
     isLoading,
     profileId,
   };
