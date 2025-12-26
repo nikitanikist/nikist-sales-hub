@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarIcon, Phone, Mail, User, Video, ExternalLink } from "lucide-react";
+import { CalendarIcon, Phone, Mail, User, Video, ExternalLink, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,22 @@ const DIPANSHU_CALENDLY_URL = "https://calendly.com/nikist/1-1-call-with-dipansh
 
 // Adesh's configuration for direct Zoom API integration
 const ADESH_EMAIL = "aadeshnikist@gmail.com";
+
+// Time slots for Aadesh (30-minute intervals from 9:00 AM to 9:00 PM)
+const TIME_SLOTS = [
+  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
+  "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
+  "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00"
+];
+
+// Helper to format time for display (e.g., "09:00" -> "9:00 AM")
+const formatTimeDisplay = (time: string): string => {
+  const [hours, minutes] = time.split(":").map(Number);
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+};
 
 interface ScheduleCallDialogProps {
   open: boolean;
@@ -44,7 +60,7 @@ export const ScheduleCallDialog = ({
   closer,
 }: ScheduleCallDialogProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [selectedTime, setSelectedTime] = useState("10:00");
+  const [selectedTime, setSelectedTime] = useState("");
   const [showCalendar, setShowCalendar] = useState(false);
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -53,9 +69,40 @@ export const ScheduleCallDialog = ({
   const isDipanshu = closer?.email?.toLowerCase() === DIPANSHU_EMAIL.toLowerCase();
   const isAdesh = closer?.email?.toLowerCase() === ADESH_EMAIL.toLowerCase();
 
+  // Fetch booked slots for Aadesh on selected date
+  const { data: bookedSlots, isLoading: isLoadingSlots } = useQuery({
+    queryKey: ["adesh-booked-slots", closer?.id, selectedDate ? format(selectedDate, "yyyy-MM-dd") : null],
+    queryFn: async () => {
+      if (!closer?.id || !selectedDate) return [];
+      
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const { data, error } = await supabase
+        .from("call_appointments")
+        .select("scheduled_time")
+        .eq("closer_id", closer.id)
+        .eq("scheduled_date", dateStr)
+        .in("status", ["scheduled", "pending", "reschedule"]);
+      
+      if (error) throw error;
+      
+      // Return array of booked time strings (e.g., ["10:00:00", "14:30:00"])
+      return data?.map(apt => apt.scheduled_time.slice(0, 5)) || [];
+    },
+    enabled: isAdesh && !!closer?.id && !!selectedDate && open,
+  });
+
+  // Get available and booked slots
+  const slotStatus = useMemo(() => {
+    const booked = new Set(bookedSlots || []);
+    return TIME_SLOTS.map(slot => ({
+      time: slot,
+      isBooked: booked.has(slot),
+    }));
+  }, [bookedSlots]);
+
   const scheduleCallMutation = useMutation({
     mutationFn: async () => {
-      if (!lead || !closer || !selectedDate) {
+      if (!lead || !closer || !selectedDate || !selectedTime) {
         throw new Error("Missing required fields");
       }
 
@@ -84,6 +131,7 @@ export const ScheduleCallDialog = ({
       queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["all-leads"] });
       queryClient.invalidateQueries({ queryKey: ["call-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["adesh-booked-slots"] });
       
       if (data?.zoom_link) {
         toast.success(`Call scheduled with ${closer?.full_name}. Zoom meeting created!`);
@@ -100,7 +148,7 @@ export const ScheduleCallDialog = ({
       onOpenChange(false);
       // Reset form
       setSelectedDate(new Date());
-      setSelectedTime("10:00");
+      setSelectedTime("");
     },
     onError: (error: any) => {
       toast.error("Failed to schedule call: " + error.message);
@@ -202,6 +250,7 @@ export const ScheduleCallDialog = ({
                         selected={selectedDate}
                         onSelect={(date) => {
                           setSelectedDate(date);
+                          setSelectedTime(""); // Reset time when date changes
                           setShowCalendar(false);
                         }}
                         initialFocus
@@ -212,17 +261,64 @@ export const ScheduleCallDialog = ({
                   </Popover>
                 </div>
 
-                {/* Time Picker */}
-                <div className="space-y-2">
-                  <Label htmlFor="call-time">Call Time</Label>
-                  <Input
-                    id="call-time"
-                    type="time"
-                    value={selectedTime}
-                    onChange={(e) => setSelectedTime(e.target.value)}
-                    required
-                  />
-                </div>
+                {/* Aadesh: Time Slot Grid */}
+                {isAdesh ? (
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Select Time Slot
+                    </Label>
+                    
+                    {isLoadingSlots ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <span className="ml-2 text-sm text-muted-foreground">Loading available slots...</span>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-1">
+                        {slotStatus.map(({ time, isBooked }) => (
+                          <Button
+                            key={time}
+                            type="button"
+                            variant={selectedTime === time ? "default" : isBooked ? "ghost" : "outline"}
+                            size="sm"
+                            disabled={isBooked}
+                            onClick={() => setSelectedTime(time)}
+                            className={cn(
+                              "text-xs h-9",
+                              isBooked && "bg-muted text-muted-foreground cursor-not-allowed opacity-50",
+                              selectedTime === time && "ring-2 ring-primary ring-offset-2"
+                            )}
+                          >
+                            {isBooked ? (
+                              <span className="text-[10px]">Booked</span>
+                            ) : (
+                              formatTimeDisplay(time)
+                            )}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {selectedTime && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Selected: <span className="font-medium text-foreground">{formatTimeDisplay(selectedTime)}</span>
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* Other closers: Manual Time Input */
+                  <div className="space-y-2">
+                    <Label htmlFor="call-time">Call Time</Label>
+                    <Input
+                      id="call-time"
+                      type="time"
+                      value={selectedTime}
+                      onChange={(e) => setSelectedTime(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -238,7 +334,7 @@ export const ScheduleCallDialog = ({
             {!isDipanshu && (
               <Button
                 type="submit"
-                disabled={scheduleCallMutation.isPending || !selectedDate}
+                disabled={scheduleCallMutation.isPending || !selectedDate || !selectedTime}
               >
                 {scheduleCallMutation.isPending ? "Scheduling..." : "Schedule Call"}
               </Button>
