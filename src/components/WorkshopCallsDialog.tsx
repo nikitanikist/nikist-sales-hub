@@ -84,6 +84,19 @@ interface WorkshopCall {
   phone: string | null;
 }
 
+interface WorkshopSalesLead {
+  id: string;
+  lead_id: string;
+  contact_name: string;
+  email: string;
+  phone: string | null;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  status: string | null;
+  closer_name: string | null;
+  has_call_appointment: boolean;
+}
+
 export function WorkshopCallsDialog({
   open,
   onOpenChange,
@@ -92,16 +105,24 @@ export function WorkshopCallsDialog({
 }: WorkshopCallsDialogProps) {
   const { isManager } = useUserRole();
   
+  // Use different RPC for 'all_booked' category
   const { data: calls, isLoading } = useQuery({
     queryKey: ["workshop-calls", workshopTitle, category],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_workshop_calls_by_category', {
-        p_workshop_title: workshopTitle,
-        p_category: category,
-      });
-
-      if (error) throw error;
-      return (data || []) as WorkshopCall[];
+      if (category === 'all_booked') {
+        const { data, error } = await supabase.rpc('get_workshop_sales_leads', {
+          p_workshop_title: workshopTitle,
+        });
+        if (error) throw error;
+        return (data || []) as WorkshopSalesLead[];
+      } else {
+        const { data, error } = await supabase.rpc('get_workshop_calls_by_category', {
+          p_workshop_title: workshopTitle,
+          p_category: category,
+        });
+        if (error) throw error;
+        return (data || []) as WorkshopCall[];
+      }
     },
     enabled: open && !!workshopTitle,
   });
@@ -126,7 +147,11 @@ export function WorkshopCallsDialog({
               <TableRow>
                 <TableHead>Customer</TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Scheduled</TableHead>
+                {category === 'all_booked' ? (
+                  <TableHead>Call Scheduled</TableHead>
+                ) : (
+                  <TableHead>Scheduled</TableHead>
+                )}
                 <TableHead>Status</TableHead>
                 <TableHead>Closer</TableHead>
                 {(category === "converted" || category === "rescheduled_done") && !isManager && (
@@ -138,79 +163,120 @@ export function WorkshopCallsDialog({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {calls.map((call) => (
-                <TableRow key={call.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      {call.contact_name || "Unknown"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {call.phone && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <a 
-                            href={`tel:${call.phone}`} 
-                            className="text-primary hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {call.phone}
-                          </a>
-                        </div>
-                      )}
-                      {call.email && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <a 
-                            href={`mailto:${call.email}`} 
-                            className="text-primary hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {call.email}
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1 text-sm">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        {format(new Date(call.scheduled_date), "MMM dd, yyyy")}
+              {calls.map((call) => {
+                const isAllBookedCall = category === 'all_booked';
+                const salesLead = isAllBookedCall ? (call as WorkshopSalesLead) : null;
+                const regularCall = !isAllBookedCall ? (call as WorkshopCall) : null;
+                
+                return (
+                  <TableRow key={call.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        {call.contact_name || "Unknown"}
                       </div>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {call.scheduled_time}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {call.phone && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Phone className="h-3 w-3 text-muted-foreground" />
+                            <a 
+                              href={`tel:${call.phone}`} 
+                              className="text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {call.phone}
+                            </a>
+                          </div>
+                        )}
+                        {call.email && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <Mail className="h-3 w-3 text-muted-foreground" />
+                            <a 
+                              href={`mailto:${call.email}`} 
+                              className="text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {call.email}
+                            </a>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {statusLabels[call.status] || call.status}
-                    </Badge>
-                    {call.was_rescheduled && category !== "rescheduled_remaining" && (
-                      <Badge variant="secondary" className="ml-1 text-xs">
-                        Was Rescheduled
-                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {isAllBookedCall && salesLead ? (
+                        salesLead.has_call_appointment ? (
+                          <div className="space-y-1">
+                            {salesLead.scheduled_date && (
+                              <div className="flex items-center gap-1 text-sm">
+                                <Calendar className="h-3 w-3 text-muted-foreground" />
+                                {format(new Date(salesLead.scheduled_date), "MMM dd, yyyy")}
+                              </div>
+                            )}
+                            {salesLead.scheduled_time && (
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                {salesLead.scheduled_time}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
+                            No Call Scheduled
+                          </Badge>
+                        )
+                      ) : regularCall ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1 text-sm">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            {format(new Date(regularCall.scheduled_date), "MMM dd, yyyy")}
+                          </div>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {regularCall.scheduled_time}
+                          </div>
+                        </div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      {isAllBookedCall && salesLead ? (
+                        salesLead.has_call_appointment && salesLead.status ? (
+                          <Badge variant="outline">
+                            {statusLabels[salesLead.status] || salesLead.status}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )
+                      ) : regularCall ? (
+                        <>
+                          <Badge variant="outline">
+                            {statusLabels[regularCall.status] || regularCall.status}
+                          </Badge>
+                          {regularCall.was_rescheduled && category !== "rescheduled_remaining" && (
+                            <Badge variant="secondary" className="ml-1 text-xs">
+                              Was Rescheduled
+                            </Badge>
+                          )}
+                        </>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      {call.closer_name || "Unassigned"}
+                    </TableCell>
+                    {(category === "converted" || category === "rescheduled_done") && !isManager && regularCall && (
+                      <>
+                        <TableCell className="text-right">
+                          ₹{Number(regularCall.offer_amount || 0).toLocaleString("en-IN")}
+                        </TableCell>
+                        <TableCell className="text-right text-green-600 font-medium">
+                          ₹{Number(regularCall.cash_received || 0).toLocaleString("en-IN")}
+                        </TableCell>
+                      </>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    {call.closer_name || "Unassigned"}
-                  </TableCell>
-                  {(category === "converted" || category === "rescheduled_done") && !isManager && (
-                    <>
-                      <TableCell className="text-right">
-                        ₹{Number(call.offer_amount || 0).toLocaleString("en-IN")}
-                      </TableCell>
-                      <TableCell className="text-right text-green-600 font-medium">
-                        ₹{Number(call.cash_received || 0).toLocaleString("en-IN")}
-                      </TableCell>
-                    </>
-                  )}
-                </TableRow>
-              ))}
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         ) : (
