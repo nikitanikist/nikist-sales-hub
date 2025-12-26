@@ -39,10 +39,10 @@ serve(async (req) => {
       }
 
       // Validate role
-      const validRoles = ['admin', 'sales_rep', 'viewer'];
+      const validRoles = ['admin', 'sales_rep', 'viewer', 'manager'];
       if (!validRoles.includes(role)) {
         return new Response(
-          JSON.stringify({ error: 'Invalid role. Must be admin, sales_rep, or viewer' }),
+          JSON.stringify({ error: 'Invalid role. Must be admin, sales_rep, viewer, or manager' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -162,10 +162,10 @@ serve(async (req) => {
 
       // Update role if changed
       if (role) {
-        const validRoles = ['admin', 'sales_rep', 'viewer'];
+        const validRoles = ['admin', 'sales_rep', 'viewer', 'manager'];
         if (!validRoles.includes(role)) {
           return new Response(
-            JSON.stringify({ error: 'Invalid role. Must be admin, sales_rep, or viewer' }),
+            JSON.stringify({ error: 'Invalid role. Must be admin, sales_rep, viewer, or manager' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
