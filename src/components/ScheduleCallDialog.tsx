@@ -21,12 +21,18 @@ const DIPANSHU_CALENDLY_URL = "https://calendly.com/nikist/1-1-call-with-dipansh
 // Adesh's configuration for direct Zoom API integration
 const ADESH_EMAIL = "aadeshnikist@gmail.com";
 
-// Time slots for Aadesh (30-minute intervals from 9:00 AM to 9:00 PM)
+// Time slots for Aadesh (90-minute intervals from 9:00 AM to 10:30 PM)
 const TIME_SLOTS = [
-  "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-  "12:00", "12:30", "13:00", "13:30", "14:00", "14:30",
-  "15:00", "15:30", "16:00", "16:30", "17:00", "17:30",
-  "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00"
+  "09:00",  // 9:00 AM
+  "10:30",  // 10:30 AM
+  "12:00",  // 12:00 PM
+  "13:30",  // 1:30 PM
+  "15:00",  // 3:00 PM
+  "16:30",  // 4:30 PM
+  "18:00",  // 6:00 PM
+  "19:30",  // 7:30 PM
+  "21:00",  // 9:00 PM
+  "22:30",  // 10:30 PM
 ];
 
 // Helper to format time for display (e.g., "09:00" -> "9:00 AM")
