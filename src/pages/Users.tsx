@@ -193,6 +193,8 @@ const Users = () => {
         return "default";
       case "sales_rep":
         return "secondary";
+      case "manager":
+        return "secondary";
       default:
         return "outline";
     }
@@ -204,6 +206,8 @@ const Users = () => {
         return "Admin";
       case "sales_rep":
         return "Closer";
+      case "manager":
+        return "Manager";
       case "viewer":
         return "Viewer";
       default:
@@ -269,6 +273,7 @@ const Users = () => {
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="sales_rep">Closer</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -414,6 +419,7 @@ const Users = () => {
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="sales_rep">Closer</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -256,7 +256,7 @@ const CloserAssignedCalls = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rebookingAppointment, setRebookingAppointment] = useState<Appointment | null>(null);
 
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isManager } = useUserRole();
 
   // Reset page when filters change
   useEffect(() => {
@@ -690,9 +690,13 @@ const CloserAssignedCalls = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Time</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Offer ₹</TableHead>
-                      <TableHead className="text-right">Cash ₹</TableHead>
-                      <TableHead className="text-right">Due ₹</TableHead>
+                      {!isManager && (
+                        <>
+                          <TableHead className="text-right">Offer ₹</TableHead>
+                          <TableHead className="text-right">Cash ₹</TableHead>
+                          <TableHead className="text-right">Due ₹</TableHead>
+                        </>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -770,20 +774,24 @@ const CloserAssignedCalls = () => {
                               <TableCell>
                                 <Badge className={statusColors[apt.status]}>{statusLabels[apt.status]}</Badge>
                               </TableCell>
-                              <TableCell className="text-right">
-                                ₹{(apt.offer_amount || 0).toLocaleString("en-IN")}
-                              </TableCell>
-                              <TableCell className="text-right text-green-600">
-                                ₹{(apt.cash_received || 0).toLocaleString("en-IN")}
-                              </TableCell>
-                              <TableCell className="text-right text-red-600">
-                                ₹{(apt.due_amount || 0).toLocaleString("en-IN")}
-                              </TableCell>
+                              {!isManager && (
+                                <>
+                                  <TableCell className="text-right">
+                                    ₹{(apt.offer_amount || 0).toLocaleString("en-IN")}
+                                  </TableCell>
+                                  <TableCell className="text-right text-green-600">
+                                    ₹{(apt.cash_received || 0).toLocaleString("en-IN")}
+                                  </TableCell>
+                                  <TableCell className="text-right text-red-600">
+                                    ₹{(apt.due_amount || 0).toLocaleString("en-IN")}
+                                  </TableCell>
+                                </>
+                              )}
                             </TableRow>
                           </CollapsibleTrigger>
                           <CollapsibleContent asChild>
                             <TableRow>
-                              <TableCell colSpan={9} className="bg-muted/30 p-0">
+                              <TableCell colSpan={isManager ? 6 : 9} className="bg-muted/30 p-0">
                                 <div className="p-6 space-y-6">
                                   {/* Contact Info - Read Only */}
                                   <div className="space-y-2">
@@ -847,7 +855,7 @@ const CloserAssignedCalls = () => {
 
                                     {editingId === apt.id && editData ? (
                                       <div className="space-y-4">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div className={cn("grid gap-4", isManager ? "grid-cols-1 md:grid-cols-2" : "grid-cols-2 md:grid-cols-4")}>
                                           <div className="space-y-2">
                                             <Label>Status <span className="text-red-500">*</span></Label>
                                             <Select
@@ -872,31 +880,35 @@ const CloserAssignedCalls = () => {
                                               </SelectContent>
                                             </Select>
                                           </div>
-                                          <div className="space-y-2">
-                                            <Label>Offer Amount (₹) <span className="text-red-500">*</span></Label>
-                                            <Input
-                                              type="number"
-                                              value={editData.offer_amount}
-                                              onChange={(e) => setEditData({ ...editData, offer_amount: Number(e.target.value) })}
-                                            />
-                                          </div>
-                                          <div className="space-y-2">
-                                            <Label>Cash Received (₹) <span className="text-red-500">*</span></Label>
-                                            <Input
-                                              type="number"
-                                              value={editData.cash_received}
-                                              onChange={(e) => setEditData({ ...editData, cash_received: Number(e.target.value) })}
-                                            />
-                                          </div>
-                                          <div className="space-y-2">
-                                            <Label>Due Amount (₹)</Label>
-                                            <Input
-                                              type="number"
-                                              value={Math.max(0, editData.offer_amount - editData.cash_received)}
-                                              disabled
-                                              className="bg-muted"
-                                            />
-                                          </div>
+                                          {!isManager && (
+                                            <>
+                                              <div className="space-y-2">
+                                                <Label>Offer Amount (₹) <span className="text-red-500">*</span></Label>
+                                                <Input
+                                                  type="number"
+                                                  value={editData.offer_amount}
+                                                  onChange={(e) => setEditData({ ...editData, offer_amount: Number(e.target.value) })}
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label>Cash Received (₹) <span className="text-red-500">*</span></Label>
+                                                <Input
+                                                  type="number"
+                                                  value={editData.cash_received}
+                                                  onChange={(e) => setEditData({ ...editData, cash_received: Number(e.target.value) })}
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label>Due Amount (₹)</Label>
+                                                <Input
+                                                  type="number"
+                                                  value={Math.max(0, editData.offer_amount - editData.cash_received)}
+                                                  disabled
+                                                  className="bg-muted"
+                                                />
+                                              </div>
+                                            </>
+                                          )}
                                         </div>
                                         <div className="space-y-2">
                                           <Label>Closer Remarks</Label>
