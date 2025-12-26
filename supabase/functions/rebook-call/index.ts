@@ -10,6 +10,145 @@ const corsHeaders = {
 const BOOKING_TEMPLATE = '1_to_1_call_booking_crypto_nikist_video';
 const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
 
+// Closer email constants for Calendly integration
+const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
+const AKANSHA_EMAIL = "akanshanikist@gmail.com";
+
+// Kamal's configuration (call booker notification)
+const KAMAL_NAME = "Kamal";
+const KAMAL_PHONE = "918285632307";
+
+// Helper function to get Calendly user URI
+async function getCalendlyUserUri(token: string): Promise<string | null> {
+  try {
+    const response = await fetch('https://api.calendly.com/users/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to get Calendly user:', await response.text());
+      return null;
+    }
+    
+    const data = await response.json();
+    return data.resource?.uri || null;
+  } catch (error) {
+    console.error('Error fetching Calendly user:', error);
+    return null;
+  }
+}
+
+// Helper function to get Calendly event type URI
+async function getCalendlyEventTypeUri(token: string, userUri: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://api.calendly.com/event_types?user=${encodeURIComponent(userUri)}&active=true`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    
+    if (!response.ok) {
+      console.error('Failed to get Calendly event types:', await response.text());
+      return null;
+    }
+    
+    const data = await response.json();
+    // Return the first active event type
+    return data.collection?.[0]?.uri || null;
+  } catch (error) {
+    console.error('Error fetching Calendly event types:', error);
+    return null;
+  }
+}
+
+// Helper function to cancel existing Calendly event
+async function cancelCalendlyEvent(token: string, eventUri: string): Promise<boolean> {
+  try {
+    // Extract event UUID from URI (format: https://api.calendly.com/scheduled_events/{uuid})
+    const eventUuid = eventUri.split('/').pop();
+    if (!eventUuid) return false;
+    
+    const response = await fetch(
+      `https://api.calendly.com/scheduled_events/${eventUuid}/cancellation`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          reason: 'Rescheduled via CRM'
+        })
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('Failed to cancel Calendly event:', await response.text());
+      return false;
+    }
+    
+    console.log('Successfully cancelled old Calendly event:', eventUuid);
+    return true;
+  } catch (error) {
+    console.error('Error cancelling Calendly event:', error);
+    return false;
+  }
+}
+
+// Helper function to create Calendly invitee (book meeting)
+async function createCalendlyInvitee(
+  token: string, 
+  eventTypeUri: string, 
+  startTimeUtc: string, 
+  inviteeName: string, 
+  inviteeEmail: string
+): Promise<{ success: boolean; zoomLink?: string; eventUri?: string; error?: string }> {
+  try {
+    console.log('Creating Calendly invitee with:', {
+      eventTypeUri,
+      startTimeUtc,
+      inviteeName,
+      inviteeEmail
+    });
+    
+    const response = await fetch('https://api.calendly.com/invitees', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event_type: eventTypeUri,
+        start_time: startTimeUtc,
+        invitee: {
+          name: inviteeName,
+          email: inviteeEmail,
+          timezone: 'Asia/Kolkata'
+        },
+        location: {
+          kind: 'zoom_conference'
+        }
+      })
+    });
+    
+    const responseText = await response.text();
+    console.log('Calendly invitee response status:', response.status);
+    console.log('Calendly invitee response:', responseText);
+    
+    if (!response.ok) {
+      return { success: false, error: responseText };
+    }
+    
+    const data = JSON.parse(responseText);
+    const zoomLink = data.resource?.scheduled_event?.location?.join_url;
+    const eventUri = data.resource?.event;
+    
+    return { success: true, zoomLink, eventUri };
+  } catch (error) {
+    console.error('Error creating Calendly invitee:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -67,19 +206,106 @@ serve(async (req) => {
 
     console.log('Rebooking call for:', lead.contact_name, '| Closer:', closer?.full_name);
 
+    // Check if closer is Deepanshu or Akansha (Calendly integration)
+    const closerEmail = closer?.email?.toLowerCase() || '';
+    const isDipanshu = closerEmail === DIPANSHU_EMAIL.toLowerCase();
+    const isAkansha = closerEmail === AKANSHA_EMAIL.toLowerCase();
+    const useCalendly = isDipanshu || isAkansha;
+
+    let calendlySynced = false;
+    let calendlyError: string | null = null;
+    let newZoomLink: string | null = null;
+    let newCalendlyEventUri: string | null = null;
+
+    // Calendly integration for Deepanshu and Akansha
+    if (useCalendly) {
+      console.log(`Closer ${closer?.full_name} uses Calendly - initiating API integration`);
+      
+      const calendlyToken = isDipanshu 
+        ? Deno.env.get('CALENDLY_DIPANSHU_TOKEN')
+        : Deno.env.get('CALENDLY_AKANSHA_TOKEN');
+      
+      if (!calendlyToken) {
+        console.error('Missing Calendly token for closer:', closer?.full_name);
+        calendlyError = 'Missing Calendly token';
+      } else {
+        // Step 1: Get Calendly user URI
+        const userUri = await getCalendlyUserUri(calendlyToken);
+        
+        if (!userUri) {
+          calendlyError = 'Failed to get Calendly user';
+        } else {
+          console.log('Calendly user URI:', userUri);
+          
+          // Step 2: Get event type URI
+          const eventTypeUri = await getCalendlyEventTypeUri(calendlyToken, userUri);
+          
+          if (!eventTypeUri) {
+            calendlyError = 'Failed to get Calendly event type';
+          } else {
+            console.log('Calendly event type URI:', eventTypeUri);
+            
+            // Step 3: Cancel old Calendly event if exists
+            if (appointment.calendly_event_uri) {
+              console.log('Cancelling old Calendly event:', appointment.calendly_event_uri);
+              await cancelCalendlyEvent(calendlyToken, appointment.calendly_event_uri);
+            }
+            
+            // Step 4: Convert IST date/time to UTC ISO format
+            // new_date is "YYYY-MM-DD", new_time is "HH:MM"
+            // Treat as IST (UTC+5:30) and convert to UTC
+            const istDateTime = new Date(`${new_date}T${new_time}:00+05:30`);
+            const startTimeUtc = istDateTime.toISOString();
+            console.log('Start time UTC:', startTimeUtc);
+            
+            // Step 5: Create new Calendly invitee
+            const inviteeResult = await createCalendlyInvitee(
+              calendlyToken,
+              eventTypeUri,
+              startTimeUtc,
+              lead.contact_name,
+              lead.email
+            );
+            
+            if (inviteeResult.success) {
+              calendlySynced = true;
+              newZoomLink = inviteeResult.zoomLink || null;
+              newCalendlyEventUri = inviteeResult.eventUri || null;
+              console.log('Calendly event created successfully');
+              console.log('New Zoom link:', newZoomLink);
+              console.log('New Calendly event URI:', newCalendlyEventUri);
+            } else {
+              calendlyError = inviteeResult.error || 'Failed to create Calendly event';
+              console.error('Calendly invitee creation failed:', calendlyError);
+            }
+          }
+        }
+      }
+    } else {
+      console.log('Closer does not use Calendly, skipping integration');
+    }
+
     // Save previous schedule and update appointment
+    const updateData: Record<string, unknown> = {
+      previous_scheduled_date: appointment.scheduled_date,
+      previous_scheduled_time: appointment.scheduled_time,
+      scheduled_date: new_date,
+      scheduled_time: new_time,
+      status: 'scheduled',
+      was_rescheduled: true,
+      rescheduled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    
+    // Add Calendly data if synced
+    if (calendlySynced) {
+      if (newZoomLink) updateData.zoom_link = newZoomLink;
+      if (newCalendlyEventUri) updateData.calendly_event_uri = newCalendlyEventUri;
+    }
+
     const { error: updateError } = await supabase
       .from('call_appointments')
-      .update({
-        previous_scheduled_date: appointment.scheduled_date,
-        previous_scheduled_time: appointment.scheduled_time,
-        scheduled_date: new_date,
-        scheduled_time: new_time,
-        status: 'scheduled',
-        was_rescheduled: true,
-        rescheduled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', appointment_id);
 
     if (updateError) {
@@ -122,7 +348,7 @@ serve(async (req) => {
           'Our Crypto Expert',
           formattedDate,
           formattedTime,
-          'you will get zoom link 30 minutes before the zoom call',
+          newZoomLink || 'you will get zoom link 30 minutes before the zoom call',
           '+919266395637',
         ];
 
@@ -185,6 +411,53 @@ serve(async (req) => {
       console.log('WhatsApp not sent - missing AiSensy config or phone number');
     }
 
+    // Send notification to Kamal (call booker) if Calendly was used
+    let kamalNotificationSent = false;
+    if (useCalendly && aisensyApiKey && aisensySource) {
+      console.log('Sending notification to Kamal for rebooked Calendly call');
+      
+      try {
+        const callDate = new Date(new_date);
+        const kamalFormattedDate = `${callDate.getDate()} ${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][callDate.getMonth()]}`;
+        
+        const [kamalHours, kamalMinutes] = new_time.split(':').map(Number);
+        const kamalPeriod = kamalHours >= 12 ? 'PM' : 'AM';
+        const kamalDisplayHours = kamalHours % 12 || 12;
+        const kamalFormattedTime = `${kamalDisplayHours}:${kamalMinutes.toString().padStart(2, '0')} ${kamalPeriod}`;
+        
+        const leadPhone = (lead.phone || '').replace(/\D/g, '');
+        const leadNameWithPhone = leadPhone ? `${lead.contact_name} (+${leadPhone})` : lead.contact_name;
+        
+        const kamalPayload = {
+          apiKey: aisensyApiKey,
+          campaignName: '1_to_1_call_booking',
+          destination: KAMAL_PHONE,
+          userName: KAMAL_NAME,
+          source: aisensySource,
+          templateParams: [
+            KAMAL_NAME,
+            leadNameWithPhone,
+            kamalFormattedDate,
+            kamalFormattedTime,
+          ],
+        };
+        
+        console.log('Kamal notification payload:', JSON.stringify(kamalPayload, null, 2));
+        
+        const kamalResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(kamalPayload),
+        });
+        
+        const kamalResult = await kamalResponse.json();
+        console.log('Kamal notification response:', kamalResult);
+        kamalNotificationSent = kamalResponse.ok;
+      } catch (kamalError) {
+        console.error('Error sending notification to Kamal:', kamalError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -201,7 +474,13 @@ serve(async (req) => {
         whatsapp: {
           sent: whatsappSent,
           error: whatsappError,
-        }
+        },
+        calendly: {
+          synced: calendlySynced,
+          zoom_link: newZoomLink,
+          error: calendlyError,
+        },
+        kamal_notification_sent: kamalNotificationSent,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
