@@ -30,7 +30,7 @@ const SalesClosers = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({ full_name: "", email: "", phone: "" });
   const { toast } = useToast();
-  const { isAdmin, isCloser, profileId, isLoading: roleLoading } = useUserRole();
+  const { isAdmin, isCloser, isManager, profileId, isLoading: roleLoading } = useUserRole();
 
   const { data: closers, isLoading, refetch } = useQuery({
     queryKey: ["sales-closers", profileId, isCloser],
@@ -297,7 +297,7 @@ const SalesClosers = () => {
                     <TableHead className="text-right">Converted</TableHead>
                     <TableHead className="text-right">Not Converted</TableHead>
                     <TableHead className="text-right">Rescheduled</TableHead>
-                    <TableHead className="text-right">Earning Till Now</TableHead>
+                    {!isManager && <TableHead className="text-right">Earning Till Now</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -345,19 +345,21 @@ const SalesClosers = () => {
                             {closer.rescheduled}
                           </Link>
                         </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          <Link
-                            to={`/sales-closers/${closer.id}/calls?status=converted`}
-                            className="text-primary hover:underline"
-                          >
-                            ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
-                          </Link>
-                        </TableCell>
+                        {!isManager && (
+                          <TableCell className="text-right font-semibold">
+                            <Link
+                              to={`/sales-closers/${closer.id}/calls?status=converted`}
+                              className="text-primary hover:underline"
+                            >
+                              ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
+                            </Link>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={isManager ? 6 : 7} className="text-center py-8 text-muted-foreground">
                         No sales closers found
                       </TableCell>
                     </TableRow>
