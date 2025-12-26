@@ -34,7 +34,7 @@ const AppLayout = () => {
   // Redirect managers away from admin-only pages (more restricted than closers)
   useEffect(() => {
     if (!roleLoading && isManager && !isAdmin) {
-      const managerRestrictedPaths = ['/', '/leads', '/onboarding', '/sales', '/funnels', '/products', '/users', '/calls'];
+      const managerRestrictedPaths = ['/', '/onboarding', '/sales', '/funnels', '/products', '/users', '/calls'];
       if (managerRestrictedPaths.includes(location.pathname)) {
         navigate("/sales-closers");
       }
@@ -73,8 +73,9 @@ const AppLayout = () => {
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
   ];
 
-  // Manager menu items - can see closers and workshops, no financial data
+  // Manager menu items - can see closers, workshops, and customers (read-only)
   const managerMenuItems = [
+    { title: "Customers", icon: Users, path: "/leads" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "All Workshops", icon: Calendar, path: "/workshops" },
   ];
