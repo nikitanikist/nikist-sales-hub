@@ -812,6 +812,21 @@ export type Database = {
         Args: { p_lead_id: string }
         Returns: string
       }
+      get_workshop_sales_leads: {
+        Args: { p_workshop_title: string }
+        Returns: {
+          closer_name: string
+          contact_name: string
+          email: string
+          has_call_appointment: boolean
+          id: string
+          lead_id: string
+          phone: string
+          scheduled_date: string
+          scheduled_time: string
+          status: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
