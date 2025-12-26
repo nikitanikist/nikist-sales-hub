@@ -170,6 +170,28 @@ const isOverdueCall = (dateStr: string, status: CallStatus): boolean => {
   return isPast(startOfDay(callDate)) && !isToday(callDate) && status === 'scheduled';
 };
 
+// Helper to check if today's call is overdue (past the 1-hour window + still scheduled)
+const isTodayCallOverdue = (dateStr: string, timeStr: string, status: CallStatus): boolean => {
+  // Only applies to scheduled calls
+  if (status !== 'scheduled') return false;
+  
+  const callDate = new Date(dateStr);
+  
+  // Only relevant for today's calls
+  if (!isToday(callDate)) return false;
+  
+  // Parse scheduled time (HH:MM:SS format)
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const now = new Date();
+  
+  // Call ends 1 hour after start time
+  const callEnd = new Date();
+  callEnd.setHours(hours + 1, minutes, 0, 0);
+  
+  // Overdue if current time is past the call end time
+  return now >= callEnd;
+};
+
 // Custom sorting: Today → Future (ascending) → Past (descending)
 const sortAppointments = (appointments: Appointment[]): Appointment[] => {
   const today: Appointment[] = [];
@@ -681,7 +703,7 @@ const CloserAssignedCalls = () => {
                             <TableRow
                               className={cn(
                                 "cursor-pointer",
-                                isOverdueCall(apt.scheduled_date, apt.status)
+                                (isOverdueCall(apt.scheduled_date, apt.status) || isTodayCallOverdue(apt.scheduled_date, apt.scheduled_time, apt.status))
                                   ? "animate-overdue-pulse border-l-4 border-l-red-500"
                                   : isCallInProgress(apt.scheduled_date, apt.scheduled_time, apt.status)
                                     ? "animate-live-pulse"
@@ -703,7 +725,7 @@ const CloserAssignedCalls = () => {
                               <TableCell className="font-medium">
                                 <div className="flex flex-col">
                                   <div className="flex items-center flex-wrap gap-1">
-                                    {isOverdueCall(apt.scheduled_date, apt.status) && (
+                                    {(isOverdueCall(apt.scheduled_date, apt.status) || isTodayCallOverdue(apt.scheduled_date, apt.scheduled_time, apt.status)) && (
                                       <Badge className="mr-1 bg-red-500 text-white border-red-500 flex items-center gap-1 animate-pulse">
                                         <AlertCircle className="h-3 w-3" />
                                         Update Status
