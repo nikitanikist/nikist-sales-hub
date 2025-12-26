@@ -187,14 +187,22 @@ const sortAppointments = (appointments: Appointment[]): Appointment[] => {
     }
   });
 
-  // Sort today by time
+  // Sort today by time (earliest first)
   today.sort((a, b) => a.scheduled_time.localeCompare(b.scheduled_time));
   
-  // Sort future ascending (tomorrow first)
-  future.sort((a, b) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime());
+  // Sort future ascending by date, then by time within each date
+  future.sort((a, b) => {
+    const dateComparison = new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime();
+    if (dateComparison !== 0) return dateComparison;
+    return a.scheduled_time.localeCompare(b.scheduled_time);
+  });
   
-  // Sort past descending (most recent first)
-  past.sort((a, b) => new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime());
+  // Sort past descending by date, then by time within each date (earliest first)
+  past.sort((a, b) => {
+    const dateComparison = new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime();
+    if (dateComparison !== 0) return dateComparison;
+    return a.scheduled_time.localeCompare(b.scheduled_time);
+  });
 
   return [...today, ...future, ...past];
 };
