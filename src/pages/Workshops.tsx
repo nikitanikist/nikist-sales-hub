@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown,
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { format } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
@@ -43,6 +44,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [selectedCallCategory, setSelectedCallCategory] = useState<CallCategory>("converted");
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { isManager } = useUserRole();
 
   const openCallsDialog = (workshopTitle: string, category: CallCategory) => {
     setSelectedWorkshopTitle(workshopTitle);
@@ -425,14 +427,15 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           <h1 className="text-3xl font-bold tracking-tight">All Workshops</h1>
           <p className="text-muted-foreground">Schedule and manage your workshops</p>
         </div>
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingWorkshop(null)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Workshop
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        {!isManager && (
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingWorkshop(null)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Workshop
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingWorkshop ? "Edit Workshop" : "Add New Workshop"}</DialogTitle>
             </DialogHeader>
@@ -643,7 +646,8 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                </DialogFooter>
              </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        )}
       </div>
 
       <Card>
@@ -689,10 +693,10 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                   <TableHead>Workshop Name</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="text-right">Registrations</TableHead>
-                  <TableHead className="text-right">Ad Spend</TableHead>
+                  {!isManager && <TableHead className="text-right">Ad Spend</TableHead>}
                   <TableHead className="text-right">Workshop Sales</TableHead>
-                  <TableHead className="text-right">Rough P&L</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {!isManager && <TableHead className="text-right">Rough P&L</TableHead>}
+                  {!isManager && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -735,43 +739,49 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                         <TableCell className="text-right">
                           {workshop.registration_count || 0}
                         </TableCell>
-                        <TableCell className="text-right">
-                          ₹{Number(workshop.ad_spend || 0).toLocaleString("en-IN")}
-                        </TableCell>
+                        {!isManager && (
+                          <TableCell className="text-right">
+                            ₹{Number(workshop.ad_spend || 0).toLocaleString("en-IN")}
+                          </TableCell>
+                        )}
                         <TableCell className="text-right">
                           {workshop.sales_count || 0}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <span className={workshop.rough_pl >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
-                            ₹{Number(workshop.rough_pl || 0).toLocaleString("en-IN")}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingWorkshop(workshop);
-                              setIsOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteMutation.mutate(workshop.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
+                        {!isManager && (
+                          <TableCell className="text-right">
+                            <span className={workshop.rough_pl >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                              ₹{Number(workshop.rough_pl || 0).toLocaleString("en-IN")}
+                            </span>
+                          </TableCell>
+                        )}
+                        {!isManager && (
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingWorkshop(workshop);
+                                setIsOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteMutation.mutate(workshop.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                       
                       {/* Expanded Row with Call Statistics and Revenue */}
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={9} className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <TableCell colSpan={isManager ? 6 : 9} className="p-4">
+                            <div className={`grid grid-cols-1 ${isManager ? '' : 'md:grid-cols-2'} gap-6`}>
                               {/* Call Statistics */}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -830,39 +840,41 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                 </div>
                               </div>
                               
-                              {/* Revenue Breakdown */}
-                              <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                                  <IndianRupee className="h-4 w-4" />
-                                  Revenue Breakdown
+                              {/* Revenue Breakdown - Hidden for managers */}
+                              {!isManager && (
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                    <IndianRupee className="h-4 w-4" />
+                                    Revenue Breakdown
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="bg-background rounded-lg p-3 border">
+                                      <div className="text-lg font-bold text-foreground">
+                                        ₹{Number(workshop.total_revenue || 0).toLocaleString("en-IN")}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">Workshop Revenue (₹497 × {workshop.sales_count})</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border">
+                                      <div className="text-lg font-bold text-foreground">
+                                        ₹{Number(workshop.total_offer_amount || 0).toLocaleString("en-IN")}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">High Ticket Offer Amount</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border">
+                                      <div className="text-lg font-bold text-green-600">
+                                        ₹{Number(workshop.total_cash_received || 0).toLocaleString("en-IN")}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">Cash Collected</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border">
+                                      <div className={`text-lg font-bold ${(workshop.total_pl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        ₹{Number(workshop.total_pl || 0).toLocaleString("en-IN")}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">Total P&L (incl. High Ticket)</div>
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="bg-background rounded-lg p-3 border">
-                                    <div className="text-lg font-bold text-foreground">
-                                      ₹{Number(workshop.total_revenue || 0).toLocaleString("en-IN")}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">Workshop Revenue (₹497 × {workshop.sales_count})</div>
-                                  </div>
-                                  <div className="bg-background rounded-lg p-3 border">
-                                    <div className="text-lg font-bold text-foreground">
-                                      ₹{Number(workshop.total_offer_amount || 0).toLocaleString("en-IN")}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">High Ticket Offer Amount</div>
-                                  </div>
-                                  <div className="bg-background rounded-lg p-3 border">
-                                    <div className="text-lg font-bold text-green-600">
-                                      ₹{Number(workshop.total_cash_received || 0).toLocaleString("en-IN")}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">Cash Collected</div>
-                                  </div>
-                                  <div className="bg-background rounded-lg p-3 border">
-                                    <div className={`text-lg font-bold ${(workshop.total_pl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      ₹{Number(workshop.total_pl || 0).toLocaleString("en-IN")}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">Total P&L (incl. High Ticket)</div>
-                                  </div>
-                                </div>
-                              </div>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
