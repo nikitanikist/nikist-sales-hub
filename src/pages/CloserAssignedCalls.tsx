@@ -263,13 +263,13 @@ const CloserAssignedCalls = () => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, dateFilter, customDate]);
 
-  // Fetch closer profile
+  // Fetch closer profile (including email for Adesh detection)
   const { data: closer } = useQuery({
     queryKey: ["closer-profile", closerId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name")
+        .select("id, full_name, email")
         .eq("id", closerId)
         .single();
       if (error) throw error;
@@ -1060,9 +1060,11 @@ const CloserAssignedCalls = () => {
             scheduled_time: rebookingAppointment.scheduled_time,
             lead: rebookingAppointment.lead,
           }}
+          closer={closer ? { id: closer.id, full_name: closer.full_name, email: closer.email } : null}
           onSuccess={() => {
             refetch();
             queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
+            queryClient.invalidateQueries({ queryKey: ["adesh-booked-slots-rebook"] });
           }}
         />
       )}
