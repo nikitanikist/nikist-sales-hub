@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Phone, Mail, Calendar, Clock, User } from "lucide-react";
+import { useUserRole } from "@/hooks/useUserRole";
 
 type CallCategory = 
   | "converted" 
@@ -24,7 +25,8 @@ type CallCategory =
   | "rescheduled_remaining" 
   | "rescheduled_done" 
   | "booking_amount" 
-  | "remaining";
+  | "remaining"
+  | "all_booked";
 
 interface WorkshopCallsDialogProps {
   open: boolean;
@@ -40,6 +42,7 @@ const categoryLabels: Record<CallCategory, string> = {
   rescheduled_done: "Rescheduled Done",
   booking_amount: "Booking Amount",
   remaining: "Remaining Calls",
+  all_booked: "All Booked Calls",
 };
 
 const categoryColors: Record<CallCategory, string> = {
@@ -49,6 +52,7 @@ const categoryColors: Record<CallCategory, string> = {
   rescheduled_done: "bg-teal-500",
   booking_amount: "bg-purple-500",
   remaining: "bg-blue-500",
+  all_booked: "bg-slate-500",
 };
 
 const statusLabels: Record<string, string> = {
@@ -86,6 +90,8 @@ export function WorkshopCallsDialog({
   workshopTitle,
   category,
 }: WorkshopCallsDialogProps) {
+  const { isManager } = useUserRole();
+  
   const { data: calls, isLoading } = useQuery({
     queryKey: ["workshop-calls", workshopTitle, category],
     queryFn: async () => {
@@ -123,7 +129,7 @@ export function WorkshopCallsDialog({
                 <TableHead>Scheduled</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Closer</TableHead>
-                {(category === "converted" || category === "rescheduled_done") && (
+                {(category === "converted" || category === "rescheduled_done") && !isManager && (
                   <>
                     <TableHead className="text-right">Offer</TableHead>
                     <TableHead className="text-right">Received</TableHead>
@@ -193,7 +199,7 @@ export function WorkshopCallsDialog({
                   <TableCell>
                     {call.closer_name || "Unassigned"}
                   </TableCell>
-                  {(category === "converted" || category === "rescheduled_done") && (
+                  {(category === "converted" || category === "rescheduled_done") && !isManager && (
                     <>
                       <TableCell className="text-right">
                         ₹{Number(call.offer_amount || 0).toLocaleString("en-IN")}

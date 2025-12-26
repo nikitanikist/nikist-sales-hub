@@ -24,7 +24,8 @@ type CallCategory =
   | "rescheduled_remaining" 
   | "rescheduled_done" 
   | "booking_amount" 
-  | "remaining";
+  | "remaining"
+  | "all_booked";
 
 const statusColors: Record<string, string> = {
   planned: "bg-blue-500",
@@ -790,7 +791,8 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                 </div>
                                 <div className="grid grid-cols-3 gap-3">
                                   <div 
-                                    className="bg-slate-100 dark:bg-slate-800 rounded-lg p-3 border-2 border-slate-300 dark:border-slate-600"
+                                    className="bg-slate-100 dark:bg-slate-800 rounded-lg p-3 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-slate-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "all_booked"); }}
                                   >
                                     <div className="text-2xl font-bold text-slate-700 dark:text-slate-200">{workshop.total_calls_booked || 0}</div>
                                     <div className="text-xs text-muted-foreground font-medium">Total Calls Booked</div>
