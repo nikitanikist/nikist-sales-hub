@@ -15,6 +15,7 @@ import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, User
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { ScheduleCallDialog } from "@/components/ScheduleCallDialog";
 import { LeadsFilterSheet, LeadsFilters } from "@/components/LeadsFilterSheet";
@@ -92,6 +93,7 @@ const Leads = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { isManager, isAdmin } = useUserRole();
 
   // Schedule Call Dialog State
   const [scheduleCallOpen, setScheduleCallOpen] = useState(false);
@@ -781,15 +783,17 @@ const Leads = () => {
           }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={() => {
-            setEditingLead(null);
-            setSelectedWorkshops([]);
-            setSelectedProducts([]);
-            setConnectWorkshopFunnel(false);
-            setIsOpen(true);
-          }}>
-            Add Customer
-          </Button>
+          {!isManager && (
+            <Button onClick={() => {
+              setEditingLead(null);
+              setSelectedWorkshops([]);
+              setSelectedProducts([]);
+              setConnectWorkshopFunnel(false);
+              setIsOpen(true);
+            }}>
+              Add Customer
+            </Button>
+          )}
         </div>
       </div>
 
@@ -809,7 +813,7 @@ const Leads = () => {
                   <TableHead>Assigned To</TableHead>
                   <TableHead>Last Transaction Date</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  {!isManager && <TableHead className="w-[50px]"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -861,59 +865,61 @@ const Leads = () => {
                             ACTIVE
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onClick={() => {
-                                  setEditingLead(lead);
-                                  setSelectedWorkshops([]);
-                                  setSelectedProducts([]);
-                                  setConnectWorkshopFunnel(false);
-                                  setIsOpen(true);
-                                }}
-                              >
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit details
-                              </DropdownMenuItem>
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger className="cursor-pointer">
-                                  <Calendar className="mr-2 h-4 w-4" />
-                                  Schedule Call
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                                  {salesClosers?.map((closer: any) => (
-                                    <DropdownMenuItem
-                                      key={closer.id}
-                                      className="cursor-pointer"
-                                      onClick={() => {
-                                        setSelectedLeadForCall(lead);
-                                        setSelectedCloser(closer);
-                                        setScheduleCallOpen(true);
-                                      }}
-                                    >
-                                      {closer.full_name}
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-red-600 cursor-pointer"
-                                onClick={() => deleteMutation.mutate(lead.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete customer
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+                        {!isManager && (
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={() => {
+                                    setEditingLead(lead);
+                                    setSelectedWorkshops([]);
+                                    setSelectedProducts([]);
+                                    setConnectWorkshopFunnel(false);
+                                    setIsOpen(true);
+                                  }}
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit details
+                                </DropdownMenuItem>
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger className="cursor-pointer">
+                                    <Calendar className="mr-2 h-4 w-4" />
+                                    Schedule Call
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
+                                    {salesClosers?.map((closer: any) => (
+                                      <DropdownMenuItem
+                                        key={closer.id}
+                                        className="cursor-pointer"
+                                        onClick={() => {
+                                          setSelectedLeadForCall(lead);
+                                          setSelectedCloser(closer);
+                                          setScheduleCallOpen(true);
+                                        }}
+                                      >
+                                        {closer.full_name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 cursor-pointer"
+                                  onClick={() => deleteMutation.mutate(lead.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete customer
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   }
@@ -981,65 +987,67 @@ const Leads = () => {
                           ACTIVE
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              onClick={() => {
-                                setEditingLead(lead);
-                                const workshopIds = group.assignments
-                                  .filter((a: any) => a.workshop_id)
-                                  .map((a: any) => a.workshop_id);
-                                const productIds = group.assignments
-                                  .filter((a: any) => a.product_id)
-                                  .map((a: any) => a.product_id);
-                                setSelectedWorkshops(workshopIds);
-                                setSelectedProducts(productIds);
-                                setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
-                                setIsOpen(true);
-                              }}
-                            >
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit details
-                            </DropdownMenuItem>
-                            <DropdownMenuSub>
-                              <DropdownMenuSubTrigger className="cursor-pointer">
-                                <Calendar className="mr-2 h-4 w-4" />
-                                Schedule Call
-                              </DropdownMenuSubTrigger>
-                              <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
-                                {salesClosers?.map((closer: any) => (
-                                  <DropdownMenuItem
-                                    key={closer.id}
-                                    className="cursor-pointer"
-                                    onClick={() => {
-                                      setSelectedLeadForCall(lead);
-                                      setSelectedCloser(closer);
-                                      setScheduleCallOpen(true);
-                                    }}
-                                  >
-                                    {closer.full_name}
-                                  </DropdownMenuItem>
-                                ))}
-                              </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600 cursor-pointer"
-                              onClick={() => deleteMutation.mutate(lead.id)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete customer
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+                      {!isManager && (
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 bg-background border shadow-lg z-50">
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setEditingLead(lead);
+                                  const workshopIds = group.assignments
+                                    .filter((a: any) => a.workshop_id)
+                                    .map((a: any) => a.workshop_id);
+                                  const productIds = group.assignments
+                                    .filter((a: any) => a.product_id)
+                                    .map((a: any) => a.product_id);
+                                  setSelectedWorkshops(workshopIds);
+                                  setSelectedProducts(productIds);
+                                  setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
+                                  setIsOpen(true);
+                                }}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit details
+                              </DropdownMenuItem>
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="cursor-pointer">
+                                  <Calendar className="mr-2 h-4 w-4" />
+                                  Schedule Call
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
+                                  {salesClosers?.map((closer: any) => (
+                                    <DropdownMenuItem
+                                      key={closer.id}
+                                      className="cursor-pointer"
+                                      onClick={() => {
+                                        setSelectedLeadForCall(lead);
+                                        setSelectedCloser(closer);
+                                        setScheduleCallOpen(true);
+                                      }}
+                                    >
+                                      {closer.full_name}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 cursor-pointer"
+                                onClick={() => deleteMutation.mutate(lead.id)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete customer
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ));
                 })}
