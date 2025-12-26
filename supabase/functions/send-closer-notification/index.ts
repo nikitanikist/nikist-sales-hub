@@ -81,7 +81,7 @@ serve(async (req) => {
     // Fetch lead details
     const { data: lead, error: leadError } = await supabase
       .from("leads")
-      .select("contact_name")
+      .select("contact_name, phone")
       .eq("id", appointment.lead_id)
       .single();
 
@@ -126,12 +126,13 @@ serve(async (req) => {
     
     // Prepare template variables
     const closerFirstName = getFirstName(closer.full_name);
-    const leadName = lead.contact_name;
+    const leadPhone = lead.phone ? ` (${lead.phone})` : '';
+    const leadNameWithPhone = `${lead.contact_name}${leadPhone}`;
     const meetingDate = formatDate(appointment.scheduled_date);
     const meetingTime = formatTime12Hour(appointment.scheduled_time);
 
     console.log(`Sending notification to ${closer.full_name} (${cleanPhone})`);
-    console.log(`Template variables: ${closerFirstName}, ${leadName}, ${meetingDate}, ${meetingTime}`);
+    console.log(`Template variables: ${closerFirstName}, ${leadNameWithPhone}, ${meetingDate}, ${meetingTime}`);
 
     // Send WhatsApp notification via AiSensy
     const aiSensyPayload = {
@@ -141,10 +142,10 @@ serve(async (req) => {
       userName: closerFirstName,
       source: aiSensySource,
       templateParams: [
-        closerFirstName,  // {{1}} - Closer's first name
-        leadName,         // {{2}} - Lead's name
-        meetingDate,      // {{3}} - Meeting date (e.g., "27 December")
-        meetingTime       // {{4}} - Meeting time (e.g., "7:30 PM")
+        closerFirstName,      // {{1}} - Closer's first name
+        leadNameWithPhone,    // {{2}} - Lead's name with phone number
+        meetingDate,          // {{3}} - Meeting date (e.g., "27 December")
+        meetingTime           // {{4}} - Meeting time (e.g., "7:30 PM")
       ]
     };
 
@@ -172,7 +173,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Successfully sent notification to ${closer.full_name} for call with ${leadName}`);
+    console.log(`Successfully sent notification to ${closer.full_name} for call with ${leadNameWithPhone}`);
 
     return new Response(
       JSON.stringify({
@@ -180,7 +181,7 @@ serve(async (req) => {
         message: "Closer notification sent successfully",
         closer_name: closer.full_name,
         closer_phone: cleanPhone,
-        lead_name: leadName,
+        lead_name: leadNameWithPhone,
         scheduled_date: meetingDate,
         scheduled_time: meetingTime,
         aisensy_response: aiSensyResult
