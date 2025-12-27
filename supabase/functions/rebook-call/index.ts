@@ -59,14 +59,16 @@ async function createZoomMeetingForAdesh(
   scheduledDate: string,
   scheduledTime: string
 ): Promise<{ join_url: string; id: string }> {
-  // Convert IST date/time to UTC for Zoom API
-  const dateTimeIST = new Date(`${scheduledDate}T${scheduledTime}:00`);
-  const dateTimeUTC = new Date(dateTimeIST.getTime() - (5.5 * 60 * 60 * 1000));
-  const startTimeISO = dateTimeUTC.toISOString().replace('.000Z', 'Z');
+  // Parse time and send directly as IST format
+  // The timezone parameter in the Zoom API request will handle the interpretation
+  const timeParts = scheduledTime.split(':');
+  const hours = parseInt(timeParts[0], 10);
+  const minutes = parseInt(timeParts[1], 10);
+  const startTime = `${scheduledDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
 
   console.log('Creating Zoom meeting for Adesh rebook:', {
     topic: `1:1 Call with ${customerName}`,
-    start_time: startTimeISO,
+    start_time_ist: startTime,
     duration: 90,
   });
 
@@ -79,7 +81,7 @@ async function createZoomMeetingForAdesh(
     body: JSON.stringify({
       topic: `1:1 Call with ${customerName}`,
       type: 2,
-      start_time: startTimeISO,
+      start_time: startTime,
       duration: 90,
       timezone: 'Asia/Kolkata',
       settings: {

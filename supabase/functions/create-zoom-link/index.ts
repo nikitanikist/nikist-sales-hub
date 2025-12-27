@@ -66,7 +66,7 @@ async function createZoomMeeting(
       topic: topic,
       type: 2, // Scheduled meeting
       start_time: startTime,
-      duration: 60, // 60 minutes
+      duration: 90, // 90 minutes - same as initial Adesh calls
       timezone: 'Asia/Kolkata',
       settings: {
         host_video: true,
