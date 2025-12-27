@@ -28,6 +28,7 @@ export type Database = {
           id: string
           lead_id: string
           offer_amount: number | null
+          previous_closer_id: string | null
           previous_scheduled_date: string | null
           previous_scheduled_time: string | null
           rescheduled_at: string | null
@@ -51,6 +52,7 @@ export type Database = {
           id?: string
           lead_id: string
           offer_amount?: number | null
+          previous_closer_id?: string | null
           previous_scheduled_date?: string | null
           previous_scheduled_time?: string | null
           rescheduled_at?: string | null
@@ -74,6 +76,7 @@ export type Database = {
           id?: string
           lead_id?: string
           offer_amount?: number | null
+          previous_closer_id?: string | null
           previous_scheduled_date?: string | null
           previous_scheduled_time?: string | null
           rescheduled_at?: string | null
@@ -104,6 +107,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_appointments_previous_closer_id_fkey"
+            columns: ["previous_closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
