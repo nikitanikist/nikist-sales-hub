@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.create-zoom-link]
 verify_jwt = false
+
+[functions.reassign-call]
+verify_jwt = false

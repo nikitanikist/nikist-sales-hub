@@ -14,7 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { ArrowLeft, Search, RefreshCw, ChevronDown, ChevronRight, Phone, Mail, Check, Clock, AlertCircle, X, Loader2, Calendar, Trash2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Search, RefreshCw, ChevronDown, ChevronRight, Phone, Mail, Check, Clock, AlertCircle, X, Loader2, Calendar, Trash2, RotateCcw, UserPlus } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ import { format, isToday, isFuture, isPast, startOfDay, endOfDay, addDays, start
 import type { Database } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { RebookCallDialog } from "@/components/RebookCallDialog";
+import { ReassignCallDialog } from "@/components/ReassignCallDialog";
 
 type CallStatus = Database["public"]["Enums"]["call_status"];
 type ReminderStatus = Database["public"]["Enums"]["reminder_status"];
@@ -39,6 +40,8 @@ interface Appointment {
   was_rescheduled: boolean | null;
   previous_scheduled_date: string | null;
   previous_scheduled_time: string | null;
+  previous_closer_id: string | null;
+  previous_closer: { full_name: string } | null;
   lead: {
     id: string;
     contact_name: string;
@@ -255,6 +258,7 @@ const CloserAssignedCalls = () => {
   } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rebookingAppointment, setRebookingAppointment] = useState<Appointment | null>(null);
+  const [reassigningAppointment, setReassigningAppointment] = useState<Appointment | null>(null);
 
   const { isAdmin, isManager } = useUserRole();
 
@@ -297,6 +301,8 @@ const CloserAssignedCalls = () => {
           was_rescheduled,
           previous_scheduled_date,
           previous_scheduled_time,
+          previous_closer_id,
+          previous_closer:profiles!call_appointments_previous_closer_id_fkey(full_name),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
         .eq("closer_id", closerId!);
@@ -757,6 +763,11 @@ const CloserAssignedCalls = () => {
                                       {apt.lead.workshop_name}
                                     </span>
                                   )}
+                                  {apt.previous_closer?.full_name && (
+                                    <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 mt-0.5 w-fit">
+                                      Previously: {apt.previous_closer.full_name}
+                                    </Badge>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -935,12 +946,22 @@ const CloserAssignedCalls = () => {
                                             <span className="text-muted-foreground">Remarks:</span> {apt.closer_remarks}
                                           </div>
                                         )}
-                                        <div className="flex gap-2">
+                                        <div className="flex flex-wrap gap-2">
                                           <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
                                             {['converted_beginner', 'converted_intermediate', 'converted_advance'].includes(apt.status) 
                                               ? 'Update EMI & Course Access' 
                                               : 'Edit Details'}
                                           </Button>
+                                          {(apt.status === 'scheduled' || apt.status === 'reschedule') && (
+                                            <Button 
+                                              size="sm" 
+                                              variant="secondary"
+                                              onClick={() => setReassigningAppointment(apt)}
+                                            >
+                                              <UserPlus className="h-4 w-4 mr-1" />
+                                              Reassign
+                                            </Button>
+                                          )}
                                           {apt.status === 'reschedule' && (
                                             <Button 
                                               size="sm" 
@@ -1067,6 +1088,25 @@ const CloserAssignedCalls = () => {
             refetch();
             queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
             queryClient.invalidateQueries({ queryKey: ["adesh-booked-slots-rebook"] });
+          }}
+        />
+      )}
+
+      {/* Reassign Call Dialog */}
+      {reassigningAppointment && (
+        <ReassignCallDialog
+          open={!!reassigningAppointment}
+          onOpenChange={(open) => !open && setReassigningAppointment(null)}
+          appointment={{
+            id: reassigningAppointment.id,
+            scheduled_date: reassigningAppointment.scheduled_date,
+            scheduled_time: reassigningAppointment.scheduled_time,
+            lead: reassigningAppointment.lead,
+          }}
+          currentCloser={closer ? { id: closer.id, full_name: closer.full_name, email: closer.email } : null}
+          onSuccess={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
           }}
         />
       )}
