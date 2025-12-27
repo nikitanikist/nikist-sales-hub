@@ -130,8 +130,8 @@ async function getCalendlyUserUri(token: string): Promise<string | null> {
   }
 }
 
-// Helper function to get Calendly event type URI
-async function getCalendlyEventTypeUri(token: string, userUri: string): Promise<string | null> {
+// Helper function to get Calendly event type URI - selects by name pattern
+async function getCalendlyEventTypeUri(token: string, userUri: string, closerName: string): Promise<string | null> {
   try {
     const response = await fetch(
       `https://api.calendly.com/event_types?user=${encodeURIComponent(userUri)}&active=true`,
@@ -144,7 +144,27 @@ async function getCalendlyEventTypeUri(token: string, userUri: string): Promise<
     }
     
     const data = await response.json();
-    return data.collection?.[0]?.uri || null;
+    const eventTypes = data.collection || [];
+    
+    console.log('Available Calendly event types:', eventTypes.map((e: { name: string; uri: string }) => ({ name: e.name, uri: e.uri })));
+    
+    // Try to find event type matching closer name (e.g., "1-1 Call With Dipanshu Malasi (Direct)")
+    const closerNameLower = closerName.toLowerCase();
+    const matchingEventType = eventTypes.find((e: { name: string }) => 
+      e.name.toLowerCase().includes(closerNameLower) || 
+      e.name.toLowerCase().includes('1-1') ||
+      e.name.toLowerCase().includes('1:1') ||
+      e.name.toLowerCase().includes('direct')
+    );
+    
+    if (matchingEventType) {
+      console.log('Selected event type by name match:', matchingEventType.name);
+      return matchingEventType.uri;
+    }
+    
+    // Fallback to first active event type
+    console.log('No name match found, using first event type:', eventTypes[0]?.name);
+    return eventTypes[0]?.uri || null;
   } catch (error) {
     console.error('Error fetching Calendly event types:', error);
     return null;
@@ -435,7 +455,7 @@ serve(async (req) => {
         const userUri = await getCalendlyUserUri(calendlyToken);
         
         if (userUri) {
-          const eventTypeUri = await getCalendlyEventTypeUri(calendlyToken, userUri);
+          const eventTypeUri = await getCalendlyEventTypeUri(calendlyToken, userUri, newCloser.full_name || '');
           
           if (eventTypeUri) {
             // Convert IST date/time to UTC ISO format
