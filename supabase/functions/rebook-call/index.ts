@@ -10,13 +10,109 @@ const corsHeaders = {
 const BOOKING_TEMPLATE = '1_to_1_call_booking_crypto_nikist_video';
 const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
 
-// Closer email constants for Calendly integration
+// Closer email constants for Calendly/Zoom integration
 const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
 const AKANSHA_EMAIL = "akanshanikist@gmail.com";
+const ADESH_EMAIL = "aadeshnikist@gmail.com";
 
 // Kamal's configuration (call booker notification)
 const KAMAL_NAME = "Kamal";
 const KAMAL_PHONE = "918285632307";
+
+// Get Zoom access token using Server-to-Server OAuth (for Adesh)
+async function getZoomAccessToken(): Promise<string> {
+  const accountId = Deno.env.get('ZOOM_ADESH_ACCOUNT_ID');
+  const clientId = Deno.env.get('ZOOM_ADESH_CLIENT_ID');
+  const clientSecret = Deno.env.get('ZOOM_ADESH_CLIENT_SECRET');
+
+  if (!accountId || !clientId || !clientSecret) {
+    throw new Error('Missing Zoom credentials for Adesh');
+  }
+
+  console.log('Getting Zoom access token for Adesh rebook...');
+  const authHeader = btoa(`${clientId}:${clientSecret}`);
+  
+  const tokenResponse = await fetch('https://zoom.us/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${authHeader}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `grant_type=account_credentials&account_id=${accountId}`,
+  });
+
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    console.error('Zoom token error:', errorText);
+    throw new Error(`Failed to get Zoom access token: ${errorText}`);
+  }
+
+  const tokenData = await tokenResponse.json();
+  console.log('Zoom access token obtained successfully');
+  return tokenData.access_token;
+}
+
+// Create Zoom meeting for Adesh rebook
+async function createZoomMeetingForAdesh(
+  accessToken: string,
+  customerName: string,
+  scheduledDate: string,
+  scheduledTime: string
+): Promise<{ join_url: string; id: string }> {
+  // Convert IST date/time to UTC for Zoom API
+  const dateTimeIST = new Date(`${scheduledDate}T${scheduledTime}:00`);
+  const dateTimeUTC = new Date(dateTimeIST.getTime() - (5.5 * 60 * 60 * 1000));
+  const startTimeISO = dateTimeUTC.toISOString().replace('.000Z', 'Z');
+
+  console.log('Creating Zoom meeting for Adesh rebook:', {
+    topic: `1:1 Call with ${customerName}`,
+    start_time: startTimeISO,
+    duration: 90,
+  });
+
+  const meetingResponse = await fetch('https://api.zoom.us/v2/users/me/meetings', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      topic: `1:1 Call with ${customerName}`,
+      type: 2,
+      start_time: startTimeISO,
+      duration: 90,
+      timezone: 'Asia/Kolkata',
+      settings: {
+        host_video: true,
+        participant_video: true,
+        join_before_host: false,
+        mute_upon_entry: false,
+        watermark: false,
+        use_pmi: false,
+        approval_type: 2,
+        audio: 'both',
+        auto_recording: 'cloud',
+      },
+    }),
+  });
+
+  if (!meetingResponse.ok) {
+    const errorText = await meetingResponse.text();
+    console.error('Zoom meeting creation error:', errorText);
+    throw new Error(`Failed to create Zoom meeting: ${errorText}`);
+  }
+
+  const meetingData = await meetingResponse.json();
+  console.log('Zoom meeting created for Adesh rebook:', {
+    id: meetingData.id,
+    join_url: meetingData.join_url,
+  });
+
+  return {
+    join_url: meetingData.join_url,
+    id: meetingData.id.toString(),
+  };
+}
 
 // Helper function to get Calendly user URI
 async function getCalendlyUserUri(token: string): Promise<string | null> {
@@ -281,8 +377,29 @@ serve(async (req) => {
           }
         }
       }
+    } else if (closerEmail === ADESH_EMAIL.toLowerCase()) {
+      // Adesh uses Zoom directly (not Calendly)
+      console.log('Adesh closer - creating new Zoom meeting for rebooked call');
+      
+      try {
+        const accessToken = await getZoomAccessToken();
+        const meeting = await createZoomMeetingForAdesh(
+          accessToken,
+          lead.contact_name,
+          new_date,
+          new_time
+        );
+        
+        if (meeting.join_url) {
+          newZoomLink = meeting.join_url;
+          console.log('New Zoom link created for Adesh rebook:', newZoomLink);
+        }
+      } catch (zoomError) {
+        console.error('Error creating Zoom meeting for Adesh rebook:', zoomError);
+        // Continue without new Zoom link - will use existing one as fallback
+      }
     } else {
-      console.log('Closer does not use Calendly, skipping integration');
+      console.log('Closer does not use Calendly or Zoom integration, skipping');
     }
 
     // Save previous schedule and update appointment
@@ -301,6 +418,11 @@ serve(async (req) => {
     if (calendlySynced) {
       if (newZoomLink) updateData.zoom_link = newZoomLink;
       if (newCalendlyEventUri) updateData.calendly_event_uri = newCalendlyEventUri;
+    }
+    
+    // Add Zoom link for Adesh (even without Calendly)
+    if (!calendlySynced && newZoomLink) {
+      updateData.zoom_link = newZoomLink;
     }
 
     const { error: updateError } = await supabase
