@@ -937,7 +937,9 @@ const CloserAssignedCalls = () => {
                                         )}
                                         <div className="flex gap-2">
                                           <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
-                                            Edit Details
+                                            {['converted_beginner', 'converted_intermediate', 'converted_advance'].includes(apt.status) 
+                                              ? 'Update EMI & Course Access' 
+                                              : 'Edit Details'}
                                           </Button>
                                           {apt.status === 'reschedule' && (
                                             <Button 
