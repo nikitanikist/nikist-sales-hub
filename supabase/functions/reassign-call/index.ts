@@ -190,14 +190,16 @@ async function createCalendlyInvitee(
   eventTypeUri: string, 
   startTimeUtc: string, 
   inviteeName: string, 
-  inviteeEmail: string
+  inviteeEmail: string,
+  inviteePhone: string
 ): Promise<{ success: boolean; zoomLink?: string; eventUri?: string; error?: string }> {
   try {
     console.log('Creating Calendly invitee with:', {
       eventTypeUri,
       startTimeUtc,
       inviteeName,
-      inviteeEmail
+      inviteeEmail,
+      inviteePhone
     });
     
     const response = await fetch('https://api.calendly.com/invitees', {
@@ -216,7 +218,21 @@ async function createCalendlyInvitee(
         },
         location: {
           kind: 'zoom_conference'
-        }
+        },
+        questions_and_answers: [
+          {
+            question: "Phone Number",
+            answer: inviteePhone
+          },
+          {
+            question: "At what level are you",
+            answer: "Beginner"
+          },
+          {
+            question: "Any specific questions",
+            answer: "null"
+          }
+        ]
       })
     });
     
@@ -270,7 +286,7 @@ serve(async (req) => {
       .from('call_appointments')
       .select(`
         *,
-        lead:leads(id, contact_name, email, phone, assigned_to, previous_assigned_to),
+        lead:leads(id, contact_name, email, phone, country, assigned_to, previous_assigned_to),
         closer:profiles!call_appointments_closer_id_fkey(id, full_name, email)
       `)
       .eq('id', appointment_id)
@@ -376,12 +392,18 @@ serve(async (req) => {
             const istDateTime = new Date(`${new_date}T${timeNormalized}:00+05:30`);
             const startTimeUtc = istDateTime.toISOString();
             
+            // Build phone with country code
+            const customerPhone = lead.phone?.replace(/\D/g, '') || '';
+            const countryCode = lead.country?.replace(/\D/g, '') || '91';
+            const phoneWithCountry = customerPhone.startsWith(countryCode) ? customerPhone : `${countryCode}${customerPhone}`;
+            
             const inviteeResult = await createCalendlyInvitee(
               calendlyToken,
               eventTypeUri,
               startTimeUtc,
               lead.contact_name,
-              lead.email
+              lead.email,
+              phoneWithCountry
             );
             
             if (inviteeResult.success) {
