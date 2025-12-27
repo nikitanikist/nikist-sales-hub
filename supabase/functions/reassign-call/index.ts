@@ -151,6 +151,71 @@ async function getCalendlyEventTypeUri(token: string, userUri: string): Promise<
   }
 }
 
+// Helper function to get Calendly event type custom questions with positions
+interface CalendlyCustomQuestion {
+  name: string;
+  type: string;
+  position: number;
+  required: boolean;
+  answer_choices?: string[];
+}
+
+async function getCalendlyEventTypeQuestions(token: string, eventTypeUri: string): Promise<CalendlyCustomQuestion[]> {
+  try {
+    const response = await fetch(eventTypeUri, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to get Calendly event type details:', await response.text());
+      return [];
+    }
+    
+    const data = await response.json();
+    const questions = data.resource?.custom_questions || [];
+    console.log('Calendly custom questions:', JSON.stringify(questions, null, 2));
+    return questions;
+  } catch (error) {
+    console.error('Error fetching Calendly event type questions:', error);
+    return [];
+  }
+}
+
+// Build questions_and_answers dynamically based on event type questions
+function buildQuestionsAndAnswers(
+  questions: CalendlyCustomQuestion[], 
+  phoneNumber: string
+): Array<{ question: string; answer: string; position: number }> {
+  const answers: Array<{ question: string; answer: string; position: number }> = [];
+  
+  for (const q of questions) {
+    const questionLower = q.name.toLowerCase();
+    let answer = '';
+    
+    // Check if it's a phone number question
+    if (questionLower.includes('phone') || questionLower.includes('mobile') || questionLower.includes('number')) {
+      answer = phoneNumber;
+    }
+    // Check if it's a level/experience dropdown - pick first option
+    else if (q.type === 'single_select' && q.answer_choices && q.answer_choices.length > 0) {
+      answer = q.answer_choices[0]; // Pick first option (e.g., "Beginner")
+    }
+    // Free text questions
+    else {
+      answer = 'null'; // Placeholder for free-text questions
+    }
+    
+    answers.push({
+      question: q.name,
+      answer: answer,
+      position: q.position
+    });
+  }
+  
+  console.log('Built questions_and_answers:', JSON.stringify(answers, null, 2));
+  return answers;
+}
+
 // Helper function to cancel existing Calendly event
 async function cancelCalendlyEvent(token: string, eventUri: string): Promise<boolean> {
   try {
@@ -191,7 +256,7 @@ async function createCalendlyInvitee(
   startTimeUtc: string, 
   inviteeName: string, 
   inviteeEmail: string,
-  inviteePhone: string
+  questionsAndAnswers: Array<{ question: string; answer: string; position: number }>
 ): Promise<{ success: boolean; zoomLink?: string; eventUri?: string; error?: string }> {
   try {
     console.log('Creating Calendly invitee with:', {
@@ -199,7 +264,7 @@ async function createCalendlyInvitee(
       startTimeUtc,
       inviteeName,
       inviteeEmail,
-      inviteePhone
+      questionsAndAnswers
     });
     
     const response = await fetch('https://api.calendly.com/invitees', {
@@ -219,20 +284,7 @@ async function createCalendlyInvitee(
         location: {
           kind: 'zoom_conference'
         },
-        questions_and_answers: [
-          {
-            question: "Phone Number",
-            answer: inviteePhone
-          },
-          {
-            question: "At what level are you",
-            answer: "Beginner"
-          },
-          {
-            question: "Any specific questions",
-            answer: "null"
-          }
-        ]
+        questions_and_answers: questionsAndAnswers
       })
     });
     
@@ -397,13 +449,17 @@ serve(async (req) => {
             const countryCode = lead.country?.replace(/\D/g, '') || '91';
             const phoneWithCountry = customerPhone.startsWith(countryCode) ? customerPhone : `${countryCode}${customerPhone}`;
             
+            // Fetch custom questions from Calendly event type
+            const customQuestions = await getCalendlyEventTypeQuestions(calendlyToken, eventTypeUri);
+            const questionsAndAnswers = buildQuestionsAndAnswers(customQuestions, phoneWithCountry);
+            
             const inviteeResult = await createCalendlyInvitee(
               calendlyToken,
               eventTypeUri,
               startTimeUtc,
               lead.contact_name,
               lead.email,
-              phoneWithCountry
+              questionsAndAnswers
             );
             
             if (inviteeResult.success) {
