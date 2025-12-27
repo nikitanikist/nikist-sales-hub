@@ -50,17 +50,11 @@ async function createZoomMeeting(
   const hours = parseInt(timeParts[0], 10);
   const minutes = parseInt(timeParts[1], 10);
   
-  // Create IST datetime string
-  const istDateTimeStr = `${scheduledDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00+05:30`;
-  const istDateTime = new Date(istDateTimeStr);
-  
-  if (isNaN(istDateTime.getTime())) {
-    throw new Error(`Invalid date/time: ${scheduledDate} ${scheduledTime}`);
-  }
-  
-  const startTime = istDateTime.toISOString();
+  // Send time directly as IST format without UTC conversion
+  // The timezone parameter in the Zoom API request will handle the interpretation
+  const startTime = `${scheduledDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
 
-  console.log(`Creating Zoom meeting - IST: ${scheduledDate} ${scheduledTime}, UTC: ${startTime}`);
+  console.log(`Creating Zoom meeting - IST Date: ${scheduledDate}, IST Time: ${scheduledTime}, Start Time for Zoom: ${startTime}`);
 
   const response = await fetch('https://api.zoom.us/v2/users/me/meetings', {
     method: 'POST',
