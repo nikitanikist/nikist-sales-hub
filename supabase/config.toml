@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.send-closer-notification]
 verify_jwt = false
+
+[functions.create-zoom-link]
+verify_jwt = false
