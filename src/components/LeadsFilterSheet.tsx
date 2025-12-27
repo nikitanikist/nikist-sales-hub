@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, ChevronDown } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Country list with dial codes
 const countries = [
@@ -96,6 +97,48 @@ export function LeadsFilterSheet({
     onOpenChange(false);
   };
 
+  // Multi-select helper functions for products
+  const toggleProduct = (productId: string, checked: boolean) => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      productIds: checked
+        ? [...prev.productIds, productId]
+        : prev.productIds.filter((id) => id !== productId),
+    }));
+  };
+
+  const selectAllProducts = () => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      productIds: products.map((p) => p.id),
+    }));
+  };
+
+  const clearProducts = () => {
+    setLocalFilters((prev) => ({ ...prev, productIds: [] }));
+  };
+
+  // Multi-select helper functions for workshops
+  const toggleWorkshop = (workshopId: string, checked: boolean) => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      workshopIds: checked
+        ? [...prev.workshopIds, workshopId]
+        : prev.workshopIds.filter((id) => id !== workshopId),
+    }));
+  };
+
+  const selectAllWorkshops = () => {
+    setLocalFilters((prev) => ({
+      ...prev,
+      workshopIds: workshops.map((w) => w.id),
+    }));
+  };
+
+  const clearWorkshops = () => {
+    setLocalFilters((prev) => ({ ...prev, workshopIds: [] }));
+  };
+
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="w-[400px] sm:w-[450px] flex flex-col">
@@ -168,56 +211,90 @@ export function LeadsFilterSheet({
               </div>
             </div>
 
-            {/* Products Section */}
+            {/* Products Section - Multi-select */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Select Products</Label>
-              <Select
-                value={localFilters.productIds[0] || "all"}
-                onValueChange={(value) =>
-                  setLocalFilters((prev) => ({ 
-                    ...prev, 
-                    productIds: value === "all" ? [] : [value] 
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All Products" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60 overflow-y-auto">
-                  <SelectItem value="all">All Products</SelectItem>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.product_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {localFilters.productIds.length === 0
+                      ? "All Products"
+                      : `${localFilters.productIds.length} product(s) selected`}
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-2" align="start">
+                  <div className="flex justify-between mb-2">
+                    <Button size="sm" variant="ghost" onClick={selectAllProducts}>
+                      Select All
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={clearProducts}>
+                      Clear
+                    </Button>
+                  </div>
+                  <ScrollArea className="h-[200px]">
+                    {products.map((product) => (
+                      <div
+                        key={product.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => toggleProduct(product.id, !localFilters.productIds.includes(product.id))}
+                      >
+                        <Checkbox
+                          id={`product-${product.id}`}
+                          checked={localFilters.productIds.includes(product.id)}
+                          onCheckedChange={(checked) => toggleProduct(product.id, !!checked)}
+                        />
+                        <Label htmlFor={`product-${product.id}`} className="cursor-pointer flex-1">
+                          {product.product_name}
+                        </Label>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
             </div>
 
-            {/* Workshops Section */}
+            {/* Workshops Section - Multi-select */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Select Workshops</Label>
-              <Select
-                value={localFilters.workshopIds[0] || "all"}
-                onValueChange={(value) =>
-                  setLocalFilters((prev) => ({ 
-                    ...prev, 
-                    workshopIds: value === "all" ? [] : [value] 
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All Workshops" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60 overflow-y-auto">
-                  <SelectItem value="all">All Workshops</SelectItem>
-                  {workshops.map((workshop) => (
-                    <SelectItem key={workshop.id} value={workshop.id}>
-                      {workshop.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    {localFilters.workshopIds.length === 0
+                      ? "All Workshops"
+                      : `${localFilters.workshopIds.length} workshop(s) selected`}
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[350px] p-2" align="start">
+                  <div className="flex justify-between mb-2">
+                    <Button size="sm" variant="ghost" onClick={selectAllWorkshops}>
+                      Select All
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={clearWorkshops}>
+                      Clear
+                    </Button>
+                  </div>
+                  <ScrollArea className="h-[200px]">
+                    {workshops.map((workshop) => (
+                      <div
+                        key={workshop.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-muted rounded cursor-pointer"
+                        onClick={() => toggleWorkshop(workshop.id, !localFilters.workshopIds.includes(workshop.id))}
+                      >
+                        <Checkbox
+                          id={`workshop-${workshop.id}`}
+                          checked={localFilters.workshopIds.includes(workshop.id)}
+                          onCheckedChange={(checked) => toggleWorkshop(workshop.id, !!checked)}
+                        />
+                        <Label htmlFor={`workshop-${workshop.id}`} className="cursor-pointer flex-1">
+                          {workshop.title}
+                        </Label>
+                      </div>
+                    ))}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Country Section */}
