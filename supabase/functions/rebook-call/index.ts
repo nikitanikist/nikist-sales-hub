@@ -350,9 +350,10 @@ serve(async (req) => {
             }
             
             // Step 4: Convert IST date/time to UTC ISO format
-            // new_date is "YYYY-MM-DD", new_time is "HH:MM"
-            // Treat as IST (UTC+5:30) and convert to UTC
-            const istDateTime = new Date(`${new_date}T${new_time}:00+05:30`);
+            // new_date is "YYYY-MM-DD", new_time can be "HH:MM" or "HH:MM:SS"
+            // Normalize time to HH:MM format for consistent handling
+            const timeNormalized = new_time.split(':').slice(0, 2).join(':');
+            const istDateTime = new Date(`${new_date}T${timeNormalized}:00+05:30`);
             const startTimeUtc = istDateTime.toISOString();
             console.log('Start time UTC:', startTimeUtc);
             

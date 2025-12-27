@@ -371,8 +371,9 @@ serve(async (req) => {
           
           if (eventTypeUri) {
             // Convert IST date/time to UTC ISO format
-            const timeFormatted = new_time.includes(':00:') || new_time.length > 5 ? new_time.slice(0, 5) : new_time;
-            const istDateTime = new Date(`${new_date}T${timeFormatted}:00+05:30`);
+            // Normalize time to HH:MM format for consistent handling
+            const timeNormalized = new_time.split(':').slice(0, 2).join(':');
+            const istDateTime = new Date(`${new_date}T${timeNormalized}:00+05:30`);
             const startTimeUtc = istDateTime.toISOString();
             
             const inviteeResult = await createCalendlyInvitee(
