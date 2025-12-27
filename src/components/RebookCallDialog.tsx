@@ -152,7 +152,9 @@ export const RebookCallDialog = ({ open, onOpenChange, appointment, closer, onSu
         setSelectedDate(undefined);
         setSelectedTime("");
       } else {
-        throw new Error(data?.error || "Failed to rebook call");
+        // Show detailed Calendly error if available
+        const errorMessage = data?.calendly?.error || data?.error || "Failed to rebook call";
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error("Error rebooking call:", error);

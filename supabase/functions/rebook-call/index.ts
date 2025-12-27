@@ -136,7 +136,7 @@ async function getCalendlyUserUri(token: string): Promise<string | null> {
   }
 }
 
-// Helper function to get Calendly event type URI - selects by name pattern
+// Helper function to get Calendly event type URI - PRIORITY: "Direct" > full closer name > first active
 async function getCalendlyEventTypeUri(token: string, userUri: string, closerName: string): Promise<string | null> {
   try {
     const response = await fetch(
@@ -154,22 +154,33 @@ async function getCalendlyEventTypeUri(token: string, userUri: string, closerNam
     
     console.log('Available Calendly event types:', eventTypes.map((e: { name: string; uri: string }) => ({ name: e.name, uri: e.uri })));
     
-    // Try to find event type matching closer name (e.g., "1-1 Call With Dipanshu Malasi (Direct)")
-    const closerNameLower = closerName.toLowerCase();
-    const matchingEventType = eventTypes.find((e: { name: string }) => 
-      e.name.toLowerCase().includes(closerNameLower) || 
-      e.name.toLowerCase().includes('1-1') ||
-      e.name.toLowerCase().includes('1:1') ||
+    // PRIORITY 1: Event type with "Direct" in name (preferred for rebooking)
+    const directEventType = eventTypes.find((e: { name: string }) => 
       e.name.toLowerCase().includes('direct')
     );
-    
-    if (matchingEventType) {
-      console.log('Selected event type by name match:', matchingEventType.name);
-      return matchingEventType.uri;
+    if (directEventType) {
+      console.log('Selected event type by DIRECT priority:', directEventType.name);
+      return directEventType.uri;
     }
     
-    // Fallback to first active event type
-    console.log('No name match found, using first event type:', eventTypes[0]?.name);
+    // PRIORITY 2: Event type with full closer name (e.g., "Dipanshu Malasi")
+    const closerNameLower = closerName.toLowerCase();
+    const closerNameParts = closerNameLower.split(' ');
+    const closerLastName = closerNameParts.length > 1 ? closerNameParts[closerNameParts.length - 1] : '';
+    
+    const closerNameEventType = eventTypes.find((e: { name: string }) => {
+      const nameLower = e.name.toLowerCase();
+      // Match full name or last name
+      return nameLower.includes(closerNameLower) || 
+             (closerLastName && nameLower.includes(closerLastName));
+    });
+    if (closerNameEventType) {
+      console.log('Selected event type by closer name:', closerNameEventType.name);
+      return closerNameEventType.uri;
+    }
+    
+    // PRIORITY 3: Fallback to first active event type
+    console.log('No priority match found, using first event type:', eventTypes[0]?.name);
     return eventTypes[0]?.uri || null;
   } catch (error) {
     console.error('Error fetching Calendly event types:', error);
@@ -500,6 +511,22 @@ serve(async (req) => {
       }
     } else {
       console.log('Closer does not use Calendly or Zoom integration, skipping');
+    }
+
+    // CRITICAL: If Calendly was required but failed, return error - don't update appointment
+    if (useCalendly && !calendlySynced) {
+      console.error('Calendly sync failed, not updating appointment:', calendlyError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: calendlyError || 'Failed to create Calendly event',
+          calendly: {
+            synced: false,
+            error: calendlyError
+          }
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Save previous schedule and update appointment
