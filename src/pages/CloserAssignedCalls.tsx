@@ -508,11 +508,14 @@ const CloserAssignedCalls = () => {
             closer_name: closer?.full_name || 'Unknown'
           };
           
+          // Find the selected batch from the batches array using the submitted batch_id
+          const selectedBatch = batches?.find(b => b.id === variables.batch_id);
+          
           // For new workflow calls, add batch info and use new webhook
           const payload = isNewFlow && variables.status === 'converted' ? {
             ...basePayload,
-            batch_name: currentAppointment.batch?.name || null,
-            batch_start_date: currentAppointment.batch?.start_date || null,
+            batch_name: selectedBatch?.name || null,
+            batch_start_date: selectedBatch?.start_date || null,
             classes_access: variables.classes_access,
             use_new_webhook: true
           } : {
