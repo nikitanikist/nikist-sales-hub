@@ -469,7 +469,8 @@ const CloserAssignedCalls = () => {
     }) => {
       const due_amount = Math.max(0, data.offer_amount - data.cash_received);
 
-      const { error } = await supabase
+      // Step 1: Update the appointment in the database
+      const { error: updateError } = await supabase
         .from("call_appointments")
         .update({
           status: data.status,
@@ -482,54 +483,101 @@ const CloserAssignedCalls = () => {
         })
         .eq("id", data.id);
 
-      if (error) throw error;
-    },
-    onSuccess: async (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["closer-appointments", closerId] });
-      queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
-      
-      const currentAppointment = appointments?.find(apt => apt.id === variables.id);
-      
-      if (currentAppointment?.lead) {
-        try {
-          // Check if this is a new workflow call (Dec 28, 2025 onwards)
-          const isNewFlow = isNewWorkflow(currentAppointment.scheduled_date);
+      if (updateError) throw updateError;
+
+      // Step 2: Fetch fresh appointment data directly from DB (authoritative source)
+      const { data: freshAppointment, error: fetchError } = await supabase
+        .from("call_appointments")
+        .select(`
+          id,
+          scheduled_date,
+          scheduled_time,
+          status,
+          offer_amount,
+          cash_received,
+          due_amount,
+          classes_access,
+          batch:batches(id, name, start_date),
+          lead:leads(id, contact_name, email, phone)
+        `)
+        .eq("id", data.id)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('Error fetching fresh appointment:', fetchError);
+        throw fetchError;
+      }
+
+      if (!freshAppointment) {
+        throw new Error('Could not fetch updated appointment');
+      }
+
+      // Step 3: Send to Pabbly webhook with fresh data
+      if (freshAppointment.lead) {
+        const isNewFlow = isNewWorkflow(freshAppointment.scheduled_date);
+        
+        const basePayload = {
+          customer_name: freshAppointment.lead.contact_name,
+          customer_email: freshAppointment.lead.email,
+          customer_phone: freshAppointment.lead.phone,
+          status: freshAppointment.status,
+          offer_amount: freshAppointment.offer_amount,
+          cash_received: freshAppointment.cash_received,
+          due_amount: freshAppointment.due_amount,
+          call_date: freshAppointment.scheduled_date,
+          closer_name: closer?.full_name || 'Unknown'
+        };
+        
+        // For new workflow converted calls, include batch info from fresh DB data
+        if (isNewFlow && freshAppointment.status === 'converted') {
+          // Validate required fields before sending
+          if (!freshAppointment.batch?.start_date) {
+            throw new Error('Batch start date is required for converted calls. Please ensure a batch is selected.');
+          }
+          if (!freshAppointment.classes_access) {
+            throw new Error('Classes access is required for converted calls. Please select the number of classes.');
+          }
           
-          // Build payload based on workflow type
-          const basePayload = {
-            customer_name: currentAppointment.lead.contact_name,
-            customer_email: currentAppointment.lead.email,
-            customer_phone: currentAppointment.lead.phone,
-            status: variables.status,
-            offer_amount: variables.offer_amount,
-            cash_received: variables.cash_received,
-            due_amount: Math.max(0, variables.offer_amount - variables.cash_received),
-            call_date: currentAppointment.scheduled_date,
-            closer_name: closer?.full_name || 'Unknown'
+          const payload = {
+            ...basePayload,
+            batch_name: freshAppointment.batch.name,
+            batch_start_date: freshAppointment.batch.start_date,
+            classes_access: freshAppointment.classes_access,
+            use_new_webhook: true
           };
           
-          // Find the selected batch from the batches array using the submitted batch_id
-          const selectedBatch = batches?.find(b => b.id === variables.batch_id);
+          console.log('Sending to Pabbly (NEW workflow):', JSON.stringify(payload, null, 2));
           
-          // For new workflow calls, add batch info and use new webhook
-          const payload = isNewFlow && variables.status === 'converted' ? {
-            ...basePayload,
-            batch_name: selectedBatch?.name || null,
-            batch_start_date: selectedBatch?.start_date || null,
-            classes_access: variables.classes_access,
-            use_new_webhook: true
-          } : {
+          const { error: pabblyError } = await supabase.functions.invoke('send-status-to-pabbly', { body: payload });
+          if (pabblyError) {
+            console.error('Pabbly webhook error:', pabblyError);
+            // Don't throw - DB update succeeded, just log the error
+          } else {
+            console.log('Successfully sent to Pabbly (new webhook)');
+          }
+        } else {
+          // Old workflow or non-converted status
+          const payload = {
             ...basePayload,
             use_new_webhook: false
           };
           
-          await supabase.functions.invoke('send-status-to-pabbly', { body: payload });
-          console.log('Successfully sent to Pabbly (webhook:', isNewFlow && variables.status === 'converted' ? 'new' : 'old', ')');
-        } catch (error) {
-          console.error('Error sending to Pabbly:', error);
+          console.log('Sending to Pabbly (OLD workflow):', JSON.stringify(payload, null, 2));
+          
+          const { error: pabblyError } = await supabase.functions.invoke('send-status-to-pabbly', { body: payload });
+          if (pabblyError) {
+            console.error('Pabbly webhook error:', pabblyError);
+          } else {
+            console.log('Successfully sent to Pabbly (old webhook)');
+          }
         }
       }
-      
+
+      return freshAppointment;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["closer-appointments", closerId] });
+      queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
       toast({ title: "Updated", description: "Appointment details saved successfully" });
       setEditingId(null);
       setEditData(null);
