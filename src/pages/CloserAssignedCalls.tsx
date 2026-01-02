@@ -799,7 +799,6 @@ const CloserAssignedCalls = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Time</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Batch</TableHead>
                       <TableHead>Classes</TableHead>
                       {!isManager && (
                         <>
@@ -873,6 +872,11 @@ const CloserAssignedCalls = () => {
                                       Previously: {apt.previous_closer.full_name}
                                     </Badge>
                                   )}
+                                  {apt.batch?.name && (
+                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 mt-0.5 w-fit">
+                                      {apt.batch.name}
+                                    </Badge>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -889,15 +893,6 @@ const CloserAssignedCalls = () => {
                               <TableCell>{formatTimeString(apt.scheduled_time)}</TableCell>
                               <TableCell>
                                 <Badge className={statusColors[apt.status]}>{statusLabels[apt.status]}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                {apt.batch?.name ? (
-                                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                    {apt.batch.name}
-                                  </Badge>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
                               </TableCell>
                               <TableCell>
                                 {apt.classes_access ? (
