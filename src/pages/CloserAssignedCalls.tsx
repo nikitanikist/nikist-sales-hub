@@ -402,7 +402,7 @@ const CloserAssignedCalls = () => {
     // Filter by status
     if (statusFilter !== "all") {
       if (statusFilter === "converted") {
-        filtered = filtered.filter((apt) => apt.status.startsWith("converted_"));
+        filtered = filtered.filter((apt) => apt.status.startsWith("converted_") || apt.status === "converted");
       } else {
         filtered = filtered.filter((apt) => apt.status === statusFilter);
       }
@@ -799,6 +799,8 @@ const CloserAssignedCalls = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Time</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Batch</TableHead>
+                      <TableHead>Classes</TableHead>
                       {!isManager && (
                         <>
                           <TableHead className="text-right">Offer ₹</TableHead>
@@ -887,6 +889,24 @@ const CloserAssignedCalls = () => {
                               <TableCell>{formatTimeString(apt.scheduled_time)}</TableCell>
                               <TableCell>
                                 <Badge className={statusColors[apt.status]}>{statusLabels[apt.status]}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                {apt.batch?.name ? (
+                                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                    {apt.batch.name}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {apt.classes_access ? (
+                                  <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                                    {apt.classes_access === 15 ? "All Classes" : `${apt.classes_access} Classes`}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
                               </TableCell>
                               {!isManager && (
                                 <>

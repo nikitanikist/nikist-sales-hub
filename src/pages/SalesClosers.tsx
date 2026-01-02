@@ -74,9 +74,9 @@ const SalesClosers = () => {
           // Total assigned = all appointments for this closer
           const assigned = allCalls.length;
           
-          // Converted = statuses starting with "converted_"
+          // Converted = statuses starting with "converted_" OR exactly "converted"
           const converted = allCalls.filter(apt => 
-            apt.status.startsWith('converted_')
+            apt.status.startsWith('converted_') || apt.status === 'converted'
           ).length;
           
           // Not Converted = only "not_converted" status
