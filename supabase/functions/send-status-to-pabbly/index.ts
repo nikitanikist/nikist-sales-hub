@@ -11,19 +11,30 @@ serve(async (req) => {
   }
 
   try {
-    const pabblyWebhookUrl = Deno.env.get('PABBLY_STATUS_WEBHOOK_URL');
+    const body = await req.json();
+    
+    // Determine which webhook URL to use based on the flag
+    const useNewWebhook = body.use_new_webhook === true;
+    const pabblyWebhookUrl = useNewWebhook 
+      ? Deno.env.get('PABBLY_STATUS_WEBHOOK_URL_NEW')
+      : Deno.env.get('PABBLY_STATUS_WEBHOOK_URL');
+    
     if (!pabblyWebhookUrl) {
-      throw new Error('PABBLY_STATUS_WEBHOOK_URL not configured');
+      const webhookType = useNewWebhook ? 'PABBLY_STATUS_WEBHOOK_URL_NEW' : 'PABBLY_STATUS_WEBHOOK_URL';
+      throw new Error(`${webhookType} not configured`);
     }
 
-    const body = await req.json();
+    console.log('Using webhook:', useNewWebhook ? 'NEW' : 'OLD');
     console.log('Sending to Pabbly:', JSON.stringify(body, null, 2));
+
+    // Remove the use_new_webhook flag before sending to Pabbly
+    const { use_new_webhook, ...payloadToSend } = body;
 
     // Send to Pabbly webhook
     const response = await fetch(pabblyWebhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payloadToSend),
     });
 
     console.log('Pabbly response status:', response.status);
@@ -31,7 +42,7 @@ serve(async (req) => {
     console.log('Pabbly response:', responseText);
 
     return new Response(
-      JSON.stringify({ success: true, pabblyStatus: response.status }),
+      JSON.stringify({ success: true, pabblyStatus: response.status, webhookUsed: useNewWebhook ? 'new' : 'old' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
