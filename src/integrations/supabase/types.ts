@@ -14,12 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_appointments: {
         Row: {
+          access_given: boolean | null
+          access_given_at: string | null
           additional_comments: string | null
+          batch_id: string | null
           calendly_event_uri: string | null
           calendly_invitee_uri: string | null
           cash_received: number | null
+          classes_access: number | null
           closer_id: string
           closer_remarks: string | null
           created_at: string
@@ -40,10 +82,14 @@ export type Database = {
           zoom_link: string | null
         }
         Insert: {
+          access_given?: boolean | null
+          access_given_at?: string | null
           additional_comments?: string | null
+          batch_id?: string | null
           calendly_event_uri?: string | null
           calendly_invitee_uri?: string | null
           cash_received?: number | null
+          classes_access?: number | null
           closer_id: string
           closer_remarks?: string | null
           created_at?: string
@@ -64,10 +110,14 @@ export type Database = {
           zoom_link?: string | null
         }
         Update: {
+          access_given?: boolean | null
+          access_given_at?: string | null
           additional_comments?: string | null
+          batch_id?: string | null
           calendly_event_uri?: string | null
           calendly_invitee_uri?: string | null
           cash_received?: number | null
+          classes_access?: number | null
           closer_id?: string
           closer_remarks?: string | null
           created_at?: string
@@ -88,6 +138,13 @@ export type Database = {
           zoom_link?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "call_appointments_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "call_appointments_closer_id_fkey"
             columns: ["closer_id"]
@@ -887,6 +944,7 @@ export type Database = {
         | "reschedule"
         | "pending"
         | "refunded"
+        | "converted"
       lead_status:
         | "new"
         | "contacted"
@@ -1046,6 +1104,7 @@ export const Constants = {
         "reschedule",
         "pending",
         "refunded",
+        "converted",
       ],
       lead_status: [
         "new",

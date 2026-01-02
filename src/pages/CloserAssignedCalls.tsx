@@ -42,6 +42,11 @@ interface Appointment {
   previous_scheduled_time: string | null;
   previous_closer_id: string | null;
   previous_closer: { full_name: string } | null;
+  batch_id: string | null;
+  classes_access: number | null;
+  access_given: boolean | null;
+  access_given_at: string | null;
+  batch: { id: string; name: string; start_date: string } | null;
   lead: {
     id: string;
     contact_name: string;
@@ -58,11 +63,38 @@ interface Appointment {
   }[];
 }
 
+// Cutoff date: calls on or after this date use new workflow
+const NEW_WORKFLOW_CUTOFF_DATE = new Date('2026-01-01');
+
+// Helper to check if an appointment uses new workflow
+const isNewWorkflow = (scheduledDate: string): boolean => {
+  return new Date(scheduledDate) >= NEW_WORKFLOW_CUTOFF_DATE;
+};
+
+const CLASSES_ACCESS_OPTIONS = [
+  { value: 1, label: "1 Class" },
+  { value: 2, label: "2 Classes" },
+  { value: 3, label: "3 Classes" },
+  { value: 4, label: "4 Classes" },
+  { value: 5, label: "5 Classes" },
+  { value: 6, label: "6 Classes" },
+  { value: 7, label: "7 Classes" },
+  { value: 8, label: "8 Classes" },
+  { value: 9, label: "9 Classes" },
+  { value: 10, label: "10 Classes" },
+  { value: 11, label: "11 Classes" },
+  { value: 12, label: "12 Classes" },
+  { value: 13, label: "13 Classes" },
+  { value: 14, label: "14 Classes" },
+  { value: 15, label: "All Classes" },
+];
+
 const statusColors: Record<CallStatus, string> = {
   scheduled: "bg-blue-100 text-blue-800 border-blue-200",
   converted_beginner: "bg-green-100 text-green-800 border-green-200",
   converted_intermediate: "bg-green-200 text-green-900 border-green-300",
   converted_advance: "bg-emerald-200 text-emerald-900 border-emerald-300",
+  converted: "bg-green-100 text-green-800 border-green-200",
   booking_amount: "bg-yellow-100 text-yellow-800 border-yellow-200",
   not_converted: "bg-red-100 text-red-800 border-red-200",
   not_decided: "bg-orange-100 text-orange-800 border-orange-200",
@@ -77,6 +109,7 @@ const statusLabels: Record<CallStatus, string> = {
   converted_beginner: "Converted (Beginner)",
   converted_intermediate: "Converted (Intermediate)",
   converted_advance: "Converted (Advance)",
+  converted: "Converted",
   booking_amount: "Booking Amount",
   not_converted: "Not Converted",
   not_decided: "Not Decided",
@@ -255,10 +288,26 @@ const CloserAssignedCalls = () => {
     offer_amount: number;
     cash_received: number;
     closer_remarks: string;
+    batch_id: string | null;
+    classes_access: number | null;
   } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rebookingAppointment, setRebookingAppointment] = useState<Appointment | null>(null);
   const [reassigningAppointment, setReassigningAppointment] = useState<Appointment | null>(null);
+
+  // Fetch active batches for dropdown
+  const { data: batches } = useQuery({
+    queryKey: ["batches-dropdown"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("batches")
+        .select("id, name, start_date")
+        .eq("is_active", true)
+        .order("start_date", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { isAdmin, isManager } = useUserRole();
 
@@ -302,7 +351,12 @@ const CloserAssignedCalls = () => {
           previous_scheduled_date,
           previous_scheduled_time,
           previous_closer_id,
+          batch_id,
+          classes_access,
+          access_given,
+          access_given_at,
           previous_closer:profiles!call_appointments_previous_closer_id_fkey(full_name),
+          batch:batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
         .eq("closer_id", closerId!);
@@ -404,7 +458,15 @@ const CloserAssignedCalls = () => {
   );
 
   const updateMutation = useMutation({
-    mutationFn: async (data: { id: string; status: CallStatus; offer_amount: number; cash_received: number; closer_remarks: string }) => {
+    mutationFn: async (data: { 
+      id: string; 
+      status: CallStatus; 
+      offer_amount: number; 
+      cash_received: number; 
+      closer_remarks: string;
+      batch_id: string | null;
+      classes_access: number | null;
+    }) => {
       const due_amount = Math.max(0, data.offer_amount - data.cash_received);
 
       const { error } = await supabase
@@ -415,6 +477,8 @@ const CloserAssignedCalls = () => {
           cash_received: data.cash_received,
           due_amount,
           closer_remarks: data.closer_remarks,
+          batch_id: data.batch_id,
+          classes_access: data.classes_access,
         })
         .eq("id", data.id);
 
@@ -498,6 +562,8 @@ const CloserAssignedCalls = () => {
       offer_amount: apt.offer_amount || 0,
       cash_received: apt.cash_received || 0,
       closer_remarks: apt.closer_remarks || "",
+      batch_id: apt.batch_id || null,
+      classes_access: apt.classes_access || null,
     });
   };
 
@@ -511,6 +577,27 @@ const CloserAssignedCalls = () => {
         variant: "destructive" 
       });
       return;
+    }
+
+    // For new workflow "converted" status, validate required fields
+    const currentAppointment = appointments?.find(apt => apt.id === editingId);
+    if (currentAppointment && isNewWorkflow(currentAppointment.scheduled_date) && editData.status === 'converted') {
+      if (!editData.classes_access) {
+        toast({ 
+          title: "Classes Access Required", 
+          description: "Please select the number of classes for course access", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      if (!editData.batch_id) {
+        toast({ 
+          title: "Batch Required", 
+          description: "Please select a batch for the student", 
+          variant: "destructive" 
+        });
+        return;
+      }
     }
     
     updateMutation.mutate({ id: editingId, ...editData });
@@ -878,9 +965,15 @@ const CloserAssignedCalls = () => {
                                               </SelectTrigger>
                                               <SelectContent>
                                                 <SelectItem value="scheduled">Scheduled</SelectItem>
-                                                <SelectItem value="converted_beginner">Converted (Beginner)</SelectItem>
-                                                <SelectItem value="converted_intermediate">Converted (Intermediate)</SelectItem>
-                                                <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
+                                                {isNewWorkflow(apt.scheduled_date) ? (
+                                                  <SelectItem value="converted">Converted</SelectItem>
+                                                ) : (
+                                                  <>
+                                                    <SelectItem value="converted_beginner">Converted (Beginner)</SelectItem>
+                                                    <SelectItem value="converted_intermediate">Converted (Intermediate)</SelectItem>
+                                                    <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
+                                                  </>
+                                                )}
                                                 <SelectItem value="booking_amount">Booking Amount</SelectItem>
                                                 <SelectItem value="not_converted">Not Converted</SelectItem>
                                                 <SelectItem value="not_decided">Not Decided</SelectItem>
@@ -891,6 +984,45 @@ const CloserAssignedCalls = () => {
                                               </SelectContent>
                                             </Select>
                                           </div>
+                                          {/* New workflow fields for converted status */}
+                                          {isNewWorkflow(apt.scheduled_date) && editData.status === 'converted' && (
+                                            <>
+                                              <div className="space-y-2">
+                                                <Label>Classes Access <span className="text-red-500">*</span></Label>
+                                                <Select
+                                                  value={editData.classes_access?.toString() || ""}
+                                                  onValueChange={(value) => setEditData({ ...editData, classes_access: parseInt(value) })}
+                                                >
+                                                  <SelectTrigger>
+                                                    <SelectValue placeholder="Select classes" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {CLASSES_ACCESS_OPTIONS.map((opt) => (
+                                                      <SelectItem key={opt.value} value={opt.value.toString()}>{opt.label}</SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label>Batch <span className="text-red-500">*</span></Label>
+                                                <Select
+                                                  value={editData.batch_id || ""}
+                                                  onValueChange={(value) => setEditData({ ...editData, batch_id: value })}
+                                                >
+                                                  <SelectTrigger>
+                                                    <SelectValue placeholder="Select batch" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {batches?.map((batch) => (
+                                                      <SelectItem key={batch.id} value={batch.id}>
+                                                        {batch.name} - {format(new Date(batch.start_date), "dd MMM")}
+                                                      </SelectItem>
+                                                    ))}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                            </>
+                                          )}
                                           {!isManager && (
                                             <>
                                               <div className="space-y-2">

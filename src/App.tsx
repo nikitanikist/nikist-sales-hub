@@ -16,6 +16,7 @@ import Calls from "./pages/Calls";
 import Products from "./pages/Products";
 import Onboarding from "./pages/Onboarding";
 import Users from "./pages/Users";
+import Batches from "./pages/Batches";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/calls" element={<Calls />} />
               <Route path="/sales-closers" element={<SalesClosers />} />
               <Route path="/sales-closers/:closerId/calls" element={<CloserAssignedCalls />} />
+              <Route path="/batches" element={<Batches />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />
