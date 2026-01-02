@@ -492,20 +492,36 @@ const CloserAssignedCalls = () => {
       
       if (currentAppointment?.lead) {
         try {
-          await supabase.functions.invoke('send-status-to-pabbly', {
-            body: {
-              customer_name: currentAppointment.lead.contact_name,
-              customer_email: currentAppointment.lead.email,
-              customer_phone: currentAppointment.lead.phone,
-              status: variables.status,
-              offer_amount: variables.offer_amount,
-              cash_received: variables.cash_received,
-              due_amount: Math.max(0, variables.offer_amount - variables.cash_received),
-              call_date: currentAppointment.scheduled_date,
-              closer_name: closer?.full_name || 'Unknown'
-            }
-          });
-          console.log('Successfully sent to Pabbly');
+          // Check if this is a new workflow call (Dec 28, 2025 onwards)
+          const isNewFlow = isNewWorkflow(currentAppointment.scheduled_date);
+          
+          // Build payload based on workflow type
+          const basePayload = {
+            customer_name: currentAppointment.lead.contact_name,
+            customer_email: currentAppointment.lead.email,
+            customer_phone: currentAppointment.lead.phone,
+            status: variables.status,
+            offer_amount: variables.offer_amount,
+            cash_received: variables.cash_received,
+            due_amount: Math.max(0, variables.offer_amount - variables.cash_received),
+            call_date: currentAppointment.scheduled_date,
+            closer_name: closer?.full_name || 'Unknown'
+          };
+          
+          // For new workflow calls, add batch info and use new webhook
+          const payload = isNewFlow && variables.status === 'converted' ? {
+            ...basePayload,
+            batch_name: currentAppointment.batch?.name || null,
+            batch_start_date: currentAppointment.batch?.start_date || null,
+            classes_access: variables.classes_access,
+            use_new_webhook: true
+          } : {
+            ...basePayload,
+            use_new_webhook: false
+          };
+          
+          await supabase.functions.invoke('send-status-to-pabbly', { body: payload });
+          console.log('Successfully sent to Pabbly (webhook:', isNewFlow && variables.status === 'converted' ? 'new' : 'old', ')');
         } catch (error) {
           console.error('Error sending to Pabbly:', error);
         }
