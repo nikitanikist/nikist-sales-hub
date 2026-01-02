@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, CheckCircle2, Clock, Loader2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, CheckCircle2, Clock, Loader2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,8 @@ interface BatchStudent {
   access_given: boolean;
   access_given_at: string | null;
   status: string;
+  closer_id: string | null;
+  closer_name: string | null;
 }
 
 const CLASSES_ACCESS_LABELS: Record<number, string> = {
@@ -73,6 +76,15 @@ const Batches = () => {
   const [formIsActive, setFormIsActive] = useState(true);
   const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
+  // Search and filter state for batch students
+  const [searchQuery, setSearchQuery] = useState("");
+  const [closerFilter, setCloserFilter] = useState<string>("all");
+  const [classesFilter, setClassesFilter] = useState<string>("all");
+  
+  // Edit batch dialog state
+  const [editingStudent, setEditingStudent] = useState<BatchStudent | null>(null);
+  const [newBatchId, setNewBatchId] = useState<string>("");
+
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
     queryKey: ["batches"],
@@ -100,7 +112,7 @@ const Batches = () => {
     },
   });
 
-  // Fetch students for selected batch
+  // Fetch students for selected batch (with closer info)
   const { data: batchStudents, isLoading: studentsLoading } = useQuery({
     queryKey: ["batch-students", selectedBatch?.id],
     queryFn: async () => {
@@ -111,11 +123,13 @@ const Batches = () => {
         .select(`
           id,
           lead_id,
+          closer_id,
           classes_access,
           access_given,
           access_given_at,
           status,
-          lead:leads(contact_name, email, phone)
+          lead:leads(contact_name, email, phone),
+          closer:profiles!closer_id(full_name)
         `)
         .eq("batch_id", selectedBatch.id);
       
@@ -131,10 +145,47 @@ const Batches = () => {
         access_given: apt.access_given || false,
         access_given_at: apt.access_given_at,
         status: apt.status,
+        closer_id: apt.closer_id,
+        closer_name: apt.closer?.full_name || null,
       })) as BatchStudent[];
     },
     enabled: !!selectedBatch,
   });
+
+  // Get unique closers from batch students for filter dropdown
+  const uniqueClosers = useMemo(() => {
+    if (!batchStudents) return [];
+    const closerMap = new Map<string, string>();
+    batchStudents.forEach(student => {
+      if (student.closer_id && student.closer_name) {
+        closerMap.set(student.closer_id, student.closer_name);
+      }
+    });
+    return Array.from(closerMap.entries()).map(([id, name]) => ({ id, name }));
+  }, [batchStudents]);
+
+  // Filter students based on search and filters
+  const filteredStudents = useMemo(() => {
+    if (!batchStudents) return [];
+    
+    return batchStudents.filter(student => {
+      // Search filter (name, email, phone)
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch = !searchQuery || 
+        student.contact_name.toLowerCase().includes(searchLower) ||
+        student.email.toLowerCase().includes(searchLower) ||
+        (student.phone && student.phone.includes(searchQuery));
+      
+      // Closer filter
+      const matchesCloser = closerFilter === "all" || student.closer_id === closerFilter;
+      
+      // Classes filter
+      const matchesClasses = classesFilter === "all" || 
+        student.classes_access?.toString() === classesFilter;
+      
+      return matchesSearch && matchesCloser && matchesClasses;
+    });
+  }, [batchStudents, searchQuery, closerFilter, classesFilter]);
 
   // Create batch mutation
   const createMutation = useMutation({
@@ -188,6 +239,27 @@ const Batches = () => {
     },
   });
 
+  // Transfer student to different batch mutation
+  const transferMutation = useMutation({
+    mutationFn: async ({ appointmentId, newBatchId }: { appointmentId: string; newBatchId: string }) => {
+      const { error } = await supabase
+        .from("call_appointments")
+        .update({ batch_id: newBatchId })
+        .eq("id", appointmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batch-students", selectedBatch?.id] });
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      toast({ title: "Student Transferred", description: "Student has been moved to the new batch" });
+      setEditingStudent(null);
+      setNewBatchId("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleCloseForm = () => {
     setIsCreateOpen(false);
     setEditingBatch(null);
@@ -231,8 +303,8 @@ const Batches = () => {
   };
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked && batchStudents) {
-      setSelectedStudents(batchStudents.filter((s) => !s.access_given).map((s) => s.id));
+    if (checked && filteredStudents) {
+      setSelectedStudents(filteredStudents.filter((s) => !s.access_given).map((s) => s.id));
     } else {
       setSelectedStudents([]);
     }
@@ -246,14 +318,28 @@ const Batches = () => {
     });
   };
 
+  const handleTransferStudent = () => {
+    if (!editingStudent || !newBatchId) return;
+    transferMutation.mutate({ appointmentId: editingStudent.id, newBatchId });
+  };
+
+  // Reset filters when leaving batch detail view
+  const handleBackToBatches = () => {
+    setSelectedBatch(null);
+    setSelectedStudents([]);
+    setSearchQuery("");
+    setCloserFilter("all");
+    setClassesFilter("all");
+  };
+
   // Batch detail view
   if (selectedBatch) {
-    const studentsWithoutAccess = batchStudents?.filter((s) => !s.access_given) || [];
+    const studentsWithoutAccess = filteredStudents?.filter((s) => !s.access_given) || [];
     
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => { setSelectedBatch(null); setSelectedStudents([]); }}>
+          <Button variant="ghost" size="icon" onClick={handleBackToBatches}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -278,6 +364,59 @@ const Batches = () => {
               </Button>
             )}
           </CardHeader>
+          
+          {/* Search and Filters Section */}
+          <div className="px-6 pb-4 space-y-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, email, or phone..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            {/* Filters Row */}
+            <div className="flex gap-4">
+              {/* Closer Filter */}
+              <Select value={closerFilter} onValueChange={setCloserFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Filter by Closer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Closers</SelectItem>
+                  {uniqueClosers.map(closer => (
+                    <SelectItem key={closer.id} value={closer.id}>{closer.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {/* Classes Filter */}
+              <Select value={classesFilter} onValueChange={setClassesFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by Classes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Classes</SelectItem>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(num => (
+                    <SelectItem key={num} value={num.toString()}>
+                      {CLASSES_ACCESS_LABELS[num]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Filtered count */}
+            {(searchQuery || closerFilter !== "all" || classesFilter !== "all") && (
+              <p className="text-sm text-muted-foreground">
+                Showing {filteredStudents.length} of {batchStudents?.length || 0} students
+              </p>
+            )}
+          </div>
+          
           <CardContent>
             {studentsLoading ? (
               <div className="flex items-center justify-center py-8">
@@ -287,6 +426,11 @@ const Batches = () => {
               <div className="text-center py-8 text-muted-foreground">
                 <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
                 <p>No students enrolled in this batch yet</p>
+              </div>
+            ) : !filteredStudents.length ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No students match your search or filters</p>
               </div>
             ) : (
               <Table>
@@ -300,15 +444,17 @@ const Batches = () => {
                       />
                     </TableHead>
                     <TableHead>Student Name</TableHead>
+                    <TableHead>Closer</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Classes Access</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Access Given</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {batchStudents.map((student) => (
+                  {filteredStudents.map((student) => (
                     <TableRow key={student.id}>
                       <TableCell>
                         <Checkbox
@@ -318,6 +464,9 @@ const Batches = () => {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{student.contact_name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {student.closer_name || "-"}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{student.email}</TableCell>
                       <TableCell className="text-sm">{student.phone || "-"}</TableCell>
                       <TableCell>
@@ -345,6 +494,18 @@ const Batches = () => {
                           </Badge>
                         )}
                       </TableCell>
+                      <TableCell>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => {
+                            setEditingStudent(student);
+                            setNewBatchId(selectedBatch.id);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -352,6 +513,45 @@ const Batches = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Transfer Student Dialog */}
+        <Dialog open={!!editingStudent} onOpenChange={(open) => { if (!open) { setEditingStudent(null); setNewBatchId(""); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Transfer Student to Different Batch</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <p className="font-medium">{editingStudent?.contact_name}</p>
+                <p className="text-sm text-muted-foreground">{editingStudent?.email}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Select New Batch</Label>
+                <Select value={newBatchId} onValueChange={setNewBatchId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {batches?.map(batch => (
+                      <SelectItem key={batch.id} value={batch.id}>
+                        {batch.name} ({format(new Date(batch.start_date), "dd MMM yyyy")})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setEditingStudent(null); setNewBatchId(""); }}>Cancel</Button>
+              <Button 
+                onClick={handleTransferStudent} 
+                disabled={transferMutation.isPending || !newBatchId || newBatchId === selectedBatch?.id}
+              >
+                {transferMutation.isPending ? "Transferring..." : "Transfer"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
