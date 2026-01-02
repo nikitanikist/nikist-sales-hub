@@ -64,7 +64,7 @@ interface Appointment {
 }
 
 // Cutoff date: calls on or after this date use new workflow
-const NEW_WORKFLOW_CUTOFF_DATE = new Date('2026-01-01');
+const NEW_WORKFLOW_CUTOFF_DATE = new Date('2025-12-28');
 
 // Helper to check if an appointment uses new workflow
 const isNewWorkflow = (scheduledDate: string): boolean => {
