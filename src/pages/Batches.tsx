@@ -40,6 +40,9 @@ interface BatchStudent {
   status: string;
   closer_id: string | null;
   closer_name: string | null;
+  updated_at: string | null;
+  offer_amount: number | null;
+  cash_received: number | null;
 }
 
 const CLASSES_ACCESS_LABELS: Record<number, string> = {
@@ -128,6 +131,9 @@ const Batches = () => {
           access_given,
           access_given_at,
           status,
+          updated_at,
+          offer_amount,
+          cash_received,
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
@@ -147,6 +153,9 @@ const Batches = () => {
         status: apt.status,
         closer_id: apt.closer_id,
         closer_name: apt.closer?.full_name || null,
+        updated_at: apt.updated_at,
+        offer_amount: apt.offer_amount,
+        cash_received: apt.cash_received,
       })) as BatchStudent[];
     },
     enabled: !!selectedBatch,
@@ -444,6 +453,9 @@ const Batches = () => {
                       />
                     </TableHead>
                     <TableHead>Student Name</TableHead>
+                    <TableHead>Conversion Date</TableHead>
+                    <TableHead>Offered Amount</TableHead>
+                    <TableHead>Cash Received</TableHead>
                     <TableHead>Closer</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
@@ -464,6 +476,15 @@ const Batches = () => {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{student.contact_name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "-"}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {student.closer_name || "-"}
                       </TableCell>
