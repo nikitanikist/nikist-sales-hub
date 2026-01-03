@@ -1164,7 +1164,7 @@ const CloserAssignedCalls = () => {
                                           <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
                                             {['converted_beginner', 'converted_intermediate', 'converted_advance'].includes(apt.status) 
                                               ? 'Update EMI & Course Access' 
-                                              : 'Edit Details'}
+                                              : 'Update Status'}
                                           </Button>
                                           {(apt.status === 'scheduled' || apt.status === 'reschedule') && (
                                             <Button 
