@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, CheckCircle2, Clock, Loader2, Search } from "lucide-react";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, CheckCircle2, Clock, Loader2, Search, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -341,6 +341,41 @@ const Batches = () => {
     setClassesFilter("all");
   };
 
+  // Export students to CSV
+  const handleExportStudents = () => {
+    if (!filteredStudents?.length) return;
+
+    const headers = [
+      "Student Name", "Conversion Date", "Offered Amount", "Cash Received",
+      "Closer", "Email", "Phone", "Classes Access", "Status", "Access Given", "Access Given Date"
+    ];
+
+    const rows = filteredStudents.map(student => [
+      student.contact_name || "",
+      student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "",
+      student.offer_amount?.toString() || "",
+      student.cash_received?.toString() || "",
+      student.closer_name || "",
+      student.email || "",
+      student.phone || "",
+      student.classes_access ? CLASSES_ACCESS_LABELS[student.classes_access] || "" : "",
+      student.status || "",
+      student.access_given ? "Yes" : "No",
+      student.access_given_at ? format(new Date(student.access_given_at), "dd MMM yyyy") : ""
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${selectedBatch?.name || "batch"}_students_${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
   // Batch detail view
   if (selectedBatch) {
     const studentsWithoutAccess = filteredStudents?.filter((s) => !s.access_given) || [];
@@ -366,12 +401,20 @@ const Batches = () => {
               <CardTitle>Students</CardTitle>
               <CardDescription>{batchStudents?.length || 0} students enrolled in this batch</CardDescription>
             </div>
-            {selectedStudents.length > 0 && (
-              <Button onClick={handleGiveAccess}>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Give Access ({selectedStudents.length})
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {batchStudents && batchStudents.length > 0 && (
+                <Button variant="outline" onClick={handleExportStudents}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+              )}
+              {selectedStudents.length > 0 && (
+                <Button onClick={handleGiveAccess}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Give Access ({selectedStudents.length})
+                </Button>
+              )}
+            </div>
           </CardHeader>
           
           {/* Search and Filters Section */}
