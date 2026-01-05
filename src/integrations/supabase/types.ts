@@ -350,6 +350,51 @@ export type Database = {
           },
         ]
       }
+      emi_payments: {
+        Row: {
+          amount: number
+          appointment_id: string
+          created_at: string | null
+          created_by: string | null
+          emi_number: number
+          id: string
+          payment_date: string
+        }
+        Insert: {
+          amount: number
+          appointment_id: string
+          created_at?: string | null
+          created_by?: string | null
+          emi_number: number
+          id?: string
+          payment_date: string
+        }
+        Update: {
+          amount?: number
+          appointment_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          emi_number?: number
+          id?: string
+          payment_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emi_payments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "call_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emi_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnels: {
         Row: {
           amount: number
