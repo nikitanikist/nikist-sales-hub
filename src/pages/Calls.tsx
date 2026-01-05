@@ -328,7 +328,7 @@ const Calls = () => {
                 
                 {/* Status Breakdown */}
                 <div className="border-t pt-3 space-y-1 text-sm">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between border-b pb-1">
                     <span>Converted</span>
                     <span className="font-medium text-green-600">
                       {closerMetrics?.reduce((sum, c) => sum + (c.converted_count || 0), 0) || 0}
@@ -340,13 +340,13 @@ const Calls = () => {
                       {closerMetrics?.reduce((sum, c) => sum + (c.rescheduled_count || 0), 0) || 0}
                     </span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between border-b pb-1">
                     <span>Pending</span>
                     <span className="font-medium text-blue-600">
                       {closerMetrics?.reduce((sum, c) => sum + (c.pending_count || 0), 0) || 0}
                     </span>
                   </div>
-                  <div className="flex justify-between border-t pt-1">
+                  <div className="flex justify-between">
                     <span>Not Converted</span>
                     <span className="font-medium text-red-600">
                       {closerMetrics?.reduce((sum, c) => sum + (c.not_converted_count || 0), 0) || 0}
@@ -395,7 +395,7 @@ const Calls = () => {
                   
                   {/* Status Breakdown */}
                   <div className="border-t pt-3 space-y-1 text-sm">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between border-b pb-1">
                       <span>Converted</span>
                       <span className="font-medium text-green-600">{closer.converted_count || 0}</span>
                     </div>
@@ -403,11 +403,11 @@ const Calls = () => {
                       <span>Rescheduled</span>
                       <span className="font-medium text-purple-600">{closer.rescheduled_count || 0}</span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between border-b pb-1">
                       <span>Pending</span>
                       <span className="font-medium text-blue-600">{closer.pending_count || 0}</span>
                     </div>
-                    <div className="flex justify-between border-t pt-1">
+                    <div className="flex justify-between">
                       <span>Not Converted</span>
                       <span className="font-medium text-red-600">{closer.not_converted_count || 0}</span>
                     </div>
