@@ -1178,7 +1178,7 @@ const Batches = () => {
                       <TableHead>Phone</TableHead>
                       <TableHead>Classes Access</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      {!isManager && <TableHead>Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1245,19 +1245,21 @@ const Batches = () => {
                                 {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingStudent(student);
-                                  setNewBatchId(selectedBatch.id);
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
+                            {!isManager && (
+                              <TableCell>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingStudent(student);
+                                    setNewBatchId(selectedBatch.id);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                           {/* EMI History - Hidden for Managers */}
                           {!isManager && (
@@ -1279,44 +1281,46 @@ const Batches = () => {
           </CardContent>
         </Card>
 
-        {/* Transfer Student Dialog */}
-        <Dialog open={!!editingStudent} onOpenChange={(open) => { if (!open) { setEditingStudent(null); setNewBatchId(""); } }}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Transfer Student to Different Batch</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div>
-                <p className="font-medium">{editingStudent?.contact_name}</p>
-                <p className="text-sm text-muted-foreground">{editingStudent?.email}</p>
+        {/* Transfer Student Dialog - Hidden for Managers */}
+        {!isManager && (
+          <Dialog open={!!editingStudent} onOpenChange={(open) => { if (!open) { setEditingStudent(null); setNewBatchId(""); } }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Transfer Student to Different Batch</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div>
+                  <p className="font-medium">{editingStudent?.contact_name}</p>
+                  <p className="text-sm text-muted-foreground">{editingStudent?.email}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Select New Batch</Label>
+                  <Select value={newBatchId} onValueChange={setNewBatchId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select batch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {batches?.map(batch => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          {batch.name} ({format(new Date(batch.start_date), "dd MMM yyyy")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Select New Batch</Label>
-                <Select value={newBatchId} onValueChange={setNewBatchId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select batch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {batches?.map(batch => (
-                      <SelectItem key={batch.id} value={batch.id}>
-                        {batch.name} ({format(new Date(batch.start_date), "dd MMM yyyy")})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setEditingStudent(null); setNewBatchId(""); }}>Cancel</Button>
-              <Button 
-                onClick={handleTransferStudent} 
-                disabled={transferMutation.isPending || !newBatchId || newBatchId === selectedBatch?.id}
-              >
-                {transferMutation.isPending ? "Transferring..." : "Transfer"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setEditingStudent(null); setNewBatchId(""); }}>Cancel</Button>
+                <Button 
+                  onClick={handleTransferStudent} 
+                  disabled={transferMutation.isPending || !newBatchId || newBatchId === selectedBatch?.id}
+                >
+                  {transferMutation.isPending ? "Transferring..." : "Transfer"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     );
   }
@@ -1334,10 +1338,11 @@ const Batches = () => {
             <p className="text-muted-foreground">Manage course batches and student access</p>
           </div>
         </div>
-        <Dialog open={isCreateOpen || !!editingBatch} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
+        {!isManager && (
+          <Dialog open={isCreateOpen || !!editingBatch} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setIsCreateOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
               Add Batch
             </Button>
           </DialogTrigger>
@@ -1393,6 +1398,7 @@ const Batches = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <Card>
@@ -1415,7 +1421,7 @@ const Batches = () => {
                   <TableHead>Start Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Students</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  {!isManager && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1440,16 +1446,18 @@ const Batches = () => {
                         {batch.students_count || 0}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(batch)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setDeletingBatch(batch)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
+                    {!isManager && (
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(batch)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeletingBatch(batch)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -1458,27 +1466,29 @@ const Batches = () => {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deletingBatch} onOpenChange={(open) => { if (!open) setDeletingBatch(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Batch</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{deletingBatch?.name}"? 
-              This will remove the batch but students will remain with no batch assigned.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deletingBatch && deleteMutation.mutate(deletingBatch.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Delete Confirmation Dialog - Hidden for Managers */}
+      {!isManager && (
+        <AlertDialog open={!!deletingBatch} onOpenChange={(open) => { if (!open) setDeletingBatch(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{deletingBatch?.name}"? 
+                This will remove the batch but students will remain with no batch assigned.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deletingBatch && deleteMutation.mutate(deletingBatch.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 };
