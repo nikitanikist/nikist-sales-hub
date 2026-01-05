@@ -23,6 +23,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { RebookCallDialog } from "@/components/RebookCallDialog";
 import { ReassignCallDialog } from "@/components/ReassignCallDialog";
+import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
 
 type CallStatus = Database["public"]["Enums"]["call_status"];
 type ReminderStatus = Database["public"]["Enums"]["reminder_status"];
@@ -265,6 +266,84 @@ const sortAppointments = (appointments: Appointment[]): Appointment[] => {
   return [...today, ...future, ...past];
 };
 
+// EMI History Section Component
+const EmiHistorySection = ({ appointmentId }: { appointmentId: string }) => {
+  const { data: emiPayments, isLoading } = useQuery({
+    queryKey: ["emi-payments-inline", appointmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("emi_payments")
+        .select("*")
+        .eq("appointment_id", appointmentId)
+        .order("emi_number", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+          EMI Payment History
+        </h4>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  if (!emiPayments || emiPayments.length === 0) {
+    return (
+      <div className="space-y-2">
+        <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+          EMI Payment History
+        </h4>
+        <p className="text-sm text-muted-foreground">No EMI payments recorded yet</p>
+      </div>
+    );
+  }
+
+  const totalEmi = emiPayments.reduce((sum, emi) => sum + Number(emi.amount), 0);
+
+  return (
+    <div className="space-y-2">
+      <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+        EMI Payment History
+      </h4>
+      <div className="rounded-md border bg-background">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-left px-4 py-2 font-medium">EMI #</th>
+              <th className="text-left px-4 py-2 font-medium">Amount</th>
+              <th className="text-left px-4 py-2 font-medium">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {emiPayments.map((emi) => (
+              <tr key={emi.id} className="border-t">
+                <td className="px-4 py-2">EMI {emi.emi_number}</td>
+                <td className="px-4 py-2 text-green-600">₹{Number(emi.amount).toLocaleString("en-IN")}</td>
+                <td className="px-4 py-2">{format(new Date(emi.payment_date), "dd MMM yyyy")}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-muted/30">
+            <tr className="border-t font-medium">
+              <td className="px-4 py-2">Total EMI</td>
+              <td className="px-4 py-2 text-green-600">₹{totalEmi.toLocaleString("en-IN")}</td>
+              <td className="px-4 py-2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 const CloserAssignedCalls = () => {
   const { closerId } = useParams<{ closerId: string }>();
   const navigate = useNavigate();
@@ -294,6 +373,7 @@ const CloserAssignedCalls = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [rebookingAppointment, setRebookingAppointment] = useState<Appointment | null>(null);
   const [reassigningAppointment, setReassigningAppointment] = useState<Appointment | null>(null);
+  const [emiAppointment, setEmiAppointment] = useState<Appointment | null>(null);
 
   // Fetch active batches for dropdown
   const { data: batches } = useQuery({
@@ -999,6 +1079,11 @@ const CloserAssignedCalls = () => {
                                     </div>
                                   </div>
 
+                                  {/* EMI Payment History - Only show for converted calls */}
+                                  {(apt.status === 'converted' || ['converted_beginner', 'converted_intermediate', 'converted_advance'].includes(apt.status)) && (
+                                    <EmiHistorySection appointmentId={apt.id} />
+                                  )}
+
                                   {/* Reminder Timeline */}
                                   <div className="space-y-2">
                                     <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
@@ -1161,11 +1246,15 @@ const CloserAssignedCalls = () => {
                                           </div>
                                         )}
                                         <div className="flex flex-wrap gap-2">
-                                          <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
-                                            {['converted_beginner', 'converted_intermediate', 'converted_advance'].includes(apt.status) 
-                                              ? 'Update EMI & Course Access' 
-                                              : 'Update Status'}
-                                          </Button>
+                                          {(apt.status === 'converted' || ['converted_beginner', 'converted_intermediate', 'converted_advance'].includes(apt.status)) ? (
+                                            <Button size="sm" variant="outline" onClick={() => setEmiAppointment(apt)}>
+                                              Update EMI & Course Access
+                                            </Button>
+                                          ) : (
+                                            <Button size="sm" variant="outline" onClick={() => handleEdit(apt)}>
+                                              Update Status
+                                            </Button>
+                                          )}
                                           {(apt.status === 'scheduled' || apt.status === 'reschedule') && (
                                             <Button 
                                               size="sm" 
@@ -1318,6 +1407,25 @@ const CloserAssignedCalls = () => {
             lead: reassigningAppointment.lead,
           }}
           currentCloser={closer ? { id: closer.id, full_name: closer.full_name, email: closer.email } : null}
+          onSuccess={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
+          }}
+        />
+      )}
+
+      {/* Update EMI Dialog */}
+      {emiAppointment && (
+        <UpdateEmiDialog
+          open={!!emiAppointment}
+          onOpenChange={(open) => !open && setEmiAppointment(null)}
+          appointmentId={emiAppointment.id}
+          offerAmount={emiAppointment.offer_amount || 0}
+          cashReceived={emiAppointment.cash_received || 0}
+          dueAmount={emiAppointment.due_amount || 0}
+          classesAccess={emiAppointment.classes_access}
+          batchId={emiAppointment.batch_id}
+          customerName={emiAppointment.lead?.contact_name || "Customer"}
           onSuccess={() => {
             refetch();
             queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
