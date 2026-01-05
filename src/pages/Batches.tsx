@@ -12,9 +12,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -89,10 +91,18 @@ const Batches = () => {
   const [formIsActive, setFormIsActive] = useState(true);
   const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
-  // Search and filter state for batch students
+  // Search state
   const [searchQuery, setSearchQuery] = useState("");
-  const [closerFilter, setCloserFilter] = useState<string>("all");
-  const [classesFilter, setClassesFilter] = useState<string>("all");
+  
+  // Advanced filter state
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedClosers, setSelectedClosers] = useState<string[]>([]);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<"all" | "initial" | "emi">("all");
+  const [isDateFromOpen, setIsDateFromOpen] = useState(false);
+  const [isDateToOpen, setIsDateToOpen] = useState(false);
   
   // Edit batch dialog state
   const [editingStudent, setEditingStudent] = useState<BatchStudent | null>(null);
@@ -187,7 +197,25 @@ const Batches = () => {
     enabled: !!expandedStudentId,
   });
 
-  // Get unique closers from batch students for filter dropdown
+  // Fetch all EMI payments for the batch (for filtering)
+  const { data: batchEmiPayments } = useQuery({
+    queryKey: ["batch-all-emi-payments", selectedBatch?.id],
+    queryFn: async () => {
+      if (!selectedBatch || !batchStudents?.length) return [];
+      
+      const appointmentIds = batchStudents.map(s => s.id);
+      const { data, error } = await supabase
+        .from("emi_payments")
+        .select("*")
+        .in("appointment_id", appointmentIds);
+      
+      if (error) throw error;
+      return data as EmiPayment[];
+    },
+    enabled: !!selectedBatch && !!batchStudents?.length,
+  });
+
+  // Get unique closers from batch students for filter
   const uniqueClosers = useMemo(() => {
     if (!batchStudents) return [];
     const closerMap = new Map<string, string>();
@@ -199,7 +227,19 @@ const Batches = () => {
     return Array.from(closerMap.entries()).map(([id, name]) => ({ id, name }));
   }, [batchStudents]);
 
-  // Filter students based on search and filters
+  // Get unique classes from batch students for filter
+  const uniqueClasses = useMemo(() => {
+    if (!batchStudents) return [];
+    const classesSet = new Set<number>();
+    batchStudents.forEach(student => {
+      if (student.classes_access) {
+        classesSet.add(student.classes_access);
+      }
+    });
+    return Array.from(classesSet).sort((a, b) => a - b);
+  }, [batchStudents]);
+
+  // Filter students based on search and advanced filters
   const filteredStudents = useMemo(() => {
     if (!batchStudents) return [];
     
@@ -211,16 +251,120 @@ const Batches = () => {
         student.email.toLowerCase().includes(searchLower) ||
         (student.phone && student.phone.includes(searchQuery));
       
-      // Closer filter
-      const matchesCloser = closerFilter === "all" || student.closer_id === closerFilter;
+      // Multi-select closer filter
+      const matchesCloser = selectedClosers.length === 0 || 
+        (student.closer_id && selectedClosers.includes(student.closer_id));
       
-      // Classes filter
-      const matchesClasses = classesFilter === "all" || 
-        student.classes_access?.toString() === classesFilter;
+      // Multi-select classes filter
+      const matchesClasses = selectedClasses.length === 0 || 
+        (student.classes_access && selectedClasses.includes(student.classes_access.toString()));
       
-      return matchesSearch && matchesCloser && matchesClasses;
+      // Date range filter (based on scheduled_date for initial, or EMI payment_date)
+      let matchesDate = true;
+      if (dateFrom || dateTo) {
+        if (paymentTypeFilter === "emi") {
+          // For EMI filter, check if student has EMI payments in date range
+          const studentEmis = batchEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
+          matchesDate = studentEmis.some(emi => {
+            const emiDate = new Date(emi.payment_date);
+            const afterFrom = !dateFrom || emiDate >= dateFrom;
+            const beforeTo = !dateTo || emiDate <= dateTo;
+            return afterFrom && beforeTo;
+          });
+        } else {
+          // For initial/all, check scheduled_date
+          if (student.scheduled_date) {
+            const scheduledDate = new Date(student.scheduled_date);
+            const afterFrom = !dateFrom || scheduledDate >= dateFrom;
+            const beforeTo = !dateTo || scheduledDate <= dateTo;
+            matchesDate = afterFrom && beforeTo;
+          } else {
+            matchesDate = false;
+          }
+        }
+      }
+      
+      // Payment type filter
+      let matchesPaymentType = true;
+      if (paymentTypeFilter === "emi") {
+        // Show only students who have EMI payments
+        const hasEmis = batchEmiPayments?.some(emi => emi.appointment_id === student.id);
+        matchesPaymentType = !!hasEmis;
+      } else if (paymentTypeFilter === "initial") {
+        // Show only students with initial payment (cash_received > 0)
+        matchesPaymentType = (student.cash_received || 0) > 0;
+      }
+      
+      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType;
     });
-  }, [batchStudents, searchQuery, closerFilter, classesFilter]);
+  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments]);
+
+  // Calculate closer breakdown and totals based on filtered students
+  const { closerBreakdown, totals } = useMemo(() => {
+    const breakdown: Record<string, { 
+      closerId: string; 
+      closerName: string; 
+      offered: number; 
+      received: number; 
+      due: number;
+      emiCollected: number;
+    }> = {};
+    
+    filteredStudents.forEach(student => {
+      const closerId = student.closer_id || 'unassigned';
+      const closerName = student.closer_name || 'Unassigned';
+      
+      if (!breakdown[closerId]) {
+        breakdown[closerId] = { 
+          closerId, 
+          closerName, 
+          offered: 0, 
+          received: 0, 
+          due: 0,
+          emiCollected: 0
+        };
+      }
+      
+      breakdown[closerId].offered += student.offer_amount || 0;
+      breakdown[closerId].received += student.cash_received || 0;
+      breakdown[closerId].due += student.due_amount || 0;
+      
+      // Calculate EMI collected for this student
+      const studentEmis = batchEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
+      const emiTotal = studentEmis.reduce((sum, emi) => sum + Number(emi.amount), 0);
+      breakdown[closerId].emiCollected += emiTotal;
+    });
+    
+    const breakdownArray = Object.values(breakdown).sort((a, b) => b.received - a.received);
+    
+    const totalsCalc = {
+      offered: breakdownArray.reduce((sum, c) => sum + c.offered, 0),
+      received: breakdownArray.reduce((sum, c) => sum + c.received, 0),
+      due: breakdownArray.reduce((sum, c) => sum + c.due, 0),
+      emiCollected: breakdownArray.reduce((sum, c) => sum + c.emiCollected, 0)
+    };
+    
+    return { closerBreakdown: breakdownArray, totals: totalsCalc };
+  }, [filteredStudents, batchEmiPayments]);
+
+  // Count active filters
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedClosers.length > 0) count++;
+    if (selectedClasses.length > 0) count++;
+    if (dateFrom || dateTo) count++;
+    if (paymentTypeFilter !== "all") count++;
+    return count;
+  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter]);
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedClosers([]);
+    setSelectedClasses([]);
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setPaymentTypeFilter("all");
+  };
 
   // Create batch mutation
   const createMutation = useMutation({
@@ -339,15 +483,14 @@ const Batches = () => {
     setSelectedBatch(null);
     setExpandedStudentId(null);
     setSearchQuery("");
-    setCloserFilter("all");
-    setClassesFilter("all");
+    clearAllFilters();
   };
 
   // Export students to CSV with full EMI details
   const handleExportStudents = async () => {
     if (!filteredStudents?.length) return;
 
-    // Fetch all EMI payments for all students in the batch
+    // Fetch all EMI payments for all filtered students
     const appointmentIds = filteredStudents.map(s => s.id);
     const { data: allEmiPayments } = await supabase
       .from("emi_payments")
@@ -437,6 +580,24 @@ const Batches = () => {
     setExpandedStudentId(prev => prev === studentId ? null : studentId);
   };
 
+  // Toggle closer selection
+  const toggleCloser = (closerId: string) => {
+    setSelectedClosers(prev => 
+      prev.includes(closerId) 
+        ? prev.filter(id => id !== closerId)
+        : [...prev, closerId]
+    );
+  };
+
+  // Toggle class selection
+  const toggleClass = (classNum: string) => {
+    setSelectedClasses(prev => 
+      prev.includes(classNum) 
+        ? prev.filter(c => c !== classNum)
+        : [...prev, classNum]
+    );
+  };
+
   // EMI History Section Component
   const EmiHistorySection = ({ student }: { student: BatchStudent }) => {
     const totalEmiCollected = studentEmiPayments?.reduce((sum, emi) => sum + Number(emi.amount), 0) || 0;
@@ -521,13 +682,330 @@ const Batches = () => {
           </div>
         </div>
 
+        {/* Summary Cards */}
+        {paymentTypeFilter === "emi" ? (
+          // Single EMI Collected Card when EMI filter is active
+          <Card className="overflow-hidden">
+            <div className="grid grid-cols-2 divide-x">
+              <div className="p-4 flex flex-col justify-center bg-purple-50">
+                <p className="text-sm text-muted-foreground">EMI Collected</p>
+                <div className="text-2xl font-bold text-purple-700">
+                  ₹{totals.emiCollected.toLocaleString('en-IN')}
+                </div>
+                {(dateFrom || dateTo) && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {dateFrom && dateTo 
+                      ? `${format(dateFrom, "dd MMM")} - ${format(dateTo, "dd MMM yyyy")}`
+                      : dateFrom 
+                        ? `From ${format(dateFrom, "dd MMM yyyy")}`
+                        : `Until ${format(dateTo!, "dd MMM yyyy")}`
+                    }
+                  </p>
+                )}
+              </div>
+              <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                {closerBreakdown.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No EMI data</p>
+                ) : (
+                  closerBreakdown.map((closer, idx) => (
+                    <div key={closer.closerId} className={cn(
+                      "flex justify-between items-baseline text-sm",
+                      idx < closerBreakdown.length - 1 && "border-b pb-1"
+                    )}>
+                      <span className="truncate">{closer.closerName}</span>
+                      <span className="font-medium ml-2">
+                        ₹{closer.emiCollected.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </Card>
+        ) : (
+          // Regular three cards for All/Initial payment filter
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Offered Amount Card */}
+            <Card className="overflow-hidden">
+              <div className="grid grid-cols-2 divide-x">
+                <div className="p-4 flex flex-col justify-center bg-blue-50">
+                  <p className="text-sm text-muted-foreground">Total Offered</p>
+                  <div className="text-2xl font-bold text-blue-700">
+                    ₹{totals.offered.toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                  {closerBreakdown.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data</p>
+                  ) : (
+                    closerBreakdown.map((closer, idx) => (
+                      <div key={closer.closerId} className={cn(
+                        "flex justify-between items-baseline text-sm",
+                        idx < closerBreakdown.length - 1 && "border-b pb-1"
+                      )}>
+                        <span className="truncate">{closer.closerName}</span>
+                        <span className="font-medium ml-2">
+                          ₹{closer.offered.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Cash Received Card */}
+            <Card className="overflow-hidden">
+              <div className="grid grid-cols-2 divide-x">
+                <div className="p-4 flex flex-col justify-center bg-green-50">
+                  <p className="text-sm text-muted-foreground">Cash Received</p>
+                  <div className="text-2xl font-bold text-green-700">
+                    ₹{totals.received.toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                  {closerBreakdown.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data</p>
+                  ) : (
+                    closerBreakdown.map((closer, idx) => (
+                      <div key={closer.closerId} className={cn(
+                        "flex justify-between items-baseline text-sm",
+                        idx < closerBreakdown.length - 1 && "border-b pb-1"
+                      )}>
+                        <span className="truncate">{closer.closerName}</span>
+                        <span className="font-medium ml-2">
+                          ₹{closer.received.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Remaining Amount Card */}
+            <Card className="overflow-hidden">
+              <div className="grid grid-cols-2 divide-x">
+                <div className="p-4 flex flex-col justify-center bg-orange-50">
+                  <p className="text-sm text-muted-foreground">Remaining Amount</p>
+                  <div className="text-2xl font-bold text-orange-700">
+                    ₹{totals.due.toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                  {closerBreakdown.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data</p>
+                  ) : (
+                    closerBreakdown.map((closer, idx) => (
+                      <div key={closer.closerId} className={cn(
+                        "flex justify-between items-baseline text-sm",
+                        idx < closerBreakdown.length - 1 && "border-b pb-1"
+                      )}>
+                        <span className="truncate">{closer.closerName}</span>
+                        <span className="font-medium ml-2">
+                          ₹{closer.due.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Students</CardTitle>
-              <CardDescription>{batchStudents?.length || 0} students enrolled in this batch</CardDescription>
+              <CardDescription>{filteredStudents.length} of {batchStudents?.length || 0} students</CardDescription>
             </div>
             <div className="flex gap-2">
+              {/* Filter Button with Sheet */}
+              <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" className="relative">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <Badge className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                        {activeFilterCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto">
+                  <SheetHeader>
+                    <SheetTitle>Filters</SheetTitle>
+                  </SheetHeader>
+                  
+                  <div className="space-y-6 py-6">
+                    {/* Payment Type Filter */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Payment Type</Label>
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="payment-all"
+                            name="paymentType"
+                            checked={paymentTypeFilter === "all"}
+                            onChange={() => setPaymentTypeFilter("all")}
+                            className="h-4 w-4"
+                          />
+                          <label htmlFor="payment-all" className="text-sm cursor-pointer">All Payments</label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="payment-initial"
+                            name="paymentType"
+                            checked={paymentTypeFilter === "initial"}
+                            onChange={() => setPaymentTypeFilter("initial")}
+                            className="h-4 w-4"
+                          />
+                          <label htmlFor="payment-initial" className="text-sm cursor-pointer">Initial Payment Only</label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="payment-emi"
+                            name="paymentType"
+                            checked={paymentTypeFilter === "emi"}
+                            onChange={() => setPaymentTypeFilter("emi")}
+                            className="h-4 w-4"
+                          />
+                          <label htmlFor="payment-emi" className="text-sm cursor-pointer">EMI Only</label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Date Range Filter */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Date Range</Label>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <Popover open={isDateFromOpen} onOpenChange={setIsDateFromOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn("w-full justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}
+                              >
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={dateFrom}
+                                onSelect={(date) => { setDateFrom(date); setIsDateFromOpen(false); }}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex-1">
+                          <Popover open={isDateToOpen} onOpenChange={setIsDateToOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn("w-full justify-start text-left font-normal", !dateTo && "text-muted-foreground")}
+                              >
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {dateTo ? format(dateTo, "dd MMM yyyy") : "To"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={dateTo}
+                                onSelect={(date) => { setDateTo(date); setIsDateToOpen(false); }}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                      {(dateFrom || dateTo) && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}
+                          className="text-xs"
+                        >
+                          <X className="h-3 w-3 mr-1" />
+                          Clear dates
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Closers Multi-select */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Closers</Label>
+                      <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
+                        {uniqueClosers.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No closers available</p>
+                        ) : (
+                          uniqueClosers.map(closer => (
+                            <div key={closer.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`closer-${closer.id}`}
+                                checked={selectedClosers.includes(closer.id)}
+                                onCheckedChange={() => toggleCloser(closer.id)}
+                              />
+                              <label 
+                                htmlFor={`closer-${closer.id}`} 
+                                className="text-sm cursor-pointer flex-1"
+                              >
+                                {closer.name}
+                              </label>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Classes Multi-select */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Classes Access</Label>
+                      <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border rounded-md p-2">
+                        {uniqueClasses.map(classNum => (
+                          <div key={classNum} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`class-${classNum}`}
+                              checked={selectedClasses.includes(classNum.toString())}
+                              onCheckedChange={() => toggleClass(classNum.toString())}
+                            />
+                            <label 
+                              htmlFor={`class-${classNum}`} 
+                              className="text-xs cursor-pointer"
+                            >
+                              {CLASSES_ACCESS_LABELS[classNum] || `${classNum}`}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <SheetFooter className="flex gap-2">
+                    <Button variant="outline" onClick={clearAllFilters}>
+                      Clear All
+                    </Button>
+                    <Button onClick={() => setIsFilterOpen(false)}>
+                      Apply Filters
+                    </Button>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
+
               {batchStudents && batchStudents.length > 0 && (
                 <Button variant="outline" onClick={handleExportStudents}>
                   <Download className="h-4 w-4 mr-2" />
@@ -537,7 +1015,7 @@ const Batches = () => {
             </div>
           </CardHeader>
           
-          {/* Search and Filters Section */}
+          {/* Search and Active Filters Section */}
           <div className="px-6 pb-4 space-y-4">
             {/* Search Bar */}
             <div className="relative">
@@ -550,42 +1028,68 @@ const Batches = () => {
               />
             </div>
             
-            {/* Filters Row */}
-            <div className="flex gap-4">
-              {/* Closer Filter */}
-              <Select value={closerFilter} onValueChange={setCloserFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filter by Closer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Closers</SelectItem>
-                  {uniqueClosers.map(closer => (
-                    <SelectItem key={closer.id} value={closer.id}>{closer.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {/* Classes Filter */}
-              <Select value={classesFilter} onValueChange={setClassesFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by Classes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Classes</SelectItem>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].map(num => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {CLASSES_ACCESS_LABELS[num]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Filtered count */}
-            {(searchQuery || closerFilter !== "all" || classesFilter !== "all") && (
-              <p className="text-sm text-muted-foreground">
-                Showing {filteredStudents.length} of {batchStudents?.length || 0} students
-              </p>
+            {/* Active Filters Display */}
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm text-muted-foreground">Active:</span>
+                
+                {paymentTypeFilter !== "all" && (
+                  <Badge variant="secondary" className="gap-1">
+                    {paymentTypeFilter === "emi" ? "EMI Only" : "Initial Only"}
+                    <X 
+                      className="h-3 w-3 cursor-pointer" 
+                      onClick={() => setPaymentTypeFilter("all")} 
+                    />
+                  </Badge>
+                )}
+                
+                {(dateFrom || dateTo) && (
+                  <Badge variant="secondary" className="gap-1">
+                    {dateFrom && dateTo 
+                      ? `${format(dateFrom, "dd MMM")} - ${format(dateTo, "dd MMM")}`
+                      : dateFrom 
+                        ? `From ${format(dateFrom, "dd MMM")}`
+                        : `Until ${format(dateTo!, "dd MMM")}`
+                    }
+                    <X 
+                      className="h-3 w-3 cursor-pointer" 
+                      onClick={() => { setDateFrom(undefined); setDateTo(undefined); }} 
+                    />
+                  </Badge>
+                )}
+                
+                {selectedClosers.map(closerId => {
+                  const closer = uniqueClosers.find(c => c.id === closerId);
+                  return closer ? (
+                    <Badge key={closerId} variant="secondary" className="gap-1">
+                      {closer.name}
+                      <X 
+                        className="h-3 w-3 cursor-pointer" 
+                        onClick={() => toggleCloser(closerId)} 
+                      />
+                    </Badge>
+                  ) : null;
+                })}
+                
+                {selectedClasses.map(classNum => (
+                  <Badge key={classNum} variant="secondary" className="gap-1">
+                    {CLASSES_ACCESS_LABELS[Number(classNum)] || `${classNum} Classes`}
+                    <X 
+                      className="h-3 w-3 cursor-pointer" 
+                      onClick={() => toggleClass(classNum)} 
+                    />
+                  </Badge>
+                ))}
+                
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={clearAllFilters}
+                  className="h-6 text-xs"
+                >
+                  Clear all
+                </Button>
+              </div>
             )}
           </div>
           
@@ -857,21 +1361,24 @@ const Batches = () => {
                     <TableCell>{format(new Date(batch.start_date), "dd MMM yyyy")}</TableCell>
                     <TableCell>
                       {batch.is_active ? (
-                        <Badge className="bg-green-100 text-green-800 border-green-200">Active</Badge>
+                        <Badge className="bg-green-100 text-green-800">Active</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-muted-foreground">Inactive</Badge>
+                        <Badge variant="secondary">Inactive</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="secondary">{batch.students_count}</Badge>
+                      <div className="flex items-center justify-center gap-1">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        {batch.students_count || 0}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                        <Button size="icon" variant="ghost" onClick={() => handleOpenEdit(batch)}>
+                        <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(batch)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="icon" variant="ghost" className="text-red-600" onClick={() => setDeletingBatch(batch)}>
-                          <Trash2 className="h-4 w-4" />
+                        <Button size="sm" variant="ghost" onClick={() => setDeletingBatch(batch)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>
@@ -883,20 +1390,21 @@ const Batches = () => {
         </CardContent>
       </Card>
 
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={!!deletingBatch} onOpenChange={() => setDeletingBatch(null)}>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingBatch} onOpenChange={(open) => { if (!open) setDeletingBatch(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Batch</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{deletingBatch?.name}"? This will unlink all students from this batch but won't delete their call appointments.
+              Are you sure you want to delete "{deletingBatch?.name}"? 
+              This will remove the batch but students will remain with no batch assigned.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
               onClick={() => deletingBatch && deleteMutation.mutate(deletingBatch.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
