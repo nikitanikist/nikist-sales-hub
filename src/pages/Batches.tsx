@@ -610,8 +610,8 @@ const Batches = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-10"></TableHead>
-                      <TableHead>Student Name</TableHead>
                       <TableHead>Conversion Date</TableHead>
+                      <TableHead>Student Name</TableHead>
                       <TableHead>Offered Amount</TableHead>
                       <TableHead>Cash Received</TableHead>
                       <TableHead>Due Amount</TableHead>
@@ -646,10 +646,10 @@ const Batches = () => {
                                 </Button>
                               </CollapsibleTrigger>
                             </TableCell>
-                            <TableCell className="font-medium">{student.contact_name}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "-"}
                             </TableCell>
+                            <TableCell className="font-medium">{student.contact_name}</TableCell>
                             <TableCell className="text-sm font-medium">
                               {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
                             </TableCell>
