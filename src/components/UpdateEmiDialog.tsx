@@ -175,7 +175,7 @@ export function UpdateEmiDialog({
       if (hasEmiToSave) {
         console.log("Adding EMI:", { appointmentId, amount, date: paymentDate, nextEmiNumber });
         
-        // Insert EMI payment with class access tracking
+        // Insert EMI payment with class access and cash tracking
         const { data: insertedData, error: emiError } = await supabase
           .from("emi_payments")
           .insert({
@@ -185,6 +185,7 @@ export function UpdateEmiDialog({
             payment_date: format(paymentDate, "yyyy-MM-dd"),
             previous_classes_access: classesAccess,
             new_classes_access: newClassesAccess,
+            previous_cash_received: cashReceived,
           })
           .select()
           .single();

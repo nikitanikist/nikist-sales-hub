@@ -38,7 +38,7 @@ interface BatchStudent {
   status: string;
   closer_id: string | null;
   closer_name: string | null;
-  updated_at: string | null;
+  scheduled_date: string | null;
   offer_amount: number | null;
   cash_received: number | null;
   due_amount: number | null;
@@ -52,6 +52,7 @@ interface EmiPayment {
   payment_date: string;
   previous_classes_access: number | null;
   new_classes_access: number | null;
+  previous_cash_received: number | null;
 }
 
 const CLASSES_ACCESS_LABELS: Record<number, string> = {
@@ -138,7 +139,7 @@ const Batches = () => {
           closer_id,
           classes_access,
           status,
-          updated_at,
+          scheduled_date,
           offer_amount,
           cash_received,
           due_amount,
@@ -159,7 +160,7 @@ const Batches = () => {
         status: apt.status,
         closer_id: apt.closer_id,
         closer_name: apt.closer?.full_name || null,
-        updated_at: apt.updated_at,
+        scheduled_date: apt.scheduled_date,
         offer_amount: apt.offer_amount,
         cash_received: apt.cash_received,
         due_amount: apt.due_amount,
@@ -369,13 +370,13 @@ const Batches = () => {
     // Build dynamic headers
     const baseHeaders = [
       "Student Name", "Conversion Date", "Offered Amount", "Cash Received", "Due Amount",
-      "Closer", "Email", "Phone", "Classes Access", "Status"
+      "Closer", "Email", "Phone", "Initial Classes Access", "Status"
     ];
     
-    // Add EMI columns dynamically with class access tracking
+    // Add EMI columns dynamically: Amount, Date, Prev Cash, New Classes After
     const emiHeaders: string[] = [];
     for (let i = 1; i <= maxEmis; i++) {
-      emiHeaders.push(`EMI ${i} Amount`, `EMI ${i} Date`, `EMI ${i} Prev Classes`, `EMI ${i} New Classes`);
+      emiHeaders.push(`EMI ${i} Amount`, `EMI ${i} Date`, `EMI ${i} Prev Cash`, `EMI ${i} New Classes After`);
     }
     emiHeaders.push("Total EMI Collected");
 
@@ -384,7 +385,7 @@ const Batches = () => {
     const rows = filteredStudents.map(student => {
       const baseData = [
         student.contact_name || "",
-        student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "",
+        student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "",
         student.offer_amount?.toString() || "",
         student.cash_received?.toString() || "",
         student.due_amount?.toString() || "",
@@ -405,7 +406,7 @@ const Batches = () => {
         if (emi) {
           emiData.push(emi.amount.toString());
           emiData.push(format(new Date(emi.payment_date), "dd MMM yyyy"));
-          emiData.push(emi.previous_classes_access ? CLASSES_ACCESS_LABELS[emi.previous_classes_access] || emi.previous_classes_access.toString() : "");
+          emiData.push(emi.previous_cash_received != null ? emi.previous_cash_received.toString() : "");
           emiData.push(emi.new_classes_access ? CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access.toString() : "");
           totalEmiCollected += emi.amount;
         } else {
@@ -647,7 +648,7 @@ const Batches = () => {
                             </TableCell>
                             <TableCell className="font-medium">{student.contact_name}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "-"}
+                              {student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "-"}
                             </TableCell>
                             <TableCell className="text-sm font-medium">
                               {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}

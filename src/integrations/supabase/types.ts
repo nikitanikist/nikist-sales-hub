@@ -360,6 +360,7 @@ export type Database = {
           id: string
           new_classes_access: number | null
           payment_date: string
+          previous_cash_received: number | null
           previous_classes_access: number | null
         }
         Insert: {
@@ -371,6 +372,7 @@ export type Database = {
           id?: string
           new_classes_access?: number | null
           payment_date: string
+          previous_cash_received?: number | null
           previous_classes_access?: number | null
         }
         Update: {
@@ -382,6 +384,7 @@ export type Database = {
           id?: string
           new_classes_access?: number | null
           payment_date?: string
+          previous_cash_received?: number | null
           previous_classes_access?: number | null
         }
         Relationships: [
