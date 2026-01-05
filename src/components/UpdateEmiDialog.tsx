@@ -81,6 +81,11 @@ export function UpdateEmiDialog({
   const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
   const [newClassesAccess, setNewClassesAccess] = useState<number | null>(classesAccess);
   const [newBatchId, setNewBatchId] = useState<string | null>(batchId);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Local state for immediate UI updates
+  const [displayCashReceived, setDisplayCashReceived] = useState(cashReceived);
+  const [displayDueAmount, setDisplayDueAmount] = useState(dueAmount);
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -89,8 +94,10 @@ export function UpdateEmiDialog({
       setPaymentDate(new Date());
       setNewClassesAccess(classesAccess);
       setNewBatchId(batchId);
+      setDisplayCashReceived(cashReceived);
+      setDisplayDueAmount(dueAmount);
     }
-  }, [open, classesAccess, batchId]);
+  }, [open, classesAccess, batchId, cashReceived, dueAmount]);
 
   // Fetch EMI payments for this appointment
   const { data: emiPayments, isLoading: isLoadingEmi } = useQuery({
@@ -122,107 +129,137 @@ export function UpdateEmiDialog({
     enabled: open,
   });
 
-  // Calculate totals
-  const totalEmiReceived = emiPayments?.reduce((sum, emi) => sum + Number(emi.amount), 0) || 0;
-  const totalReceived = cashReceived; // This already includes EMIs from DB
-  const remaining = Math.max(0, offerAmount - totalReceived);
-  const paymentProgress = offerAmount > 0 ? (totalReceived / offerAmount) * 100 : 0;
+  // Calculate totals using local display values for immediate feedback
+  const remaining = Math.max(0, offerAmount - displayCashReceived);
+  const paymentProgress = offerAmount > 0 ? (displayCashReceived / offerAmount) * 100 : 0;
   const isFullyPaid = remaining === 0;
   const nextEmiNumber = (emiPayments?.length || 0) + 1;
 
-  // Add EMI mutation
-  const addEmiMutation = useMutation({
-    mutationFn: async (data: { amount: number; paymentDate: Date }) => {
-      console.log("Adding EMI:", { appointmentId, amount: data.amount, date: data.paymentDate, nextEmiNumber });
-      
-      // Insert EMI payment
-      const { data: insertedData, error: emiError } = await supabase
-        .from("emi_payments")
-        .insert({
-          appointment_id: appointmentId,
-          emi_number: nextEmiNumber,
-          amount: data.amount,
-          payment_date: format(data.paymentDate, "yyyy-MM-dd"),
-        })
-        .select()
-        .single();
+  // Unified save handler - saves both EMI and course access
+  const handleSaveAll = async (options: { closeAfterSuccess: boolean }) => {
+    const amount = parseFloat(emiAmount);
+    const hasEmiToSave = !isNaN(amount) && amount > 0;
+    const hasCourseAccessChanges = newClassesAccess !== classesAccess || newBatchId !== batchId;
 
-      if (emiError) {
-        console.error("EMI Insert Error:", emiError);
-        throw emiError;
+    // Check if there's anything to save
+    if (!hasEmiToSave && !hasCourseAccessChanges) {
+      toast({ 
+        title: "Nothing to save", 
+        description: "No changes detected",
+      });
+      return;
+    }
+
+    // Validate EMI amount if present
+    if (hasEmiToSave) {
+      if (amount > remaining) {
+        toast({ 
+          title: "Amount Exceeds Due", 
+          description: `EMI amount cannot exceed remaining due of ₹${remaining.toLocaleString("en-IN")}`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    
+    try {
+      let newCashReceived = displayCashReceived;
+      let newDueAmount = displayDueAmount;
+      const messages: string[] = [];
+
+      // Save EMI if present
+      if (hasEmiToSave) {
+        console.log("Adding EMI:", { appointmentId, amount, date: paymentDate, nextEmiNumber });
+        
+        // Insert EMI payment
+        const { data: insertedData, error: emiError } = await supabase
+          .from("emi_payments")
+          .insert({
+            appointment_id: appointmentId,
+            emi_number: nextEmiNumber,
+            amount: amount,
+            payment_date: format(paymentDate, "yyyy-MM-dd"),
+          })
+          .select()
+          .single();
+
+        if (emiError) {
+          console.error("EMI Insert Error:", emiError);
+          throw new Error(`Failed to add EMI: ${emiError.message}`);
+        }
+        
+        console.log("EMI Inserted:", insertedData);
+
+        // Calculate new values
+        newCashReceived = displayCashReceived + amount;
+        newDueAmount = Math.max(0, offerAmount - newCashReceived);
+
+        messages.push(`EMI ${nextEmiNumber} recorded: ₹${amount.toLocaleString("en-IN")} on ${format(paymentDate, "dd MMM yyyy")}`);
+      }
+
+      // Update call_appointments with EMI amounts and/or course access
+      const updatePayload: Record<string, unknown> = {};
+      
+      if (hasEmiToSave) {
+        updatePayload.cash_received = newCashReceived;
+        updatePayload.due_amount = newDueAmount;
       }
       
-      console.log("EMI Inserted:", insertedData);
+      if (hasCourseAccessChanges) {
+        updatePayload.classes_access = newClassesAccess;
+        updatePayload.batch_id = newBatchId;
+        messages.push("Course access updated");
+      }
 
-      // Update appointment cash_received and due_amount
-      const newCashReceived = totalReceived + data.amount;
-      const newDueAmount = Math.max(0, offerAmount - newCashReceived);
+      if (Object.keys(updatePayload).length > 0) {
+        const { error: updateError } = await supabase
+          .from("call_appointments")
+          .update(updatePayload)
+          .eq("id", appointmentId);
 
-      const { error: updateError } = await supabase
-        .from("call_appointments")
-        .update({
-          cash_received: newCashReceived,
-          due_amount: newDueAmount,
-        })
-        .eq("id", appointmentId);
+        if (updateError) {
+          throw new Error(`Failed to update appointment: ${updateError.message}`);
+        }
+      }
 
-      if (updateError) throw updateError;
+      // Update local display values immediately
+      if (hasEmiToSave) {
+        setDisplayCashReceived(newCashReceived);
+        setDisplayDueAmount(newDueAmount);
+      }
 
-      return { newCashReceived, newDueAmount };
-    },
-    onSuccess: () => {
+      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["emi-payments", appointmentId] });
       queryClient.invalidateQueries({ queryKey: ["emi-payments-inline", appointmentId] });
       queryClient.invalidateQueries({ queryKey: ["closer-appointments"] });
-      toast({ title: "EMI Added", description: `EMI ${nextEmiNumber} payment recorded successfully` });
+
+      // Show success toast
+      toast({ 
+        title: "Saved Successfully", 
+        description: messages.join(". "),
+      });
+
+      // Reset EMI form fields
       setEmiAmount("");
       setPaymentDate(new Date());
+      
       onSuccess();
-    },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
 
-  // Update course access mutation
-  const updateCourseAccessMutation = useMutation({
-    mutationFn: async (data: { classesAccess: number | null; batchId: string | null }) => {
-      const { error } = await supabase
-        .from("call_appointments")
-        .update({
-          classes_access: data.classesAccess,
-          batch_id: data.batchId,
-        })
-        .eq("id", appointmentId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["closer-appointments"] });
-      toast({ title: "Updated", description: "Course access updated successfully" });
-      onSuccess();
-      onOpenChange(false);
-    },
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const handleAddEmi = () => {
-    const amount = parseFloat(emiAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast({ title: "Invalid Amount", description: "Please enter a valid EMI amount", variant: "destructive" });
-      return;
+      if (options.closeAfterSuccess) {
+        onOpenChange(false);
+      }
+    } catch (error) {
+      console.error("Save error:", error);
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to save changes", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSaving(false);
     }
-    if (amount > remaining) {
-      toast({ title: "Amount Exceeds Due", description: `EMI amount cannot exceed remaining due of ₹${remaining.toLocaleString("en-IN")}`, variant: "destructive" });
-      return;
-    }
-    addEmiMutation.mutate({ amount, paymentDate });
-  };
-
-  const handleSaveCourseAccess = () => {
-    updateCourseAccessMutation.mutate({ classesAccess: newClassesAccess, batchId: newBatchId });
   };
 
   return (
@@ -248,7 +285,7 @@ export function UpdateEmiDialog({
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Cash Received</p>
-                <p className="text-lg font-semibold text-green-600">₹{totalReceived.toLocaleString("en-IN")}</p>
+                <p className="text-lg font-semibold text-green-600">₹{displayCashReceived.toLocaleString("en-IN")}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Remaining Due</p>
@@ -347,11 +384,11 @@ export function UpdateEmiDialog({
                 </div>
               </div>
               <Button 
-                onClick={handleAddEmi} 
-                disabled={addEmiMutation.isPending || !emiAmount}
+                onClick={() => handleSaveAll({ closeAfterSuccess: false })} 
+                disabled={isSaving || isLoadingEmi || !emiAmount}
                 className="w-full"
               >
-                {addEmiMutation.isPending ? (
+                {isSaving ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Plus className="h-4 w-4 mr-2" />
@@ -412,10 +449,17 @@ export function UpdateEmiDialog({
             Close
           </Button>
           <Button 
-            onClick={handleSaveCourseAccess}
-            disabled={updateCourseAccessMutation.isPending}
+            onClick={() => handleSaveAll({ closeAfterSuccess: true })}
+            disabled={isSaving}
           >
-            {updateCourseAccessMutation.isPending ? "Saving..." : "Save"}
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
