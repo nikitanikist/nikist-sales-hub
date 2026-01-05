@@ -13,11 +13,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, CheckCircle2, Clock, Loader2, Search, Download } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
 
 interface Batch {
   id: string;
@@ -35,14 +35,21 @@ interface BatchStudent {
   email: string;
   phone: string | null;
   classes_access: number | null;
-  access_given: boolean;
-  access_given_at: string | null;
   status: string;
   closer_id: string | null;
   closer_name: string | null;
   updated_at: string | null;
   offer_amount: number | null;
   cash_received: number | null;
+  due_amount: number | null;
+}
+
+interface EmiPayment {
+  id: string;
+  appointment_id: string;
+  emi_number: number;
+  amount: number;
+  payment_date: string;
 }
 
 const CLASSES_ACCESS_LABELS: Record<number, string> = {
@@ -71,7 +78,7 @@ const Batches = () => {
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
   const [deletingBatch, setDeletingBatch] = useState<Batch | null>(null);
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
   
   // Form state
   const [formName, setFormName] = useState("");
@@ -128,12 +135,11 @@ const Batches = () => {
           lead_id,
           closer_id,
           classes_access,
-          access_given,
-          access_given_at,
           status,
           updated_at,
           offer_amount,
           cash_received,
+          due_amount,
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
@@ -148,17 +154,34 @@ const Batches = () => {
         email: apt.lead?.email || "",
         phone: apt.lead?.phone || null,
         classes_access: apt.classes_access,
-        access_given: apt.access_given || false,
-        access_given_at: apt.access_given_at,
         status: apt.status,
         closer_id: apt.closer_id,
         closer_name: apt.closer?.full_name || null,
         updated_at: apt.updated_at,
         offer_amount: apt.offer_amount,
         cash_received: apt.cash_received,
+        due_amount: apt.due_amount,
       })) as BatchStudent[];
     },
     enabled: !!selectedBatch,
+  });
+
+  // Fetch EMI payments for expanded student
+  const { data: studentEmiPayments, isLoading: emiLoading } = useQuery({
+    queryKey: ["batch-student-emi", expandedStudentId],
+    queryFn: async () => {
+      if (!expandedStudentId) return [];
+      
+      const { data, error } = await supabase
+        .from("emi_payments")
+        .select("*")
+        .eq("appointment_id", expandedStudentId)
+        .order("emi_number", { ascending: true });
+      
+      if (error) throw error;
+      return data as EmiPayment[];
+    },
+    enabled: !!expandedStudentId,
   });
 
   // Get unique closers from batch students for filter dropdown
@@ -303,30 +326,6 @@ const Batches = () => {
     }
   };
 
-  const handleSelectStudent = (studentId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedStudents([...selectedStudents, studentId]);
-    } else {
-      setSelectedStudents(selectedStudents.filter((id) => id !== studentId));
-    }
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked && filteredStudents) {
-      setSelectedStudents(filteredStudents.filter((s) => !s.access_given).map((s) => s.id));
-    } else {
-      setSelectedStudents([]);
-    }
-  };
-
-  const handleGiveAccess = () => {
-    // This will be connected to backend in Phase 2
-    toast({ 
-      title: "Coming Soon", 
-      description: "Give Access functionality will be connected to TagMango and Pabbly in the next phase" 
-    });
-  };
-
   const handleTransferStudent = () => {
     if (!editingStudent || !newBatchId) return;
     transferMutation.mutate({ appointmentId: editingStudent.id, newBatchId });
@@ -335,34 +334,85 @@ const Batches = () => {
   // Reset filters when leaving batch detail view
   const handleBackToBatches = () => {
     setSelectedBatch(null);
-    setSelectedStudents([]);
+    setExpandedStudentId(null);
     setSearchQuery("");
     setCloserFilter("all");
     setClassesFilter("all");
   };
 
-  // Export students to CSV
-  const handleExportStudents = () => {
+  // Export students to CSV with full EMI details
+  const handleExportStudents = async () => {
     if (!filteredStudents?.length) return;
 
-    const headers = [
-      "Student Name", "Conversion Date", "Offered Amount", "Cash Received",
-      "Closer", "Email", "Phone", "Classes Access", "Status", "Access Given", "Access Given Date"
-    ];
+    // Fetch all EMI payments for all students in the batch
+    const appointmentIds = filteredStudents.map(s => s.id);
+    const { data: allEmiPayments } = await supabase
+      .from("emi_payments")
+      .select("*")
+      .in("appointment_id", appointmentIds)
+      .order("emi_number", { ascending: true });
 
-    const rows = filteredStudents.map(student => [
-      student.contact_name || "",
-      student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "",
-      student.offer_amount?.toString() || "",
-      student.cash_received?.toString() || "",
-      student.closer_name || "",
-      student.email || "",
-      student.phone || "",
-      student.classes_access ? CLASSES_ACCESS_LABELS[student.classes_access] || "" : "",
-      student.status || "",
-      student.access_given ? "Yes" : "No",
-      student.access_given_at ? format(new Date(student.access_given_at), "dd MMM yyyy") : ""
-    ]);
+    // Group EMI payments by appointment_id
+    const emiByAppointment: Record<string, EmiPayment[]> = {};
+    (allEmiPayments || []).forEach(emi => {
+      if (!emiByAppointment[emi.appointment_id]) {
+        emiByAppointment[emi.appointment_id] = [];
+      }
+      emiByAppointment[emi.appointment_id].push(emi);
+    });
+
+    // Find max number of EMIs across all students
+    const maxEmis = Math.max(1, ...Object.values(emiByAppointment).map(emis => emis.length));
+
+    // Build dynamic headers
+    const baseHeaders = [
+      "Student Name", "Conversion Date", "Offered Amount", "Cash Received", "Due Amount",
+      "Closer", "Email", "Phone", "Classes Access", "Status"
+    ];
+    
+    // Add EMI columns dynamically
+    const emiHeaders: string[] = [];
+    for (let i = 1; i <= maxEmis; i++) {
+      emiHeaders.push(`EMI ${i} Amount`, `EMI ${i} Date`);
+    }
+    emiHeaders.push("Total EMI Collected");
+
+    const headers = [...baseHeaders, ...emiHeaders];
+
+    const rows = filteredStudents.map(student => {
+      const baseData = [
+        student.contact_name || "",
+        student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "",
+        student.offer_amount?.toString() || "",
+        student.cash_received?.toString() || "",
+        student.due_amount?.toString() || "",
+        student.closer_name || "",
+        student.email || "",
+        student.phone || "",
+        student.classes_access ? CLASSES_ACCESS_LABELS[student.classes_access] || "" : "",
+        student.status || "",
+      ];
+
+      // Add EMI data
+      const studentEmis = emiByAppointment[student.id] || [];
+      const emiData: string[] = [];
+      let totalEmiCollected = 0;
+      
+      for (let i = 0; i < maxEmis; i++) {
+        const emi = studentEmis[i];
+        if (emi) {
+          emiData.push(emi.amount.toString());
+          emiData.push(format(new Date(emi.payment_date), "dd MMM yyyy"));
+          totalEmiCollected += emi.amount;
+        } else {
+          emiData.push("");
+          emiData.push("");
+        }
+      }
+      emiData.push(totalEmiCollected > 0 ? totalEmiCollected.toString() : "");
+
+      return [...baseData, ...emiData];
+    });
 
     const csvContent = [headers, ...rows]
       .map(row => row.map(cell => `"${cell}"`).join(","))
@@ -376,10 +426,73 @@ const Batches = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  const toggleStudentExpand = (studentId: string) => {
+    setExpandedStudentId(prev => prev === studentId ? null : studentId);
+  };
+
+  // EMI History Section Component
+  const EmiHistorySection = ({ student }: { student: BatchStudent }) => {
+    const totalEmiCollected = studentEmiPayments?.reduce((sum, emi) => sum + Number(emi.amount), 0) || 0;
+
+    return (
+      <div className="p-4 bg-muted/30 border-t">
+        <div className="flex items-center gap-2 mb-3">
+          <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">EMI Payment History</span>
+        </div>
+        
+        {emiLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : !studentEmiPayments?.length ? (
+          <p className="text-sm text-muted-foreground py-2">No EMI payments recorded yet</p>
+        ) : (
+          <div className="space-y-3">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="py-2">EMI #</TableHead>
+                  <TableHead className="py-2">Amount</TableHead>
+                  <TableHead className="py-2">Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {studentEmiPayments.map((emi) => (
+                  <TableRow key={emi.id}>
+                    <TableCell className="py-2">EMI {emi.emi_number}</TableCell>
+                    <TableCell className="py-2 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
+                    <TableCell className="py-2 text-muted-foreground">
+                      {format(new Date(emi.payment_date), "dd MMM yyyy")}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/50">
+                  <TableCell className="py-2 font-medium">Total</TableCell>
+                  <TableCell className="py-2 font-bold text-green-600">
+                    ₹{totalEmiCollected.toLocaleString('en-IN')}
+                  </TableCell>
+                  <TableCell className="py-2"></TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            
+            <div className="flex items-center gap-4 pt-2 border-t">
+              <div className="text-sm">
+                <span className="text-muted-foreground">Due Amount: </span>
+                <span className="font-medium text-orange-600">
+                  ₹{(student.due_amount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Batch detail view
   if (selectedBatch) {
-    const studentsWithoutAccess = filteredStudents?.filter((s) => !s.access_given) || [];
-    
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -406,12 +519,6 @@ const Batches = () => {
                 <Button variant="outline" onClick={handleExportStudents}>
                   <Download className="h-4 w-4 mr-2" />
                   Export
-                </Button>
-              )}
-              {selectedStudents.length > 0 && (
-                <Button onClick={handleGiveAccess}>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Give Access ({selectedStudents.length})
                 </Button>
               )}
             </div>
@@ -485,95 +592,104 @@ const Batches = () => {
                 <p>No students match your search or filters</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={studentsWithoutAccess.length > 0 && selectedStudents.length === studentsWithoutAccess.length}
-                        onCheckedChange={handleSelectAll}
-                        disabled={studentsWithoutAccess.length === 0}
-                      />
-                    </TableHead>
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Conversion Date</TableHead>
-                    <TableHead>Offered Amount</TableHead>
-                    <TableHead>Cash Received</TableHead>
-                    <TableHead>Closer</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Classes Access</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Access Given</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedStudents.includes(student.id)}
-                          onCheckedChange={(checked) => handleSelectStudent(student.id, checked as boolean)}
-                          disabled={student.access_given}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">{student.contact_name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {student.closer_name || "-"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{student.email}</TableCell>
-                      <TableCell className="text-sm">{student.phone || "-"}</TableCell>
-                      <TableCell>
-                        {student.classes_access ? (
-                          <Badge variant="outline">
-                            {CLASSES_ACCESS_LABELS[student.classes_access] || `${student.classes_access} Classes`}
-                          </Badge>
-                        ) : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={student.status === "converted" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                          {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {student.access_given ? (
-                          <Badge className="bg-green-100 text-green-800 border-green-200">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Yes
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Pending
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          onClick={() => {
-                            setEditingStudent(student);
-                            setNewBatchId(selectedBatch.id);
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Conversion Date</TableHead>
+                      <TableHead>Offered Amount</TableHead>
+                      <TableHead>Cash Received</TableHead>
+                      <TableHead>Due Amount</TableHead>
+                      <TableHead>Closer</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Classes Access</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStudents.map((student) => (
+                      <Collapsible
+                        key={student.id}
+                        open={expandedStudentId === student.id}
+                        onOpenChange={() => toggleStudentExpand(student.id)}
+                        asChild
+                      >
+                        <>
+                          <TableRow className={cn(
+                            expandedStudentId === student.id && "bg-muted/50"
+                          )}>
+                            <TableCell>
+                              <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  {expandedStudentId === student.id ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </CollapsibleTrigger>
+                            </TableCell>
+                            <TableCell className="font-medium">{student.contact_name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {student.updated_at ? format(new Date(student.updated_at), "dd MMM yyyy") : "-"}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium text-orange-600">
+                              {student.due_amount ? `₹${student.due_amount.toLocaleString('en-IN')}` : "-"}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {student.closer_name || "-"}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{student.email}</TableCell>
+                            <TableCell className="text-sm">{student.phone || "-"}</TableCell>
+                            <TableCell>
+                              {student.classes_access ? (
+                                <Badge variant="outline">
+                                  {CLASSES_ACCESS_LABELS[student.classes_access] || `${student.classes_access} Classes`}
+                                </Badge>
+                              ) : "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={student.status === "converted" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                                {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingStudent(student);
+                                  setNewBatchId(selectedBatch.id);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          <CollapsibleContent asChild>
+                            <tr>
+                              <td colSpan={12} className="p-0">
+                                <EmiHistorySection student={student} />
+                              </td>
+                            </tr>
+                          </CollapsibleContent>
+                        </>
+                      </Collapsible>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
