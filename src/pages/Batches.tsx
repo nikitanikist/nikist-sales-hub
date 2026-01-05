@@ -20,6 +20,7 @@ import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2,
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface Batch {
   id: string;
@@ -78,6 +79,7 @@ const CLASSES_ACCESS_LABELS: Record<number, string> = {
 const Batches = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isManager } = useUserRole();
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
@@ -358,23 +360,25 @@ const Batches = () => {
     return { closerBreakdown: breakdownArray, totals: totalsCalc };
   }, [filteredStudents, batchEmiPayments]);
 
-  // Count active filters
+  // Count active filters (exclude payment type for managers)
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (selectedClosers.length > 0) count++;
     if (selectedClasses.length > 0) count++;
     if (dateFrom || dateTo) count++;
-    if (paymentTypeFilter !== "all") count++;
+    if (!isManager && paymentTypeFilter !== "all") count++;
     return count;
-  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter]);
+  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager]);
 
-  // Clear all filters
+  // Clear all filters (managers don't have payment type filter)
   const clearAllFilters = () => {
     setSelectedClosers([]);
     setSelectedClasses([]);
     setDateFrom(undefined);
     setDateTo(undefined);
-    setPaymentTypeFilter("all");
+    if (!isManager) {
+      setPaymentTypeFilter("all");
+    }
   };
 
   // Create batch mutation
@@ -497,10 +501,40 @@ const Batches = () => {
     clearAllFilters();
   };
 
-  // Export students to CSV with full EMI details
+  // Export students to CSV with full EMI details (no financial data for managers)
   const handleExportStudents = async () => {
     if (!filteredStudents?.length) return;
 
+    // For managers, skip EMI data entirely
+    if (isManager) {
+      const headers = [
+        "Conversion Date", "Student Name", "Closer", "Email", "Phone", "Classes Access", "Status"
+      ];
+
+      const rows = filteredStudents.map(student => [
+        student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "",
+        student.contact_name || "",
+        student.closer_name || "",
+        student.email || "",
+        student.phone || "",
+        student.classes_access ? CLASSES_ACCESS_LABELS[student.classes_access] || "" : "",
+        student.status || "",
+      ]);
+
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${cell}"`).join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${selectedBatch?.name || "batch"}_students_${format(new Date(), "yyyy-MM-dd")}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      return;
+    }
+
+    // Full export for admin/closer
     // Fetch all EMI payments for all filtered students
     const appointmentIds = filteredStudents.map(s => s.id);
     const { data: allEmiPayments } = await supabase
@@ -693,140 +727,144 @@ const Batches = () => {
           </div>
         </div>
 
-        {/* Summary Cards */}
-        {paymentTypeFilter === "emi" ? (
-          // Single EMI Collected Card when EMI filter is active
-          <Card className="overflow-hidden">
-            <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-              <div className="p-4 flex flex-col justify-center bg-purple-50">
-                <p className="text-sm text-muted-foreground">EMI Collected</p>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-purple-700 break-words">
-                  ₹{totals.emiCollected.toLocaleString('en-IN')}
-                </div>
-                {(dateFrom || dateTo) && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {dateFrom && dateTo 
-                      ? `${format(dateFrom, "dd MMM")} - ${format(dateTo, "dd MMM yyyy")}`
-                      : dateFrom 
-                        ? `From ${format(dateFrom, "dd MMM yyyy")}`
-                        : `Until ${format(dateTo!, "dd MMM yyyy")}`
-                    }
-                  </p>
-                )}
-              </div>
-              <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                {closerBreakdown.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No EMI data</p>
-                ) : (
-                  closerBreakdown.map((closer, idx) => (
-                    <div key={closer.closerId} className={cn(
-                      "flex justify-between items-baseline text-sm gap-2",
-                      idx < closerBreakdown.length - 1 && "border-b pb-1"
-                    )}>
-                      <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                      <span className="font-medium whitespace-nowrap">
-                        ₹{closer.emiCollected.toLocaleString('en-IN')}
-                      </span>
+        {/* Summary Cards - Hidden for Managers */}
+        {!isManager && (
+          <>
+            {paymentTypeFilter === "emi" ? (
+              // Single EMI Collected Card when EMI filter is active
+              <Card className="overflow-hidden">
+                <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                  <div className="p-4 flex flex-col justify-center bg-purple-50">
+                    <p className="text-sm text-muted-foreground">EMI Collected</p>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-purple-700 break-words">
+                      ₹{totals.emiCollected.toLocaleString('en-IN')}
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </Card>
-        ) : (
-          // Regular three cards for All/Initial payment filter
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Offered Amount Card */}
-            <Card className="overflow-hidden">
-              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                <div className="p-4 flex flex-col justify-center bg-blue-50">
-                  <p className="text-sm text-muted-foreground">Total Offered</p>
-                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-700 break-words">
-                    ₹{totals.offered.toLocaleString('en-IN')}
+                    {(dateFrom || dateTo) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {dateFrom && dateTo 
+                          ? `${format(dateFrom, "dd MMM")} - ${format(dateTo, "dd MMM yyyy")}`
+                          : dateFrom 
+                            ? `From ${format(dateFrom, "dd MMM yyyy")}`
+                            : `Until ${format(dateTo!, "dd MMM yyyy")}`
+                        }
+                      </p>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                    <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                    {closerBreakdown.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No EMI data</p>
+                    ) : (
+                      closerBreakdown.map((closer, idx) => (
+                        <div key={closer.closerId} className={cn(
+                          "flex justify-between items-baseline text-sm gap-2",
+                          idx < closerBreakdown.length - 1 && "border-b pb-1"
+                        )}>
+                          <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                          <span className="font-medium whitespace-nowrap">
+                            ₹{closer.emiCollected.toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
-                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                  {closerBreakdown.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No data</p>
-                  ) : (
-                    closerBreakdown.map((closer, idx) => (
-                      <div key={closer.closerId} className={cn(
-                        "flex justify-between items-baseline text-sm gap-2",
-                        idx < closerBreakdown.length - 1 && "border-b pb-1"
-                      )}>
-                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                        <span className="font-medium whitespace-nowrap">
-                          ₹{closer.offered.toLocaleString('en-IN')}
-                        </span>
+              </Card>
+            ) : (
+              // Regular three cards for All/Initial payment filter
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Offered Amount Card */}
+                <Card className="overflow-hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                    <div className="p-4 flex flex-col justify-center bg-blue-50">
+                      <p className="text-sm text-muted-foreground">Total Offered</p>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-700 break-words">
+                        ₹{totals.offered.toLocaleString('en-IN')}
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </Card>
+                    </div>
+                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                      {closerBreakdown.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No data</p>
+                      ) : (
+                        closerBreakdown.map((closer, idx) => (
+                          <div key={closer.closerId} className={cn(
+                            "flex justify-between items-baseline text-sm gap-2",
+                            idx < closerBreakdown.length - 1 && "border-b pb-1"
+                          )}>
+                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                            <span className="font-medium whitespace-nowrap">
+                              ₹{closer.offered.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </Card>
 
-            {/* Cash Received Card */}
-            <Card className="overflow-hidden">
-              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                <div className="p-4 flex flex-col justify-center bg-green-50">
-                  <p className="text-sm text-muted-foreground">Cash Received</p>
-                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-700 break-words">
-                    ₹{totals.received.toLocaleString('en-IN')}
-                  </div>
-                </div>
-                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                  {closerBreakdown.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No data</p>
-                  ) : (
-                    closerBreakdown.map((closer, idx) => (
-                      <div key={closer.closerId} className={cn(
-                        "flex justify-between items-baseline text-sm gap-2",
-                        idx < closerBreakdown.length - 1 && "border-b pb-1"
-                      )}>
-                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                        <span className="font-medium whitespace-nowrap">
-                          ₹{closer.received.toLocaleString('en-IN')}
-                        </span>
+                {/* Cash Received Card */}
+                <Card className="overflow-hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                    <div className="p-4 flex flex-col justify-center bg-green-50">
+                      <p className="text-sm text-muted-foreground">Cash Received</p>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-700 break-words">
+                        ₹{totals.received.toLocaleString('en-IN')}
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </Card>
+                    </div>
+                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                      {closerBreakdown.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No data</p>
+                      ) : (
+                        closerBreakdown.map((closer, idx) => (
+                          <div key={closer.closerId} className={cn(
+                            "flex justify-between items-baseline text-sm gap-2",
+                            idx < closerBreakdown.length - 1 && "border-b pb-1"
+                          )}>
+                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                            <span className="font-medium whitespace-nowrap">
+                              ₹{closer.received.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </Card>
 
-            {/* Remaining Amount Card */}
-            <Card className="overflow-hidden">
-              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                <div className="p-4 flex flex-col justify-center bg-orange-50">
-                  <p className="text-sm text-muted-foreground">Remaining Amount</p>
-                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-orange-700 break-words">
-                    ₹{totals.due.toLocaleString('en-IN')}
-                  </div>
-                </div>
-                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                  {closerBreakdown.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No data</p>
-                  ) : (
-                    closerBreakdown.map((closer, idx) => (
-                      <div key={closer.closerId} className={cn(
-                        "flex justify-between items-baseline text-sm gap-2",
-                        idx < closerBreakdown.length - 1 && "border-b pb-1"
-                      )}>
-                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                        <span className="font-medium whitespace-nowrap">
-                          ₹{closer.due.toLocaleString('en-IN')}
-                        </span>
+                {/* Remaining Amount Card */}
+                <Card className="overflow-hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                    <div className="p-4 flex flex-col justify-center bg-orange-50">
+                      <p className="text-sm text-muted-foreground">Remaining Amount</p>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-orange-700 break-words">
+                        ₹{totals.due.toLocaleString('en-IN')}
                       </div>
-                    ))
-                  )}
-                </div>
+                    </div>
+                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                      {closerBreakdown.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No data</p>
+                      ) : (
+                        closerBreakdown.map((closer, idx) => (
+                          <div key={closer.closerId} className={cn(
+                            "flex justify-between items-baseline text-sm gap-2",
+                            idx < closerBreakdown.length - 1 && "border-b pb-1"
+                          )}>
+                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                            <span className="font-medium whitespace-nowrap">
+                              ₹{closer.due.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </Card>
               </div>
-            </Card>
-          </div>
+            )}
+          </>
         )}
 
         <Card>
@@ -855,45 +893,47 @@ const Batches = () => {
                   </SheetHeader>
                   
                   <div className="space-y-6 py-6">
-                    {/* Payment Type Filter */}
-                    <div className="space-y-3">
-                      <Label className="text-sm font-medium">Payment Type</Label>
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            id="payment-all"
-                            name="paymentType"
-                            checked={paymentTypeFilter === "all"}
-                            onChange={() => setPaymentTypeFilter("all")}
-                            className="h-4 w-4"
-                          />
-                          <label htmlFor="payment-all" className="text-sm cursor-pointer">All Payments</label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            id="payment-initial"
-                            name="paymentType"
-                            checked={paymentTypeFilter === "initial"}
-                            onChange={() => setPaymentTypeFilter("initial")}
-                            className="h-4 w-4"
-                          />
-                          <label htmlFor="payment-initial" className="text-sm cursor-pointer">Initial Payment Only</label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            id="payment-emi"
-                            name="paymentType"
-                            checked={paymentTypeFilter === "emi"}
-                            onChange={() => setPaymentTypeFilter("emi")}
-                            className="h-4 w-4"
-                          />
-                          <label htmlFor="payment-emi" className="text-sm cursor-pointer">EMI Only</label>
+                    {/* Payment Type Filter - Hidden for Managers */}
+                    {!isManager && (
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Payment Type</Label>
+                        <div className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="payment-all"
+                              name="paymentType"
+                              checked={paymentTypeFilter === "all"}
+                              onChange={() => setPaymentTypeFilter("all")}
+                              className="h-4 w-4"
+                            />
+                            <label htmlFor="payment-all" className="text-sm cursor-pointer">All Payments</label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="payment-initial"
+                              name="paymentType"
+                              checked={paymentTypeFilter === "initial"}
+                              onChange={() => setPaymentTypeFilter("initial")}
+                              className="h-4 w-4"
+                            />
+                            <label htmlFor="payment-initial" className="text-sm cursor-pointer">Initial Payment Only</label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="radio"
+                              id="payment-emi"
+                              name="paymentType"
+                              checked={paymentTypeFilter === "emi"}
+                              onChange={() => setPaymentTypeFilter("emi")}
+                              className="h-4 w-4"
+                            />
+                            <label htmlFor="payment-emi" className="text-sm cursor-pointer">EMI Only</label>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Date Range Filter */}
                     <div className="space-y-3">
@@ -1044,7 +1084,8 @@ const Batches = () => {
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-sm text-muted-foreground">Active:</span>
                 
-                {paymentTypeFilter !== "all" && (
+                {/* Payment Type Badge - Hidden for Managers */}
+                {!isManager && paymentTypeFilter !== "all" && (
                   <Badge variant="secondary" className="gap-1">
                     {paymentTypeFilter === "emi" ? "EMI Only" : "Initial Only"}
                     <X 
@@ -1124,12 +1165,14 @@ const Batches = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10"></TableHead>
+                      {/* EMI expand button - hidden for managers */}
+                      {!isManager && <TableHead className="w-10"></TableHead>}
+                      {isManager && <TableHead className="w-10"></TableHead>}
                       <TableHead>Conversion Date</TableHead>
                       <TableHead>Student Name</TableHead>
-                      <TableHead>Offered Amount</TableHead>
-                      <TableHead>Cash Received</TableHead>
-                      <TableHead>Due Amount</TableHead>
+                      {!isManager && <TableHead>Offered Amount</TableHead>}
+                      {!isManager && <TableHead>Cash Received</TableHead>}
+                      {!isManager && <TableHead>Due Amount</TableHead>}
                       <TableHead>Closer</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
@@ -1150,30 +1193,41 @@ const Batches = () => {
                           <TableRow className={cn(
                             expandedStudentId === student.id && "bg-muted/50"
                           )}>
-                            <TableCell>
-                              <CollapsibleTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                  {expandedStudentId === student.id ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </CollapsibleTrigger>
-                            </TableCell>
+                            {/* EMI expand button - only for non-managers */}
+                            {!isManager ? (
+                              <TableCell>
+                                <CollapsibleTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    {expandedStudentId === student.id ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </CollapsibleTrigger>
+                              </TableCell>
+                            ) : (
+                              <TableCell></TableCell>
+                            )}
                             <TableCell className="text-sm text-muted-foreground">
                               {student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "-"}
                             </TableCell>
                             <TableCell className="font-medium">{student.contact_name}</TableCell>
-                            <TableCell className="text-sm font-medium">
-                              {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
-                            </TableCell>
-                            <TableCell className="text-sm font-medium">
-                              {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
-                            </TableCell>
-                            <TableCell className="text-sm font-medium text-orange-600">
-                              {student.due_amount ? `₹${student.due_amount.toLocaleString('en-IN')}` : "-"}
-                            </TableCell>
+                            {!isManager && (
+                              <TableCell className="text-sm font-medium">
+                                {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
+                              </TableCell>
+                            )}
+                            {!isManager && (
+                              <TableCell className="text-sm font-medium">
+                                {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
+                              </TableCell>
+                            )}
+                            {!isManager && (
+                              <TableCell className="text-sm font-medium text-orange-600">
+                                {student.due_amount ? `₹${student.due_amount.toLocaleString('en-IN')}` : "-"}
+                              </TableCell>
+                            )}
                             <TableCell className="text-sm text-muted-foreground">
                               {student.closer_name || "-"}
                             </TableCell>
@@ -1205,13 +1259,16 @@ const Batches = () => {
                               </Button>
                             </TableCell>
                           </TableRow>
-                          <CollapsibleContent asChild>
-                            <tr>
-                              <td colSpan={12} className="p-0">
-                                <EmiHistorySection student={student} />
-                              </td>
-                            </tr>
-                          </CollapsibleContent>
+                          {/* EMI History - Hidden for Managers */}
+                          {!isManager && (
+                            <CollapsibleContent asChild>
+                              <tr>
+                                <td colSpan={12} className="p-0">
+                                  <EmiHistorySection student={student} />
+                                </td>
+                              </tr>
+                            </CollapsibleContent>
+                          )}
                         </>
                       </Collapsible>
                     ))}

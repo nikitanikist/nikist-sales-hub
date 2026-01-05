@@ -74,10 +74,11 @@ const AppLayout = () => {
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
   ];
 
-  // Manager menu items - can see closers, workshops, and customers (read-only)
+  // Manager menu items - can see closers, workshops, customers (read-only), and batches (no financial data)
   const managerMenuItems = [
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
+    { title: "Batches", icon: GraduationCap, path: "/batches" },
     { title: "All Workshops", icon: Calendar, path: "/workshops" },
   ];
 
