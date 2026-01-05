@@ -18,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 
 interface Batch {
@@ -260,23 +260,34 @@ const Batches = () => {
         (student.classes_access && selectedClasses.includes(student.classes_access.toString()));
       
       // Date range filter (based on scheduled_date for initial, or EMI payment_date)
+      // Convert UTC to IST (add 5 hours 30 minutes) and compare date portions only
+      const convertToISTDate = (dateString: string): Date => {
+        const utcDate = new Date(dateString);
+        // Add 5 hours 30 minutes for IST
+        const istDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000));
+        return startOfDay(istDate);
+      };
+      
       let matchesDate = true;
       if (dateFrom || dateTo) {
+        const fromDateNormalized = dateFrom ? startOfDay(dateFrom) : null;
+        const toDateNormalized = dateTo ? startOfDay(dateTo) : null;
+        
         if (paymentTypeFilter === "emi") {
           // For EMI filter, check if student has EMI payments in date range
           const studentEmis = batchEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
           matchesDate = studentEmis.some(emi => {
-            const emiDate = new Date(emi.payment_date);
-            const afterFrom = !dateFrom || emiDate >= dateFrom;
-            const beforeTo = !dateTo || emiDate <= dateTo;
+            const emiDateIST = convertToISTDate(emi.payment_date);
+            const afterFrom = !fromDateNormalized || emiDateIST >= fromDateNormalized;
+            const beforeTo = !toDateNormalized || emiDateIST <= toDateNormalized;
             return afterFrom && beforeTo;
           });
         } else {
           // For initial/all, check scheduled_date
           if (student.scheduled_date) {
-            const scheduledDate = new Date(student.scheduled_date);
-            const afterFrom = !dateFrom || scheduledDate >= dateFrom;
-            const beforeTo = !dateTo || scheduledDate <= dateTo;
+            const scheduledDateIST = convertToISTDate(student.scheduled_date);
+            const afterFrom = !fromDateNormalized || scheduledDateIST >= fromDateNormalized;
+            const beforeTo = !toDateNormalized || scheduledDateIST <= toDateNormalized;
             matchesDate = afterFrom && beforeTo;
           } else {
             matchesDate = false;
@@ -686,10 +697,10 @@ const Batches = () => {
         {paymentTypeFilter === "emi" ? (
           // Single EMI Collected Card when EMI filter is active
           <Card className="overflow-hidden">
-            <div className="grid grid-cols-2 divide-x">
+            <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
               <div className="p-4 flex flex-col justify-center bg-purple-50">
                 <p className="text-sm text-muted-foreground">EMI Collected</p>
-                <div className="text-2xl font-bold text-purple-700">
+                <div className="text-lg sm:text-xl md:text-2xl font-bold text-purple-700 break-words">
                   ₹{totals.emiCollected.toLocaleString('en-IN')}
                 </div>
                 {(dateFrom || dateTo) && (
@@ -710,11 +721,11 @@ const Batches = () => {
                 ) : (
                   closerBreakdown.map((closer, idx) => (
                     <div key={closer.closerId} className={cn(
-                      "flex justify-between items-baseline text-sm",
+                      "flex justify-between items-baseline text-sm gap-2",
                       idx < closerBreakdown.length - 1 && "border-b pb-1"
                     )}>
-                      <span className="truncate">{closer.closerName}</span>
-                      <span className="font-medium ml-2">
+                      <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                      <span className="font-medium whitespace-nowrap">
                         ₹{closer.emiCollected.toLocaleString('en-IN')}
                       </span>
                     </div>
@@ -728,10 +739,10 @@ const Batches = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Offered Amount Card */}
             <Card className="overflow-hidden">
-              <div className="grid grid-cols-2 divide-x">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                 <div className="p-4 flex flex-col justify-center bg-blue-50">
                   <p className="text-sm text-muted-foreground">Total Offered</p>
-                  <div className="text-2xl font-bold text-blue-700">
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-700 break-words">
                     ₹{totals.offered.toLocaleString('en-IN')}
                   </div>
                 </div>
@@ -742,11 +753,11 @@ const Batches = () => {
                   ) : (
                     closerBreakdown.map((closer, idx) => (
                       <div key={closer.closerId} className={cn(
-                        "flex justify-between items-baseline text-sm",
+                        "flex justify-between items-baseline text-sm gap-2",
                         idx < closerBreakdown.length - 1 && "border-b pb-1"
                       )}>
-                        <span className="truncate">{closer.closerName}</span>
-                        <span className="font-medium ml-2">
+                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                        <span className="font-medium whitespace-nowrap">
                           ₹{closer.offered.toLocaleString('en-IN')}
                         </span>
                       </div>
@@ -758,10 +769,10 @@ const Batches = () => {
 
             {/* Cash Received Card */}
             <Card className="overflow-hidden">
-              <div className="grid grid-cols-2 divide-x">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                 <div className="p-4 flex flex-col justify-center bg-green-50">
                   <p className="text-sm text-muted-foreground">Cash Received</p>
-                  <div className="text-2xl font-bold text-green-700">
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-700 break-words">
                     ₹{totals.received.toLocaleString('en-IN')}
                   </div>
                 </div>
@@ -772,11 +783,11 @@ const Batches = () => {
                   ) : (
                     closerBreakdown.map((closer, idx) => (
                       <div key={closer.closerId} className={cn(
-                        "flex justify-between items-baseline text-sm",
+                        "flex justify-between items-baseline text-sm gap-2",
                         idx < closerBreakdown.length - 1 && "border-b pb-1"
                       )}>
-                        <span className="truncate">{closer.closerName}</span>
-                        <span className="font-medium ml-2">
+                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                        <span className="font-medium whitespace-nowrap">
                           ₹{closer.received.toLocaleString('en-IN')}
                         </span>
                       </div>
@@ -788,10 +799,10 @@ const Batches = () => {
 
             {/* Remaining Amount Card */}
             <Card className="overflow-hidden">
-              <div className="grid grid-cols-2 divide-x">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                 <div className="p-4 flex flex-col justify-center bg-orange-50">
                   <p className="text-sm text-muted-foreground">Remaining Amount</p>
-                  <div className="text-2xl font-bold text-orange-700">
+                  <div className="text-lg sm:text-xl md:text-2xl font-bold text-orange-700 break-words">
                     ₹{totals.due.toLocaleString('en-IN')}
                   </div>
                 </div>
@@ -802,11 +813,11 @@ const Batches = () => {
                   ) : (
                     closerBreakdown.map((closer, idx) => (
                       <div key={closer.closerId} className={cn(
-                        "flex justify-between items-baseline text-sm",
+                        "flex justify-between items-baseline text-sm gap-2",
                         idx < closerBreakdown.length - 1 && "border-b pb-1"
                       )}>
-                        <span className="truncate">{closer.closerName}</span>
-                        <span className="font-medium ml-2">
+                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                        <span className="font-medium whitespace-nowrap">
                           ₹{closer.due.toLocaleString('en-IN')}
                         </span>
                       </div>
