@@ -60,7 +60,7 @@ const Calls = () => {
   const [editingAppointment, setEditingAppointment] = useState<any>(null);
   const [selectedCloserId, setSelectedCloserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
-  const { isAdmin, isCloser, profileId, isLoading: roleLoading } = useUserRole();
+  const { isAdmin, isCloser, isManager, profileId, isLoading: roleLoading } = useUserRole();
 
   const getSelectedDate = () => {
     const today = new Date();
@@ -124,11 +124,23 @@ const Calls = () => {
     enabled: !roleLoading,
   });
 
-  // Fetch closers with call counts
-  const { data: closers } = useQuery<{ id: string; full_name: string; call_count: number }[]>({
-    queryKey: ["closers-with-calls", selectedDate, profileId, isCloser],
+  // Fetch closers with call metrics
+  type CloserMetrics = {
+    id: string;
+    full_name: string;
+    total_calls: number;
+    offered_amount: number;
+    cash_collected: number;
+    converted_count: number;
+    not_converted_count: number;
+    rescheduled_count: number;
+    pending_count: number;
+  };
+
+  const { data: closerMetrics } = useQuery<CloserMetrics[]>({
+    queryKey: ["closer-metrics", selectedDate, profileId, isCloser, isManager],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('get_closer_call_counts', {
+      const { data, error } = await supabase.rpc('get_closer_call_metrics', {
         target_date: selectedDate
       });
 
@@ -136,14 +148,14 @@ const Calls = () => {
       
       // If user is a closer, filter to only their card
       if (isCloser && !isAdmin && profileId) {
-        return (data as { id: string; full_name: string; call_count: number }[]).filter(
+        return (data as CloserMetrics[]).filter(
           (closer) => closer.id === profileId
         );
       }
       
-      return data as unknown as { id: string; full_name: string; call_count: number }[];
+      return data as CloserMetrics[];
     },
-    enabled: !roleLoading,
+    enabled: !roleLoading && !isManager,
   });
 
   // Update appointment mutation
@@ -275,45 +287,137 @@ const Calls = () => {
         </CardContent>
       </Card>
 
-      {/* Closer Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Show All Card */}
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover:shadow-md",
-            selectedCloserId === null && "ring-2 ring-primary"
-          )}
-          onClick={() => setSelectedCloserId(null)}
-        >
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">All Closers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold">
-              {closers?.reduce((sum, c) => sum + c.call_count, 0) || 0}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Total calls</p>
-          </CardContent>
-        </Card>
-        {closers?.map((closer) => (
+      {/* Closer Cards - Hidden for Managers */}
+      {!isManager && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Show All Closers Card */}
           <Card 
-            key={closer.id}
             className={cn(
-              "cursor-pointer transition-all hover:shadow-md",
-              selectedCloserId === closer.id && "ring-2 ring-primary"
+              "cursor-pointer transition-all hover:shadow-md overflow-hidden",
+              selectedCloserId === null && "ring-2 ring-primary"
             )}
-            onClick={() => setSelectedCloserId(selectedCloserId === closer.id ? null : closer.id)}
+            onClick={() => setSelectedCloserId(null)}
           >
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">{closer.full_name}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-4xl font-bold">{closer.call_count}</div>
-              <p className="text-xs text-muted-foreground mt-1">Scheduled calls</p>
-            </CardContent>
+            <div className="grid grid-cols-2 divide-x">
+              {/* Left Column */}
+              <div className="p-4 flex flex-col justify-center">
+                <h3 className="text-lg font-medium mb-2">All Closers</h3>
+                <div className="text-5xl font-bold">
+                  {closerMetrics?.reduce((sum, c) => sum + (c.total_calls || 0), 0) || 0}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">Total calls</p>
+              </div>
+              
+              {/* Right Column */}
+              <div className="p-4 space-y-3">
+                {/* Financial Row */}
+                <div className="flex gap-4">
+                  <div>
+                    <div className="text-lg font-bold">
+                      ₹{(closerMetrics?.reduce((sum, c) => sum + (c.offered_amount || 0), 0) || 0).toLocaleString('en-IN')}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Offered amt</p>
+                  </div>
+                  <div>
+                    <div className="text-lg font-bold">
+                      ₹{(closerMetrics?.reduce((sum, c) => sum + (c.cash_collected || 0), 0) || 0).toLocaleString('en-IN')}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Cash collected</p>
+                  </div>
+                </div>
+                
+                {/* Status Breakdown */}
+                <div className="border-t pt-3 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>Converted</span>
+                    <span className="font-medium text-green-600">
+                      {closerMetrics?.reduce((sum, c) => sum + (c.converted_count || 0), 0) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1">
+                    <span>Rescheduled</span>
+                    <span className="font-medium text-purple-600">
+                      {closerMetrics?.reduce((sum, c) => sum + (c.rescheduled_count || 0), 0) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Pending</span>
+                    <span className="font-medium text-blue-600">
+                      {closerMetrics?.reduce((sum, c) => sum + (c.pending_count || 0), 0) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1">
+                    <span>Not Converted</span>
+                    <span className="font-medium text-red-600">
+                      {closerMetrics?.reduce((sum, c) => sum + (c.not_converted_count || 0), 0) || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </Card>
-        ))}
-      </div>
+
+          {/* Individual Closer Cards */}
+          {closerMetrics?.map((closer) => (
+            <Card 
+              key={closer.id}
+              className={cn(
+                "cursor-pointer transition-all hover:shadow-md overflow-hidden",
+                selectedCloserId === closer.id && "ring-2 ring-primary"
+              )}
+              onClick={() => setSelectedCloserId(selectedCloserId === closer.id ? null : closer.id)}
+            >
+              <div className="grid grid-cols-2 divide-x">
+                {/* Left Column */}
+                <div className="p-4 flex flex-col justify-center">
+                  <h3 className="text-lg font-medium mb-2">{closer.full_name}</h3>
+                  <div className="text-5xl font-bold">{closer.total_calls || 0}</div>
+                  <p className="text-sm text-muted-foreground mt-1">Total calls</p>
+                </div>
+                
+                {/* Right Column */}
+                <div className="p-4 space-y-3">
+                  {/* Financial Row */}
+                  <div className="flex gap-4">
+                    <div>
+                      <div className="text-lg font-bold">
+                        ₹{(closer.offered_amount || 0).toLocaleString('en-IN')}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Offered amt</p>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold">
+                        ₹{(closer.cash_collected || 0).toLocaleString('en-IN')}
+                      </div>
+                      <p className="text-xs text-muted-foreground">Cash collected</p>
+                    </div>
+                  </div>
+                  
+                  {/* Status Breakdown */}
+                  <div className="border-t pt-3 space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Converted</span>
+                      <span className="font-medium text-green-600">{closer.converted_count || 0}</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-1">
+                      <span>Rescheduled</span>
+                      <span className="font-medium text-purple-600">{closer.rescheduled_count || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pending</span>
+                      <span className="font-medium text-blue-600">{closer.pending_count || 0}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1">
+                      <span>Not Converted</span>
+                      <span className="font-medium text-red-600">{closer.not_converted_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Appointments Table */}
       <Card>

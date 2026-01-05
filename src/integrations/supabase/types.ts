@@ -888,6 +888,20 @@ export type Database = {
           id: string
         }[]
       }
+      get_closer_call_metrics: {
+        Args: { target_date: string }
+        Returns: {
+          cash_collected: number
+          converted_count: number
+          full_name: string
+          id: string
+          not_converted_count: number
+          offered_amount: number
+          pending_count: number
+          rescheduled_count: number
+          total_calls: number
+        }[]
+      }
       get_product_user_counts: {
         Args: never
         Returns: {
