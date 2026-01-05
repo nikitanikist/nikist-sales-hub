@@ -133,17 +133,26 @@ export function UpdateEmiDialog({
   // Add EMI mutation
   const addEmiMutation = useMutation({
     mutationFn: async (data: { amount: number; paymentDate: Date }) => {
+      console.log("Adding EMI:", { appointmentId, amount: data.amount, date: data.paymentDate, nextEmiNumber });
+      
       // Insert EMI payment
-      const { error: emiError } = await supabase
+      const { data: insertedData, error: emiError } = await supabase
         .from("emi_payments")
         .insert({
           appointment_id: appointmentId,
           emi_number: nextEmiNumber,
           amount: data.amount,
           payment_date: format(data.paymentDate, "yyyy-MM-dd"),
-        });
+        })
+        .select()
+        .single();
 
-      if (emiError) throw emiError;
+      if (emiError) {
+        console.error("EMI Insert Error:", emiError);
+        throw emiError;
+      }
+      
+      console.log("EMI Inserted:", insertedData);
 
       // Update appointment cash_received and due_amount
       const newCashReceived = totalReceived + data.amount;
@@ -163,10 +172,12 @@ export function UpdateEmiDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["emi-payments", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["emi-payments-inline", appointmentId] });
       queryClient.invalidateQueries({ queryKey: ["closer-appointments"] });
       toast({ title: "EMI Added", description: `EMI ${nextEmiNumber} payment recorded successfully` });
       setEmiAmount("");
       setPaymentDate(new Date());
+      onSuccess();
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -404,7 +415,7 @@ export function UpdateEmiDialog({
             onClick={handleSaveCourseAccess}
             disabled={updateCourseAccessMutation.isPending}
           >
-            {updateCourseAccessMutation.isPending ? "Saving..." : "Save Course Access"}
+            {updateCourseAccessMutation.isPending ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>
