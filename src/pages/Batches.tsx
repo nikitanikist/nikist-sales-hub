@@ -369,7 +369,7 @@ const Batches = () => {
 
     // Build dynamic headers
     const baseHeaders = [
-      "Student Name", "Conversion Date", "Offered Amount", "Cash Received", "Due Amount",
+      "Conversion Date", "Student Name", "Offered Amount", "Cash Received", "Due Amount",
       "Closer", "Email", "Phone", "Initial Classes Access", "Status"
     ];
     
@@ -384,8 +384,8 @@ const Batches = () => {
 
     const rows = filteredStudents.map(student => {
       const baseData = [
-        student.contact_name || "",
         student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "",
+        student.contact_name || "",
         student.offer_amount?.toString() || "",
         student.cash_received?.toString() || "",
         student.due_amount?.toString() || "",
