@@ -311,18 +311,18 @@ const Calls = () => {
               {/* Right Column */}
               <div className="p-4 space-y-3">
                 {/* Financial Row */}
-                <div className="flex gap-4">
-                  <div>
-                    <div className="text-lg font-bold">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-xs text-muted-foreground">Offered amt</span>
+                    <span className="text-base font-bold">
                       ₹{(closerMetrics?.reduce((sum, c) => sum + (c.offered_amount || 0), 0) || 0).toLocaleString('en-IN')}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Offered amt</p>
+                    </span>
                   </div>
-                  <div>
-                    <div className="text-lg font-bold">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-xs text-muted-foreground">Cash collected</span>
+                    <span className="text-base font-bold">
                       ₹{(closerMetrics?.reduce((sum, c) => sum + (c.cash_collected || 0), 0) || 0).toLocaleString('en-IN')}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Cash collected</p>
+                    </span>
                   </div>
                 </div>
                 
@@ -378,18 +378,18 @@ const Calls = () => {
                 {/* Right Column */}
                 <div className="p-4 space-y-3">
                   {/* Financial Row */}
-                  <div className="flex gap-4">
-                    <div>
-                      <div className="text-lg font-bold">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-xs text-muted-foreground">Offered amt</span>
+                      <span className="text-base font-bold">
                         ₹{(closer.offered_amount || 0).toLocaleString('en-IN')}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Offered amt</p>
+                      </span>
                     </div>
-                    <div>
-                      <div className="text-lg font-bold">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-xs text-muted-foreground">Cash collected</span>
+                      <span className="text-base font-bold">
                         ₹{(closer.cash_collected || 0).toLocaleString('en-IN')}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Cash collected</p>
+                      </span>
                     </div>
                   </div>
                   
