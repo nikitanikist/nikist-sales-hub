@@ -50,6 +50,8 @@ interface EmiPayment {
   emi_number: number;
   amount: number;
   payment_date: string;
+  previous_classes_access: number | null;
+  new_classes_access: number | null;
 }
 
 const CLASSES_ACCESS_LABELS: Record<number, string> = {
@@ -370,10 +372,10 @@ const Batches = () => {
       "Closer", "Email", "Phone", "Classes Access", "Status"
     ];
     
-    // Add EMI columns dynamically
+    // Add EMI columns dynamically with class access tracking
     const emiHeaders: string[] = [];
     for (let i = 1; i <= maxEmis; i++) {
-      emiHeaders.push(`EMI ${i} Amount`, `EMI ${i} Date`);
+      emiHeaders.push(`EMI ${i} Amount`, `EMI ${i} Date`, `EMI ${i} Prev Classes`, `EMI ${i} New Classes`);
     }
     emiHeaders.push("Total EMI Collected");
 
@@ -403,8 +405,12 @@ const Batches = () => {
         if (emi) {
           emiData.push(emi.amount.toString());
           emiData.push(format(new Date(emi.payment_date), "dd MMM yyyy"));
+          emiData.push(emi.previous_classes_access ? CLASSES_ACCESS_LABELS[emi.previous_classes_access] || emi.previous_classes_access.toString() : "");
+          emiData.push(emi.new_classes_access ? CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access.toString() : "");
           totalEmiCollected += emi.amount;
         } else {
+          emiData.push("");
+          emiData.push("");
           emiData.push("");
           emiData.push("");
         }
@@ -455,6 +461,7 @@ const Batches = () => {
                   <TableHead className="py-2">EMI #</TableHead>
                   <TableHead className="py-2">Amount</TableHead>
                   <TableHead className="py-2">Date</TableHead>
+                  <TableHead className="py-2">Classes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -464,6 +471,11 @@ const Batches = () => {
                     <TableCell className="py-2 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
                     <TableCell className="py-2 text-muted-foreground">
                       {format(new Date(emi.payment_date), "dd MMM yyyy")}
+                    </TableCell>
+                    <TableCell className="py-2 text-sm text-muted-foreground">
+                      {emi.previous_classes_access && emi.new_classes_access && emi.previous_classes_access !== emi.new_classes_access
+                        ? `${CLASSES_ACCESS_LABELS[emi.previous_classes_access] || emi.previous_classes_access} → ${CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access}`
+                        : emi.new_classes_access ? CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access : "-"}
                     </TableCell>
                   </TableRow>
                 ))}

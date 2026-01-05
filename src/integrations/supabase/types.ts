@@ -358,7 +358,9 @@ export type Database = {
           created_by: string | null
           emi_number: number
           id: string
+          new_classes_access: number | null
           payment_date: string
+          previous_classes_access: number | null
         }
         Insert: {
           amount: number
@@ -367,7 +369,9 @@ export type Database = {
           created_by?: string | null
           emi_number: number
           id?: string
+          new_classes_access?: number | null
           payment_date: string
+          previous_classes_access?: number | null
         }
         Update: {
           amount?: number
@@ -376,7 +380,9 @@ export type Database = {
           created_by?: string | null
           emi_number?: number
           id?: string
+          new_classes_access?: number | null
           payment_date?: string
+          previous_classes_access?: number | null
         }
         Relationships: [
           {

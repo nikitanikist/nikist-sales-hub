@@ -28,6 +28,8 @@ interface EmiPayment {
   amount: number;
   payment_date: string;
   created_at: string;
+  previous_classes_access: number | null;
+  new_classes_access: number | null;
 }
 
 interface UpdateEmiDialogProps {
@@ -173,7 +175,7 @@ export function UpdateEmiDialog({
       if (hasEmiToSave) {
         console.log("Adding EMI:", { appointmentId, amount, date: paymentDate, nextEmiNumber });
         
-        // Insert EMI payment
+        // Insert EMI payment with class access tracking
         const { data: insertedData, error: emiError } = await supabase
           .from("emi_payments")
           .insert({
@@ -181,6 +183,8 @@ export function UpdateEmiDialog({
             emi_number: nextEmiNumber,
             amount: amount,
             payment_date: format(paymentDate, "yyyy-MM-dd"),
+            previous_classes_access: classesAccess,
+            new_classes_access: newClassesAccess,
           })
           .select()
           .single();
@@ -326,6 +330,7 @@ export function UpdateEmiDialog({
                       <th className="text-left px-4 py-2 font-medium">EMI #</th>
                       <th className="text-left px-4 py-2 font-medium">Amount</th>
                       <th className="text-left px-4 py-2 font-medium">Date</th>
+                      <th className="text-left px-4 py-2 font-medium">Classes</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -334,6 +339,11 @@ export function UpdateEmiDialog({
                         <td className="px-4 py-2">EMI {emi.emi_number}</td>
                         <td className="px-4 py-2 text-green-600">₹{Number(emi.amount).toLocaleString("en-IN")}</td>
                         <td className="px-4 py-2">{format(new Date(emi.payment_date), "dd MMM yyyy")}</td>
+                        <td className="px-4 py-2 text-sm text-muted-foreground">
+                          {emi.previous_classes_access && emi.new_classes_access && emi.previous_classes_access !== emi.new_classes_access
+                            ? `${emi.previous_classes_access} → ${emi.new_classes_access}`
+                            : emi.new_classes_access || emi.previous_classes_access || "-"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
