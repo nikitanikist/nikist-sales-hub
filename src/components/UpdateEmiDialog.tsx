@@ -84,6 +84,7 @@ export function UpdateEmiDialog({
   const [newClassesAccess, setNewClassesAccess] = useState<number | null>(classesAccess);
   const [newBatchId, setNewBatchId] = useState<string | null>(batchId);
   const [isSaving, setIsSaving] = useState(false);
+  const [newOfferAmount, setNewOfferAmount] = useState<number>(offerAmount);
   
   // Local state for immediate UI updates
   const [displayCashReceived, setDisplayCashReceived] = useState(cashReceived);
@@ -98,8 +99,9 @@ export function UpdateEmiDialog({
       setNewBatchId(batchId);
       setDisplayCashReceived(cashReceived);
       setDisplayDueAmount(dueAmount);
+      setNewOfferAmount(offerAmount);
     }
-  }, [open, classesAccess, batchId, cashReceived, dueAmount]);
+  }, [open, classesAccess, batchId, cashReceived, dueAmount, offerAmount]);
 
   // Fetch EMI payments for this appointment
   const { data: emiPayments, isLoading: isLoadingEmi } = useQuery({
@@ -131,23 +133,36 @@ export function UpdateEmiDialog({
     enabled: open,
   });
 
-  // Calculate totals using local display values for immediate feedback
-  const remaining = Math.max(0, offerAmount - displayCashReceived);
-  const paymentProgress = offerAmount > 0 ? (displayCashReceived / offerAmount) * 100 : 0;
+  // Calculate totals using newOfferAmount for real-time preview
+  const effectiveOfferAmount = newOfferAmount;
+  const remaining = Math.max(0, effectiveOfferAmount - displayCashReceived);
+  const paymentProgress = effectiveOfferAmount > 0 ? (displayCashReceived / effectiveOfferAmount) * 100 : 0;
   const isFullyPaid = remaining === 0;
   const nextEmiNumber = (emiPayments?.length || 0) + 1;
+  const hasOfferAmountChange = newOfferAmount !== offerAmount;
 
   // Unified save handler - saves both EMI and course access
   const handleSaveAll = async (options: { closeAfterSuccess: boolean }) => {
     const amount = parseFloat(emiAmount);
     const hasEmiToSave = !isNaN(amount) && amount > 0;
     const hasCourseAccessChanges = newClassesAccess !== classesAccess || newBatchId !== batchId;
+    const offerAmountChanged = newOfferAmount !== offerAmount;
 
     // Check if there's anything to save
-    if (!hasEmiToSave && !hasCourseAccessChanges) {
+    if (!hasEmiToSave && !hasCourseAccessChanges && !offerAmountChanged) {
       toast({ 
         title: "Nothing to save", 
         description: "No changes detected",
+      });
+      return;
+    }
+
+    // Validate offer amount
+    if (offerAmountChanged && newOfferAmount < displayCashReceived) {
+      toast({ 
+        title: "Invalid Offer Amount", 
+        description: `Offer amount cannot be less than cash already received (₹${displayCashReceived.toLocaleString("en-IN")})`, 
+        variant: "destructive" 
       });
       return;
     }
@@ -207,9 +222,21 @@ export function UpdateEmiDialog({
       // Update call_appointments with EMI amounts and/or course access
       const updatePayload: Record<string, unknown> = {};
       
+      // Handle offer amount change first (recalculates due)
+      if (offerAmountChanged) {
+        updatePayload.offer_amount = newOfferAmount;
+        // Recalculate due based on new offer amount
+        newDueAmount = Math.max(0, newOfferAmount - newCashReceived);
+        updatePayload.due_amount = newDueAmount;
+        messages.push(`Offer amount updated to ₹${newOfferAmount.toLocaleString("en-IN")}`);
+      }
+      
       if (hasEmiToSave) {
         updatePayload.cash_received = newCashReceived;
-        updatePayload.due_amount = newDueAmount;
+        // Only update due_amount if not already set by offer change
+        if (!offerAmountChanged) {
+          updatePayload.due_amount = newDueAmount;
+        }
       }
       
       if (hasCourseAccessChanges) {
@@ -239,6 +266,8 @@ export function UpdateEmiDialog({
       queryClient.invalidateQueries({ queryKey: ["emi-payments", appointmentId] });
       queryClient.invalidateQueries({ queryKey: ["emi-payments-inline", appointmentId] });
       queryClient.invalidateQueries({ queryKey: ["closer-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-metrics"] });
 
       // Show success toast
       toast({ 
@@ -286,7 +315,14 @@ export function UpdateEmiDialog({
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Offer Amount</p>
-                <p className="text-lg font-semibold">₹{offerAmount.toLocaleString("en-IN")}</p>
+                <p className="text-lg font-semibold">
+                  ₹{effectiveOfferAmount.toLocaleString("en-IN")}
+                  {hasOfferAmountChange && (
+                    <span className="text-sm text-amber-600 ml-2">
+                      (was ₹{offerAmount.toLocaleString("en-IN")})
+                    </span>
+                  )}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Cash Received</p>
@@ -311,6 +347,37 @@ export function UpdateEmiDialog({
                 <CheckCircle2 className="h-5 w-5" />
                 <span className="font-medium">Fully Paid</span>
               </div>
+            )}
+          </div>
+
+          {/* Update Offer Amount */}
+          <div className="space-y-3 rounded-lg border p-4 bg-amber-50/50 border-amber-200">
+            <h4 className="font-semibold text-sm uppercase tracking-wide text-amber-700">
+              Update Offer Amount
+            </h4>
+            <div className="flex gap-4 items-end">
+              <div className="flex-1 space-y-2">
+                <Label>New Offer Amount (₹)</Label>
+                <Input
+                  type="number"
+                  placeholder="Enter new offer amount"
+                  value={newOfferAmount}
+                  onChange={(e) => setNewOfferAmount(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p>Original: ₹{offerAmount.toLocaleString("en-IN")}</p>
+                {hasOfferAmountChange && (
+                  <p className="text-amber-600 font-medium">
+                    New Due: ₹{Math.max(0, newOfferAmount - displayCashReceived).toLocaleString("en-IN")}
+                  </p>
+                )}
+              </div>
+            </div>
+            {newOfferAmount < displayCashReceived && (
+              <p className="text-red-500 text-sm">
+                Warning: Offer amount cannot be less than cash already received (₹{displayCashReceived.toLocaleString("en-IN")})
+              </p>
             )}
           </div>
 
