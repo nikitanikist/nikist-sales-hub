@@ -16,7 +16,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X } from "lucide-react";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -45,6 +48,7 @@ interface BatchStudent {
   offer_amount: number | null;
   cash_received: number | null;
   due_amount: number | null;
+  additional_comments: string | null;
 }
 
 interface EmiPayment {
@@ -109,6 +113,11 @@ const Batches = () => {
   // Edit batch dialog state
   const [editingStudent, setEditingStudent] = useState<BatchStudent | null>(null);
   const [newBatchId, setNewBatchId] = useState<string>("");
+  
+  // Refund and notes dialog state
+  const [refundingStudent, setRefundingStudent] = useState<BatchStudent | null>(null);
+  const [notesStudent, setNotesStudent] = useState<BatchStudent | null>(null);
+  const [notesText, setNotesText] = useState<string>("");
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -155,6 +164,7 @@ const Batches = () => {
           offer_amount,
           cash_received,
           due_amount,
+          additional_comments,
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
@@ -176,6 +186,7 @@ const Batches = () => {
         offer_amount: apt.offer_amount,
         cash_received: apt.cash_received,
         due_amount: apt.due_amount,
+        additional_comments: apt.additional_comments,
       })) as BatchStudent[];
     },
     enabled: !!selectedBatch,
@@ -448,6 +459,45 @@ const Batches = () => {
       toast({ title: "Student Transferred", description: "Student has been moved to the new batch" });
       setEditingStudent(null);
       setNewBatchId("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mark student as refunded mutation
+  const markRefundedMutation = useMutation({
+    mutationFn: async (appointmentId: string) => {
+      const { error } = await supabase
+        .from("call_appointments")
+        .update({ status: "refunded" })
+        .eq("id", appointmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batch-students", selectedBatch?.id] });
+      toast({ title: "Status Updated", description: "Student has been marked as refunded" });
+      setRefundingStudent(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Update notes mutation
+  const updateNotesMutation = useMutation({
+    mutationFn: async ({ appointmentId, notes }: { appointmentId: string; notes: string }) => {
+      const { error } = await supabase
+        .from("call_appointments")
+        .update({ additional_comments: notes })
+        .eq("id", appointmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batch-students", selectedBatch?.id] });
+      toast({ title: "Notes Saved", description: "Notes have been saved successfully" });
+      setNotesStudent(null);
+      setNotesText("");
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1191,7 +1241,8 @@ const Batches = () => {
                       >
                         <>
                           <TableRow className={cn(
-                            expandedStudentId === student.id && "bg-muted/50"
+                            expandedStudentId === student.id && "bg-muted/50",
+                            student.status === "refunded" && "bg-amber-50/70"
                           )}>
                             {/* EMI expand button - only for non-managers */}
                             {!isManager ? (
@@ -1212,7 +1263,23 @@ const Batches = () => {
                             <TableCell className="text-sm text-muted-foreground">
                               {student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "-"}
                             </TableCell>
-                            <TableCell className="font-medium">{student.contact_name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {student.contact_name}
+                                {student.additional_comments && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <FileText className="h-4 w-4 text-blue-500 cursor-help" />
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-xs">
+                                        <p className="text-sm whitespace-pre-wrap">{student.additional_comments}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                            </TableCell>
                             {!isManager && (
                               <TableCell className="text-sm font-medium">
                                 {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
@@ -1241,23 +1308,53 @@ const Batches = () => {
                               ) : "-"}
                             </TableCell>
                             <TableCell>
-                              <Badge className={student.status === "converted" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
+                              <Badge className={
+                                student.status === "refunded" 
+                                  ? "bg-amber-100 text-amber-800 border-amber-200" 
+                                  : student.status === "converted" 
+                                    ? "bg-green-100 text-green-800" 
+                                    : "bg-gray-100 text-gray-800"
+                              }>
                                 {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
                               </Badge>
                             </TableCell>
                             {!isManager && (
                               <TableCell>
-                                <Button 
-                                  size="sm" 
-                                  variant="ghost" 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingStudent(student);
-                                    setNewBatchId(selectedBatch.id);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingStudent(student);
+                                      setNewBatchId(selectedBatch.id);
+                                    }}>
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Change Batch
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setRefundingStudent(student);
+                                      }}
+                                      disabled={student.status === "refunded"}
+                                    >
+                                      <RefreshCcw className="h-4 w-4 mr-2" />
+                                      Mark as Refunded
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={(e) => {
+                                      e.stopPropagation();
+                                      setNotesStudent(student);
+                                      setNotesText(student.additional_comments || "");
+                                    }}>
+                                      <FileText className="h-4 w-4 mr-2" />
+                                      {student.additional_comments ? "Edit Notes" : "Add Notes"}
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             )}
                           </TableRow>
@@ -1316,6 +1413,79 @@ const Batches = () => {
                   disabled={transferMutation.isPending || !newBatchId || newBatchId === selectedBatch?.id}
                 >
                   {transferMutation.isPending ? "Transferring..." : "Transfer"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Mark as Refunded Confirmation Dialog */}
+        {!isManager && (
+          <AlertDialog open={!!refundingStudent} onOpenChange={(open) => { if (!open) setRefundingStudent(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Mark as Refunded</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-3">
+                    <div className="text-sm">
+                      <span className="font-medium">Student:</span> {refundingStudent?.contact_name}
+                    </div>
+                    <div className="text-sm">
+                      <span className="font-medium">Email:</span> {refundingStudent?.email}
+                    </div>
+                    <p className="text-muted-foreground mt-2">
+                      Are you sure you want to mark this student as refunded? This will:
+                    </p>
+                    <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                      <li>Change status to "Refunded"</li>
+                      <li>Be visible throughout the CRM</li>
+                    </ul>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => refundingStudent && markRefundedMutation.mutate(refundingStudent.id)}
+                  className="bg-amber-600 text-white hover:bg-amber-700"
+                  disabled={markRefundedMutation.isPending}
+                >
+                  {markRefundedMutation.isPending ? "Updating..." : "Mark as Refunded"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Notes Dialog */}
+        {!isManager && (
+          <Dialog open={!!notesStudent} onOpenChange={(open) => { if (!open) { setNotesStudent(null); setNotesText(""); } }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{notesStudent?.additional_comments ? "Edit Notes" : "Add Notes"}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div>
+                  <p className="font-medium">{notesStudent?.contact_name}</p>
+                  <p className="text-sm text-muted-foreground">{notesStudent?.email}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea
+                    placeholder="Enter notes here..."
+                    value={notesText}
+                    onChange={(e) => setNotesText(e.target.value)}
+                    rows={4}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => { setNotesStudent(null); setNotesText(""); }}>Cancel</Button>
+                <Button 
+                  onClick={() => notesStudent && updateNotesMutation.mutate({ appointmentId: notesStudent.id, notes: notesText })}
+                  disabled={updateNotesMutation.isPending}
+                >
+                  {updateNotesMutation.isPending ? "Saving..." : "Save Notes"}
                 </Button>
               </DialogFooter>
             </DialogContent>
