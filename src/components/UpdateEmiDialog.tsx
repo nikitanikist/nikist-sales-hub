@@ -118,6 +118,21 @@ export function UpdateEmiDialog({
     enabled: open,
   });
 
+  // Fetch offer amount history for this appointment
+  const { data: offerAmountHistory, isLoading: isLoadingOfferHistory } = useQuery({
+    queryKey: ["offer-amount-history", appointmentId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("offer_amount_history")
+        .select("*, changed_by_profile:profiles!changed_by(full_name)")
+        .eq("appointment_id", appointmentId)
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
   // Fetch batches for dropdown
   const { data: batches } = useQuery({
     queryKey: ["batches-dropdown"],
@@ -224,6 +239,23 @@ export function UpdateEmiDialog({
       
       // Handle offer amount change first (recalculates due)
       if (offerAmountChanged) {
+        // Get current user for audit
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        // Insert into offer_amount_history for audit trail
+        const { error: historyError } = await supabase
+          .from("offer_amount_history")
+          .insert({
+            appointment_id: appointmentId,
+            previous_amount: offerAmount,
+            new_amount: newOfferAmount,
+            changed_by: user?.id,
+          });
+        
+        if (historyError) {
+          console.error("Offer history insert error:", historyError);
+        }
+        
         updatePayload.offer_amount = newOfferAmount;
         // Recalculate due based on new offer amount
         newDueAmount = Math.max(0, newOfferAmount - newCashReceived);
@@ -265,6 +297,7 @@ export function UpdateEmiDialog({
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["emi-payments", appointmentId] });
       queryClient.invalidateQueries({ queryKey: ["emi-payments-inline", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["offer-amount-history", appointmentId] });
       queryClient.invalidateQueries({ queryKey: ["closer-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["batch-students"] });
       queryClient.invalidateQueries({ queryKey: ["workshop-metrics"] });
@@ -380,6 +413,37 @@ export function UpdateEmiDialog({
               </p>
             )}
           </div>
+
+          {/* Offer Amount Change History */}
+          {offerAmountHistory && offerAmountHistory.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+                Offer Amount Change History
+              </h4>
+              <div className="rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium">Date</th>
+                      <th className="text-left px-4 py-2 font-medium">Previous</th>
+                      <th className="text-left px-4 py-2 font-medium">New</th>
+                      <th className="text-left px-4 py-2 font-medium">Changed By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {offerAmountHistory.map((record: any) => (
+                      <tr key={record.id} className="border-t">
+                        <td className="px-4 py-2">{format(new Date(record.changed_at), "dd MMM yyyy, hh:mm a")}</td>
+                        <td className="px-4 py-2 text-red-600">₹{Number(record.previous_amount).toLocaleString("en-IN")}</td>
+                        <td className="px-4 py-2 text-green-600">₹{Number(record.new_amount).toLocaleString("en-IN")}</td>
+                        <td className="px-4 py-2 text-muted-foreground">{record.changed_by_profile?.full_name || "Unknown"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* EMI Payment History */}
           <div className="space-y-3">
