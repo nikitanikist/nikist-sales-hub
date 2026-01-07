@@ -85,6 +85,7 @@ export function UpdateEmiDialog({
   const [newBatchId, setNewBatchId] = useState<string | null>(batchId);
   const [isSaving, setIsSaving] = useState(false);
   const [newOfferAmount, setNewOfferAmount] = useState<number>(offerAmount);
+  const [isEditingOfferAmount, setIsEditingOfferAmount] = useState(false);
   
   // Local state for immediate UI updates
   const [displayCashReceived, setDisplayCashReceived] = useState(cashReceived);
@@ -100,6 +101,7 @@ export function UpdateEmiDialog({
       setDisplayCashReceived(cashReceived);
       setDisplayDueAmount(dueAmount);
       setNewOfferAmount(offerAmount);
+      setIsEditingOfferAmount(false);
     }
   }, [open, classesAccess, batchId, cashReceived, dueAmount, offerAmount]);
 
@@ -383,34 +385,66 @@ export function UpdateEmiDialog({
             )}
           </div>
 
-          {/* Update Offer Amount */}
+          {/* Update Offer Amount - Collapsible */}
           <div className="space-y-3 rounded-lg border p-4 bg-amber-50/50 border-amber-200">
-            <h4 className="font-semibold text-sm uppercase tracking-wide text-amber-700">
-              Update Offer Amount
-            </h4>
-            <div className="flex gap-4 items-end">
-              <div className="flex-1 space-y-2">
-                <Label>New Offer Amount (₹)</Label>
-                <Input
-                  type="number"
-                  placeholder="Enter new offer amount"
-                  value={newOfferAmount}
-                  onChange={(e) => setNewOfferAmount(parseFloat(e.target.value) || 0)}
-                />
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <p>Original: ₹{offerAmount.toLocaleString("en-IN")}</p>
-                {hasOfferAmountChange && (
-                  <p className="text-amber-600 font-medium">
-                    New Due: ₹{Math.max(0, newOfferAmount - displayCashReceived).toLocaleString("en-IN")}
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-sm uppercase tracking-wide text-amber-700">
+                Update Offer Amount
+              </h4>
+              {!isEditingOfferAmount ? (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsEditingOfferAmount(true)}
+                >
+                  Edit Offer
+                </Button>
+              ) : (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => {
+                    setIsEditingOfferAmount(false);
+                    setNewOfferAmount(offerAmount);
+                  }}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+            
+            {!isEditingOfferAmount ? (
+              <p className="text-lg font-semibold">
+                Current: ₹{offerAmount.toLocaleString("en-IN")}
+              </p>
+            ) : (
+              <>
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1 space-y-2">
+                    <Label>New Offer Amount (₹)</Label>
+                    <Input
+                      type="number"
+                      placeholder="Enter new offer amount"
+                      value={newOfferAmount}
+                      onChange={(e) => setNewOfferAmount(parseFloat(e.target.value) || 0)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p>Original: ₹{offerAmount.toLocaleString("en-IN")}</p>
+                    {hasOfferAmountChange && (
+                      <p className="text-amber-600 font-medium">
+                        New Due: ₹{Math.max(0, newOfferAmount - displayCashReceived).toLocaleString("en-IN")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {newOfferAmount < displayCashReceived && (
+                  <p className="text-red-500 text-sm">
+                    Warning: Offer amount cannot be less than cash already received (₹{displayCashReceived.toLocaleString("en-IN")})
                   </p>
                 )}
-              </div>
-            </div>
-            {newOfferAmount < displayCashReceived && (
-              <p className="text-red-500 text-sm">
-                Warning: Offer amount cannot be less than cash already received (₹{displayCashReceived.toLocaleString("en-IN")})
-              </p>
+              </>
             )}
           </div>
 
