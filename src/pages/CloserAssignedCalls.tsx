@@ -374,6 +374,7 @@ const CloserAssignedCalls = () => {
   const [rebookingAppointment, setRebookingAppointment] = useState<Appointment | null>(null);
   const [reassigningAppointment, setReassigningAppointment] = useState<Appointment | null>(null);
   const [emiAppointment, setEmiAppointment] = useState<Appointment | null>(null);
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
 
   // Fetch active batches for dropdown
   const { data: batches } = useQuery({
@@ -747,7 +748,14 @@ const CloserAssignedCalls = () => {
       }
     }
     
+    // Show confirmation dialog instead of saving directly
+    setShowSaveConfirmation(true);
+  };
+
+  const handleConfirmedSave = () => {
+    if (!editingId || !editData) return;
     updateMutation.mutate({ id: editingId, ...editData });
+    setShowSaveConfirmation(false);
   };
 
   const handleCancel = () => {
@@ -1352,6 +1360,60 @@ const CloserAssignedCalls = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Status Update Confirmation Dialog */}
+      <AlertDialog open={showSaveConfirmation} onOpenChange={(open) => !open && setShowSaveConfirmation(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Status Update</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {(() => {
+                  const apt = appointments?.find(a => a.id === editingId);
+                  return (
+                    <>
+                      <div className="text-sm">
+                        <span className="font-medium">Customer:</span> {apt?.lead?.contact_name || "Unknown"}
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">Email:</span> {apt?.lead?.email || "N/A"}
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">New Status:</span>{" "}
+                        <Badge className={editData?.status ? statusColors[editData.status] : ""}>
+                          {editData?.status ? statusLabels[editData.status] : ""}
+                        </Badge>
+                      </div>
+                      {!isManager && editData && (
+                        <>
+                          <div className="text-sm">
+                            <span className="font-medium">Offer Amount:</span> ₹{editData.offer_amount.toLocaleString("en-IN")}
+                          </div>
+                          <div className="text-sm">
+                            <span className="font-medium">Cash Received:</span> ₹{editData.cash_received.toLocaleString("en-IN")}
+                          </div>
+                        </>
+                      )}
+                      <p className="text-muted-foreground mt-2">
+                        Are you sure you want to save these changes? This action will trigger notifications to the customer.
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmedSave}
+              disabled={updateMutation.isPending}
+            >
+              {updateMutation.isPending ? "Saving..." : "Confirm Update"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deletingId} onOpenChange={(open) => !open && setDeletingId(null)}>
