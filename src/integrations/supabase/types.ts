@@ -73,6 +73,7 @@ export type Database = {
           previous_closer_id: string | null
           previous_scheduled_date: string | null
           previous_scheduled_time: string | null
+          refund_reason: string | null
           rescheduled_at: string | null
           scheduled_date: string
           scheduled_time: string
@@ -101,6 +102,7 @@ export type Database = {
           previous_closer_id?: string | null
           previous_scheduled_date?: string | null
           previous_scheduled_time?: string | null
+          refund_reason?: string | null
           rescheduled_at?: string | null
           scheduled_date: string
           scheduled_time: string
@@ -129,6 +131,7 @@ export type Database = {
           previous_closer_id?: string | null
           previous_scheduled_date?: string | null
           previous_scheduled_time?: string | null
+          refund_reason?: string | null
           rescheduled_at?: string | null
           scheduled_date?: string
           scheduled_time?: string

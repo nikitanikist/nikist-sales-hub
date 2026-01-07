@@ -49,6 +49,7 @@ interface BatchStudent {
   cash_received: number | null;
   due_amount: number | null;
   additional_comments: string | null;
+  refund_reason: string | null;
 }
 
 interface EmiPayment {
@@ -116,6 +117,7 @@ const Batches = () => {
   
   // Refund and notes dialog state
   const [refundingStudent, setRefundingStudent] = useState<BatchStudent | null>(null);
+  const [refundNotes, setRefundNotes] = useState<string>("");
   const [notesStudent, setNotesStudent] = useState<BatchStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
 
@@ -165,6 +167,7 @@ const Batches = () => {
           cash_received,
           due_amount,
           additional_comments,
+          refund_reason,
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
@@ -187,6 +190,7 @@ const Batches = () => {
         cash_received: apt.cash_received,
         due_amount: apt.due_amount,
         additional_comments: apt.additional_comments,
+        refund_reason: apt.refund_reason,
       })) as BatchStudent[];
     },
     enabled: !!selectedBatch,
@@ -467,10 +471,10 @@ const Batches = () => {
 
   // Mark student as refunded mutation
   const markRefundedMutation = useMutation({
-    mutationFn: async (appointmentId: string) => {
+    mutationFn: async ({ appointmentId, refundReason }: { appointmentId: string; refundReason: string }) => {
       const { error } = await supabase
         .from("call_appointments")
-        .update({ status: "refunded" })
+        .update({ status: "refunded", refund_reason: refundReason })
         .eq("id", appointmentId);
       if (error) throw error;
     },
@@ -478,6 +482,7 @@ const Batches = () => {
       queryClient.invalidateQueries({ queryKey: ["batch-students", selectedBatch?.id] });
       toast({ title: "Status Updated", description: "Student has been marked as refunded" });
       setRefundingStudent(null);
+      setRefundNotes("");
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -699,6 +704,19 @@ const Batches = () => {
 
     return (
       <div className="p-4 bg-muted/30 border-t">
+        {/* Show Refund Reason if status is refunded */}
+        {student.status === "refunded" && student.refund_reason && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+            <div className="flex items-center gap-2 mb-1">
+              <RefreshCcw className="h-4 w-4 text-amber-600" />
+              <span className="font-medium text-sm text-amber-800">Refund Reason</span>
+            </div>
+            <p className="text-sm text-amber-700 whitespace-pre-wrap">
+              {student.refund_reason}
+            </p>
+          </div>
+        )}
+        
         <div className="flex items-center gap-2 mb-3">
           <IndianRupee className="h-4 w-4 text-muted-foreground" />
           <span className="font-medium text-sm">EMI Payment History</span>
@@ -1421,7 +1439,7 @@ const Batches = () => {
 
         {/* Mark as Refunded Confirmation Dialog */}
         {!isManager && (
-          <AlertDialog open={!!refundingStudent} onOpenChange={(open) => { if (!open) setRefundingStudent(null); }}>
+          <AlertDialog open={!!refundingStudent} onOpenChange={(open) => { if (!open) { setRefundingStudent(null); setRefundNotes(""); } }}>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Mark as Refunded</AlertDialogTitle>
@@ -1440,15 +1458,31 @@ const Batches = () => {
                       <li>Change status to "Refunded"</li>
                       <li>Be visible throughout the CRM</li>
                     </ul>
+                    <div className="space-y-2 pt-2">
+                      <Label className="text-foreground">
+                        Refund Reason <span className="text-destructive">*</span>
+                      </Label>
+                      <Textarea
+                        placeholder="Enter reason for refund..."
+                        value={refundNotes}
+                        onChange={(e) => setRefundNotes(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground">Required</p>
+                    </div>
                   </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => refundingStudent && markRefundedMutation.mutate(refundingStudent.id)}
+                  onClick={() => refundingStudent && markRefundedMutation.mutate({ 
+                    appointmentId: refundingStudent.id, 
+                    refundReason: refundNotes.trim() 
+                  })}
                   className="bg-amber-600 text-white hover:bg-amber-700"
-                  disabled={markRefundedMutation.isPending}
+                  disabled={markRefundedMutation.isPending || !refundNotes.trim()}
                 >
                   {markRefundedMutation.isPending ? "Updating..." : "Mark as Refunded"}
                 </AlertDialogAction>
