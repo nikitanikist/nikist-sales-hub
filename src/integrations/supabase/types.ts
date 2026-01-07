@@ -619,6 +619,54 @@ export type Database = {
           },
         ]
       }
+      offer_amount_history: {
+        Row: {
+          appointment_id: string
+          changed_at: string | null
+          changed_by: string | null
+          created_at: string | null
+          id: string
+          new_amount: number
+          previous_amount: number
+          reason: string | null
+        }
+        Insert: {
+          appointment_id: string
+          changed_at?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          new_amount: number
+          previous_amount: number
+          reason?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          changed_at?: string | null
+          changed_by?: string | null
+          created_at?: string | null
+          id?: string
+          new_amount?: number
+          previous_amount?: number
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_amount_history_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "call_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offer_amount_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           created_at: string
