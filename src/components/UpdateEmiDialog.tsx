@@ -28,8 +28,10 @@ interface EmiPayment {
   amount: number;
   payment_date: string;
   created_at: string;
+  created_by: string | null;
   previous_classes_access: number | null;
   new_classes_access: number | null;
+  created_by_profile?: { full_name: string } | null;
 }
 
 interface UpdateEmiDialogProps {
@@ -111,7 +113,7 @@ export function UpdateEmiDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("emi_payments")
-        .select("*")
+        .select("*, created_by_profile:profiles!created_by(full_name)")
         .eq("appointment_id", appointmentId)
         .order("emi_number", { ascending: true });
       if (error) throw error;
@@ -207,6 +209,9 @@ export function UpdateEmiDialog({
       if (hasEmiToSave) {
         console.log("Adding EMI:", { appointmentId, amount, date: paymentDate, nextEmiNumber });
         
+        // Get current user for audit
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
         // Insert EMI payment with class access and cash tracking
         const { data: insertedData, error: emiError } = await supabase
           .from("emi_payments")
@@ -218,6 +223,7 @@ export function UpdateEmiDialog({
             previous_classes_access: classesAccess,
             new_classes_access: newClassesAccess,
             previous_cash_received: cashReceived,
+            created_by: currentUser?.id,
           })
           .select()
           .single();
@@ -497,6 +503,7 @@ export function UpdateEmiDialog({
                       <th className="text-left px-4 py-2 font-medium">Amount</th>
                       <th className="text-left px-4 py-2 font-medium">Date</th>
                       <th className="text-left px-4 py-2 font-medium">Classes</th>
+                      <th className="text-left px-4 py-2 font-medium">Updated By</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -509,6 +516,9 @@ export function UpdateEmiDialog({
                           {emi.previous_classes_access && emi.new_classes_access && emi.previous_classes_access !== emi.new_classes_access
                             ? `${emi.previous_classes_access} → ${emi.new_classes_access}`
                             : emi.new_classes_access || emi.previous_classes_access || "-"}
+                        </td>
+                        <td className="px-4 py-2 text-muted-foreground">
+                          {emi.created_by_profile?.full_name || "Unknown"}
                         </td>
                       </tr>
                     ))}
