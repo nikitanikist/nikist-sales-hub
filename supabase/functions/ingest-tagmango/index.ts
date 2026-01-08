@@ -53,11 +53,64 @@ const isProduct = (name: string, amount: number): boolean => {
   return amount > 0;
 };
 
+// Helper function to parse date from workshop name like "9th January", "25th December"
+const parseDateFromWorkshopName = (workshopName: string): Date | null => {
+  // Match patterns like "<> 9th January" or "<> 25th December"
+  const match = workshopName.match(/<>\s*(\d{1,2})(?:st|nd|rd|th)?\s+(\w+)/i);
+  if (!match) return null;
+  
+  const day = parseInt(match[1]);
+  const monthName = match[2].toLowerCase();
+  
+  const monthMap: { [key: string]: number } = {
+    'january': 0, 'jan': 0,
+    'february': 1, 'feb': 1,
+    'march': 2, 'mar': 2,
+    'april': 3, 'apr': 3,
+    'may': 4,
+    'june': 5, 'jun': 5,
+    'july': 6, 'jul': 6,
+    'august': 7, 'aug': 7,
+    'september': 8, 'sep': 8, 'sept': 8,
+    'october': 9, 'oct': 9,
+    'november': 10, 'nov': 10,
+    'december': 11, 'dec': 11
+  };
+  
+  const month = monthMap[monthName];
+  if (month === undefined) return null;
+  
+  // Determine year (use current year, or next year if the date has passed)
+  const now = new Date();
+  let year = now.getFullYear();
+  
+  // Create date in IST timezone
+  const tentativeDate = new Date(year, month, day, 12, 0, 0); // Noon IST
+  
+  // If the date is more than 2 months in the past, assume next year
+  const twoMonthsAgo = new Date(now);
+  twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+  
+  if (tentativeDate < twoMonthsAgo) {
+    year++;
+  }
+  
+  return new Date(year, month, day, 12, 0, 0);
+};
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const startTime = Date.now();
+  let eventId: string | null = null;
+
+  // Initialize Supabase client with service role key
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
     console.log('Received Pabbly webhook request');
@@ -65,6 +118,23 @@ Deno.serve(async (req) => {
     // Parse incoming JSON
     const payload: PabblyPayload = await req.json();
     console.log('Payload received:', JSON.stringify(payload, null, 2));
+
+    // Create webhook event log entry
+    const { data: eventData } = await supabase
+      .from('webhook_ingest_events')
+      .insert({
+        source: 'tagmango',
+        email: payload.email || null,
+        workshop_name: payload.workshop_name || null,
+        mango_id: payload['Mango Id'] || null,
+        amount: payload.amount || 0,
+        result: 'pending',
+      })
+      .select('id')
+      .single();
+    
+    eventId = eventData?.id || null;
+    console.log('Created webhook event:', eventId);
 
     // Validate required fields
     const errors: string[] = [];
@@ -105,6 +175,19 @@ Deno.serve(async (req) => {
 
     if (errors.length > 0) {
       console.error('Validation failed:', errors);
+      
+      // Update webhook event with error
+      if (eventId) {
+        await supabase
+          .from('webhook_ingest_events')
+          .update({
+            result: 'error',
+            error_message: errors.join('; '),
+            processing_time_ms: Date.now() - startTime,
+          })
+          .eq('id', eventId);
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Validation failed', 
@@ -116,12 +199,6 @@ Deno.serve(async (req) => {
         }
       );
     }
-
-    // Initialize Supabase client with service role key
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const normalizedEmail = payload.email.trim().toLowerCase();
     const normalizedWorkshopName = payload.workshop_name.trim();
@@ -149,6 +226,19 @@ Deno.serve(async (req) => {
 
     if (leadCheckError) {
       console.error('Error checking for existing lead:', leadCheckError);
+      
+      // Update webhook event with error
+      if (eventId) {
+        await supabase
+          .from('webhook_ingest_events')
+          .update({
+            result: 'error',
+            error_message: `Lead check error: ${leadCheckError.message}`,
+            processing_time_ms: Date.now() - startTime,
+          })
+          .eq('id', eventId);
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Lead check error', 
@@ -194,6 +284,19 @@ Deno.serve(async (req) => {
 
       if (error) {
         console.error('Database error:', error);
+        
+        // Update webhook event with error
+        if (eventId) {
+          await supabase
+            .from('webhook_ingest_events')
+            .update({
+              result: 'error',
+              error_message: `Database error: ${error.message}`,
+              processing_time_ms: Date.now() - startTime,
+            })
+            .eq('id', eventId);
+        }
+        
         return new Response(
           JSON.stringify({ 
             error: 'Database error', 
@@ -423,13 +526,30 @@ Deno.serve(async (req) => {
             console.error('No funnel available for new product');
           }
         } else {
-          // CREATE NEW WORKSHOP
+          // CREATE NEW WORKSHOP with proper date parsing
           console.log('Creating new workshop:', normalizedWorkshopName);
+          
+          // Parse date from workshop name
+          const parsedDate = parseDateFromWorkshopName(normalizedWorkshopName);
+          let startDate: string;
+          let endDate: string;
+          
+          if (parsedDate) {
+            // Use parsed date with IST timezone offset
+            startDate = parsedDate.toISOString();
+            endDate = new Date(parsedDate.getTime() + 24 * 60 * 60 * 1000).toISOString();
+            console.log(`Parsed date from workshop name: ${parsedDate.toDateString()}`);
+          } else {
+            // Fallback to current date
+            startDate = new Date().toISOString();
+            endDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            console.log('No date found in workshop name, using current date');
+          }
           
           const newWorkshopData = {
             title: normalizedWorkshopName,
-            start_date: new Date().toISOString(),
-            end_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            start_date: startDate,
+            end_date: endDate,
             status: 'planned',
             is_free: payload.amount === 0,
             ad_spend: 0,
@@ -705,6 +825,21 @@ Deno.serve(async (req) => {
       console.log('Mango ID does not match any target, skipping WhatsApp confirmation');
     }
 
+    // Update webhook event with success
+    if (eventId) {
+      await supabase
+        .from('webhook_ingest_events')
+        .update({
+          result: isDuplicateAssignment ? 'duplicate' : 'success',
+          lead_id: leadId,
+          created_workshop_id: workshopId,
+          created_product_id: productId,
+          is_duplicate: isDuplicateAssignment,
+          processing_time_ms: Date.now() - startTime,
+        })
+        .eq('id', eventId);
+    }
+
     // Return appropriate response based on duplicate status
     if (isDuplicateAssignment) {
       return new Response(
@@ -739,6 +874,19 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error processing webhook:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    // Update webhook event with error
+    if (eventId) {
+      await supabase
+        .from('webhook_ingest_events')
+        .update({
+          result: 'error',
+          error_message: errorMessage,
+          processing_time_ms: Date.now() - startTime,
+        })
+        .eq('id', eventId);
+    }
+    
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
