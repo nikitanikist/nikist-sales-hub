@@ -834,6 +834,57 @@ export type Database = {
           },
         ]
       }
+      webhook_ingest_events: {
+        Row: {
+          amount: number | null
+          created_at: string
+          created_product_id: string | null
+          created_workshop_id: string | null
+          email: string | null
+          error_message: string | null
+          id: string
+          is_duplicate: boolean | null
+          lead_id: string | null
+          mango_id: string | null
+          processing_time_ms: number | null
+          result: string
+          source: string
+          workshop_name: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          created_product_id?: string | null
+          created_workshop_id?: string | null
+          email?: string | null
+          error_message?: string | null
+          id?: string
+          is_duplicate?: boolean | null
+          lead_id?: string | null
+          mango_id?: string | null
+          processing_time_ms?: number | null
+          result?: string
+          source?: string
+          workshop_name?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          created_product_id?: string | null
+          created_workshop_id?: string | null
+          email?: string | null
+          error_message?: string | null
+          id?: string
+          is_duplicate?: boolean | null
+          lead_id?: string | null
+          mango_id?: string | null
+          processing_time_ms?: number | null
+          result?: string
+          source?: string
+          workshop_name?: string | null
+        }
+        Relationships: []
+      }
       workshops: {
         Row: {
           ad_spend: number | null
