@@ -1099,11 +1099,14 @@ export type Database = {
           funnel_name: string
           id: string
           is_connected: boolean
+          is_refunded: boolean
           notes: string
           phone: string
           product_id: string
           product_name: string
           product_price: number
+          refund_reason: string
+          refunded_at: string
           source: string
           status: string
           updated_at: string
