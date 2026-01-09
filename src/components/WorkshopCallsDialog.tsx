@@ -105,6 +105,7 @@ interface WorkshopSalesLead {
   status: string | null;
   closer_name: string | null;
   has_call_appointment: boolean;
+  call_appointment_id: string | null;
 }
 
 export function WorkshopCallsDialog({
@@ -117,7 +118,7 @@ export function WorkshopCallsDialog({
   const queryClient = useQueryClient();
   
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
-  const [selectedCall, setSelectedCall] = useState<WorkshopCall | null>(null);
+  const [selectedCall, setSelectedCall] = useState<WorkshopCall | WorkshopSalesLead | null>(null);
   const [refundReason, setRefundReason] = useState("");
   
   // Use different RPC for 'all_booked' category
@@ -167,10 +168,17 @@ export function WorkshopCallsDialog({
     },
   });
 
-  const handleMarkAsRefunded = (call: WorkshopCall) => {
+  const handleMarkAsRefunded = (call: WorkshopCall | WorkshopSalesLead) => {
     setSelectedCall(call);
     setRefundReason("");
     setRefundDialogOpen(true);
+  };
+
+  const getAppointmentId = (call: WorkshopCall | WorkshopSalesLead): string | null => {
+    if ('call_appointment_id' in call) {
+      return call.call_appointment_id;
+    }
+    return call.id;
   };
 
   const handleConfirmRefund = () => {
@@ -179,14 +187,19 @@ export function WorkshopCallsDialog({
       toast.error("Please provide a refund reason");
       return;
     }
+    const appointmentId = getAppointmentId(selectedCall);
+    if (!appointmentId) {
+      toast.error("No call appointment found for this lead");
+      return;
+    }
     markRefundedMutation.mutate({
-      appointmentId: selectedCall.id,
+      appointmentId,
       reason: refundReason.trim(),
     });
   };
 
   // Check if we should show the action column (for non-refunded categories, non-manager users)
-  const showActionColumn = category !== 'refunded' && category !== 'all_booked' && !isManager;
+  const showActionColumn = category !== 'refunded' && !isManager;
 
   return (
     <>
@@ -337,17 +350,32 @@ export function WorkshopCallsDialog({
                           </TableCell>
                         </>
                       )}
-                      {showActionColumn && regularCall && (
+                      {showActionColumn && (
                         <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                            onClick={() => handleMarkAsRefunded(regularCall)}
-                          >
-                            <RotateCcw className="h-3 w-3 mr-1" />
-                            Refund
-                          </Button>
+                          {category === 'all_booked' && salesLead ? (
+                            // For all_booked category, only show refund if has call appointment and not already refunded
+                            salesLead.has_call_appointment && salesLead.call_appointment_id && salesLead.status !== 'refunded' ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                onClick={() => handleMarkAsRefunded(salesLead)}
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                Refund
+                              </Button>
+                            ) : null
+                          ) : regularCall && regularCall.status !== 'refunded' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                              onClick={() => handleMarkAsRefunded(regularCall)}
+                            >
+                              <RotateCcw className="h-3 w-3 mr-1" />
+                              Refund
+                            </Button>
+                          ) : null}
                         </TableCell>
                       )}
                     </TableRow>

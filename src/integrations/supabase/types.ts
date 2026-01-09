@@ -1053,6 +1053,7 @@ export type Database = {
       get_workshop_sales_leads: {
         Args: { p_workshop_title: string }
         Returns: {
+          call_appointment_id: string
           closer_name: string
           contact_name: string
           email: string

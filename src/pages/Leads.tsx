@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar, Upload } from "lucide-react";
+import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar, Upload, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -114,6 +114,13 @@ const Leads = () => {
 
   // Import Dialog State
   const [isImportOpen, setIsImportOpen] = useState(false);
+
+  // Refund Dialog State
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [selectedLeadForRefund, setSelectedLeadForRefund] = useState<any>(null);
+  const [selectedAppointmentForRefund, setSelectedAppointmentForRefund] = useState<any>(null);
+  const [refundReason, setRefundReason] = useState("");
+  const [leadAppointments, setLeadAppointments] = useState<any[]>([]);
 
   // Check if any filters are active
   const hasActiveFilters = 
@@ -470,6 +477,84 @@ const Leads = () => {
       toast.error(error.message);
     },
   });
+
+  // Fetch lead appointments for refund
+  const fetchLeadAppointments = async (leadId: string) => {
+    const { data, error } = await supabase
+      .from("call_appointments")
+      .select("id, status, scheduled_date, scheduled_time, refund_reason")
+      .eq("lead_id", leadId)
+      .neq("status", "refunded");
+    
+    if (error) {
+      toast.error("Failed to fetch appointments");
+      return [];
+    }
+    return data || [];
+  };
+
+  const markRefundMutation = useMutation({
+    mutationFn: async ({ appointmentId, reason }: { appointmentId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("call_appointments")
+        .update({ 
+          status: "refunded" as any,
+          refund_reason: reason 
+        })
+        .eq("id", appointmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["workshops"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
+      toast.success("Marked as refunded successfully");
+      setRefundDialogOpen(false);
+      setSelectedLeadForRefund(null);
+      setSelectedAppointmentForRefund(null);
+      setRefundReason("");
+      setLeadAppointments([]);
+    },
+    onError: (error: any) => {
+      toast.error("Failed to mark as refunded: " + error.message);
+    },
+  });
+
+  const handleMarkAsRefund = async (lead: any) => {
+    const appointments = await fetchLeadAppointments(lead.id);
+    if (appointments.length === 0) {
+      toast.error("No active call appointments found for this customer");
+      return;
+    }
+    
+    setSelectedLeadForRefund(lead);
+    setLeadAppointments(appointments);
+    
+    if (appointments.length === 1) {
+      setSelectedAppointmentForRefund(appointments[0]);
+    } else {
+      setSelectedAppointmentForRefund(null);
+    }
+    
+    setRefundReason("");
+    setRefundDialogOpen(true);
+  };
+
+  const handleConfirmRefund = () => {
+    if (!selectedAppointmentForRefund) {
+      toast.error("Please select an appointment to refund");
+      return;
+    }
+    if (!refundReason.trim()) {
+      toast.error("Please provide a refund reason");
+      return;
+    }
+    markRefundMutation.mutate({
+      appointmentId: selectedAppointmentForRefund.id,
+      reason: refundReason.trim(),
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -928,6 +1013,14 @@ const Leads = () => {
                                 </DropdownMenuSub>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
+                                  className="text-amber-600 cursor-pointer"
+                                  onClick={() => handleMarkAsRefund(lead)}
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Mark as Refund
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
                                   className="text-red-600 cursor-pointer"
                                   onClick={() => deleteMutation.mutate(lead.id)}
                                 >
@@ -1062,6 +1155,14 @@ const Leads = () => {
                                   })}
                                 </DropdownMenuSubContent>
                               </DropdownMenuSub>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-amber-600 cursor-pointer"
+                                onClick={() => handleMarkAsRefund(lead)}
+                              >
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Mark as Refund
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 cursor-pointer"
@@ -1335,6 +1436,75 @@ const Leads = () => {
           queryClient.invalidateQueries({ queryKey: ["leads-count"] });
         }}
       />
+
+      {/* Refund Dialog */}
+      <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark as Refunded</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-sm text-muted-foreground">
+              You are about to mark a call for <span className="font-medium text-foreground">{selectedLeadForRefund?.contact_name}</span> as refunded.
+            </div>
+            
+            {leadAppointments.length > 1 && (
+              <div className="space-y-2">
+                <Label>Select Appointment</Label>
+                <Select
+                  value={selectedAppointmentForRefund?.id || ""}
+                  onValueChange={(value) => {
+                    const apt = leadAppointments.find(a => a.id === value);
+                    setSelectedAppointmentForRefund(apt);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an appointment to refund" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leadAppointments.map((apt) => (
+                      <SelectItem key={apt.id} value={apt.id}>
+                        {apt.scheduled_date ? new Date(apt.scheduled_date).toLocaleDateString() : "No date"} - {apt.scheduled_time || "No time"} ({apt.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {leadAppointments.length === 1 && selectedAppointmentForRefund && (
+              <div className="p-3 bg-muted rounded-md text-sm">
+                <div><span className="font-medium">Date:</span> {selectedAppointmentForRefund.scheduled_date ? new Date(selectedAppointmentForRefund.scheduled_date).toLocaleDateString() : "No date"}</div>
+                <div><span className="font-medium">Time:</span> {selectedAppointmentForRefund.scheduled_time || "No time"}</div>
+                <div><span className="font-medium">Status:</span> {selectedAppointmentForRefund.status}</div>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="refund-reason">Refund Reason <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="refund-reason"
+                placeholder="Enter the reason for refund..."
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmRefund}
+              disabled={markRefundMutation.isPending || !refundReason.trim() || !selectedAppointmentForRefund}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {markRefundMutation.isPending ? "Processing..." : "Confirm Refund"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
