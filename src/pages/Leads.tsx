@@ -812,6 +812,9 @@ const Leads = () => {
             funnel_id: result.funnel_id,
             funnel: result.funnel_name ? { id: result.funnel_id, funnel_name: result.funnel_name } : null,
             is_connected: result.is_connected,
+            is_refunded: result.is_refunded,
+            refund_reason: result.refund_reason,
+            refunded_at: result.refunded_at,
           });
         }
       });
@@ -862,6 +865,9 @@ const Leads = () => {
             funnel: data.productAssignment?.funnel,
             is_connected: data.workshopAssignment && data.productAssignment,
             _consolidated: true,
+            is_refunded: data.workshopAssignment?.is_refunded || data.productAssignment?.is_refunded,
+            refund_reason: data.productAssignment?.refund_reason || data.workshopAssignment?.refund_reason,
+            refunded_at: data.productAssignment?.refunded_at || data.workshopAssignment?.refunded_at,
           }],
         };
       });
