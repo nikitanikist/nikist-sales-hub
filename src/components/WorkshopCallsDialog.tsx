@@ -380,10 +380,14 @@ export function WorkshopCallsDialog({
                         ) : null}
                       </TableCell>
                       <TableCell>
-                        {isAllBookedCall && salesLead ? (
+                      {isAllBookedCall && salesLead ? (
                           salesLead.has_call_appointment && salesLead.status ? (
                             <Badge variant="outline" className={salesLead.status === 'refunded' ? 'text-amber-600 border-amber-300' : ''}>
                               {statusLabels[salesLead.status] || salesLead.status}
+                            </Badge>
+                          ) : salesLead.is_assignment_refunded ? (
+                            <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
+                              Refunded
                             </Badge>
                           ) : (
                             <span className="text-muted-foreground text-sm">-</span>
