@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar } from "lucide-react";
+import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,6 +19,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@/components/ui/dropdown-menu";
 import { ScheduleCallDialog } from "@/components/ScheduleCallDialog";
 import { LeadsFilterSheet, LeadsFilters } from "@/components/LeadsFilterSheet";
+import { ImportCustomersDialog } from "@/components/ImportCustomersDialog";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-500",
@@ -110,6 +111,9 @@ const Leads = () => {
     country: "all",
     status: "all",
   });
+
+  // Import Dialog State
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Check if any filters are active
   const hasActiveFilters = 
@@ -783,6 +787,12 @@ const Leads = () => {
           }}>
             <RefreshCw className="h-4 w-4" />
           </Button>
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Import
+            </Button>
+          )}
           {!isManager && (
             <Button onClick={() => {
               setEditingLead(null);
@@ -1310,6 +1320,20 @@ const Leads = () => {
         onFiltersChange={handleFiltersChange}
         products={products || []}
         workshops={workshops || []}
+      />
+
+      {/* Import Customers Dialog */}
+      <ImportCustomersDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        workshops={workshops || []}
+        products={products || []}
+        salesClosers={salesClosers || []}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+          queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+          queryClient.invalidateQueries({ queryKey: ["leads-count"] });
+        }}
       />
     </div>
   );
