@@ -1184,9 +1184,15 @@ const Leads = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
-                          ACTIVE
-                        </Badge>
+                        {assignment.is_refunded ? (
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/20">
+                            REFUNDED
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20">
+                            ACTIVE
+                          </Badge>
+                        )}
                       </TableCell>
                       {!isManager && (
                         <TableCell>
@@ -1246,13 +1252,15 @@ const Leads = () => {
                                 </DropdownMenuSubContent>
                               </DropdownMenuSub>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-amber-600 cursor-pointer"
-                                onClick={() => handleMarkAsRefund(lead)}
-                              >
-                                <RotateCcw className="mr-2 h-4 w-4" />
-                                Mark as Refund
-                              </DropdownMenuItem>
+                              {!group.assignments.some((a: any) => a.is_refunded) && (
+                                <DropdownMenuItem
+                                  className="text-amber-600 cursor-pointer"
+                                  onClick={() => handleMarkAsRefund(lead)}
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Mark as Refund
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 cursor-pointer"
