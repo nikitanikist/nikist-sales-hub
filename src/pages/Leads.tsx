@@ -577,8 +577,20 @@ const Leads = () => {
     return data || [];
   };
 
-  const handleMarkAsRefund = async (lead: any) => {
-    // First try to find call appointments
+  // Row-specific refund: pass the specific assignment to refund directly
+  const handleMarkAsRefund = async (lead: any, assignment?: any) => {
+    // If a specific assignment is provided, refund it directly
+    if (assignment && assignment.id && !assignment.id.startsWith('consolidated-')) {
+      setRefundMode('assignment');
+      setSelectedLeadForRefund(lead);
+      setLeadAssignmentsForRefund([assignment]);
+      setSelectedAssignmentForRefund(assignment);
+      setRefundReason("");
+      setRefundDialogOpen(true);
+      return;
+    }
+    
+    // Fallback: First try to find call appointments
     const appointments = await fetchLeadAppointments(lead.id);
     
     if (appointments.length > 0) {
@@ -618,6 +630,30 @@ const Leads = () => {
       setRefundDialogOpen(true);
     }
   };
+  
+  // Undo refund mutation
+  const undoRefundMutation = useMutation({
+    mutationFn: async (assignmentId: string) => {
+      const { error } = await supabase
+        .from("lead_assignments")
+        .update({ 
+          is_refunded: false,
+          refund_reason: null,
+          refunded_at: null
+        })
+        .eq("id", assignmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["workshops"] });
+      toast.success("Refund undone successfully");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to undo refund: " + error.message);
+    },
+  });
 
   const handleConfirmRefund = () => {
     if (!refundReason.trim()) {
@@ -823,7 +859,8 @@ const Leads = () => {
     }
     
     if (hasBothProductAndWorkshopFilters) {
-      // Consolidated view: group by email and merge workshop + product info into single row
+      // When both filters are active, show SEPARATE rows for each matching assignment
+      // This ensures refund status is per-row, not merged
       const byEmail: Record<string, any> = {};
       
       filteredAssignments?.forEach((assignment) => {
@@ -833,42 +870,34 @@ const Leads = () => {
         if (!byEmail[email]) {
           byEmail[email] = {
             lead: assignment.lead,
-            workshopAssignment: null,
-            productAssignment: null,
+            matchingAssignments: [],
           };
         }
         
-        // Find matching workshop assignment
+        // Add matching workshop assignments
         if (assignment.workshop_id && filters.workshopIds.includes(assignment.workshop_id)) {
-          byEmail[email].workshopAssignment = assignment;
+          byEmail[email].matchingAssignments.push(assignment);
         }
         
-        // Find matching product assignment
+        // Add matching product assignments (avoid duplicates if same assignment)
         if (assignment.product_id && filters.productIds.includes(assignment.product_id)) {
-          byEmail[email].productAssignment = assignment;
+          const alreadyAdded = byEmail[email].matchingAssignments.some((a: any) => a.id === assignment.id);
+          if (!alreadyAdded) {
+            byEmail[email].matchingAssignments.push(assignment);
+          }
         }
       });
       
-      // Convert to grouped format with consolidated assignments
+      // Convert to grouped format - each assignment is a separate row
       const result: Record<string, any> = {};
       Object.entries(byEmail).forEach(([email, data]) => {
         const leadId = data.lead?.id;
-        if (!leadId) return;
+        if (!leadId || data.matchingAssignments.length === 0) return;
         
-        // Create a consolidated "virtual" assignment for display
+        // Use email as key to group by customer, with all matching assignments as separate rows
         result[email] = {
           lead: data.lead,
-          assignments: [{
-            id: `consolidated-${email}`,
-            workshop: data.workshopAssignment?.workshop,
-            product: data.productAssignment?.product,
-            funnel: data.productAssignment?.funnel,
-            is_connected: data.workshopAssignment && data.productAssignment,
-            _consolidated: true,
-            is_refunded: data.workshopAssignment?.is_refunded || data.productAssignment?.is_refunded,
-            refund_reason: data.productAssignment?.refund_reason || data.workshopAssignment?.refund_reason,
-            refunded_at: data.productAssignment?.refunded_at || data.workshopAssignment?.refunded_at,
-          }],
+          assignments: data.matchingAssignments,
         };
       });
       
@@ -1258,15 +1287,24 @@ const Leads = () => {
                                 </DropdownMenuSubContent>
                               </DropdownMenuSub>
                               <DropdownMenuSeparator />
-                              {!group.assignments.some((a: any) => a.is_refunded) && (
+                              {/* Row-specific refund: check this specific assignment, not group */}
+                              {!assignment.is_refunded && !assignment.id?.startsWith('consolidated-') ? (
                                 <DropdownMenuItem
                                   className="text-amber-600 cursor-pointer"
-                                  onClick={() => handleMarkAsRefund(lead)}
+                                  onClick={() => handleMarkAsRefund(lead, assignment)}
                                 >
                                   <RotateCcw className="mr-2 h-4 w-4" />
                                   Mark as Refund
                                 </DropdownMenuItem>
-                              )}
+                              ) : assignment.is_refunded && !assignment.id?.startsWith('consolidated-') ? (
+                                <DropdownMenuItem
+                                  className="text-green-600 cursor-pointer"
+                                  onClick={() => undoRefundMutation.mutate(assignment.id)}
+                                >
+                                  <RotateCcw className="mr-2 h-4 w-4" />
+                                  Undo Refund
+                                </DropdownMenuItem>
+                              ) : null}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 cursor-pointer"
