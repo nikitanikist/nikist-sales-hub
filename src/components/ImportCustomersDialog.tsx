@@ -354,7 +354,7 @@ export const ImportCustomersDialog = ({
 
             <TabsContent value="import" className="flex-1 flex flex-col overflow-hidden mt-4">
               {step === "upload" ? (
-                <ScrollArea className="flex-1 pr-4">
+                <ScrollArea className="h-[calc(90vh-200px)] pr-4">
                   <div className="space-y-6 pb-4">
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
                       <FileSpreadsheet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
