@@ -1034,6 +1034,7 @@ export type Database = {
           booking_amount_calls: number
           converted_calls: number
           not_converted_calls: number
+          refunded_calls: number
           registration_count: number
           remaining_calls: number
           rescheduled_done: number
