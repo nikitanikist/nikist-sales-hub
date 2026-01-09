@@ -354,89 +354,91 @@ export const ImportCustomersDialog = ({
 
             <TabsContent value="import" className="flex-1 flex flex-col overflow-hidden mt-4">
               {step === "upload" ? (
-                <div className="space-y-6">
-                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                    <FileSpreadsheet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="font-medium mb-2">Add customers in bulk</p>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Import CSV of customers and enroll them into any service.
-                    </p>
-                    <button 
-                      className="text-sm text-primary hover:underline mb-4 block mx-auto"
-                      onClick={downloadSampleCSV}
-                    >
-                      Click here to download sample CSV before uploading.
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".csv"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                    />
-                    <Button onClick={() => fileInputRef.current?.click()}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload CSV
-                    </Button>
-                  </div>
+                <ScrollArea className="flex-1 pr-4">
+                  <div className="space-y-6 pb-4">
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <FileSpreadsheet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="font-medium mb-2">Add customers in bulk</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Import CSV of customers and enroll them into any service.
+                      </p>
+                      <button 
+                        className="text-sm text-primary hover:underline mb-4 block mx-auto"
+                        onClick={downloadSampleCSV}
+                      >
+                        Click here to download sample CSV before uploading.
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                      <Button onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Upload CSV
+                      </Button>
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Select a workshop</Label>
-                      <Select value={selectedWorkshop} onValueChange={setSelectedWorkshop}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select workshop" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {workshops?.map(w => (
-                            <SelectItem key={w.id} value={w.id}>{w.title}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Select a product</Label>
-                      <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select product" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {products?.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.product_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Assign to</Label>
-                      <Select value={selectedAssignTo} onValueChange={setSelectedAssignTo}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select person" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {salesClosers?.map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="new">New</SelectItem>
-                          <SelectItem value="contacted">Contacted</SelectItem>
-                          <SelectItem value="qualified">Qualified</SelectItem>
-                          <SelectItem value="won">Won</SelectItem>
-                          <SelectItem value="lost">Lost</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Select a workshop</Label>
+                        <Select value={selectedWorkshop} onValueChange={setSelectedWorkshop}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select workshop" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {workshops?.map(w => (
+                              <SelectItem key={w.id} value={w.id}>{w.title}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Select a product</Label>
+                        <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {products?.map(p => (
+                              <SelectItem key={p.id} value={p.id}>{p.product_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Assign to</Label>
+                        <Select value={selectedAssignTo} onValueChange={setSelectedAssignTo}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select person" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {salesClosers?.map(c => (
+                              <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="new">New</SelectItem>
+                            <SelectItem value="contacted">Contacted</SelectItem>
+                            <SelectItem value="qualified">Qualified</SelectItem>
+                            <SelectItem value="won">Won</SelectItem>
+                            <SelectItem value="lost">Lost</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </ScrollArea>
               ) : (
                 <div className="flex-1 flex flex-col overflow-hidden space-y-4">
                   <div className="flex items-center gap-4 text-sm">
