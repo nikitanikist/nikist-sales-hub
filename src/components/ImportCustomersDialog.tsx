@@ -1,18 +1,15 @@
 import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Download, CheckCircle2, AlertCircle, XCircle, FileSpreadsheet } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, XCircle, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ImportCustomersDialogProps {
   open: boolean;
@@ -302,7 +299,7 @@ export const ImportCustomersDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl h-[90vh] max-h-[90vh] min-h-0 overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {step === "complete" ? "Import Complete" : "Add customers"}
@@ -346,15 +343,15 @@ export const ImportCustomersDialog = ({
             </p>
           </div>
         ) : (
-          <Tabs defaultValue="import" className="flex-1 flex flex-col overflow-hidden">
+          <Tabs defaultValue="import" className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <TabsList className="w-fit">
               <TabsTrigger value="import">Import CSV</TabsTrigger>
               <TabsTrigger value="manual" disabled>Manually</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="import" className="flex-1 flex flex-col overflow-hidden mt-4">
+            <TabsContent value="import" className="flex-1 min-h-0 flex flex-col overflow-hidden mt-4">
               {step === "upload" ? (
-                <ScrollArea className="h-[calc(90vh-200px)] pr-4">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-4">
                   <div className="space-y-6 pb-4">
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
                       <FileSpreadsheet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -438,10 +435,10 @@ export const ImportCustomersDialog = ({
                       </div>
                     </div>
                   </div>
-                </ScrollArea>
+                </div>
               ) : (
-                <div className="flex-1 flex flex-col overflow-hidden space-y-4">
-                  <div className="flex items-center gap-4 text-sm">
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden space-y-4">
+                  <div className="flex flex-wrap items-center gap-4 text-sm">
                     <span className="flex items-center gap-1.5">
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                       {readyCount} ready to import
@@ -456,8 +453,65 @@ export const ImportCustomersDialog = ({
                     </span>
                   </div>
 
-                  <ScrollArea className="flex-1 border rounded-lg">
-                    <Table>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-2">
+                      <Label>Select a workshop</Label>
+                      <Select value={selectedWorkshop} onValueChange={setSelectedWorkshop}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select workshop" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {workshops?.map(w => (
+                            <SelectItem key={w.id} value={w.id}>{w.title}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Select a product</Label>
+                      <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products?.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.product_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Assign to</Label>
+                      <Select value={selectedAssignTo} onValueChange={setSelectedAssignTo}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select person" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {salesClosers?.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="new">New</SelectItem>
+                          <SelectItem value="contacted">Contacted</SelectItem>
+                          <SelectItem value="qualified">Qualified</SelectItem>
+                          <SelectItem value="won">Won</SelectItem>
+                          <SelectItem value="lost">Lost</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-h-0 border rounded-lg overflow-auto">
+                    <table className="min-w-[1100px] w-full caption-bottom text-sm">
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-[60px]">Status</TableHead>
@@ -492,8 +546,8 @@ export const ImportCustomersDialog = ({
                                   {row.error && <p className="text-xs text-red-500">{row.error}</p>}
                                 </div>
                               </TableCell>
-                              <TableCell>{row.email || "-"}</TableCell>
-                              <TableCell>{row.phone || "-"}</TableCell>
+                              <TableCell className="whitespace-nowrap">{row.email || "-"}</TableCell>
+                              <TableCell className="whitespace-nowrap">{row.phone || "-"}</TableCell>
                               <TableCell>{workshopName}</TableCell>
                               <TableCell>{productName || "-"}</TableCell>
                               <TableCell>{assignedName || "-"}</TableCell>
@@ -501,9 +555,8 @@ export const ImportCustomersDialog = ({
                           );
                         })}
                       </TableBody>
-                    </Table>
-                  </ScrollArea>
-
+                    </table>
+                  </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button variant="outline" onClick={() => { setStep("upload"); setParsedRows([]); }}>
                       Back
