@@ -121,6 +121,9 @@ const Leads = () => {
   const [selectedAppointmentForRefund, setSelectedAppointmentForRefund] = useState<any>(null);
   const [refundReason, setRefundReason] = useState("");
   const [leadAppointments, setLeadAppointments] = useState<any[]>([]);
+  const [refundMode, setRefundMode] = useState<'appointment' | 'assignment'>('appointment');
+  const [leadAssignmentsForRefund, setLeadAssignmentsForRefund] = useState<any[]>([]);
+  const [selectedAssignmentForRefund, setSelectedAssignmentForRefund] = useState<any>(null);
 
   // Check if any filters are active
   const hasActiveFilters = 
@@ -510,50 +513,137 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["workshops"] });
       queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
       toast.success("Marked as refunded successfully");
-      setRefundDialogOpen(false);
-      setSelectedLeadForRefund(null);
-      setSelectedAppointmentForRefund(null);
-      setRefundReason("");
-      setLeadAppointments([]);
+      resetRefundDialog();
     },
     onError: (error: any) => {
       toast.error("Failed to mark as refunded: " + error.message);
     },
   });
 
-  const handleMarkAsRefund = async (lead: any) => {
-    const appointments = await fetchLeadAppointments(lead.id);
-    if (appointments.length === 0) {
-      toast.error("No active call appointments found for this customer");
-      return;
-    }
-    
-    setSelectedLeadForRefund(lead);
-    setLeadAppointments(appointments);
-    
-    if (appointments.length === 1) {
-      setSelectedAppointmentForRefund(appointments[0]);
-    } else {
-      setSelectedAppointmentForRefund(null);
-    }
-    
+  const markAssignmentRefundMutation = useMutation({
+    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("lead_assignments")
+        .update({ 
+          is_refunded: true,
+          refund_reason: reason,
+          refunded_at: new Date().toISOString()
+        })
+        .eq("id", assignmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["workshops"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
+      toast.success("Marked as refunded successfully");
+      resetRefundDialog();
+    },
+    onError: (error: any) => {
+      toast.error("Failed to mark as refunded: " + error.message);
+    },
+  });
+
+  const resetRefundDialog = () => {
+    setRefundDialogOpen(false);
+    setSelectedLeadForRefund(null);
+    setSelectedAppointmentForRefund(null);
     setRefundReason("");
-    setRefundDialogOpen(true);
+    setLeadAppointments([]);
+    setRefundMode('appointment');
+    setLeadAssignmentsForRefund([]);
+    setSelectedAssignmentForRefund(null);
+  };
+
+  // Fetch lead assignments for refund (when no call appointments exist)
+  const fetchLeadAssignmentsForRefund = async (leadId: string) => {
+    const { data, error } = await supabase
+      .from("lead_assignments")
+      .select(`
+        id, 
+        is_refunded, 
+        refund_reason,
+        workshop:workshops(id, title),
+        product:products(id, product_name, price)
+      `)
+      .eq("lead_id", leadId)
+      .eq("is_refunded", false);
+    
+    if (error) {
+      toast.error("Failed to fetch assignments");
+      return [];
+    }
+    return data || [];
+  };
+
+  const handleMarkAsRefund = async (lead: any) => {
+    // First try to find call appointments
+    const appointments = await fetchLeadAppointments(lead.id);
+    
+    if (appointments.length > 0) {
+      // Has call appointments - use appointment refund flow
+      setRefundMode('appointment');
+      setSelectedLeadForRefund(lead);
+      setLeadAppointments(appointments);
+      
+      if (appointments.length === 1) {
+        setSelectedAppointmentForRefund(appointments[0]);
+      } else {
+        setSelectedAppointmentForRefund(null);
+      }
+      
+      setRefundReason("");
+      setRefundDialogOpen(true);
+    } else {
+      // No call appointments - use assignment refund flow
+      const assignments = await fetchLeadAssignmentsForRefund(lead.id);
+      
+      if (assignments.length === 0) {
+        toast.error("No active assignments found for this customer");
+        return;
+      }
+      
+      setRefundMode('assignment');
+      setSelectedLeadForRefund(lead);
+      setLeadAssignmentsForRefund(assignments);
+      
+      if (assignments.length === 1) {
+        setSelectedAssignmentForRefund(assignments[0]);
+      } else {
+        setSelectedAssignmentForRefund(null);
+      }
+      
+      setRefundReason("");
+      setRefundDialogOpen(true);
+    }
   };
 
   const handleConfirmRefund = () => {
-    if (!selectedAppointmentForRefund) {
-      toast.error("Please select an appointment to refund");
-      return;
-    }
     if (!refundReason.trim()) {
       toast.error("Please provide a refund reason");
       return;
     }
-    markRefundMutation.mutate({
-      appointmentId: selectedAppointmentForRefund.id,
-      reason: refundReason.trim(),
-    });
+    
+    if (refundMode === 'appointment') {
+      if (!selectedAppointmentForRefund) {
+        toast.error("Please select an appointment to refund");
+        return;
+      }
+      markRefundMutation.mutate({
+        appointmentId: selectedAppointmentForRefund.id,
+        reason: refundReason.trim(),
+      });
+    } else {
+      if (!selectedAssignmentForRefund) {
+        toast.error("Please select an assignment to refund");
+        return;
+      }
+      markAssignmentRefundMutation.mutate({
+        assignmentId: selectedAssignmentForRefund.id,
+        reason: refundReason.trim(),
+      });
+    }
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1445,10 +1535,11 @@ const Leads = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="text-sm text-muted-foreground">
-              You are about to mark a call for <span className="font-medium text-foreground">{selectedLeadForRefund?.contact_name}</span> as refunded.
+              You are about to mark {refundMode === 'appointment' ? 'a call' : 'an assignment'} for <span className="font-medium text-foreground">{selectedLeadForRefund?.contact_name}</span> as refunded.
             </div>
             
-            {leadAppointments.length > 1 && (
+            {/* Appointment mode */}
+            {refundMode === 'appointment' && leadAppointments.length > 1 && (
               <div className="space-y-2">
                 <Label>Select Appointment</Label>
                 <Select
@@ -1472,11 +1563,51 @@ const Leads = () => {
               </div>
             )}
             
-            {leadAppointments.length === 1 && selectedAppointmentForRefund && (
+            {refundMode === 'appointment' && leadAppointments.length === 1 && selectedAppointmentForRefund && (
               <div className="p-3 bg-muted rounded-md text-sm">
                 <div><span className="font-medium">Date:</span> {selectedAppointmentForRefund.scheduled_date ? new Date(selectedAppointmentForRefund.scheduled_date).toLocaleDateString() : "No date"}</div>
                 <div><span className="font-medium">Time:</span> {selectedAppointmentForRefund.scheduled_time || "No time"}</div>
                 <div><span className="font-medium">Status:</span> {selectedAppointmentForRefund.status}</div>
+              </div>
+            )}
+            
+            {/* Assignment mode */}
+            {refundMode === 'assignment' && leadAssignmentsForRefund.length > 1 && (
+              <div className="space-y-2">
+                <Label>Select Assignment to Refund</Label>
+                <Select
+                  value={selectedAssignmentForRefund?.id || ""}
+                  onValueChange={(value) => {
+                    const assignment = leadAssignmentsForRefund.find(a => a.id === value);
+                    setSelectedAssignmentForRefund(assignment);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an assignment to refund" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {leadAssignmentsForRefund.map((assignment) => (
+                      <SelectItem key={assignment.id} value={assignment.id}>
+                        {assignment.workshop?.title || assignment.product?.product_name || "Unknown"} 
+                        {assignment.product?.price ? ` - ₹${assignment.product.price}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {refundMode === 'assignment' && leadAssignmentsForRefund.length === 1 && selectedAssignmentForRefund && (
+              <div className="p-3 bg-muted rounded-md text-sm">
+                {selectedAssignmentForRefund.workshop && (
+                  <div><span className="font-medium">Workshop:</span> {selectedAssignmentForRefund.workshop.title}</div>
+                )}
+                {selectedAssignmentForRefund.product && (
+                  <>
+                    <div><span className="font-medium">Product:</span> {selectedAssignmentForRefund.product.product_name}</div>
+                    <div><span className="font-medium">Price:</span> ₹{selectedAssignmentForRefund.product.price}</div>
+                  </>
+                )}
               </div>
             )}
             
@@ -1497,10 +1628,15 @@ const Leads = () => {
             </Button>
             <Button 
               onClick={handleConfirmRefund}
-              disabled={markRefundMutation.isPending || !refundReason.trim() || !selectedAppointmentForRefund}
+              disabled={
+                (markRefundMutation.isPending || markAssignmentRefundMutation.isPending) || 
+                !refundReason.trim() || 
+                (refundMode === 'appointment' && !selectedAppointmentForRefund) ||
+                (refundMode === 'assignment' && !selectedAssignmentForRefund)
+              }
               className="bg-amber-600 hover:bg-amber-700"
             >
-              {markRefundMutation.isPending ? "Processing..." : "Confirm Refund"}
+              {(markRefundMutation.isPending || markAssignmentRefundMutation.isPending) ? "Processing..." : "Confirm Refund"}
             </Button>
           </DialogFooter>
         </DialogContent>

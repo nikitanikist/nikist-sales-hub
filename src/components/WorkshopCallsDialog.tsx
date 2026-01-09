@@ -106,6 +106,8 @@ interface WorkshopSalesLead {
   closer_name: string | null;
   has_call_appointment: boolean;
   call_appointment_id: string | null;
+  is_assignment_refunded: boolean;
+  assignment_id: string | null;
 }
 
 export function WorkshopCallsDialog({
@@ -120,6 +122,7 @@ export function WorkshopCallsDialog({
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [selectedCall, setSelectedCall] = useState<WorkshopCall | WorkshopSalesLead | null>(null);
   const [refundReason, setRefundReason] = useState("");
+  const [refundMode, setRefundMode] = useState<'appointment' | 'assignment'>('appointment');
   
   // Use different RPC for 'all_booked' category
   const { data: calls, isLoading } = useQuery({
@@ -158,19 +161,62 @@ export function WorkshopCallsDialog({
       queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
       queryClient.invalidateQueries({ queryKey: ["workshops"] });
       queryClient.invalidateQueries({ queryKey: ["call-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
       toast.success("Marked as refunded successfully");
-      setRefundDialogOpen(false);
-      setSelectedCall(null);
-      setRefundReason("");
+      resetRefundDialog();
     },
     onError: (error: any) => {
       toast.error("Failed to mark as refunded: " + error.message);
     },
   });
 
+  const markAssignmentRefundedMutation = useMutation({
+    mutationFn: async ({ assignmentId, reason }: { assignmentId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("lead_assignments")
+        .update({ 
+          is_refunded: true,
+          refund_reason: reason,
+          refunded_at: new Date().toISOString()
+        })
+        .eq("id", assignmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
+      queryClient.invalidateQueries({ queryKey: ["workshops"] });
+      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+      toast.success("Marked as refunded successfully");
+      resetRefundDialog();
+    },
+    onError: (error: any) => {
+      toast.error("Failed to mark as refunded: " + error.message);
+    },
+  });
+
+  const resetRefundDialog = () => {
+    setRefundDialogOpen(false);
+    setSelectedCall(null);
+    setRefundReason("");
+    setRefundMode('appointment');
+  };
+
   const handleMarkAsRefunded = (call: WorkshopCall | WorkshopSalesLead) => {
     setSelectedCall(call);
     setRefundReason("");
+    
+    // Determine refund mode based on call type
+    if ('has_call_appointment' in call) {
+      const salesLead = call as WorkshopSalesLead;
+      if (salesLead.has_call_appointment && salesLead.call_appointment_id) {
+        setRefundMode('appointment');
+      } else if (salesLead.assignment_id) {
+        setRefundMode('assignment');
+      }
+    } else {
+      setRefundMode('appointment');
+    }
+    
     setRefundDialogOpen(true);
   };
 
@@ -181,21 +227,39 @@ export function WorkshopCallsDialog({
     return call.id;
   };
 
+  const getAssignmentId = (call: WorkshopSalesLead): string | null => {
+    return call.assignment_id;
+  };
+
   const handleConfirmRefund = () => {
     if (!selectedCall) return;
     if (!refundReason.trim()) {
       toast.error("Please provide a refund reason");
       return;
     }
-    const appointmentId = getAppointmentId(selectedCall);
-    if (!appointmentId) {
-      toast.error("No call appointment found for this lead");
-      return;
+    
+    if (refundMode === 'appointment') {
+      const appointmentId = getAppointmentId(selectedCall);
+      if (!appointmentId) {
+        toast.error("No call appointment found for this lead");
+        return;
+      }
+      markRefundedMutation.mutate({
+        appointmentId,
+        reason: refundReason.trim(),
+      });
+    } else {
+      const salesLead = selectedCall as WorkshopSalesLead;
+      const assignmentId = getAssignmentId(salesLead);
+      if (!assignmentId) {
+        toast.error("No assignment found for this lead");
+        return;
+      }
+      markAssignmentRefundedMutation.mutate({
+        assignmentId,
+        reason: refundReason.trim(),
+      });
     }
-    markRefundedMutation.mutate({
-      appointmentId,
-      reason: refundReason.trim(),
-    });
   };
 
   // Check if we should show the action column (for non-refunded categories, non-manager users)
@@ -353,18 +417,28 @@ export function WorkshopCallsDialog({
                       {showActionColumn && (
                         <TableCell className="text-right">
                           {category === 'all_booked' && salesLead ? (
-                            // For all_booked category, only show refund if has call appointment and not already refunded
-                            salesLead.has_call_appointment && salesLead.call_appointment_id && salesLead.status !== 'refunded' ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                onClick={() => handleMarkAsRefunded(salesLead)}
-                              >
-                                <RotateCcw className="h-3 w-3 mr-1" />
-                                Refund
-                              </Button>
-                            ) : null
+                            // For all_booked category, show refund if:
+                            // 1. Has call appointment and not already refunded via appointment, OR
+                            // 2. No call appointment but has assignment and not already refunded via assignment
+                            (() => {
+                              const canRefundViaAppointment = salesLead.has_call_appointment && salesLead.call_appointment_id && salesLead.status !== 'refunded';
+                              const canRefundViaAssignment = !salesLead.has_call_appointment && salesLead.assignment_id && !salesLead.is_assignment_refunded;
+                              
+                              if (canRefundViaAppointment || canRefundViaAssignment) {
+                                return (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                    onClick={() => handleMarkAsRefunded(salesLead)}
+                                  >
+                                    <RotateCcw className="h-3 w-3 mr-1" />
+                                    Refund
+                                  </Button>
+                                );
+                              }
+                              return null;
+                            })()
                           ) : regularCall && regularCall.status !== 'refunded' ? (
                             <Button
                               variant="outline"
@@ -418,10 +492,10 @@ export function WorkshopCallsDialog({
             </Button>
             <Button 
               onClick={handleConfirmRefund}
-              disabled={markRefundedMutation.isPending || !refundReason.trim()}
+              disabled={(markRefundedMutation.isPending || markAssignmentRefundedMutation.isPending) || !refundReason.trim()}
               className="bg-amber-600 hover:bg-amber-700"
             >
-              {markRefundedMutation.isPending ? "Processing..." : "Confirm Refund"}
+              {(markRefundedMutation.isPending || markAssignmentRefundedMutation.isPending) ? "Processing..." : "Confirm Refund"}
             </Button>
           </DialogFooter>
         </DialogContent>

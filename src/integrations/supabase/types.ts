@@ -475,8 +475,11 @@ export type Database = {
           funnel_id: string | null
           id: string
           is_connected: boolean | null
+          is_refunded: boolean | null
           lead_id: string
           product_id: string | null
+          refund_reason: string | null
+          refunded_at: string | null
           updated_at: string
           workshop_id: string | null
         }
@@ -486,8 +489,11 @@ export type Database = {
           funnel_id?: string | null
           id?: string
           is_connected?: boolean | null
+          is_refunded?: boolean | null
           lead_id: string
           product_id?: string | null
+          refund_reason?: string | null
+          refunded_at?: string | null
           updated_at?: string
           workshop_id?: string | null
         }
@@ -497,8 +503,11 @@ export type Database = {
           funnel_id?: string | null
           id?: string
           is_connected?: boolean | null
+          is_refunded?: boolean | null
           lead_id?: string
           product_id?: string | null
+          refund_reason?: string | null
+          refunded_at?: string | null
           updated_at?: string
           workshop_id?: string | null
         }
@@ -1053,12 +1062,14 @@ export type Database = {
       get_workshop_sales_leads: {
         Args: { p_workshop_title: string }
         Returns: {
+          assignment_id: string
           call_appointment_id: string
           closer_name: string
           contact_name: string
           email: string
           has_call_appointment: boolean
           id: string
+          is_assignment_refunded: boolean
           lead_id: string
           phone: string
           scheduled_date: string
