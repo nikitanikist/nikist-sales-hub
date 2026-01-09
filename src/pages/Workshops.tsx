@@ -25,7 +25,8 @@ type CallCategory =
   | "rescheduled_done" 
   | "booking_amount" 
   | "remaining"
-  | "all_booked";
+  | "all_booked"
+  | "refunded";
 
 const statusColors: Record<string, string> = {
   planned: "bg-blue-500",
@@ -108,6 +109,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           total_offer_amount: Number(item.total_offer_amount) || 0,
           total_cash_received: Number(item.total_cash_received) || 0,
           total_calls_booked: Number(item.total_calls_booked) || 0,
+          refunded_calls: Number(item.refunded_calls) || 0,
         };
         return acc;
       }, {} as Record<string, { 
@@ -122,6 +124,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
         total_offer_amount: number;
         total_cash_received: number;
         total_calls_booked: number;
+        refunded_calls: number;
       }>);
 
       // Calculate metrics for each workshop
@@ -138,6 +141,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           total_offer_amount: 0,
           total_cash_received: 0,
           total_calls_booked: 0,
+          refunded_calls: 0,
         };
         const registrationCount = metrics.registrations;
         const salesCount = metrics.sales;
@@ -166,6 +170,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           total_cash_received: metrics.total_cash_received,
           total_pl: totalPL,
           total_calls_booked: metrics.total_calls_booked,
+          refunded_calls: metrics.refunded_calls,
         };
       });
       
@@ -838,6 +843,13 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                   >
                                     <div className="text-2xl font-bold text-purple-600">{workshop.booking_amount_calls || 0}</div>
                                     <div className="text-xs text-muted-foreground">Booking Amount</div>
+                                  </div>
+                                  <div 
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "refunded"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-amber-600">{workshop.refunded_calls || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Refunded</div>
                                   </div>
                                 </div>
                               </div>

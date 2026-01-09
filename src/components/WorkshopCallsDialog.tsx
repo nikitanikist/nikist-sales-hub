@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -15,9 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
-import { Phone, Mail, Calendar, Clock, User } from "lucide-react";
+import { Phone, Mail, Calendar, Clock, User, RotateCcw } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
+import { toast } from "sonner";
 
 type CallCategory = 
   | "converted" 
@@ -26,7 +32,8 @@ type CallCategory =
   | "rescheduled_done" 
   | "booking_amount" 
   | "remaining"
-  | "all_booked";
+  | "all_booked"
+  | "refunded";
 
 interface WorkshopCallsDialogProps {
   open: boolean;
@@ -43,6 +50,7 @@ const categoryLabels: Record<CallCategory, string> = {
   booking_amount: "Booking Amount",
   remaining: "Remaining Calls",
   all_booked: "All Booked Calls",
+  refunded: "Refunded Calls",
 };
 
 const categoryColors: Record<CallCategory, string> = {
@@ -53,6 +61,7 @@ const categoryColors: Record<CallCategory, string> = {
   booking_amount: "bg-purple-500",
   remaining: "bg-blue-500",
   all_booked: "bg-slate-500",
+  refunded: "bg-amber-500",
 };
 
 const statusLabels: Record<string, string> = {
@@ -63,6 +72,7 @@ const statusLabels: Record<string, string> = {
   converted_beginner: "Converted (Beginner)",
   converted_intermediate: "Converted (Intermediate)",
   converted_advance: "Converted (Advance)",
+  converted: "Converted",
   not_converted: "Not Converted",
   booking_amount: "Booking Amount",
   reschedule: "Reschedule",
@@ -103,7 +113,12 @@ export function WorkshopCallsDialog({
   workshopTitle,
   category,
 }: WorkshopCallsDialogProps) {
-  const { isManager } = useUserRole();
+  const { isManager, isAdmin } = useUserRole();
+  const queryClient = useQueryClient();
+  
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [selectedCall, setSelectedCall] = useState<WorkshopCall | null>(null);
+  const [refundReason, setRefundReason] = useState("");
   
   // Use different RPC for 'all_booked' category
   const { data: calls, isLoading } = useQuery({
@@ -127,164 +142,262 @@ export function WorkshopCallsDialog({
     enabled: open && !!workshopTitle,
   });
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Badge className={`${categoryColors[category]} text-white`}>
-              {calls?.length || 0}
-            </Badge>
-            {categoryLabels[category]} - {workshopTitle}
-          </DialogTitle>
-        </DialogHeader>
+  const markRefundedMutation = useMutation({
+    mutationFn: async ({ appointmentId, reason }: { appointmentId: string; reason: string }) => {
+      const { error } = await supabase
+        .from("call_appointments")
+        .update({ 
+          status: "refunded" as any,
+          refund_reason: reason 
+        })
+        .eq("id", appointmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
+      queryClient.invalidateQueries({ queryKey: ["workshops"] });
+      queryClient.invalidateQueries({ queryKey: ["call-appointments"] });
+      toast.success("Marked as refunded successfully");
+      setRefundDialogOpen(false);
+      setSelectedCall(null);
+      setRefundReason("");
+    },
+    onError: (error: any) => {
+      toast.error("Failed to mark as refunded: " + error.message);
+    },
+  });
 
-        {isLoading ? (
-          <div className="text-center py-8">Loading...</div>
-        ) : calls && calls.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Customer</TableHead>
-                <TableHead>Contact</TableHead>
-                {category === 'all_booked' ? (
-                  <TableHead>Call Scheduled</TableHead>
-                ) : (
-                  <TableHead>Scheduled</TableHead>
-                )}
-                <TableHead>Status</TableHead>
-                <TableHead>Closer</TableHead>
-                {(category === "converted" || category === "rescheduled_done") && !isManager && (
-                  <>
-                    <TableHead className="text-right">Offer</TableHead>
-                    <TableHead className="text-right">Received</TableHead>
-                  </>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {calls.map((call) => {
-                const isAllBookedCall = category === 'all_booked';
-                const salesLead = isAllBookedCall ? (call as WorkshopSalesLead) : null;
-                const regularCall = !isAllBookedCall ? (call as WorkshopCall) : null;
-                
-                return (
-                  <TableRow key={call.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        {call.contact_name || "Unknown"}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {call.phone && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
-                            <a 
-                              href={`tel:${call.phone}`} 
-                              className="text-primary hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {call.phone}
-                            </a>
-                          </div>
-                        )}
-                        {call.email && (
-                          <div className="flex items-center gap-1 text-sm">
-                            <Mail className="h-3 w-3 text-muted-foreground" />
-                            <a 
-                              href={`mailto:${call.email}`} 
-                              className="text-primary hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {call.email}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {isAllBookedCall && salesLead ? (
-                        salesLead.has_call_appointment ? (
-                          <div className="space-y-1">
-                            {salesLead.scheduled_date && (
-                              <div className="flex items-center gap-1 text-sm">
-                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                {format(new Date(salesLead.scheduled_date), "MMM dd, yyyy")}
-                              </div>
-                            )}
-                            {salesLead.scheduled_time && (
-                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                <Clock className="h-3 w-3" />
-                                {salesLead.scheduled_time}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
-                            No Call Scheduled
-                          </Badge>
-                        )
-                      ) : regularCall ? (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-sm">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            {format(new Date(regularCall.scheduled_date), "MMM dd, yyyy")}
-                          </div>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {regularCall.scheduled_time}
-                          </div>
+  const handleMarkAsRefunded = (call: WorkshopCall) => {
+    setSelectedCall(call);
+    setRefundReason("");
+    setRefundDialogOpen(true);
+  };
+
+  const handleConfirmRefund = () => {
+    if (!selectedCall) return;
+    if (!refundReason.trim()) {
+      toast.error("Please provide a refund reason");
+      return;
+    }
+    markRefundedMutation.mutate({
+      appointmentId: selectedCall.id,
+      reason: refundReason.trim(),
+    });
+  };
+
+  // Check if we should show the action column (for non-refunded categories, non-manager users)
+  const showActionColumn = category !== 'refunded' && category !== 'all_booked' && !isManager;
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Badge className={`${categoryColors[category]} text-white`}>
+                {calls?.length || 0}
+              </Badge>
+              {categoryLabels[category]} - {workshopTitle}
+            </DialogTitle>
+          </DialogHeader>
+
+          {isLoading ? (
+            <div className="text-center py-8">Loading...</div>
+          ) : calls && calls.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Contact</TableHead>
+                  {category === 'all_booked' ? (
+                    <TableHead>Call Scheduled</TableHead>
+                  ) : (
+                    <TableHead>Scheduled</TableHead>
+                  )}
+                  <TableHead>Status</TableHead>
+                  <TableHead>Closer</TableHead>
+                  {(category === "converted" || category === "rescheduled_done" || category === "refunded") && !isManager && (
+                    <>
+                      <TableHead className="text-right">Offer</TableHead>
+                      <TableHead className="text-right">Received</TableHead>
+                    </>
+                  )}
+                  {showActionColumn && <TableHead className="text-right">Action</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {calls.map((call) => {
+                  const isAllBookedCall = category === 'all_booked';
+                  const salesLead = isAllBookedCall ? (call as WorkshopSalesLead) : null;
+                  const regularCall = !isAllBookedCall ? (call as WorkshopCall) : null;
+                  
+                  return (
+                    <TableRow key={call.id}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          {call.contact_name || "Unknown"}
                         </div>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      {isAllBookedCall && salesLead ? (
-                        salesLead.has_call_appointment && salesLead.status ? (
-                          <Badge variant="outline">
-                            {statusLabels[salesLead.status] || salesLead.status}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )
-                      ) : regularCall ? (
-                        <>
-                          <Badge variant="outline">
-                            {statusLabels[regularCall.status] || regularCall.status}
-                          </Badge>
-                          {regularCall.was_rescheduled && category !== "rescheduled_remaining" && (
-                            <Badge variant="secondary" className="ml-1 text-xs">
-                              Was Rescheduled
-                            </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {call.phone && (
+                            <div className="flex items-center gap-1 text-sm">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              <a 
+                                href={`tel:${call.phone}`} 
+                                className="text-primary hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {call.phone}
+                              </a>
+                            </div>
                           )}
+                          {call.email && (
+                            <div className="flex items-center gap-1 text-sm">
+                              <Mail className="h-3 w-3 text-muted-foreground" />
+                              <a 
+                                href={`mailto:${call.email}`} 
+                                className="text-primary hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {call.email}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {isAllBookedCall && salesLead ? (
+                          salesLead.has_call_appointment ? (
+                            <div className="space-y-1">
+                              {salesLead.scheduled_date && (
+                                <div className="flex items-center gap-1 text-sm">
+                                  <Calendar className="h-3 w-3 text-muted-foreground" />
+                                  {format(new Date(salesLead.scheduled_date), "MMM dd, yyyy")}
+                                </div>
+                              )}
+                              {salesLead.scheduled_time && (
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {salesLead.scheduled_time}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
+                              No Call Scheduled
+                            </Badge>
+                          )
+                        ) : regularCall ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-sm">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              {format(new Date(regularCall.scheduled_date), "MMM dd, yyyy")}
+                            </div>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {regularCall.scheduled_time}
+                            </div>
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {isAllBookedCall && salesLead ? (
+                          salesLead.has_call_appointment && salesLead.status ? (
+                            <Badge variant="outline" className={salesLead.status === 'refunded' ? 'text-amber-600 border-amber-300' : ''}>
+                              {statusLabels[salesLead.status] || salesLead.status}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )
+                        ) : regularCall ? (
+                          <>
+                            <Badge variant="outline" className={regularCall.status === 'refunded' ? 'text-amber-600 border-amber-300' : ''}>
+                              {statusLabels[regularCall.status] || regularCall.status}
+                            </Badge>
+                            {regularCall.was_rescheduled && category !== "rescheduled_remaining" && (
+                              <Badge variant="secondary" className="ml-1 text-xs">
+                                Was Rescheduled
+                              </Badge>
+                            )}
+                          </>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {call.closer_name || "Unassigned"}
+                      </TableCell>
+                      {(category === "converted" || category === "rescheduled_done" || category === "refunded") && !isManager && regularCall && (
+                        <>
+                          <TableCell className="text-right">
+                            ₹{Number(regularCall.offer_amount || 0).toLocaleString("en-IN")}
+                          </TableCell>
+                          <TableCell className="text-right text-green-600 font-medium">
+                            ₹{Number(regularCall.cash_received || 0).toLocaleString("en-IN")}
+                          </TableCell>
                         </>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      {call.closer_name || "Unassigned"}
-                    </TableCell>
-                    {(category === "converted" || category === "rescheduled_done") && !isManager && regularCall && (
-                      <>
+                      )}
+                      {showActionColumn && regularCall && (
                         <TableCell className="text-right">
-                          ₹{Number(regularCall.offer_amount || 0).toLocaleString("en-IN")}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            onClick={() => handleMarkAsRefunded(regularCall)}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            Refund
+                          </Button>
                         </TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">
-                          ₹{Number(regularCall.cash_received || 0).toLocaleString("en-IN")}
-                        </TableCell>
-                      </>
-                    )}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        ) : (
-          <div className="text-center py-8 text-muted-foreground">
-            No calls found in this category for this workshop.
+                      )}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No calls found in this category for this workshop.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Refund Reason Dialog */}
+      <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark as Refunded</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="text-sm text-muted-foreground">
+              You are about to mark the call for <span className="font-medium text-foreground">{selectedCall?.contact_name}</span> as refunded.
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="refund-reason">Refund Reason <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="refund-reason"
+                placeholder="Enter the reason for refund..."
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+                rows={3}
+              />
+            </div>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmRefund}
+              disabled={markRefundedMutation.isPending || !refundReason.trim()}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {markRefundedMutation.isPending ? "Processing..." : "Confirm Refund"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
