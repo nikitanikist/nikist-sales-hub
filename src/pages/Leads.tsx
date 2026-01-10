@@ -182,9 +182,9 @@ const Leads = () => {
   });
 
   const { data: leadAssignments, isLoading: isLoadingAssignments } = useQuery({
-    queryKey: ["lead-assignments"],
+    queryKey: ["lead-assignments", filters.productIds, filters.workshopIds],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("lead_assignments")
         .select(`
           *,
@@ -209,6 +209,21 @@ const Leads = () => {
         `)
         .order("created_at", { ascending: false });
 
+      // Apply server-side filters when product or workshop filters are active
+      // This ensures ALL matching assignments are returned regardless of the default row limit
+      if (filters.productIds.length > 0) {
+        query = query.in("product_id", filters.productIds);
+      }
+      if (filters.workshopIds.length > 0) {
+        query = query.in("workshop_id", filters.workshopIds);
+      }
+      
+      // If no filters are active, limit to most recent for performance
+      if (filters.productIds.length === 0 && filters.workshopIds.length === 0) {
+        query = query.limit(1000);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
