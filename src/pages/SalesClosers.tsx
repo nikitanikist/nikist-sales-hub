@@ -36,10 +36,11 @@ const SalesClosers = () => {
     queryKey: ["sales-closers", profileId, isCloser],
     queryFn: async () => {
       // Get all users with sales_rep or admin roles
+      // Get only users with sales_rep role (exclude admins from closers list)
       const { data: userRoles, error: rolesError } = await supabase
         .from("user_roles")
         .select("user_id")
-        .in("role", ["sales_rep", "admin"]);
+        .eq("role", "sales_rep");
 
       if (rolesError) throw rolesError;
 
