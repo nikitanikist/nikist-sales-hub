@@ -255,6 +255,15 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      // First, delete all lead_assignments for this workshop to avoid constraint violation
+      const { error: assignmentsError } = await supabase
+        .from("lead_assignments")
+        .delete()
+        .eq("workshop_id", id);
+      
+      if (assignmentsError) throw assignmentsError;
+      
+      // Then delete the workshop
       const { error } = await supabase.from("workshops").delete().eq("id", id);
       if (error) throw error;
     },
