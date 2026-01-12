@@ -722,101 +722,6 @@ const Batches = () => {
     );
   };
 
-  // EMI History Section Component
-  const EmiHistorySection = ({ student }: { student: BatchStudent }) => {
-    const totalEmiCollected = studentEmiPayments?.reduce((sum, emi) => sum + Number(emi.amount), 0) || 0;
-
-    return (
-      <div className="p-4 bg-muted/30 border-t">
-        {/* Show Refund Reason if status is refunded */}
-        {student.status === "refunded" && student.refund_reason && (
-          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-            <div className="flex items-center gap-2 mb-1">
-              <RefreshCcw className="h-4 w-4 text-amber-600" />
-              <span className="font-medium text-sm text-amber-800">Refund Reason</span>
-            </div>
-            <p className="text-sm text-amber-700 whitespace-pre-wrap">
-              {student.refund_reason}
-            </p>
-          </div>
-        )}
-        
-        <div className="flex items-center gap-2 mb-3">
-          <IndianRupee className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium text-sm">EMI Payment History</span>
-        </div>
-        
-        {emiLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
-        ) : !studentEmiPayments?.length ? (
-          <p className="text-sm text-muted-foreground py-2">No EMI payments recorded yet</p>
-        ) : (
-          <div className="space-y-3">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="py-2">EMI #</TableHead>
-                  <TableHead className="py-2">Amount</TableHead>
-                  <TableHead className="py-2">Date</TableHead>
-                  <TableHead className="py-2">Classes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {studentEmiPayments.map((emi) => (
-                  <TableRow key={emi.id}>
-                    <TableCell className="py-2">EMI {emi.emi_number}</TableCell>
-                    <TableCell className="py-2 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
-                    <TableCell className="py-2 text-muted-foreground">
-                      {format(new Date(emi.payment_date), "dd MMM yyyy")}
-                    </TableCell>
-                    <TableCell className="py-2 text-sm text-muted-foreground">
-                      {emi.previous_classes_access && emi.new_classes_access && emi.previous_classes_access !== emi.new_classes_access
-                        ? `${CLASSES_ACCESS_LABELS[emi.previous_classes_access] || emi.previous_classes_access} → ${CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access}`
-                        : emi.new_classes_access ? CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access : "-"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="bg-muted/50">
-                  <TableCell className="py-2 font-medium">Total</TableCell>
-                  <TableCell className="py-2 font-bold text-green-600">
-                    ₹{totalEmiCollected.toLocaleString('en-IN')}
-                  </TableCell>
-                  <TableCell className="py-2"></TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        )}
-        
-        {/* Update EMI Button - Always visible for all students, on the left side */}
-        <div className="flex items-center gap-4 pt-3 mt-3 border-t">
-          {!isManager && (
-            <Button 
-              size="sm" 
-              onClick={(e) => {
-                e.stopPropagation();
-                setEmiStudent(student);
-              }}
-              className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Pencil className="h-3 w-3" />
-              Update EMI & Course Access
-            </Button>
-          )}
-          
-          <div className="text-sm ml-auto">
-            <span className="text-muted-foreground">Due Amount: </span>
-            <span className="font-medium text-orange-600">
-              ₹{(student.due_amount || 0).toLocaleString('en-IN')}
-            </span>
-          </div>
-        </div>
-        
-      </div>
-    );
-  };
 
   // Batch detail view
   if (selectedBatch) {
@@ -1447,7 +1352,97 @@ const Batches = () => {
                             <CollapsibleContent asChild>
                               <tr>
                                 <td colSpan={12} className="p-0">
-                                  <EmiHistorySection student={student} />
+                                  <div className="p-4 bg-muted/30 border-t">
+                                    {/* Show Refund Reason if status is refunded */}
+                                    {student.status === "refunded" && student.refund_reason && (
+                                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <RefreshCcw className="h-4 w-4 text-amber-600" />
+                                          <span className="font-medium text-sm text-amber-800">Refund Reason</span>
+                                        </div>
+                                        <p className="text-sm text-amber-700 whitespace-pre-wrap">
+                                          {student.refund_reason}
+                                        </p>
+                                      </div>
+                                    )}
+                                    
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <IndianRupee className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium text-sm">EMI Payment History</span>
+                                    </div>
+                                    
+                                    {emiLoading ? (
+                                      <div className="flex items-center justify-center py-4">
+                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                      </div>
+                                    ) : (() => {
+                                      const studentEmiList = studentEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
+                                      const totalEmiCollected = studentEmiList.reduce((sum, emi) => sum + Number(emi.amount), 0);
+                                      
+                                      return !studentEmiList.length ? (
+                                        <p className="text-sm text-muted-foreground py-2">No EMI payments recorded yet</p>
+                                      ) : (
+                                        <div className="space-y-3">
+                                          <Table>
+                                            <TableHeader>
+                                              <TableRow>
+                                                <TableHead className="py-2">EMI #</TableHead>
+                                                <TableHead className="py-2">Amount</TableHead>
+                                                <TableHead className="py-2">Date</TableHead>
+                                                <TableHead className="py-2">Classes</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {studentEmiList.map((emi) => (
+                                                <TableRow key={emi.id}>
+                                                  <TableCell className="py-2">EMI {emi.emi_number}</TableCell>
+                                                  <TableCell className="py-2 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
+                                                  <TableCell className="py-2 text-muted-foreground">
+                                                    {format(new Date(emi.payment_date), "dd MMM yyyy")}
+                                                  </TableCell>
+                                                  <TableCell className="py-2 text-sm text-muted-foreground">
+                                                    {emi.previous_classes_access && emi.new_classes_access && emi.previous_classes_access !== emi.new_classes_access
+                                                      ? `${CLASSES_ACCESS_LABELS[emi.previous_classes_access] || emi.previous_classes_access} → ${CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access}`
+                                                      : emi.new_classes_access ? CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access : "-"}
+                                                  </TableCell>
+                                                </TableRow>
+                                              ))}
+                                              <TableRow className="bg-muted/50">
+                                                <TableCell className="py-2 font-medium">Total</TableCell>
+                                                <TableCell className="py-2 font-bold text-green-600">
+                                                  ₹{totalEmiCollected.toLocaleString('en-IN')}
+                                                </TableCell>
+                                                <TableCell className="py-2"></TableCell>
+                                                <TableCell className="py-2"></TableCell>
+                                              </TableRow>
+                                            </TableBody>
+                                          </Table>
+                                        </div>
+                                      );
+                                    })()}
+                                    
+                                    {/* Update EMI Button */}
+                                    <div className="flex items-center gap-4 pt-3 mt-3 border-t">
+                                      <Button 
+                                        size="sm" 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEmiStudent(student);
+                                        }}
+                                        className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                        Update EMI & Course Access
+                                      </Button>
+                                      
+                                      <div className="text-sm ml-auto">
+                                        <span className="text-muted-foreground">Due Amount: </span>
+                                        <span className="font-medium text-orange-600">
+                                          ₹{(student.due_amount || 0).toLocaleString('en-IN')}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </td>
                               </tr>
                             </CollapsibleContent>
