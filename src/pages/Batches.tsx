@@ -787,33 +787,34 @@ const Batches = () => {
                 </TableRow>
               </TableBody>
             </Table>
-            
-            <div className="flex items-center justify-between gap-4 pt-2 border-t">
-              <div className="text-sm">
-                <span className="text-muted-foreground">Due Amount: </span>
-                <span className="font-medium text-orange-600">
-                  ₹{(student.due_amount || 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-              
-              {/* Update EMI Button - Only for non-managers */}
-              {!isManager && (
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEmiStudent(student);
-                  }}
-                  className="gap-1"
-                >
-                  <Pencil className="h-3 w-3" />
-                  Update EMI & Course Access
-                </Button>
-              )}
-            </div>
           </div>
         )}
+        
+        {/* Update EMI Button - Always visible for all students, on the left side */}
+        <div className="flex items-center gap-4 pt-3 mt-3 border-t">
+          {!isManager && (
+            <Button 
+              size="sm" 
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEmiStudent(student);
+              }}
+              className="gap-1"
+            >
+              <Pencil className="h-3 w-3" />
+              Update EMI & Course Access
+            </Button>
+          )}
+          
+          <div className="text-sm ml-auto">
+            <span className="text-muted-foreground">Due Amount: </span>
+            <span className="font-medium text-orange-600">
+              ₹{(student.due_amount || 0).toLocaleString('en-IN')}
+            </span>
+          </div>
+        </div>
+        
       </div>
     );
   };
