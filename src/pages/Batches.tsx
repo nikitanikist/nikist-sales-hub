@@ -795,12 +795,11 @@ const Batches = () => {
           {!isManager && (
             <Button 
               size="sm" 
-              variant="outline"
               onClick={(e) => {
                 e.stopPropagation();
                 setEmiStudent(student);
               }}
-              className="gap-1"
+              className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Pencil className="h-3 w-3" />
               Update EMI & Course Access
