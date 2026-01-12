@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+// Removed Collapsible - using manual expand for better event handling
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil } from "lucide-react";
 import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
@@ -125,6 +125,7 @@ const Batches = () => {
   
   // EMI update dialog state
   const [emiStudent, setEmiStudent] = useState<BatchStudent | null>(null);
+  const [isEmiDialogOpen, setIsEmiDialogOpen] = useState(false);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -1220,13 +1221,7 @@ const Batches = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredStudents.map((student) => (
-                      <Collapsible
-                        key={student.id}
-                        open={expandedStudentId === student.id}
-                        onOpenChange={() => toggleStudentExpand(student.id)}
-                        asChild
-                      >
-                        <>
+                      <React.Fragment key={student.id}>
                           <TableRow className={cn(
                             expandedStudentId === student.id && "bg-muted/50",
                             student.status === "refunded" && "bg-amber-50/70"
@@ -1234,15 +1229,21 @@ const Batches = () => {
                             {/* EMI expand button - only for non-managers */}
                             {!isManager ? (
                               <TableCell>
-                                <CollapsibleTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    {expandedStudentId === student.id ? (
-                                      <ChevronDown className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronRight className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </CollapsibleTrigger>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleStudentExpand(student.id);
+                                  }}
+                                >
+                                  {expandedStudentId === student.id ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </Button>
                               </TableCell>
                             ) : (
                               <TableCell></TableCell>
@@ -1347,11 +1348,10 @@ const Batches = () => {
                               </TableCell>
                             )}
                           </TableRow>
-                          {/* EMI History - Hidden for Managers */}
-                          {!isManager && (
-                            <CollapsibleContent asChild>
+                          {/* EMI History - Hidden for Managers - Show only when expanded */}
+                          {!isManager && expandedStudentId === student.id && (
                               <tr>
-                                <td colSpan={12} className="p-0">
+                                <td colSpan={!isCloser ? 10 : 9} className="p-0">
                                   <div className="p-4 bg-muted/30 border-t">
                                     {/* Show Refund Reason if status is refunded */}
                                     {student.status === "refunded" && student.refund_reason && (
@@ -1425,13 +1425,9 @@ const Batches = () => {
                                     <div className="flex items-center gap-4 pt-3 mt-3 border-t">
                                       <Button 
                                         size="sm" 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          e.preventDefault();
-                                          // Use setTimeout to ensure state update happens after event cycle
-                                          setTimeout(() => {
-                                            setEmiStudent(student);
-                                          }, 0);
+                                        onClick={() => {
+                                          setEmiStudent(student);
+                                          setIsEmiDialogOpen(true);
                                         }}
                                         className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                                       >
@@ -1442,10 +1438,8 @@ const Batches = () => {
                                   </div>
                                 </td>
                               </tr>
-                            </CollapsibleContent>
                           )}
-                        </>
-                      </Collapsible>
+                      </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>
@@ -1778,24 +1772,28 @@ const Batches = () => {
       )}
 
       {/* Update EMI Dialog */}
-      {emiStudent && (
-        <UpdateEmiDialog
-          open={!!emiStudent}
-          onOpenChange={(open) => !open && setEmiStudent(null)}
-          appointmentId={emiStudent.id}
-          offerAmount={emiStudent.offer_amount || 0}
-          cashReceived={emiStudent.cash_received || 0}
-          dueAmount={emiStudent.due_amount || 0}
-          classesAccess={emiStudent.classes_access}
-          batchId={selectedBatch?.id || null}
-          customerName={emiStudent.contact_name}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["batch-students"] });
-            queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
-            queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
-          }}
-        />
-      )}
+      {/* Update EMI Dialog */}
+      <UpdateEmiDialog
+        open={isEmiDialogOpen}
+        onOpenChange={(open) => {
+          setIsEmiDialogOpen(open);
+          if (!open) {
+            setEmiStudent(null);
+          }
+        }}
+        appointmentId={emiStudent?.id || ""}
+        offerAmount={emiStudent?.offer_amount || 0}
+        cashReceived={emiStudent?.cash_received || 0}
+        dueAmount={emiStudent?.due_amount || 0}
+        classesAccess={emiStudent?.classes_access ?? null}
+        batchId={selectedBatch?.id || null}
+        customerName={emiStudent?.contact_name || ""}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+          queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
+          queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
+        }}
+      />
     </div>
   );
 };
