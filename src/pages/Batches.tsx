@@ -1667,11 +1667,19 @@ const Batches = () => {
                     <TableCell className="font-medium">{batch.name}</TableCell>
                     <TableCell>{format(new Date(batch.start_date), "dd MMM yyyy")}</TableCell>
                     <TableCell>
-                      {batch.is_active ? (
-                        <Badge className="bg-green-100 text-green-800">Active</Badge>
-                      ) : (
-                        <Badge variant="secondary">Inactive</Badge>
-                      )}
+                      {(() => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const startDate = new Date(batch.start_date);
+                        startDate.setHours(0, 0, 0, 0);
+                        const isLive = startDate <= today;
+                        
+                        return isLive ? (
+                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Live</Badge>
+                        ) : (
+                          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Upcoming</Badge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
