@@ -72,6 +72,7 @@ const AppLayout = () => {
   const closerMenuItems = [
     { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
+    { title: "Batches", icon: GraduationCap, path: "/batches" },
   ];
 
   // Manager menu items - can see closers, workshops, customers (read-only), and batches (no financial data)
