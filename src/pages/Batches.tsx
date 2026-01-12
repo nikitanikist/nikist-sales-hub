@@ -100,6 +100,7 @@ const Batches = () => {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
+  const [batchSearchQuery, setBatchSearchQuery] = useState("");
   
   // Advanced filter state
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -374,6 +375,17 @@ const Batches = () => {
     
     return { closerBreakdown: breakdownArray, totals: totalsCalc };
   }, [filteredStudents, batchEmiPayments]);
+
+  // Filter batches based on search query
+  const filteredBatches = useMemo(() => {
+    if (!batches) return [];
+    if (!batchSearchQuery.trim()) return batches;
+    
+    const searchLower = batchSearchQuery.toLowerCase();
+    return batches.filter(batch => 
+      batch.name.toLowerCase().includes(searchLower)
+    );
+  }, [batches, batchSearchQuery]);
 
   // Count active filters (exclude payment type for managers)
   const activeFilterCount = useMemo(() => {
@@ -1607,6 +1619,17 @@ const Batches = () => {
 
       <Card>
         <CardContent className="pt-6">
+          {/* Search Bar for Batches */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search batches..."
+              value={batchSearchQuery}
+              onChange={(e) => setBatchSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
           {batchesLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1616,6 +1639,12 @@ const Batches = () => {
               <GraduationCap className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>No batches created yet</p>
               <p className="text-sm">Click "Add Batch" to create your first batch</p>
+            </div>
+          ) : !filteredBatches.length ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No batches match your search</p>
+              <p className="text-sm">Try a different search term</p>
             </div>
           ) : (
             <Table>
@@ -1629,7 +1658,7 @@ const Batches = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {batches.map((batch) => (
+                {filteredBatches.map((batch) => (
                   <TableRow 
                     key={batch.id} 
                     className="cursor-pointer hover:bg-muted/50"
