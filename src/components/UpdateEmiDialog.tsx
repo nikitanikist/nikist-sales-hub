@@ -9,6 +9,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -88,6 +98,7 @@ export function UpdateEmiDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [newOfferAmount, setNewOfferAmount] = useState<number>(offerAmount);
   const [isEditingOfferAmount, setIsEditingOfferAmount] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   
   // Local state for immediate UI updates
   const [displayCashReceived, setDisplayCashReceived] = useState(cashReceived);
@@ -635,7 +646,7 @@ export function UpdateEmiDialog({
             Close
           </Button>
           <Button 
-            onClick={() => handleSaveAll({ closeAfterSuccess: true })}
+            onClick={() => setShowConfirmation(true)}
             disabled={isSaving}
           >
             {isSaving ? (
@@ -649,6 +660,38 @@ export function UpdateEmiDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Update</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Are you sure you want to update the payment status and course access for <strong>{customerName}</strong>?</p>
+              {emiAmount && parseFloat(emiAmount) > 0 && (
+                <p className="text-sm">• Adding EMI payment of ₹{parseFloat(emiAmount).toLocaleString("en-IN")}</p>
+              )}
+              {newOfferAmount !== offerAmount && (
+                <p className="text-sm">• Updating offer amount from ₹{offerAmount.toLocaleString("en-IN")} to ₹{newOfferAmount.toLocaleString("en-IN")}</p>
+              )}
+              {(newClassesAccess !== classesAccess || newBatchId !== batchId) && (
+                <p className="text-sm">• Updating course access settings</p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowConfirmation(false);
+                handleSaveAll({ closeAfterSuccess: true });
+              }}
+            >
+              Confirm Update
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

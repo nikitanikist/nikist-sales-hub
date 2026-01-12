@@ -16,7 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText } from "lucide-react";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil } from "lucide-react";
+import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
@@ -121,6 +122,9 @@ const Batches = () => {
   const [refundNotes, setRefundNotes] = useState<string>("");
   const [notesStudent, setNotesStudent] = useState<BatchStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
+  
+  // EMI update dialog state
+  const [emiStudent, setEmiStudent] = useState<BatchStudent | null>(null);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -784,13 +788,29 @@ const Batches = () => {
               </TableBody>
             </Table>
             
-            <div className="flex items-center gap-4 pt-2 border-t">
+            <div className="flex items-center justify-between gap-4 pt-2 border-t">
               <div className="text-sm">
                 <span className="text-muted-foreground">Due Amount: </span>
                 <span className="font-medium text-orange-600">
                   ₹{(student.due_amount || 0).toLocaleString('en-IN')}
                 </span>
               </div>
+              
+              {/* Update EMI Button - Only for non-managers */}
+              {!isManager && (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEmiStudent(student);
+                  }}
+                  className="gap-1"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Update EMI & Course Access
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -1761,8 +1781,28 @@ const Batches = () => {
                 {deleteMutation.isPending ? "Deleting..." : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
-          </AlertDialogContent>
+        </AlertDialogContent>
         </AlertDialog>
+      )}
+
+      {/* Update EMI Dialog */}
+      {emiStudent && (
+        <UpdateEmiDialog
+          open={!!emiStudent}
+          onOpenChange={(open) => !open && setEmiStudent(null)}
+          appointmentId={emiStudent.id}
+          offerAmount={emiStudent.offer_amount || 0}
+          cashReceived={emiStudent.cash_received || 0}
+          dueAmount={emiStudent.due_amount || 0}
+          classesAccess={emiStudent.classes_access}
+          batchId={selectedBatch?.id || null}
+          customerName={emiStudent.contact_name}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+            queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
+            queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
+          }}
+        />
       )}
     </div>
   );
