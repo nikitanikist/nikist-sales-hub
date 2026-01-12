@@ -838,7 +838,7 @@ const Batches = () => {
         </div>
 
         {/* Summary Cards - Hidden for Managers */}
-        {!isManager && !isCloser && (
+        {!isManager && (
           <>
             {paymentTypeFilter === "emi" ? (
               // Single EMI Collected Card when EMI filter is active
@@ -1004,7 +1004,7 @@ const Batches = () => {
                   
                   <div className="space-y-6 py-6">
                     {/* Payment Type Filter - Hidden for Managers */}
-                    {!isManager && !isCloser && (
+                    {!isManager && (
                       <div className="space-y-3">
                         <Label className="text-sm font-medium">Payment Type</Label>
                         <div className="space-y-2">
@@ -1196,8 +1196,8 @@ const Batches = () => {
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-sm text-muted-foreground">Active:</span>
                 
-                {/* Payment Type Badge - Hidden for Managers and Closers */}
-                {!isManager && !isCloser && paymentTypeFilter !== "all" && (
+                {/* Payment Type Badge - Hidden for Managers */}
+                {!isManager && paymentTypeFilter !== "all" && (
                   <Badge variant="secondary" className="gap-1">
                     {paymentTypeFilter === "emi" ? "EMI Only" : "Initial Only"}
                     <X 
@@ -1282,9 +1282,9 @@ const Batches = () => {
                       {isManager && <TableHead className="w-10"></TableHead>}
                       <TableHead>Conversion Date</TableHead>
                       <TableHead>Student Name</TableHead>
-                      {!isManager && !isCloser && <TableHead>Offered Amount</TableHead>}
-                      {!isManager && !isCloser && <TableHead>Cash Received</TableHead>}
-                      {!isManager && !isCloser && <TableHead>Due Amount</TableHead>}
+                      {!isManager && <TableHead>Offered Amount</TableHead>}
+                      {!isManager && <TableHead>Cash Received</TableHead>}
+                      {!isManager && <TableHead>Due Amount</TableHead>}
                       {!isCloser && <TableHead>Closer</TableHead>}
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
@@ -1342,17 +1342,17 @@ const Batches = () => {
                                 )}
                               </div>
                             </TableCell>
-                            {!isManager && !isCloser && (
+                            {!isManager && (
                               <TableCell className="text-sm font-medium">
                                 {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
                               </TableCell>
                             )}
-                            {!isManager && !isCloser && (
+                            {!isManager && (
                               <TableCell className="text-sm font-medium">
                                 {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
                               </TableCell>
                             )}
-                            {!isManager && !isCloser && (
+                            {!isManager && (
                               <TableCell className="text-sm font-medium text-orange-600">
                                 {student.due_amount ? `₹${student.due_amount.toLocaleString('en-IN')}` : "-"}
                               </TableCell>
