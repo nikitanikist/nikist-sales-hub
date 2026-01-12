@@ -794,44 +794,40 @@ const Batches = () => {
   if (selectedBatch) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleBackToBatches}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{selectedBatch.name}</h1>
-            <p className="text-muted-foreground">
-              Start Date: {format(new Date(selectedBatch.start_date), "dd MMM yyyy")} • 
-              {selectedBatch.is_active ? " Active" : " Inactive"}
-            </p>
+        <div className="flex items-center justify-between gap-4">
+          {/* Left side: Back button + Batch info */}
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={handleBackToBatches}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">{selectedBatch.name}</h1>
+              <p className="text-muted-foreground">
+                Start Date: {format(new Date(selectedBatch.start_date), "dd MMM yyyy")} • 
+                {selectedBatch.is_active ? " Active" : " Inactive"}
+              </p>
+            </div>
           </div>
-        </div>
-
-        {/* Total Students Enrolled Card */}
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
+          
+          {/* Right side: Compact Students Enrolled Card */}
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="py-3 px-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-full bg-primary/10">
-                  <Users className="h-5 w-5 text-primary" />
+                  <Users className="h-4 w-4 text-primary" />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Students Enrolled</p>
-                  <p className="text-2xl font-bold">
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">Students Enrolled</p>
+                  <p className="text-xl font-bold">
                     {activeFilterCount > 0 
                       ? `${filteredStudents.length} of ${batchStudents?.length || 0}` 
                       : batchStudents?.length || 0}
                   </p>
                 </div>
               </div>
-              {activeFilterCount > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  Filtered
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Summary Cards - Hidden for Managers */}
         {!isManager && (
