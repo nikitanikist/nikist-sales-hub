@@ -807,6 +807,32 @@ const Batches = () => {
           </div>
         </div>
 
+        {/* Total Students Enrolled Card */}
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Students Enrolled</p>
+                  <p className="text-2xl font-bold">
+                    {activeFilterCount > 0 
+                      ? `${filteredStudents.length} of ${batchStudents?.length || 0}` 
+                      : batchStudents?.length || 0}
+                  </p>
+                </div>
+              </div>
+              {activeFilterCount > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Filtered
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Summary Cards - Hidden for Managers */}
         {!isManager && (
           <>
