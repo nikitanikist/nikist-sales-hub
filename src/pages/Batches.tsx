@@ -123,9 +123,8 @@ const Batches = () => {
   const [notesStudent, setNotesStudent] = useState<BatchStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
   
-  // EMI update dialog state
+  // EMI update dialog state - using emiStudent as single source of truth
   const [emiStudent, setEmiStudent] = useState<BatchStudent | null>(null);
-  const [isEmiDialogOpen, setIsEmiDialogOpen] = useState(false);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -1351,7 +1350,7 @@ const Batches = () => {
                           {/* EMI History - Hidden for Managers - Show only when expanded */}
                           {!isManager && expandedStudentId === student.id && (
                               <tr>
-                                <td colSpan={!isCloser ? 10 : 9} className="p-0">
+                                <td colSpan={isCloser ? 10 : 12} className="p-0">
                                   <div className="p-4 bg-muted/30 border-t">
                                     {/* Show Refund Reason if status is refunded */}
                                     {student.status === "refunded" && student.refund_reason && (
@@ -1424,10 +1423,13 @@ const Batches = () => {
                                     {/* Update EMI Button */}
                                     <div className="flex items-center gap-4 pt-3 mt-3 border-t">
                                       <Button 
+                                        type="button"
                                         size="sm" 
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          console.log("Opening EMI dialog for:", student.id);
                                           setEmiStudent(student);
-                                          setIsEmiDialogOpen(true);
                                         }}
                                         className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                                       >
@@ -1771,29 +1773,29 @@ const Batches = () => {
         </AlertDialog>
       )}
 
-      {/* Update EMI Dialog */}
-      {/* Update EMI Dialog */}
-      <UpdateEmiDialog
-        open={isEmiDialogOpen}
-        onOpenChange={(open) => {
-          setIsEmiDialogOpen(open);
-          if (!open) {
-            setEmiStudent(null);
-          }
-        }}
-        appointmentId={emiStudent?.id || ""}
-        offerAmount={emiStudent?.offer_amount || 0}
-        cashReceived={emiStudent?.cash_received || 0}
-        dueAmount={emiStudent?.due_amount || 0}
-        classesAccess={emiStudent?.classes_access ?? null}
-        batchId={selectedBatch?.id || null}
-        customerName={emiStudent?.contact_name || ""}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["batch-students"] });
-          queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
-          queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
-        }}
-      />
+      {/* Update EMI Dialog - using emiStudent as single source of truth */}
+      {emiStudent && (
+        <UpdateEmiDialog
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEmiStudent(null);
+            }
+          }}
+          appointmentId={emiStudent.id}
+          offerAmount={emiStudent.offer_amount || 0}
+          cashReceived={emiStudent.cash_received || 0}
+          dueAmount={emiStudent.due_amount || 0}
+          classesAccess={emiStudent.classes_access ?? null}
+          batchId={selectedBatch?.id || null}
+          customerName={emiStudent.contact_name}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+            queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
+            queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
+          }}
+        />
+      )}
     </div>
   );
 };
