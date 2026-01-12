@@ -1427,20 +1427,17 @@ const Batches = () => {
                                         size="sm" 
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          setEmiStudent(student);
+                                          e.preventDefault();
+                                          // Use setTimeout to ensure state update happens after event cycle
+                                          setTimeout(() => {
+                                            setEmiStudent(student);
+                                          }, 0);
                                         }}
                                         className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                                       >
                                         <Pencil className="h-3 w-3" />
                                         Update EMI & Course Access
                                       </Button>
-                                      
-                                      <div className="text-sm ml-auto">
-                                        <span className="text-muted-foreground">Due Amount: </span>
-                                        <span className="font-medium text-orange-600">
-                                          ₹{(student.due_amount || 0).toLocaleString('en-IN')}
-                                        </span>
-                                      </div>
                                     </div>
                                   </div>
                                 </td>
