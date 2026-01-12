@@ -84,7 +84,7 @@ const CLASSES_ACCESS_LABELS: Record<number, string> = {
 const Batches = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isManager } = useUserRole();
+  const { isManager, isCloser, profileId } = useUserRole();
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
@@ -150,12 +150,13 @@ const Batches = () => {
   });
 
   // Fetch students for selected batch (with closer info)
+  // For closers, only show their own students
   const { data: batchStudents, isLoading: studentsLoading } = useQuery({
-    queryKey: ["batch-students", selectedBatch?.id],
+    queryKey: ["batch-students", selectedBatch?.id, isCloser, profileId],
     queryFn: async () => {
       if (!selectedBatch) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("call_appointments")
         .select(`
           id,
@@ -173,6 +174,13 @@ const Batches = () => {
           closer:profiles!closer_id(full_name)
         `)
         .eq("batch_id", selectedBatch.id);
+      
+      // For closers, only show their own students
+      if (isCloser && profileId) {
+        query = query.eq("closer_id", profileId);
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -393,9 +401,9 @@ const Batches = () => {
     if (selectedClosers.length > 0) count++;
     if (selectedClasses.length > 0) count++;
     if (dateFrom || dateTo) count++;
-    if (!isManager && paymentTypeFilter !== "all") count++;
+    if (!isManager && !isCloser && paymentTypeFilter !== "all") count++;
     return count;
-  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager]);
+  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser]);
 
   // Clear all filters (managers don't have payment type filter)
   const clearAllFilters = () => {
@@ -403,7 +411,7 @@ const Batches = () => {
     setSelectedClasses([]);
     setDateFrom(undefined);
     setDateTo(undefined);
-    if (!isManager) {
+    if (!isManager && !isCloser) {
       setPaymentTypeFilter("all");
     }
   };
@@ -830,7 +838,7 @@ const Batches = () => {
         </div>
 
         {/* Summary Cards - Hidden for Managers */}
-        {!isManager && (
+        {!isManager && !isCloser && (
           <>
             {paymentTypeFilter === "emi" ? (
               // Single EMI Collected Card when EMI filter is active
@@ -996,7 +1004,7 @@ const Batches = () => {
                   
                   <div className="space-y-6 py-6">
                     {/* Payment Type Filter - Hidden for Managers */}
-                    {!isManager && (
+                    {!isManager && !isCloser && (
                       <div className="space-y-3">
                         <Label className="text-sm font-medium">Payment Type</Label>
                         <div className="space-y-2">
@@ -1099,31 +1107,33 @@ const Batches = () => {
                       )}
                     </div>
 
-                    {/* Closers Multi-select */}
-                    <div className="space-y-3">
-                      <Label className="text-sm font-medium">Closers</Label>
-                      <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
-                        {uniqueClosers.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No closers available</p>
-                        ) : (
-                          uniqueClosers.map(closer => (
-                            <div key={closer.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`closer-${closer.id}`}
-                                checked={selectedClosers.includes(closer.id)}
-                                onCheckedChange={() => toggleCloser(closer.id)}
-                              />
-                              <label 
-                                htmlFor={`closer-${closer.id}`} 
-                                className="text-sm cursor-pointer flex-1"
-                              >
-                                {closer.name}
-                              </label>
-                            </div>
-                          ))
-                        )}
+                    {/* Closers Multi-select - Hidden for closers */}
+                    {!isCloser && (
+                      <div className="space-y-3">
+                        <Label className="text-sm font-medium">Closers</Label>
+                        <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
+                          {uniqueClosers.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No closers available</p>
+                          ) : (
+                            uniqueClosers.map(closer => (
+                              <div key={closer.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`closer-${closer.id}`}
+                                  checked={selectedClosers.includes(closer.id)}
+                                  onCheckedChange={() => toggleCloser(closer.id)}
+                                />
+                                <label 
+                                  htmlFor={`closer-${closer.id}`} 
+                                  className="text-sm cursor-pointer flex-1"
+                                >
+                                  {closer.name}
+                                </label>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Classes Multi-select */}
                     <div className="space-y-3">
@@ -1186,8 +1196,8 @@ const Batches = () => {
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-sm text-muted-foreground">Active:</span>
                 
-                {/* Payment Type Badge - Hidden for Managers */}
-                {!isManager && paymentTypeFilter !== "all" && (
+                {/* Payment Type Badge - Hidden for Managers and Closers */}
+                {!isManager && !isCloser && paymentTypeFilter !== "all" && (
                   <Badge variant="secondary" className="gap-1">
                     {paymentTypeFilter === "emi" ? "EMI Only" : "Initial Only"}
                     <X 
@@ -1267,20 +1277,20 @@ const Batches = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {/* EMI expand button - hidden for managers */}
+                      {/* EMI expand button - visible for closers (to see EMI history), hidden for managers */}
                       {!isManager && <TableHead className="w-10"></TableHead>}
                       {isManager && <TableHead className="w-10"></TableHead>}
                       <TableHead>Conversion Date</TableHead>
                       <TableHead>Student Name</TableHead>
-                      {!isManager && <TableHead>Offered Amount</TableHead>}
-                      {!isManager && <TableHead>Cash Received</TableHead>}
-                      {!isManager && <TableHead>Due Amount</TableHead>}
-                      <TableHead>Closer</TableHead>
+                      {!isManager && !isCloser && <TableHead>Offered Amount</TableHead>}
+                      {!isManager && !isCloser && <TableHead>Cash Received</TableHead>}
+                      {!isManager && !isCloser && <TableHead>Due Amount</TableHead>}
+                      {!isCloser && <TableHead>Closer</TableHead>}
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Classes Access</TableHead>
                       <TableHead>Status</TableHead>
-                      {!isManager && <TableHead>Actions</TableHead>}
+                      {!isManager && !isCloser && <TableHead>Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1332,24 +1342,26 @@ const Batches = () => {
                                 )}
                               </div>
                             </TableCell>
-                            {!isManager && (
+                            {!isManager && !isCloser && (
                               <TableCell className="text-sm font-medium">
                                 {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
                               </TableCell>
                             )}
-                            {!isManager && (
+                            {!isManager && !isCloser && (
                               <TableCell className="text-sm font-medium">
                                 {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
                               </TableCell>
                             )}
-                            {!isManager && (
+                            {!isManager && !isCloser && (
                               <TableCell className="text-sm font-medium text-orange-600">
                                 {student.due_amount ? `₹${student.due_amount.toLocaleString('en-IN')}` : "-"}
                               </TableCell>
                             )}
-                            <TableCell className="text-sm text-muted-foreground">
-                              {student.closer_name || "-"}
-                            </TableCell>
+                            {!isCloser && (
+                              <TableCell className="text-sm text-muted-foreground">
+                                {student.closer_name || "-"}
+                              </TableCell>
+                            )}
                             <TableCell className="text-sm text-muted-foreground">{student.email}</TableCell>
                             <TableCell className="text-sm">{student.phone || "-"}</TableCell>
                             <TableCell>
@@ -1370,7 +1382,7 @@ const Batches = () => {
                                 {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
                               </Badge>
                             </TableCell>
-                            {!isManager && (
+                            {!isManager && !isCloser && (
                               <TableCell>
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
@@ -1430,8 +1442,8 @@ const Batches = () => {
           </CardContent>
         </Card>
 
-        {/* Transfer Student Dialog - Hidden for Managers */}
-        {!isManager && (
+        {/* Transfer Student Dialog - Hidden for Managers and Closers */}
+        {!isManager && !isCloser && (
           <Dialog open={!!editingStudent} onOpenChange={(open) => { if (!open) { setEditingStudent(null); setNewBatchId(""); } }}>
             <DialogContent>
               <DialogHeader>
@@ -1471,8 +1483,8 @@ const Batches = () => {
           </Dialog>
         )}
 
-        {/* Mark as Refunded Confirmation Dialog */}
-        {!isManager && (
+        {/* Mark as Refunded Confirmation Dialog - Hidden for Managers and Closers */}
+        {!isManager && !isCloser && (
           <AlertDialog open={!!refundingStudent} onOpenChange={(open) => { if (!open) { setRefundingStudent(null); setRefundNotes(""); } }}>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -1525,8 +1537,8 @@ const Batches = () => {
           </AlertDialog>
         )}
 
-        {/* Notes Dialog */}
-        {!isManager && (
+        {/* Notes Dialog - Hidden for Managers and Closers */}
+        {!isManager && !isCloser && (
           <Dialog open={!!notesStudent} onOpenChange={(open) => { if (!open) { setNotesStudent(null); setNotesText(""); } }}>
             <DialogContent>
               <DialogHeader>
@@ -1576,7 +1588,7 @@ const Batches = () => {
             <p className="text-muted-foreground">Manage course batches and student access</p>
           </div>
         </div>
-        {!isManager && (
+        {!isManager && !isCloser && (
           <Dialog open={isCreateOpen || !!editingBatch} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
             <DialogTrigger asChild>
               <Button onClick={() => setIsCreateOpen(true)}>
@@ -1676,7 +1688,7 @@ const Batches = () => {
                   <TableHead>Start Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Students</TableHead>
-                  {!isManager && <TableHead className="text-right">Actions</TableHead>}
+                  {!isManager && !isCloser && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1709,7 +1721,7 @@ const Batches = () => {
                         {batch.students_count || 0}
                       </div>
                     </TableCell>
-                    {!isManager && (
+                    {!isManager && !isCloser && (
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                           <Button size="sm" variant="ghost" onClick={() => handleOpenEdit(batch)}>
@@ -1729,8 +1741,8 @@ const Batches = () => {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog - Hidden for Managers */}
-      {!isManager && (
+      {/* Delete Confirmation Dialog - Hidden for Managers and Closers */}
+      {!isManager && !isCloser && (
         <AlertDialog open={!!deletingBatch} onOpenChange={(open) => { if (!open) setDeletingBatch(null); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
