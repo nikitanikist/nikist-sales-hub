@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Calendar, Plus, Loader2, CheckCircle2 } from "lucide-react";
+import { Calendar, Plus, Loader2, CheckCircle2, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -103,6 +103,14 @@ export function UpdateEmiDialog({
   // Local state for immediate UI updates
   const [displayCashReceived, setDisplayCashReceived] = useState(cashReceived);
   const [displayDueAmount, setDisplayDueAmount] = useState(dueAmount);
+  
+  // State for editing/deleting individual EMIs
+  const [editingEmi, setEditingEmi] = useState<EmiPayment | null>(null);
+  const [editEmiAmount, setEditEmiAmount] = useState<string>("");
+  const [editEmiDate, setEditEmiDate] = useState<Date>(new Date());
+  const [isEditDatePopoverOpen, setIsEditDatePopoverOpen] = useState(false);
+  const [deletingEmi, setDeletingEmi] = useState<EmiPayment | null>(null);
+  const [isProcessingEmi, setIsProcessingEmi] = useState(false);
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -170,6 +178,136 @@ export function UpdateEmiDialog({
   const isFullyPaid = remaining === 0;
   const nextEmiNumber = (emiPayments?.length || 0) + 1;
   const hasOfferAmountChange = newOfferAmount !== offerAmount;
+
+  // Helper function to recalculate and update appointment after EMI changes
+  const recalculateAppointment = async (emiPaymentsList: EmiPayment[]) => {
+    const totalEmiPayments = emiPaymentsList.reduce((sum, emi) => sum + Number(emi.amount), 0);
+    const newCashReceived = totalEmiPayments;
+    const newDue = Math.max(0, offerAmount - newCashReceived);
+    
+    const { error } = await supabase
+      .from("call_appointments")
+      .update({ 
+        cash_received: newCashReceived, 
+        due_amount: newDue 
+      })
+      .eq("id", appointmentId);
+    
+    if (error) throw error;
+    
+    return { newCashReceived, newDue };
+  };
+
+  // Handle delete EMI
+  const handleDeleteEmi = async () => {
+    if (!deletingEmi) return;
+    
+    setIsProcessingEmi(true);
+    try {
+      // Delete the EMI record
+      const { error: deleteError } = await supabase
+        .from("emi_payments")
+        .delete()
+        .eq("id", deletingEmi.id);
+      
+      if (deleteError) throw deleteError;
+      
+      // Get remaining EMIs and recalculate
+      const remainingEmis = (emiPayments || []).filter(e => e.id !== deletingEmi.id);
+      const { newCashReceived, newDue } = await recalculateAppointment(remainingEmis);
+      
+      // Update local display
+      setDisplayCashReceived(newCashReceived);
+      setDisplayDueAmount(newDue);
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["emi-payments", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["emi-payments-inline", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["closer-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-metrics"] });
+      
+      toast({ 
+        title: "EMI Deleted", 
+        description: `EMI ${deletingEmi.emi_number} (₹${Number(deletingEmi.amount).toLocaleString("en-IN")}) has been removed`,
+      });
+      
+      setDeletingEmi(null);
+      onSuccess();
+    } catch (error) {
+      console.error("Delete EMI error:", error);
+      toast({ 
+        title: "Delete Failed", 
+        description: error instanceof Error ? error.message : "Failed to delete EMI", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsProcessingEmi(false);
+    }
+  };
+
+  // Handle update EMI
+  const handleUpdateEmi = async () => {
+    if (!editingEmi) return;
+    
+    const newAmount = parseFloat(editEmiAmount);
+    if (isNaN(newAmount) || newAmount <= 0) {
+      toast({ 
+        title: "Invalid Amount", 
+        description: "Please enter a valid amount", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    setIsProcessingEmi(true);
+    try {
+      // Update the EMI record
+      const { error: updateError } = await supabase
+        .from("emi_payments")
+        .update({ 
+          amount: newAmount, 
+          payment_date: format(editEmiDate, "yyyy-MM-dd") 
+        })
+        .eq("id", editingEmi.id);
+      
+      if (updateError) throw updateError;
+      
+      // Calculate with updated amount
+      const updatedEmis = (emiPayments || []).map(e => 
+        e.id === editingEmi.id ? { ...e, amount: newAmount } : e
+      );
+      const { newCashReceived, newDue } = await recalculateAppointment(updatedEmis);
+      
+      // Update local display
+      setDisplayCashReceived(newCashReceived);
+      setDisplayDueAmount(newDue);
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["emi-payments", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["emi-payments-inline", appointmentId] });
+      queryClient.invalidateQueries({ queryKey: ["closer-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+      queryClient.invalidateQueries({ queryKey: ["workshop-metrics"] });
+      
+      toast({ 
+        title: "EMI Updated", 
+        description: `EMI ${editingEmi.emi_number} updated to ₹${newAmount.toLocaleString("en-IN")}`,
+      });
+      
+      setEditingEmi(null);
+      onSuccess();
+    } catch (error) {
+      console.error("Update EMI error:", error);
+      toast({ 
+        title: "Update Failed", 
+        description: error instanceof Error ? error.message : "Failed to update EMI", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsProcessingEmi(false);
+    }
+  };
 
   // Unified save handler - saves both EMI and course access
   const handleSaveAll = async (options: { closeAfterSuccess: boolean }) => {
@@ -515,6 +653,7 @@ export function UpdateEmiDialog({
                       <th className="text-left px-4 py-2 font-medium">Date</th>
                       <th className="text-left px-4 py-2 font-medium">Classes</th>
                       <th className="text-left px-4 py-2 font-medium">Updated By</th>
+                      <th className="text-left px-4 py-2 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -530,6 +669,32 @@ export function UpdateEmiDialog({
                         </td>
                         <td className="px-4 py-2 text-muted-foreground">
                           {emi.created_by_profile?.full_name || "Unknown"}
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7"
+                              onClick={() => {
+                                setEditingEmi(emi);
+                                setEditEmiAmount(String(emi.amount));
+                                setEditEmiDate(new Date(emi.payment_date));
+                              }}
+                              title="Edit EMI"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => setDeletingEmi(emi)}
+                              title="Delete EMI"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -688,6 +853,102 @@ export function UpdateEmiDialog({
               }}
             >
               Confirm Update
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit EMI Dialog */}
+      <AlertDialog open={!!editingEmi} onOpenChange={(open) => !open && setEditingEmi(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit EMI {editingEmi?.emi_number}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Update the amount or date for this EMI payment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>Amount (₹)</Label>
+              <Input
+                type="number"
+                value={editEmiAmount}
+                onChange={(e) => setEditEmiAmount(e.target.value)}
+                placeholder="Enter amount"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Payment Date</Label>
+              <Popover open={isEditDatePopoverOpen} onOpenChange={setIsEditDatePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {format(editEmiDate, "dd MMM yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={editEmiDate}
+                    onSelect={(date) => {
+                      if (date) setEditEmiDate(date);
+                      setIsEditDatePopoverOpen(false);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingEmi}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleUpdateEmi}
+              disabled={isProcessingEmi || !editEmiAmount || parseFloat(editEmiAmount) <= 0}
+            >
+              {isProcessingEmi ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete EMI Confirmation */}
+      <AlertDialog open={!!deletingEmi} onOpenChange={(open) => !open && setDeletingEmi(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete EMI {deletingEmi?.emi_number}?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                This will remove the <strong>₹{deletingEmi?.amount?.toLocaleString("en-IN")}</strong> payment 
+                recorded on <strong>{deletingEmi && format(new Date(deletingEmi.payment_date), "dd MMM yyyy")}</strong>.
+              </p>
+              <p className="text-amber-600 font-medium">
+                The cash received and due amount will be recalculated automatically.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingEmi}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteEmi}
+              disabled={isProcessingEmi}
+            >
+              {isProcessingEmi ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete EMI"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
