@@ -14,7 +14,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// Removed Collapsible - using manual expand for better event handling
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil } from "lucide-react";
 import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
@@ -1220,222 +1220,232 @@ const Batches = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredStudents.map((student) => (
-                      <React.Fragment key={student.id}>
-                          <TableRow className={cn(
-                            expandedStudentId === student.id && "bg-muted/50",
-                            student.status === "refunded" && "bg-amber-50/70"
-                          )}>
-                            {/* EMI expand button - only for non-managers */}
-                            {!isManager ? (
-                              <TableCell>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleStudentExpand(student.id);
-                                  }}
-                                >
-                                  {expandedStudentId === student.id ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TableCell>
-                            ) : (
-                              <TableCell></TableCell>
-                            )}
-                            <TableCell className="text-sm text-muted-foreground">
-                              {student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "-"}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                {student.contact_name}
-                                {student.additional_comments && (
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <FileText className="h-4 w-4 text-blue-500 cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent className="max-w-xs">
-                                        <p className="text-sm whitespace-pre-wrap">{student.additional_comments}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                )}
-                              </div>
-                            </TableCell>
-                            {!isManager && (
-                              <TableCell className="text-sm font-medium">
-                                {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
-                              </TableCell>
-                            )}
-                            {!isManager && (
-                              <TableCell className="text-sm font-medium">
-                                {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
-                              </TableCell>
-                            )}
-                            {!isManager && (
-                              <TableCell className="text-sm font-medium text-orange-600">
-                                {student.due_amount ? `₹${student.due_amount.toLocaleString('en-IN')}` : "-"}
-                              </TableCell>
-                            )}
-                            {!isCloser && (
-                              <TableCell className="text-sm text-muted-foreground">
-                                {student.closer_name || "-"}
-                              </TableCell>
-                            )}
-                            <TableCell className="text-sm text-muted-foreground">{student.email}</TableCell>
-                            <TableCell className="text-sm">{student.phone || "-"}</TableCell>
-                            <TableCell>
-                              {student.classes_access ? (
-                                <Badge variant="outline">
-                                  {CLASSES_ACCESS_LABELS[student.classes_access] || `${student.classes_access} Classes`}
-                                </Badge>
-                              ) : "-"}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={
-                                student.status === "refunded" 
-                                  ? "bg-amber-100 text-amber-800 border-amber-200" 
-                                  : student.status === "converted" 
-                                    ? "bg-green-100 text-green-800" 
-                                    : "bg-gray-100 text-gray-800"
-                              }>
-                                {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
-                              </Badge>
-                            </TableCell>
-                            {!isManager && !isCloser && (
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={(e) => {
+                      <Collapsible key={student.id} asChild open={expandedStudentId === student.id}>
+                        <>
+                          <CollapsibleTrigger asChild>
+                            <TableRow 
+                              className={cn(
+                                "cursor-pointer",
+                                expandedStudentId === student.id && "bg-muted/50",
+                                student.status === "refunded" && "bg-amber-50/70"
+                              )}
+                              onClick={() => !isManager && toggleStudentExpand(student.id)}
+                            >
+                              {/* EMI expand button - only for non-managers */}
+                              {!isManager ? (
+                                <TableCell>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8"
+                                    onClick={(e) => {
                                       e.stopPropagation();
-                                      setEditingStudent(student);
-                                      setNewBatchId(selectedBatch.id);
-                                    }}>
-                                      <Edit className="h-4 w-4 mr-2" />
-                                      Change Batch
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem 
+                                      toggleStudentExpand(student.id);
+                                    }}
+                                  >
+                                    {expandedStudentId === student.id ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              ) : (
+                                <TableCell></TableCell>
+                              )}
+                              <TableCell className="text-sm text-muted-foreground">
+                                {student.scheduled_date ? format(new Date(student.scheduled_date), "dd MMM yyyy") : "-"}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  {student.contact_name}
+                                  {student.additional_comments && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <FileText className="h-4 w-4 text-blue-500 cursor-help" />
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs">
+                                          <p className="text-sm whitespace-pre-wrap">{student.additional_comments}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
+                              </TableCell>
+                              {!isManager && (
+                                <TableCell className="text-sm font-medium">
+                                  {student.offer_amount ? `₹${student.offer_amount.toLocaleString('en-IN')}` : "-"}
+                                </TableCell>
+                              )}
+                              {!isManager && (
+                                <TableCell className="text-sm font-medium">
+                                  {student.cash_received ? `₹${student.cash_received.toLocaleString('en-IN')}` : "-"}
+                                </TableCell>
+                              )}
+                              {!isManager && (
+                                <TableCell className="text-sm font-medium text-orange-600">
+                                  {student.due_amount ? `₹${student.due_amount.toLocaleString('en-IN')}` : "-"}
+                                </TableCell>
+                              )}
+                              {!isCloser && (
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {student.closer_name || "-"}
+                                </TableCell>
+                              )}
+                              <TableCell className="text-sm text-muted-foreground">{student.email}</TableCell>
+                              <TableCell className="text-sm">{student.phone || "-"}</TableCell>
+                              <TableCell>
+                                {student.classes_access ? (
+                                  <Badge variant="outline">
+                                    {CLASSES_ACCESS_LABELS[student.classes_access] || `${student.classes_access} Classes`}
+                                  </Badge>
+                                ) : "-"}
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={
+                                  student.status === "refunded" 
+                                    ? "bg-amber-100 text-amber-800 border-amber-200" 
+                                    : student.status === "converted" 
+                                      ? "bg-green-100 text-green-800" 
+                                      : "bg-gray-100 text-gray-800"
+                                }>
+                                  {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
+                                </Badge>
+                              </TableCell>
+                              {!isManager && !isCloser && (
+                                <TableCell>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button size="sm" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingStudent(student);
+                                        setNewBatchId(selectedBatch.id);
+                                      }}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Change Batch
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setRefundingStudent(student);
+                                        }}
+                                        disabled={student.status === "refunded"}
+                                      >
+                                        <RefreshCcw className="h-4 w-4 mr-2" />
+                                        Mark as Refunded
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={(e) => {
+                                        e.stopPropagation();
+                                        setNotesStudent(student);
+                                        setNotesText(student.additional_comments || "");
+                                      }}>
+                                        <FileText className="h-4 w-4 mr-2" />
+                                        {student.additional_comments ? "Edit Notes" : "Add Notes"}
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent asChild>
+                            <TableRow>
+                              <TableCell colSpan={isCloser ? 10 : 12} className="bg-muted/30 p-0">
+                                <div className="p-4 border-t">
+                                  {/* Show Refund Reason if status is refunded */}
+                                  {student.status === "refunded" && student.refund_reason && (
+                                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <RefreshCcw className="h-4 w-4 text-amber-600" />
+                                        <span className="font-medium text-sm text-amber-800">Refund Reason</span>
+                                      </div>
+                                      <p className="text-sm text-amber-700 whitespace-pre-wrap">
+                                        {student.refund_reason}
+                                      </p>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <IndianRupee className="h-4 w-4 text-muted-foreground" />
+                                    <span className="font-medium text-sm">EMI Payment History</span>
+                                  </div>
+                                  
+                                  {emiLoading ? (
+                                    <div className="flex items-center justify-center py-4">
+                                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    </div>
+                                  ) : (() => {
+                                    const studentEmiList = studentEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
+                                    const totalEmiCollected = studentEmiList.reduce((sum, emi) => sum + Number(emi.amount), 0);
+                                    
+                                    return !studentEmiList.length ? (
+                                      <p className="text-sm text-muted-foreground py-2">No EMI payments recorded yet</p>
+                                    ) : (
+                                      <div className="space-y-3">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow>
+                                              <TableHead className="py-2">EMI #</TableHead>
+                                              <TableHead className="py-2">Amount</TableHead>
+                                              <TableHead className="py-2">Date</TableHead>
+                                              <TableHead className="py-2">Classes</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {studentEmiList.map((emi) => (
+                                              <TableRow key={emi.id}>
+                                                <TableCell className="py-2">EMI {emi.emi_number}</TableCell>
+                                                <TableCell className="py-2 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
+                                                <TableCell className="py-2 text-muted-foreground">
+                                                  {format(new Date(emi.payment_date), "dd MMM yyyy")}
+                                                </TableCell>
+                                                <TableCell className="py-2 text-sm text-muted-foreground">
+                                                  {emi.previous_classes_access && emi.new_classes_access && emi.previous_classes_access !== emi.new_classes_access
+                                                    ? `${CLASSES_ACCESS_LABELS[emi.previous_classes_access] || emi.previous_classes_access} → ${CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access}`
+                                                    : emi.new_classes_access ? CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access : "-"}
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                            <TableRow className="bg-muted/50">
+                                              <TableCell className="py-2 font-medium">Total</TableCell>
+                                              <TableCell className="py-2 font-bold text-green-600">
+                                                ₹{totalEmiCollected.toLocaleString('en-IN')}
+                                              </TableCell>
+                                              <TableCell className="py-2"></TableCell>
+                                              <TableCell className="py-2"></TableCell>
+                                            </TableRow>
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    );
+                                  })()}
+                                  
+                                  {/* Update EMI Button */}
+                                  <div className="flex items-center gap-4 pt-3 mt-3 border-t">
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setRefundingStudent(student);
+                                        setEmiStudent(student);
                                       }}
-                                      disabled={student.status === "refunded"}
                                     >
-                                      <RefreshCcw className="h-4 w-4 mr-2" />
-                                      Mark as Refunded
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={(e) => {
-                                      e.stopPropagation();
-                                      setNotesStudent(student);
-                                      setNotesText(student.additional_comments || "");
-                                    }}>
-                                      <FileText className="h-4 w-4 mr-2" />
-                                      {student.additional_comments ? "Edit Notes" : "Add Notes"}
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                          {/* EMI History - Hidden for Managers - Show only when expanded */}
-                          {!isManager && expandedStudentId === student.id && (
-                              <tr>
-                                <td colSpan={isCloser ? 10 : 12} className="p-0">
-                                  <div className="p-4 bg-muted/30 border-t">
-                                    {/* Show Refund Reason if status is refunded */}
-                                    {student.status === "refunded" && student.refund_reason && (
-                                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <RefreshCcw className="h-4 w-4 text-amber-600" />
-                                          <span className="font-medium text-sm text-amber-800">Refund Reason</span>
-                                        </div>
-                                        <p className="text-sm text-amber-700 whitespace-pre-wrap">
-                                          {student.refund_reason}
-                                        </p>
-                                      </div>
-                                    )}
-                                    
-                                    <div className="flex items-center gap-2 mb-3">
-                                      <IndianRupee className="h-4 w-4 text-muted-foreground" />
-                                      <span className="font-medium text-sm">EMI Payment History</span>
-                                    </div>
-                                    
-                                    {emiLoading ? (
-                                      <div className="flex items-center justify-center py-4">
-                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                      </div>
-                                    ) : (() => {
-                                      const studentEmiList = studentEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
-                                      const totalEmiCollected = studentEmiList.reduce((sum, emi) => sum + Number(emi.amount), 0);
-                                      
-                                      return !studentEmiList.length ? (
-                                        <p className="text-sm text-muted-foreground py-2">No EMI payments recorded yet</p>
-                                      ) : (
-                                        <div className="space-y-3">
-                                          <Table>
-                                            <TableHeader>
-                                              <TableRow>
-                                                <TableHead className="py-2">EMI #</TableHead>
-                                                <TableHead className="py-2">Amount</TableHead>
-                                                <TableHead className="py-2">Date</TableHead>
-                                                <TableHead className="py-2">Classes</TableHead>
-                                              </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                              {studentEmiList.map((emi) => (
-                                                <TableRow key={emi.id}>
-                                                  <TableCell className="py-2">EMI {emi.emi_number}</TableCell>
-                                                  <TableCell className="py-2 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
-                                                  <TableCell className="py-2 text-muted-foreground">
-                                                    {format(new Date(emi.payment_date), "dd MMM yyyy")}
-                                                  </TableCell>
-                                                  <TableCell className="py-2 text-sm text-muted-foreground">
-                                                    {emi.previous_classes_access && emi.new_classes_access && emi.previous_classes_access !== emi.new_classes_access
-                                                      ? `${CLASSES_ACCESS_LABELS[emi.previous_classes_access] || emi.previous_classes_access} → ${CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access}`
-                                                      : emi.new_classes_access ? CLASSES_ACCESS_LABELS[emi.new_classes_access] || emi.new_classes_access : "-"}
-                                                  </TableCell>
-                                                </TableRow>
-                                              ))}
-                                              <TableRow className="bg-muted/50">
-                                                <TableCell className="py-2 font-medium">Total</TableCell>
-                                                <TableCell className="py-2 font-bold text-green-600">
-                                                  ₹{totalEmiCollected.toLocaleString('en-IN')}
-                                                </TableCell>
-                                                <TableCell className="py-2"></TableCell>
-                                                <TableCell className="py-2"></TableCell>
-                                              </TableRow>
-                                            </TableBody>
-                                          </Table>
-                                        </div>
-                                      );
-                                    })()}
-                                    
-                                    {/* Update EMI Button */}
-                                    <div className="flex items-center gap-4 pt-3 mt-3 border-t">
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        onClick={() => setEmiStudent(student)}
-                                      >
-                                        <Pencil className="h-3 w-3 mr-1" />
-                                        Update EMI & Course Access
-                                      </Button>
-                                    </div>
+                                      <Pencil className="h-3 w-3 mr-1" />
+                                      Update EMI & Course Access
+                                    </Button>
                                   </div>
-                                </td>
-                              </tr>
-                          )}
-                      </React.Fragment>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          </CollapsibleContent>
+                        </>
+                      </Collapsible>
                     ))}
                   </TableBody>
                 </Table>
