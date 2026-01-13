@@ -442,6 +442,8 @@ const Calls = () => {
                     <TableHead>Time</TableHead>
                     <TableHead>Closer</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Offer Amount</TableHead>
+                    <TableHead>Cash Collection</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -468,6 +470,12 @@ const Calls = () => {
                             <Badge className={cn("text-white", getStatusColor(appointment.status))}>
                               {appointment.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            ₹{(appointment.offer_amount || 0).toLocaleString('en-IN')}
+                          </TableCell>
+                          <TableCell>
+                            ₹{(appointment.cash_received || 0).toLocaleString('en-IN')}
                           </TableCell>
                         </TableRow>
                       );
