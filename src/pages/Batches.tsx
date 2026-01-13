@@ -577,6 +577,7 @@ const Batches = () => {
     setSelectedBatch(null);
     setExpandedStudentId(null);
     setSearchQuery("");
+    setEmiStudent(null);
     clearAllFilters();
   };
 
@@ -1309,7 +1310,7 @@ const Batches = () => {
                                         <MoreHorizontal className="h-4 w-4" />
                                       </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
+                                    <DropdownMenuContent align="end" className="bg-background">
                                       <DropdownMenuItem onClick={(e) => {
                                         e.stopPropagation();
                                         setEditingStudent(student);
@@ -1335,6 +1336,16 @@ const Batches = () => {
                                       }}>
                                         <FileText className="h-4 w-4 mr-2" />
                                         {student.additional_comments ? "Edit Notes" : "Add Notes"}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEmiStudent(student);
+                                        }}
+                                        disabled={!["converted", "converted_beginner", "converted_intermediate", "converted_advance", "booking_amount"].includes(student.status)}
+                                      >
+                                        <Pencil className="h-4 w-4 mr-2" />
+                                        Update EMI & Course Access
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
@@ -1569,6 +1580,26 @@ const Batches = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Update EMI Dialog - Rendered in batch detail view */}
+        {emiStudent && (
+          <UpdateEmiDialog
+            open={!!emiStudent}
+            onOpenChange={(open) => !open && setEmiStudent(null)}
+            appointmentId={emiStudent.id}
+            offerAmount={emiStudent.offer_amount || 0}
+            cashReceived={emiStudent.cash_received || 0}
+            dueAmount={emiStudent.due_amount || 0}
+            classesAccess={emiStudent.classes_access ?? null}
+            batchId={selectedBatch?.id || null}
+            customerName={emiStudent.contact_name}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+              queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
+              queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -1763,25 +1794,6 @@ const Batches = () => {
         </AlertDialog>
       )}
 
-      {/* Update EMI Dialog */}
-      {emiStudent && (
-        <UpdateEmiDialog
-          open={!!emiStudent}
-          onOpenChange={(open) => !open && setEmiStudent(null)}
-          appointmentId={emiStudent.id}
-          offerAmount={emiStudent.offer_amount || 0}
-          cashReceived={emiStudent.cash_received || 0}
-          dueAmount={emiStudent.due_amount || 0}
-          classesAccess={emiStudent.classes_access ?? null}
-          batchId={selectedBatch?.id || null}
-          customerName={emiStudent.contact_name}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["batch-students"] });
-            queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
-            queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
-          }}
-        />
-      )}
     </div>
   );
 };
