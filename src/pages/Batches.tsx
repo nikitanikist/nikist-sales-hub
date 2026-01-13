@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -125,6 +125,21 @@ const Batches = () => {
   
   // EMI update dialog state - using emiStudent as single source of truth
   const [emiStudent, setEmiStudent] = useState<BatchStudent | null>(null);
+  
+  // DEBUG: Track when dialog was opened to prevent instant close
+  const emiOpenedAtRef = useRef<number>(0);
+  
+  // DEBUG: Test dialog to verify dialogs work on this page
+  const [showTestDialog, setShowTestDialog] = useState(false);
+
+  // DEBUG: Log emiStudent state changes
+  useEffect(() => {
+    console.log("[Batches DEBUG] emiStudent changed:", emiStudent ? {
+      id: emiStudent.id,
+      name: emiStudent.contact_name,
+      timestamp: Date.now()
+    } : "null");
+  }, [emiStudent]);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -1425,16 +1440,42 @@ const Batches = () => {
                                       <Button 
                                         type="button"
                                         size="sm" 
-                                        onClick={(e) => {
+                                        onPointerDown={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
-                                          console.log("Opening EMI dialog for:", student.id);
+                                          console.log("[Batches DEBUG] Update EMI button clicked for:", student.id, student.contact_name);
+                                          
+                                          // Record when we opened
+                                          emiOpenedAtRef.current = Date.now();
+                                          
+                                          // Show toast to confirm click worked
+                                          toast({
+                                            title: "Opening EMI dialog...",
+                                            description: `For: ${student.contact_name}`,
+                                          });
+                                          
+                                          // Set the student
                                           setEmiStudent(student);
                                         }}
                                         className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                                       >
                                         <Pencil className="h-3 w-3" />
                                         Update EMI & Course Access
+                                      </Button>
+                                      
+                                      {/* DEBUG: Test dialog button */}
+                                      <Button 
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onPointerDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          console.log("[Batches DEBUG] Test dialog button clicked");
+                                          setShowTestDialog(true);
+                                        }}
+                                      >
+                                        Test Dialog
                                       </Button>
                                     </div>
                                   </div>
@@ -1773,12 +1814,40 @@ const Batches = () => {
         </AlertDialog>
       )}
 
+      {/* DEBUG: Test Dialog to verify dialogs work on this page */}
+      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Test Dialog Works!</DialogTitle>
+            <DialogDescription>
+              If you can see this, dialogs are working on this page.
+              <br />
+              <br />
+              emiStudent state is: {emiStudent ? `SET (${emiStudent.contact_name})` : "null"}
+            </DialogDescription>
+          </DialogHeader>
+          <Button onClick={() => setShowTestDialog(false)}>Close</Button>
+        </DialogContent>
+      </Dialog>
+
       {/* Update EMI Dialog - using emiStudent as single source of truth */}
       {emiStudent && (
         <UpdateEmiDialog
           open={true}
           onOpenChange={(open) => {
+            console.log("[Batches DEBUG] UpdateEmiDialog onOpenChange called with:", open);
+            
             if (!open) {
+              // Guard against instant close (within 300ms of opening)
+              const timeSinceOpen = Date.now() - emiOpenedAtRef.current;
+              console.log("[Batches DEBUG] Time since open:", timeSinceOpen, "ms");
+              
+              if (timeSinceOpen < 300) {
+                console.log("[Batches DEBUG] BLOCKED instant close - too soon");
+                return; // Don't close
+              }
+              
+              console.log("[Batches DEBUG] Closing dialog normally");
               setEmiStudent(null);
             }
           }}
