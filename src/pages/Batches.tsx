@@ -1234,21 +1234,11 @@ const Batches = () => {
                               {/* EMI expand button - only for non-managers */}
                               {!isManager ? (
                                 <TableCell>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleStudentExpand(student.id);
-                                    }}
-                                  >
-                                    {expandedStudentId === student.id ? (
-                                      <ChevronDown className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronRight className="h-4 w-4" />
-                                    )}
-                                  </Button>
+                                  {expandedStudentId === student.id ? (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                  )}
                                 </TableCell>
                               ) : (
                                 <TableCell></TableCell>
@@ -1428,13 +1418,10 @@ const Batches = () => {
                                   
                                   {/* Update EMI Button */}
                                   <div className="flex items-center gap-4 pt-3 mt-3 border-t">
-                                    <Button 
+                                  <Button 
                                       size="sm" 
                                       variant="outline"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEmiStudent(student);
-                                      }}
+                                      onClick={() => setEmiStudent(student)}
                                     >
                                       <Pencil className="h-3 w-3 mr-1" />
                                       Update EMI & Course Access
