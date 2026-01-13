@@ -14,7 +14,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil } from "lucide-react";
 import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
@@ -1220,17 +1220,15 @@ const Batches = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredStudents.map((student) => (
-                      <Collapsible key={student.id} asChild open={expandedStudentId === student.id}>
-                        <>
-                          <CollapsibleTrigger asChild>
-                            <TableRow 
-                              className={cn(
-                                "cursor-pointer",
-                                expandedStudentId === student.id && "bg-muted/50",
-                                student.status === "refunded" && "bg-amber-50/70"
-                              )}
-                              onClick={() => !isManager && toggleStudentExpand(student.id)}
-                            >
+                      <React.Fragment key={student.id}>
+                        <TableRow 
+                          className={cn(
+                            "cursor-pointer",
+                            expandedStudentId === student.id && "bg-muted/50",
+                            student.status === "refunded" && "bg-amber-50/70"
+                          )}
+                          onClick={() => !isManager && toggleStudentExpand(student.id)}
+                        >
                               {/* EMI expand button - only for non-managers */}
                               {!isManager ? (
                                 <TableCell>
@@ -1342,10 +1340,9 @@ const Batches = () => {
                                   </DropdownMenu>
                                 </TableCell>
                               )}
-                            </TableRow>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent asChild>
-                            <TableRow>
+                        </TableRow>
+                        {!isManager && expandedStudentId === student.id && (
+                          <TableRow>
                               <TableCell colSpan={isCloser ? 10 : 12} className="bg-muted/30 p-0">
                                 <div className="p-4 border-t">
                                   {/* Show Refund Reason if status is refunded */}
@@ -1419,20 +1416,22 @@ const Batches = () => {
                                   {/* Update EMI Button */}
                                   <div className="flex items-center gap-4 pt-3 mt-3 border-t">
                                   <Button 
-                                      size="sm" 
-                                      variant="outline"
-                                      onClick={() => setEmiStudent(student)}
-                                    >
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEmiStudent(student);
+                                    }}
+                                  >
                                       <Pencil className="h-3 w-3 mr-1" />
                                       Update EMI & Course Access
                                     </Button>
                                   </div>
                                 </div>
                               </TableCell>
-                            </TableRow>
-                          </CollapsibleContent>
-                        </>
-                      </Collapsible>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>
