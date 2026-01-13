@@ -46,6 +46,7 @@ interface BatchStudent {
   closer_id: string | null;
   closer_name: string | null;
   scheduled_date: string | null;
+  created_at: string;
   offer_amount: number | null;
   cash_received: number | null;
   due_amount: number | null;
@@ -169,6 +170,7 @@ const Batches = () => {
           classes_access,
           status,
           scheduled_date,
+          created_at,
           offer_amount,
           cash_received,
           due_amount,
@@ -177,7 +179,8 @@ const Batches = () => {
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
-        .eq("batch_id", selectedBatch.id);
+        .eq("batch_id", selectedBatch.id)
+        .order("created_at", { ascending: false });
       
       // For closers, only show their own students
       if (isCloser && profileId) {
@@ -199,6 +202,7 @@ const Batches = () => {
         closer_id: apt.closer_id,
         closer_name: apt.closer?.full_name || null,
         scheduled_date: apt.scheduled_date,
+        created_at: apt.created_at,
         offer_amount: apt.offer_amount,
         cash_received: apt.cash_received,
         due_amount: apt.due_amount,
