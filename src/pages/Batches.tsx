@@ -180,7 +180,7 @@ const Batches = () => {
           closer:profiles!closer_id(full_name)
         `)
         .eq("batch_id", selectedBatch.id)
-        .order("created_at", { ascending: false });
+        .order("scheduled_date", { ascending: false });
       
       // For closers, only show their own students
       if (isCloser && profileId) {
