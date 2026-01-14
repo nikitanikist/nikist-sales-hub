@@ -9,7 +9,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -208,15 +208,15 @@ export function AddFuturesStudentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Add Student</DialogTitle>
           <DialogDescription>
             Add a student to {batchName}
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+        <div className="flex-1 overflow-y-auto pr-2 min-h-0">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "search" | "new")}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="search">Search Existing</TabsTrigger>
@@ -330,9 +330,9 @@ export function AddFuturesStudentDialog({
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." rows={2} />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="mt-4">
+        <DialogFooter className="flex-shrink-0 mt-4">
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={addStudentMutation.isPending}>
             {addStudentMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
