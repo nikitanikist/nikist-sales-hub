@@ -1335,6 +1335,7 @@ export type Database = {
         | "pending"
         | "refunded"
         | "converted"
+        | "discontinued"
       lead_status:
         | "new"
         | "contacted"
@@ -1495,6 +1496,7 @@ export const Constants = {
         "pending",
         "refunded",
         "converted",
+        "discontinued",
       ],
       lead_status: [
         "new",

@@ -1635,6 +1635,61 @@ const Batches = () => {
           </Dialog>
         )}
 
+        {/* Mark as Discontinued Confirmation Dialog - Hidden for Managers and Closers */}
+        {!isManager && !isCloser && (
+          <AlertDialog open={!!discontinuingStudent} onOpenChange={(open) => { if (!open) { setDiscontinuingStudent(null); setDiscontinuedNotes(""); } }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Mark as Discontinued</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-3">
+                    <div className="text-sm">
+                      <span className="font-medium">Student:</span> {discontinuingStudent?.contact_name}
+                    </div>
+                    <div className="text-sm">
+                      <span className="font-medium">Email:</span> {discontinuingStudent?.email}
+                    </div>
+                    <p className="text-muted-foreground mt-2">
+                      Are you sure you want to mark this student as discontinued? This will:
+                    </p>
+                    <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                      <li>Change status to "Discontinued"</li>
+                      <li>Highlight the student in red</li>
+                      <li>Be visible throughout the CRM</li>
+                    </ul>
+                    <div className="space-y-2 pt-2">
+                      <Label className="text-foreground">
+                        Reason for Discontinuation <span className="text-destructive">*</span>
+                      </Label>
+                      <Textarea
+                        placeholder="Enter reason for discontinuation..."
+                        value={discontinuedNotes}
+                        onChange={(e) => setDiscontinuedNotes(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground">Required</p>
+                    </div>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => discontinuingStudent && markDiscontinuedMutation.mutate({ 
+                    appointmentId: discontinuingStudent.id, 
+                    discontinuedReason: discontinuedNotes.trim() 
+                  })}
+                  className="bg-red-600 text-white hover:bg-red-700"
+                  disabled={markDiscontinuedMutation.isPending || !discontinuedNotes.trim()}
+                >
+                  {markDiscontinuedMutation.isPending ? "Updating..." : "Mark as Discontinued"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
         {/* Update EMI Dialog - Rendered in batch detail view */}
         {emiStudent && (
           <UpdateEmiDialog
