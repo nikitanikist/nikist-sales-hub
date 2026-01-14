@@ -39,7 +39,13 @@ const AppLayout = () => {
         navigate("/sales-closers");
       }
     }
-  }, [isManager, isAdmin, roleLoading, location.pathname, navigate]);
+    // Redirect closers away from futures-mentorship
+    if (!roleLoading && isCloser && !isAdmin && !isManager) {
+      if (location.pathname === '/futures-mentorship') {
+        navigate("/calls");
+      }
+    }
+  }, [isManager, isAdmin, isCloser, roleLoading, location.pathname, navigate]);
 
   if (loading || roleLoading) {
     return (
@@ -61,6 +67,7 @@ const AppLayout = () => {
     { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "Batches", icon: GraduationCap, path: "/batches" },
+    { title: "Futures Mentorship", icon: TrendingUp, path: "/futures-mentorship" },
     { title: "All Workshops", icon: Calendar, path: "/workshops" },
     { title: "Sales", icon: DollarSign, path: "/sales" },
     { title: "Active Funnels", icon: TrendingUp, path: "/funnels" },
@@ -75,11 +82,12 @@ const AppLayout = () => {
     { title: "Batches", icon: GraduationCap, path: "/batches" },
   ];
 
-  // Manager menu items - can see closers, workshops, customers (read-only), and batches (no financial data)
+  // Manager menu items - can see closers, workshops, customers (read-only), batches, and futures mentorship
   const managerMenuItems = [
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "Batches", icon: GraduationCap, path: "/batches" },
+    { title: "Futures Mentorship", icon: TrendingUp, path: "/futures-mentorship" },
     { title: "All Workshops", icon: Calendar, path: "/workshops" },
   ];
 
