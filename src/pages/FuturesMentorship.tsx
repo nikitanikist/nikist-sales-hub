@@ -726,7 +726,7 @@ const FuturesMentorship = () => {
         </CardHeader>
         <CardContent>
           <div className="mb-4">
-            <div className="relative w-64">
+            <div className="relative w-full">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search students..."
