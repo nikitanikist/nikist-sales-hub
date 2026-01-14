@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,12 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Search, RefreshCw, Filter, Plus, Phone, Users, CheckCircle, XCircle, RotateCcw } from "lucide-react";
+import { Search, RefreshCw, Filter, Plus, Users, CheckCircle, XCircle, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 
 interface CloserMetrics {
   id: string;
@@ -27,19 +24,6 @@ interface CloserMetrics {
   earnings: number;
 }
 
-interface CallRecord {
-  id: string;
-  scheduled_date: string;
-  scheduled_time: string;
-  status: string;
-  offer_amount: number | null;
-  cash_received: number | null;
-  closer: { id: string; full_name: string } | null;
-  lead: { contact_name: string; email: string; phone: string | null } | null;
-}
-
-type CallsListType = "all" | "converted" | "not_converted" | "rescheduled";
-
 const SalesClosers = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -47,12 +31,7 @@ const SalesClosers = () => {
   const [formData, setFormData] = useState({ full_name: "", email: "", phone: "" });
   const { toast } = useToast();
   const { isAdmin, isCloser, isManager, profileId, isLoading: roleLoading } = useUserRole();
-
-  // Calls list dialog state
-  const [showCallsList, setShowCallsList] = useState(false);
-  const [callsListType, setCallsListType] = useState<CallsListType>("all");
-  const [selectedCloserFilter, setSelectedCloserFilter] = useState<string>("all");
-  const [callsSearchQuery, setCallsSearchQuery] = useState("");
+  const navigate = useNavigate();
 
   const { data: closers, isLoading, refetch } = useQuery({
     queryKey: ["sales-closers", profileId, isCloser],
@@ -145,89 +124,6 @@ const SalesClosers = () => {
       rescheduled: acc.rescheduled + closer.rescheduled,
     }), { assigned: 0, converted: 0, not_converted: 0, rescheduled: 0 });
   }, [closers]);
-
-  // Fetch calls for the dialog
-  const { data: allCalls, isLoading: callsLoading } = useQuery({
-    queryKey: ["all-calls-list", callsListType],
-    queryFn: async () => {
-      let query = supabase
-        .from("call_appointments")
-        .select(`
-          id, scheduled_date, scheduled_time, status, offer_amount, cash_received,
-          closer:profiles!call_appointments_closer_id_fkey(id, full_name),
-          lead:leads!call_appointments_lead_id_fkey(contact_name, email, phone)
-        `)
-        .order("scheduled_date", { ascending: false })
-        .order("scheduled_time", { ascending: false });
-
-      // Apply status filter based on type
-      if (callsListType === "converted") {
-        query = query.or('status.eq.converted,status.like.converted_%');
-      } else if (callsListType === "not_converted") {
-        query = query.eq("status", "not_converted");
-      } else if (callsListType === "rescheduled") {
-        query = query.eq("status", "reschedule");
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as CallRecord[];
-    },
-    enabled: showCallsList,
-  });
-
-  // Filter calls based on closer and search query
-  const filteredCalls = useMemo(() => {
-    let calls = allCalls || [];
-
-    // Filter by closer if selected
-    if (selectedCloserFilter !== "all") {
-      calls = calls.filter(c => c.closer?.id === selectedCloserFilter);
-    }
-
-    // Filter by search query (name, email, phone)
-    if (callsSearchQuery) {
-      const query = callsSearchQuery.toLowerCase();
-      calls = calls.filter(c =>
-        c.lead?.contact_name?.toLowerCase().includes(query) ||
-        c.lead?.email?.toLowerCase().includes(query) ||
-        c.lead?.phone?.includes(query)
-      );
-    }
-
-    return calls;
-  }, [allCalls, selectedCloserFilter, callsSearchQuery]);
-
-  const openCallsList = (type: CallsListType) => {
-    setCallsListType(type);
-    setSelectedCloserFilter("all");
-    setCallsSearchQuery("");
-    setShowCallsList(true);
-  };
-
-  const getCallsListTitle = () => {
-    switch (callsListType) {
-      case "all": return "All Assigned Calls";
-      case "converted": return "All Converted Calls";
-      case "not_converted": return "All Not Converted Calls";
-      case "rescheduled": return "All Rescheduled Calls";
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    if (status.startsWith('converted') || status === 'converted') {
-      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">{status}</Badge>;
-    } else if (status === 'not_converted') {
-      return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Not Converted</Badge>;
-    } else if (status === 'reschedule') {
-      return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Reschedule</Badge>;
-    } else if (status === 'scheduled' || status === 'pending') {
-      return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{status}</Badge>;
-    } else if (status === 'booking_amount') {
-      return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Booking Amount</Badge>;
-    }
-    return <Badge variant="secondary">{status}</Badge>;
-  };
 
   const handleRefresh = () => {
     refetch();
@@ -365,7 +261,7 @@ const SalesClosers = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card 
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
-            onClick={() => openCallsList("all")}
+            onClick={() => navigate("/sales-closers/all-calls")}
           >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -380,7 +276,7 @@ const SalesClosers = () => {
 
           <Card 
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-green-500"
-            onClick={() => openCallsList("converted")}
+            onClick={() => navigate("/sales-closers/all-calls?status=converted")}
           >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -395,7 +291,7 @@ const SalesClosers = () => {
 
           <Card 
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-red-500"
-            onClick={() => openCallsList("not_converted")}
+            onClick={() => navigate("/sales-closers/all-calls?status=not_converted")}
           >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -410,7 +306,7 @@ const SalesClosers = () => {
 
           <Card 
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-purple-500"
-            onClick={() => openCallsList("rescheduled")}
+            onClick={() => navigate("/sales-closers/all-calls?status=reschedule")}
           >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -551,103 +447,6 @@ const SalesClosers = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Calls List Dialog */}
-      <Dialog open={showCallsList} onOpenChange={setShowCallsList}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0">
-            <DialogTitle>{getCallsListTitle()}</DialogTitle>
-          </DialogHeader>
-
-          {/* Filters */}
-          <div className="flex gap-4 items-center flex-shrink-0">
-            <Select value={selectedCloserFilter} onValueChange={setSelectedCloserFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Select Closer" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Closers</SelectItem>
-                {closers?.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or phone..."
-                value={callsSearchQuery}
-                onChange={(e) => setCallsSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {/* Calls Table */}
-          <div className="flex-1 overflow-y-auto min-h-0 mt-4">
-            {callsLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading calls...</div>
-            ) : filteredCalls.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No calls found</div>
-            ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Closer</TableHead>
-                      <TableHead>Scheduled</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Offer</TableHead>
-                      <TableHead className="text-right">Cash</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCalls.map(call => (
-                      <TableRow key={call.id}>
-                        <TableCell className="font-medium">
-                          {call.lead?.contact_name || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1 text-sm">
-                            <div>{call.lead?.email || "N/A"}</div>
-                            {call.lead?.phone && (
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Phone className="h-3 w-3" />
-                                {call.lead.phone}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{call.closer?.full_name || "N/A"}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <div>{format(new Date(call.scheduled_date), "dd MMM yyyy")}</div>
-                            <div className="text-muted-foreground">{call.scheduled_time}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(call.status)}</TableCell>
-                        <TableCell className="text-right">
-                          {call.offer_amount ? `₹${call.offer_amount.toLocaleString("en-IN")}` : "-"}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {call.cash_received ? `₹${call.cash_received.toLocaleString("en-IN")}` : "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-
-          <div className="flex-shrink-0 pt-2 text-sm text-muted-foreground">
-            Showing {filteredCalls.length} calls
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
