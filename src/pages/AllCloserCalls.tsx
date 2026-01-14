@@ -104,6 +104,7 @@ const statusColors: Record<CallStatus, string> = {
   reschedule: "bg-purple-100 text-purple-800 border-purple-200",
   pending: "bg-gray-100 text-gray-800 border-gray-200",
   refunded: "bg-rose-100 text-rose-800 border-rose-200",
+  discontinued: "bg-red-100 text-red-800 border-red-200",
 };
 
 const statusLabels: Record<CallStatus, string> = {
@@ -119,6 +120,7 @@ const statusLabels: Record<CallStatus, string> = {
   reschedule: "Reschedule",
   pending: "Pending",
   refunded: "Refunded",
+  discontinued: "Discontinued",
 };
 
 const ITEMS_PER_PAGE = 10;
