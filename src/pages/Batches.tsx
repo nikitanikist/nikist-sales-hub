@@ -124,6 +124,10 @@ const Batches = () => {
   const [notesStudent, setNotesStudent] = useState<BatchStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
   
+  // Discontinued dialog state
+  const [discontinuingStudent, setDiscontinuingStudent] = useState<BatchStudent | null>(null);
+  const [discontinuedNotes, setDiscontinuedNotes] = useState<string>("");
+  
   // EMI update dialog state
   const [emiStudent, setEmiStudent] = useState<BatchStudent | null>(null);
 
@@ -532,6 +536,26 @@ const Batches = () => {
       toast({ title: "Notes Saved", description: "Notes have been saved successfully" });
       setNotesStudent(null);
       setNotesText("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mark student as discontinued mutation
+  const markDiscontinuedMutation = useMutation({
+    mutationFn: async ({ appointmentId, discontinuedReason }: { appointmentId: string; discontinuedReason: string }) => {
+      const { error } = await supabase
+        .from("call_appointments")
+        .update({ status: "discontinued", refund_reason: discontinuedReason })
+        .eq("id", appointmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["batch-students", selectedBatch?.id] });
+      toast({ title: "Status Updated", description: "Student has been marked as discontinued" });
+      setDiscontinuingStudent(null);
+      setDiscontinuedNotes("");
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1231,7 +1255,8 @@ const Batches = () => {
                           className={cn(
                             "cursor-pointer",
                             expandedStudentId === student.id && "bg-muted/50",
-                            student.status === "refunded" && "bg-amber-50/70"
+                            student.status === "refunded" && "bg-amber-50/70",
+                            student.status === "discontinued" && "bg-red-50/70"
                           )}
                           onClick={() => !isManager && toggleStudentExpand(student.id)}
                         >
@@ -1300,9 +1325,11 @@ const Batches = () => {
                                 <Badge className={
                                   student.status === "refunded" 
                                     ? "bg-amber-100 text-amber-800 border-amber-200" 
-                                    : student.status === "converted" 
-                                      ? "bg-green-100 text-green-800" 
-                                      : "bg-gray-100 text-gray-800"
+                                    : student.status === "discontinued"
+                                      ? "bg-red-100 text-red-800 border-red-200"
+                                      : student.status === "converted" || student.status.startsWith("converted_")
+                                        ? "bg-green-100 text-green-800" 
+                                        : "bg-gray-100 text-gray-800"
                                 }>
                                   {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
                                 </Badge>
@@ -1329,10 +1356,20 @@ const Batches = () => {
                                           e.stopPropagation();
                                           setRefundingStudent(student);
                                         }}
-                                        disabled={student.status === "refunded"}
+                                        disabled={student.status === "refunded" || student.status === "discontinued"}
                                       >
                                         <RefreshCcw className="h-4 w-4 mr-2" />
                                         Mark as Refunded
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setDiscontinuingStudent(student);
+                                        }}
+                                        disabled={student.status === "discontinued" || student.status === "refunded"}
+                                      >
+                                        <X className="h-4 w-4 mr-2" />
+                                        Mark as Discontinued
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onClick={(e) => {
                                         e.stopPropagation();
@@ -1369,6 +1406,18 @@ const Batches = () => {
                                         <span className="font-medium text-sm text-amber-800">Refund Reason</span>
                                       </div>
                                       <p className="text-sm text-amber-700 whitespace-pre-wrap">
+                                        {student.refund_reason}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {/* Show Discontinued Reason if status is discontinued */}
+                                  {student.status === "discontinued" && student.refund_reason && (
+                                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <X className="h-4 w-4 text-red-600" />
+                                        <span className="font-medium text-sm text-red-800">Discontinued Reason</span>
+                                      </div>
+                                      <p className="text-sm text-red-700 whitespace-pre-wrap">
                                         {student.refund_reason}
                                       </p>
                                     </div>
