@@ -871,162 +871,168 @@ const Batches = () => {
               </Card>
             ) : (
               // Regular cards for All/Initial payment filter - now 5 cards
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                {/* Offered Amount Card */}
-                <Card className="overflow-hidden">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                    <div className="p-4 flex flex-col justify-center bg-blue-50">
-                      <p className="text-sm text-muted-foreground">Total Offered</p>
-                      <div className="text-base sm:text-lg font-bold text-blue-700 whitespace-nowrap">
-                        ₹{totals.offered.toLocaleString('en-IN')}
+              <div className="space-y-4">
+                {/* Row 1: Active Student Cards (3 columns) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Offered Amount Card */}
+                  <Card className="overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                      <div className="p-4 flex flex-col justify-center bg-blue-50">
+                        <p className="text-sm text-muted-foreground">Total Offered</p>
+                        <div className="text-base sm:text-lg font-bold text-blue-700 whitespace-nowrap">
+                          ₹{totals.offered.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                        {closerBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No data</p>
+                        ) : (
+                          closerBreakdown.map((closer, idx) => (
+                            <div key={closer.closerId} className={cn(
+                              "flex justify-between items-baseline text-sm gap-2",
+                              idx < closerBreakdown.length - 1 && "border-b pb-1"
+                            )}>
+                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                              <span className="font-medium whitespace-nowrap">
+                                ₹{closer.offered.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
-                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                      {closerBreakdown.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No data</p>
-                      ) : (
-                        closerBreakdown.map((closer, idx) => (
-                          <div key={closer.closerId} className={cn(
-                            "flex justify-between items-baseline text-sm gap-2",
-                            idx < closerBreakdown.length - 1 && "border-b pb-1"
-                          )}>
-                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                            <span className="font-medium whitespace-nowrap">
-                              ₹{closer.offered.toLocaleString('en-IN')}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                {/* Cash Received Card */}
-                <Card className="overflow-hidden">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                    <div className="p-4 flex flex-col justify-center bg-green-50">
-                      <p className="text-sm text-muted-foreground">Cash Received</p>
-                      <div className="text-base sm:text-lg font-bold text-green-700 whitespace-nowrap">
-                        ₹{totals.received.toLocaleString('en-IN')}
+                  {/* Cash Received Card */}
+                  <Card className="overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                      <div className="p-4 flex flex-col justify-center bg-green-50">
+                        <p className="text-sm text-muted-foreground">Cash Received</p>
+                        <div className="text-base sm:text-lg font-bold text-green-700 whitespace-nowrap">
+                          ₹{totals.received.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                        {closerBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No data</p>
+                        ) : (
+                          closerBreakdown.map((closer, idx) => (
+                            <div key={closer.closerId} className={cn(
+                              "flex justify-between items-baseline text-sm gap-2",
+                              idx < closerBreakdown.length - 1 && "border-b pb-1"
+                            )}>
+                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                              <span className="font-medium whitespace-nowrap">
+                                ₹{closer.received.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
-                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                      {closerBreakdown.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No data</p>
-                      ) : (
-                        closerBreakdown.map((closer, idx) => (
-                          <div key={closer.closerId} className={cn(
-                            "flex justify-between items-baseline text-sm gap-2",
-                            idx < closerBreakdown.length - 1 && "border-b pb-1"
-                          )}>
-                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                            <span className="font-medium whitespace-nowrap">
-                              ₹{closer.received.toLocaleString('en-IN')}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                {/* Remaining Amount Card */}
-                <Card className="overflow-hidden">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                    <div className="p-4 flex flex-col justify-center bg-orange-50">
-                      <p className="text-sm text-muted-foreground">Remaining Amount</p>
-                      <div className="text-base sm:text-lg font-bold text-orange-700 whitespace-nowrap">
-                        ₹{totals.due.toLocaleString('en-IN')}
+                  {/* Remaining Amount Card */}
+                  <Card className="overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                      <div className="p-4 flex flex-col justify-center bg-orange-50">
+                        <p className="text-sm text-muted-foreground">Remaining Amount</p>
+                        <div className="text-base sm:text-lg font-bold text-orange-700 whitespace-nowrap">
+                          ₹{totals.due.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                        {closerBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No data</p>
+                        ) : (
+                          closerBreakdown.map((closer, idx) => (
+                            <div key={closer.closerId} className={cn(
+                              "flex justify-between items-baseline text-sm gap-2",
+                              idx < closerBreakdown.length - 1 && "border-b pb-1"
+                            )}>
+                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                              <span className="font-medium whitespace-nowrap">
+                                ₹{closer.due.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
-                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                      {closerBreakdown.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No data</p>
-                      ) : (
-                        closerBreakdown.map((closer, idx) => (
-                          <div key={closer.closerId} className={cn(
-                            "flex justify-between items-baseline text-sm gap-2",
-                            idx < closerBreakdown.length - 1 && "border-b pb-1"
-                          )}>
-                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                            <span className="font-medium whitespace-nowrap">
-                              ₹{closer.due.toLocaleString('en-IN')}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </Card>
+                  </Card>
+                </div>
 
-                {/* Refunded Amount Card */}
-                <Card className="overflow-hidden">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                    <div className="p-4 flex flex-col justify-center bg-amber-50">
-                      <p className="text-sm text-muted-foreground">Refunded</p>
-                      <div className="text-base sm:text-lg font-bold text-amber-700 whitespace-nowrap">
-                        ₹{refundedTotals.received.toLocaleString('en-IN')}
+                {/* Row 2: Refunded & Discontinued Cards (2 columns) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Refunded Amount Card */}
+                  <Card className="overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                      <div className="p-4 flex flex-col justify-center bg-amber-50">
+                        <p className="text-sm text-muted-foreground">Refunded</p>
+                        <div className="text-base sm:text-lg font-bold text-amber-700 whitespace-nowrap">
+                          ₹{refundedTotals.received.toLocaleString('en-IN')}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ({refundedTotals.count} students)
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        ({refundedTotals.count} students)
-                      </p>
+                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                        {refundedBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No refunds</p>
+                        ) : (
+                          refundedBreakdown.map((closer, idx) => (
+                            <div key={closer.closerId} className={cn(
+                              "flex justify-between items-baseline text-sm gap-2",
+                              idx < refundedBreakdown.length - 1 && "border-b pb-1"
+                            )}>
+                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                              <span className="font-medium whitespace-nowrap">
+                                ₹{closer.received.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                      {refundedBreakdown.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No refunds</p>
-                      ) : (
-                        refundedBreakdown.map((closer, idx) => (
-                          <div key={closer.closerId} className={cn(
-                            "flex justify-between items-baseline text-sm gap-2",
-                            idx < refundedBreakdown.length - 1 && "border-b pb-1"
-                          )}>
-                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                            <span className="font-medium whitespace-nowrap">
-                              ₹{closer.received.toLocaleString('en-IN')}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </Card>
+                  </Card>
 
-                {/* Discontinued Amount Card */}
-                <Card className="overflow-hidden">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                    <div className="p-4 flex flex-col justify-center bg-red-50">
-                      <p className="text-sm text-muted-foreground">Discontinued</p>
-                      <div className="text-base sm:text-lg font-bold text-red-700 whitespace-nowrap">
-                        ₹{discontinuedTotals.received.toLocaleString('en-IN')}
+                  {/* Discontinued Amount Card */}
+                  <Card className="overflow-hidden">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                      <div className="p-4 flex flex-col justify-center bg-red-50">
+                        <p className="text-sm text-muted-foreground">Discontinued</p>
+                        <div className="text-base sm:text-lg font-bold text-red-700 whitespace-nowrap">
+                          ₹{discontinuedTotals.received.toLocaleString('en-IN')}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ({discontinuedTotals.count} students)
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        ({discontinuedTotals.count} students)
-                      </p>
+                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                        {discontinuedBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No discontinued</p>
+                        ) : (
+                          discontinuedBreakdown.map((closer, idx) => (
+                            <div key={closer.closerId} className={cn(
+                              "flex justify-between items-baseline text-sm gap-2",
+                              idx < discontinuedBreakdown.length - 1 && "border-b pb-1"
+                            )}>
+                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                              <span className="font-medium whitespace-nowrap">
+                                ₹{closer.received.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
-                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                      {discontinuedBreakdown.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No discontinued</p>
-                      ) : (
-                        discontinuedBreakdown.map((closer, idx) => (
-                          <div key={closer.closerId} className={cn(
-                            "flex justify-between items-baseline text-sm gap-2",
-                            idx < discontinuedBreakdown.length - 1 && "border-b pb-1"
-                          )}>
-                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                            <span className="font-medium whitespace-nowrap">
-                              ₹{closer.received.toLocaleString('en-IN')}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </Card>
+                  </Card>
+                </div>
               </div>
             )}
           </>
