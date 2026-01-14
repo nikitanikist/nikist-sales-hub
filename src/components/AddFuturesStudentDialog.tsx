@@ -9,6 +9,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -207,7 +208,7 @@ export function AddFuturesStudentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>Add Student</DialogTitle>
           <DialogDescription>
@@ -215,121 +216,123 @@ export function AddFuturesStudentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "search" | "new")}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="search">Search Existing</TabsTrigger>
-            <TabsTrigger value="new">Add New</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="search" className="space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Search by email or phone..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              />
-              <Button onClick={handleSearch} disabled={isSearching}>
-                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              </Button>
-            </div>
+        <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "search" | "new")}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="search">Search Existing</TabsTrigger>
+              <TabsTrigger value="new">Add New</TabsTrigger>
+            </TabsList>
             
-            {searchResults.length > 0 && (
-              <div className="border rounded-md max-h-48 overflow-y-auto">
-                {searchResults.map((lead) => (
-                  <div
-                    key={lead.id}
-                    className={cn(
-                      "p-3 cursor-pointer hover:bg-muted/50 border-b last:border-b-0 flex items-center justify-between",
-                      selectedLead?.id === lead.id && "bg-primary/10"
-                    )}
-                    onClick={() => selectLead(lead)}
-                  >
-                    <div>
-                      <p className="font-medium">{lead.contact_name}</p>
-                      <p className="text-sm text-muted-foreground">{lead.email}</p>
-                      {lead.phone && <p className="text-sm text-muted-foreground">{lead.phone}</p>}
+            <TabsContent value="search" className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Search by email or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                />
+                <Button onClick={handleSearch} disabled={isSearching}>
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+              
+              {searchResults.length > 0 && (
+                <div className="border rounded-md max-h-48 overflow-y-auto">
+                  {searchResults.map((lead) => (
+                    <div
+                      key={lead.id}
+                      className={cn(
+                        "p-3 cursor-pointer hover:bg-muted/50 border-b last:border-b-0 flex items-center justify-between",
+                        selectedLead?.id === lead.id && "bg-primary/10"
+                      )}
+                      onClick={() => selectLead(lead)}
+                    >
+                      <div>
+                        <p className="font-medium">{lead.contact_name}</p>
+                        <p className="text-sm text-muted-foreground">{lead.email}</p>
+                        {lead.phone && <p className="text-sm text-muted-foreground">{lead.phone}</p>}
+                      </div>
+                      {selectedLead?.id === lead.id && <Check className="h-5 w-5 text-primary" />}
                     </div>
-                    {selectedLead?.id === lead.id && <Check className="h-5 w-5 text-primary" />}
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+              
+              {selectedLead && (
+                <div className="bg-muted/30 rounded-md p-3">
+                  <p className="text-sm font-medium">Selected: {selectedLead.contact_name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedLead.email}</p>
+                </div>
+              )}
+            </TabsContent>
             
-            {selectedLead && (
-              <div className="bg-muted/30 rounded-md p-3">
-                <p className="text-sm font-medium">Selected: {selectedLead.contact_name}</p>
-                <p className="text-sm text-muted-foreground">{selectedLead.email}</p>
+            <TabsContent value="new" className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Customer Name *</Label>
+                  <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Full name" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Country</Label>
+                  <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" />
+                </div>
               </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="new" className="space-y-4">
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" />
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* Common fields for both tabs */}
+          <div className="space-y-4 pt-4 border-t mt-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Customer Name *</Label>
-                <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Full name" />
+                <Label>Conversion Date</Label>
+                <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {format(conversionDate, "dd MMM yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={conversionDate}
+                      onSelect={(d) => { if (d) setConversionDate(d); setIsDatePopoverOpen(false); }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-2">
-                <Label>Country</Label>
-                <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="Country" />
+                <Label>Batch</Label>
+                <Input value={batchName} disabled />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Offer Amount (₹)</Label>
+                <Input type="number" value={offerAmount} onChange={(e) => setOfferAmount(e.target.value)} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Cash Received (₹)</Label>
+                <Input type="number" value={cashReceived} onChange={(e) => setCashReceived(e.target.value)} placeholder="0" />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Email *</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" />
+              <Label>Notes (optional)</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." rows={2} />
             </div>
-            <div className="space-y-2">
-              <Label>Phone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Phone number" />
-            </div>
-          </TabsContent>
-        </Tabs>
+          </div>
+        </ScrollArea>
 
-        {/* Common fields for both tabs */}
-        <div className="space-y-4 pt-4 border-t">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Conversion Date</Label>
-              <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {format(conversionDate, "dd MMM yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={conversionDate}
-                    onSelect={(d) => { if (d) setConversionDate(d); setIsDatePopoverOpen(false); }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-2">
-              <Label>Batch</Label>
-              <Input value={batchName} disabled />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Offer Amount (₹)</Label>
-              <Input type="number" value={offerAmount} onChange={(e) => setOfferAmount(e.target.value)} placeholder="0" />
-            </div>
-            <div className="space-y-2">
-              <Label>Cash Received (₹)</Label>
-              <Input type="number" value={cashReceived} onChange={(e) => setCashReceived(e.target.value)} placeholder="0" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Notes (optional)</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." rows={2} />
-          </div>
-        </div>
-
-        <DialogFooter>
+        <DialogFooter className="mt-4">
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={addStudentMutation.isPending}>
             {addStudentMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
