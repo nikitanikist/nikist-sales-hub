@@ -468,6 +468,210 @@ export type Database = {
           },
         ]
       }
+      futures_emi_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          created_by: string | null
+          emi_number: number
+          id: string
+          payment_date: string
+          previous_cash_received: number | null
+          student_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          created_by?: string | null
+          emi_number: number
+          id?: string
+          payment_date: string
+          previous_cash_received?: number | null
+          student_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          created_by?: string | null
+          emi_number?: number
+          id?: string
+          payment_date?: string
+          previous_cash_received?: number | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "futures_emi_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "futures_emi_payments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "futures_mentorship_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      futures_mentorship_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_dates: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_dates?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_dates?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "futures_mentorship_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      futures_mentorship_students: {
+        Row: {
+          batch_id: string
+          cash_received: number | null
+          classes_access: number | null
+          conversion_date: string
+          created_at: string
+          created_by: string | null
+          due_amount: number | null
+          id: string
+          lead_id: string | null
+          notes: string | null
+          offer_amount: number | null
+          refund_reason: string | null
+          status: string
+        }
+        Insert: {
+          batch_id: string
+          cash_received?: number | null
+          classes_access?: number | null
+          conversion_date?: string
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          offer_amount?: number | null
+          refund_reason?: string | null
+          status?: string
+        }
+        Update: {
+          batch_id?: string
+          cash_received?: number | null
+          classes_access?: number | null
+          conversion_date?: string
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          offer_amount?: number | null
+          refund_reason?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "futures_mentorship_students_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "futures_mentorship_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "futures_mentorship_students_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "futures_mentorship_students_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      futures_offer_amount_history: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          new_amount: number
+          previous_amount: number
+          reason: string | null
+          student_id: string
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_amount: number
+          previous_amount: number
+          reason?: string | null
+          student_id: string
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_amount?: number
+          previous_amount?: number
+          reason?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "futures_offer_amount_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "futures_offer_amount_history_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "futures_mentorship_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_assignments: {
         Row: {
           created_at: string
