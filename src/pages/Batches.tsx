@@ -877,7 +877,7 @@ const Batches = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                     <div className="p-4 flex flex-col justify-center bg-blue-50">
                       <p className="text-sm text-muted-foreground">Total Offered</p>
-                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-700 break-words">
+                      <div className="text-base sm:text-lg font-bold text-blue-700 whitespace-nowrap">
                         ₹{totals.offered.toLocaleString('en-IN')}
                       </div>
                     </div>
@@ -907,7 +907,7 @@ const Batches = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                     <div className="p-4 flex flex-col justify-center bg-green-50">
                       <p className="text-sm text-muted-foreground">Cash Received</p>
-                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-700 break-words">
+                      <div className="text-base sm:text-lg font-bold text-green-700 whitespace-nowrap">
                         ₹{totals.received.toLocaleString('en-IN')}
                       </div>
                     </div>
@@ -937,7 +937,7 @@ const Batches = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                     <div className="p-4 flex flex-col justify-center bg-orange-50">
                       <p className="text-sm text-muted-foreground">Remaining Amount</p>
-                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-orange-700 break-words">
+                      <div className="text-base sm:text-lg font-bold text-orange-700 whitespace-nowrap">
                         ₹{totals.due.toLocaleString('en-IN')}
                       </div>
                     </div>
@@ -967,7 +967,7 @@ const Batches = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                     <div className="p-4 flex flex-col justify-center bg-amber-50">
                       <p className="text-sm text-muted-foreground">Refunded</p>
-                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-amber-700 break-words">
+                      <div className="text-base sm:text-lg font-bold text-amber-700 whitespace-nowrap">
                         ₹{refundedTotals.received.toLocaleString('en-IN')}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -1000,7 +1000,7 @@ const Batches = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                     <div className="p-4 flex flex-col justify-center bg-red-50">
                       <p className="text-sm text-muted-foreground">Discontinued</p>
-                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-red-700 break-words">
+                      <div className="text-base sm:text-lg font-bold text-red-700 whitespace-nowrap">
                         ₹{discontinuedTotals.received.toLocaleString('en-IN')}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
