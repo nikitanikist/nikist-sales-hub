@@ -350,51 +350,85 @@ const Batches = () => {
   }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments]);
 
   // Calculate closer breakdown and totals based on filtered students
-  const { closerBreakdown, totals } = useMemo(() => {
-    const breakdown: Record<string, { 
-      closerId: string; 
-      closerName: string; 
-      offered: number; 
-      received: number; 
-      due: number;
-      emiCollected: number;
-    }> = {};
-    
-    filteredStudents.forEach(student => {
-      const closerId = student.closer_id || 'unassigned';
-      const closerName = student.closer_name || 'Unassigned';
+  const { closerBreakdown, totals, refundedBreakdown, refundedTotals, discontinuedBreakdown, discontinuedTotals } = useMemo(() => {
+    // Separate students by status
+    const activeStudents = filteredStudents.filter(s => 
+      s.status !== 'refunded' && s.status !== 'discontinued'
+    );
+    const refundedStudents = filteredStudents.filter(s => s.status === 'refunded');
+    const discontinuedStudents = filteredStudents.filter(s => s.status === 'discontinued');
+
+    // Helper function to calculate breakdown for a set of students
+    const calculateBreakdown = (students: typeof filteredStudents) => {
+      const breakdown: Record<string, { 
+        closerId: string; 
+        closerName: string; 
+        offered: number; 
+        received: number; 
+        due: number;
+        emiCollected: number;
+        count: number;
+      }> = {};
       
-      if (!breakdown[closerId]) {
-        breakdown[closerId] = { 
-          closerId, 
-          closerName, 
-          offered: 0, 
-          received: 0, 
-          due: 0,
-          emiCollected: 0
-        };
-      }
+      students.forEach(student => {
+        const closerId = student.closer_id || 'unassigned';
+        const closerName = student.closer_name || 'Unassigned';
+        
+        if (!breakdown[closerId]) {
+          breakdown[closerId] = { 
+            closerId, 
+            closerName, 
+            offered: 0, 
+            received: 0, 
+            due: 0,
+            emiCollected: 0,
+            count: 0
+          };
+        }
+        
+        breakdown[closerId].offered += student.offer_amount || 0;
+        breakdown[closerId].received += student.cash_received || 0;
+        breakdown[closerId].due += student.due_amount || 0;
+        breakdown[closerId].count += 1;
+        
+        // Calculate EMI collected for this student
+        const studentEmis = batchEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
+        const emiTotal = studentEmis.reduce((sum, emi) => sum + Number(emi.amount), 0);
+        breakdown[closerId].emiCollected += emiTotal;
+      });
       
-      breakdown[closerId].offered += student.offer_amount || 0;
-      breakdown[closerId].received += student.cash_received || 0;
-      breakdown[closerId].due += student.due_amount || 0;
-      
-      // Calculate EMI collected for this student
-      const studentEmis = batchEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
-      const emiTotal = studentEmis.reduce((sum, emi) => sum + Number(emi.amount), 0);
-      breakdown[closerId].emiCollected += emiTotal;
-    });
-    
-    const breakdownArray = Object.values(breakdown).sort((a, b) => b.received - a.received);
-    
-    const totalsCalc = {
+      return Object.values(breakdown).sort((a, b) => b.received - a.received);
+    };
+
+    // Helper function to calculate totals from breakdown
+    const calculateTotals = (breakdownArray: ReturnType<typeof calculateBreakdown>) => ({
       offered: breakdownArray.reduce((sum, c) => sum + c.offered, 0),
       received: breakdownArray.reduce((sum, c) => sum + c.received, 0),
       due: breakdownArray.reduce((sum, c) => sum + c.due, 0),
-      emiCollected: breakdownArray.reduce((sum, c) => sum + c.emiCollected, 0)
-    };
+      emiCollected: breakdownArray.reduce((sum, c) => sum + c.emiCollected, 0),
+      count: breakdownArray.reduce((sum, c) => sum + c.count, 0)
+    });
+
+    // Calculate for active students (main totals)
+    const activeBreakdown = calculateBreakdown(activeStudents);
+    const activeTotals = calculateTotals(activeBreakdown);
+
+    // Calculate for refunded students
+    const refundedBreakdownCalc = calculateBreakdown(refundedStudents);
+    const refundedTotalsCalc = calculateTotals(refundedBreakdownCalc);
+
+    // Calculate for discontinued students
+    const discontinuedBreakdownCalc = calculateBreakdown(discontinuedStudents);
+    const discontinuedTotalsCalc = calculateTotals(discontinuedBreakdownCalc);
     
-    return { closerBreakdown: breakdownArray, totals: totalsCalc };
+    return { 
+      closerBreakdown: activeBreakdown, 
+      totals: activeTotals,
+      refundedBreakdown: refundedBreakdownCalc,
+      refundedTotals: refundedTotalsCalc,
+      discontinuedBreakdown: discontinuedBreakdownCalc,
+      discontinuedTotals: discontinuedTotalsCalc
+    };
   }, [filteredStudents, batchEmiPayments]);
 
   // Filter batches based on search query
@@ -836,8 +870,8 @@ const Batches = () => {
                 </div>
               </Card>
             ) : (
-              // Regular three cards for All/Initial payment filter
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              // Regular cards for All/Initial payment filter - now 5 cards
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {/* Offered Amount Card */}
                 <Card className="overflow-hidden">
                   <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
@@ -920,6 +954,72 @@ const Batches = () => {
                             <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
                             <span className="font-medium whitespace-nowrap">
                               ₹{closer.due.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Refunded Amount Card */}
+                <Card className="overflow-hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                    <div className="p-4 flex flex-col justify-center bg-amber-50">
+                      <p className="text-sm text-muted-foreground">Refunded</p>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-amber-700 break-words">
+                        ₹{refundedTotals.received.toLocaleString('en-IN')}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        ({refundedTotals.count} students)
+                      </p>
+                    </div>
+                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                      {refundedBreakdown.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No refunds</p>
+                      ) : (
+                        refundedBreakdown.map((closer, idx) => (
+                          <div key={closer.closerId} className={cn(
+                            "flex justify-between items-baseline text-sm gap-2",
+                            idx < refundedBreakdown.length - 1 && "border-b pb-1"
+                          )}>
+                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                            <span className="font-medium whitespace-nowrap">
+                              ₹{closer.received.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Discontinued Amount Card */}
+                <Card className="overflow-hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                    <div className="p-4 flex flex-col justify-center bg-red-50">
+                      <p className="text-sm text-muted-foreground">Discontinued</p>
+                      <div className="text-lg sm:text-xl md:text-2xl font-bold text-red-700 break-words">
+                        ₹{discontinuedTotals.received.toLocaleString('en-IN')}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        ({discontinuedTotals.count} students)
+                      </p>
+                    </div>
+                    <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                      {discontinuedBreakdown.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No discontinued</p>
+                      ) : (
+                        discontinuedBreakdown.map((closer, idx) => (
+                          <div key={closer.closerId} className={cn(
+                            "flex justify-between items-baseline text-sm gap-2",
+                            idx < discontinuedBreakdown.length - 1 && "border-b pb-1"
+                          )}>
+                            <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                            <span className="font-medium whitespace-nowrap">
+                              ₹{closer.received.toLocaleString('en-IN')}
                             </span>
                           </div>
                         ))
