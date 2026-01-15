@@ -115,6 +115,8 @@ const Batches = () => {
   const [isDateFromOpen, setIsDateFromOpen] = useState(false);
   const [isDateToOpen, setIsDateToOpen] = useState(false);
   const [filterTodayFollowUp, setFilterTodayFollowUp] = useState(false);
+  const [filterRefunded, setFilterRefunded] = useState(false);
+  const [filterDiscontinued, setFilterDiscontinued] = useState(false);
   
   // Edit batch dialog state
   const [editingStudent, setEditingStudent] = useState<BatchStudent | null>(null);
@@ -357,9 +359,15 @@ const Batches = () => {
       const matchesTodayFollowUp = !filterTodayFollowUp || 
         student.next_follow_up_date === todayFormatted;
       
-      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType && matchesTodayFollowUp;
+      // Status filters (Refunded/Discontinued)
+      const matchesStatusFilter = 
+        (!filterRefunded && !filterDiscontinued) || 
+        (filterRefunded && student.status === 'refunded') ||
+        (filterDiscontinued && student.status === 'discontinued');
+      
+      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType && matchesTodayFollowUp && matchesStatusFilter;
     });
-  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp]);
+  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp, filterRefunded, filterDiscontinued]);
 
   // Calculate closer breakdown and totals based on filtered students
   const { closerBreakdown, totals, refundedBreakdown, refundedTotals, discontinuedBreakdown, discontinuedTotals, todayFollowUpCount } = useMemo(() => {
@@ -469,8 +477,10 @@ const Batches = () => {
     if (dateFrom || dateTo) count++;
     if (!isManager && !isCloser && paymentTypeFilter !== "all") count++;
     if (filterTodayFollowUp) count++;
+    if (filterRefunded) count++;
+    if (filterDiscontinued) count++;
     return count;
-  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser, filterTodayFollowUp]);
+  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser, filterTodayFollowUp, filterRefunded, filterDiscontinued]);
 
   // Clear all filters (managers don't have payment type filter)
   const clearAllFilters = () => {
@@ -479,6 +489,8 @@ const Batches = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
     setFilterTodayFollowUp(false);
+    setFilterRefunded(false);
+    setFilterDiscontinued(false);
     if (!isManager && !isCloser) {
       setPaymentTypeFilter("all");
     }
@@ -990,71 +1002,83 @@ const Batches = () => {
                   </Card>
                 </div>
 
-                {/* Row 2: Refunded & Discontinued Cards (2 columns) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Row 2: Refunded, Discontinued & Today's Follow-up Cards (3 columns) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Refunded Amount Card */}
-                  <Card className="overflow-hidden">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                      <div className="p-4 flex flex-col justify-center bg-amber-50">
-                        <p className="text-sm text-muted-foreground">Refunded</p>
-                        <div className="text-base sm:text-lg font-bold text-amber-700 whitespace-nowrap">
-                          ₹{refundedTotals.received.toLocaleString('en-IN')}
+                  <Card 
+                    className={cn(
+                      "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                      filterRefunded && "ring-2 ring-amber-500"
+                    )}
+                    onClick={() => {
+                      setFilterRefunded(!filterRefunded);
+                      if (!filterRefunded) setFilterDiscontinued(false);
+                    }}
+                  >
+                    <div className="p-4 bg-amber-50 h-full">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Refunded</p>
+                          <div className="text-2xl font-bold text-amber-700">
+                            ₹{refundedTotals.received.toLocaleString('en-IN')}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {refundedTotals.count} students
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          ({refundedTotals.count} students)
+                        <div className="flex flex-col items-end gap-2">
+                          <RefreshCcw className="h-8 w-8 text-amber-400" />
+                          {filterRefunded && (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                              Filter Active
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      {filterRefunded && (
+                        <p className="text-xs text-amber-600 mt-2">
+                          Click to show all students
                         </p>
-                      </div>
-                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                        {refundedBreakdown.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No refunds</p>
-                        ) : (
-                          refundedBreakdown.map((closer, idx) => (
-                            <div key={closer.closerId} className={cn(
-                              "flex justify-between items-baseline text-sm gap-2",
-                              idx < refundedBreakdown.length - 1 && "border-b pb-1"
-                            )}>
-                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                              <span className="font-medium whitespace-nowrap">
-                                ₹{closer.received.toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                      </div>
+                      )}
                     </div>
                   </Card>
 
                   {/* Discontinued Amount Card */}
-                  <Card className="overflow-hidden">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                      <div className="p-4 flex flex-col justify-center bg-red-50">
-                        <p className="text-sm text-muted-foreground">Discontinued</p>
-                        <div className="text-base sm:text-lg font-bold text-red-700 whitespace-nowrap">
-                          ₹{discontinuedTotals.received.toLocaleString('en-IN')}
+                  <Card 
+                    className={cn(
+                      "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                      filterDiscontinued && "ring-2 ring-red-500"
+                    )}
+                    onClick={() => {
+                      setFilterDiscontinued(!filterDiscontinued);
+                      if (!filterDiscontinued) setFilterRefunded(false);
+                    }}
+                  >
+                    <div className="p-4 bg-red-50 h-full">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Discontinued</p>
+                          <div className="text-2xl font-bold text-red-700">
+                            ₹{discontinuedTotals.received.toLocaleString('en-IN')}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {discontinuedTotals.count} students
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          ({discontinuedTotals.count} students)
+                        <div className="flex flex-col items-end gap-2">
+                          <X className="h-8 w-8 text-red-400" />
+                          {filterDiscontinued && (
+                            <Badge variant="secondary" className="bg-red-100 text-red-700">
+                              Filter Active
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      {filterDiscontinued && (
+                        <p className="text-xs text-red-600 mt-2">
+                          Click to show all students
                         </p>
-                      </div>
-                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                        {discontinuedBreakdown.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No discontinued</p>
-                        ) : (
-                          discontinuedBreakdown.map((closer, idx) => (
-                            <div key={closer.closerId} className={cn(
-                              "flex justify-between items-baseline text-sm gap-2",
-                              idx < discontinuedBreakdown.length - 1 && "border-b pb-1"
-                            )}>
-                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
-                              <span className="font-medium whitespace-nowrap">
-                                ₹{closer.received.toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                      </div>
+                      )}
                     </div>
                   </Card>
 
@@ -1066,7 +1090,7 @@ const Batches = () => {
                     )}
                     onClick={() => setFilterTodayFollowUp(!filterTodayFollowUp)}
                   >
-                    <div className="p-4 bg-purple-50">
+                    <div className="p-4 bg-purple-50 h-full">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-muted-foreground">Today's Follow-ups</p>
