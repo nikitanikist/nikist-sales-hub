@@ -706,7 +706,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                   <TableHead className="text-right">Registrations</TableHead>
                   {!isManager && <TableHead className="text-right">Ad Spend</TableHead>}
                   <TableHead className="text-right">Workshop Sales</TableHead>
-                  {!isManager && <TableHead className="text-right">Rough P&L</TableHead>}
+                  {!isManager && <TableHead className="text-right">P&L</TableHead>}
                   {!isManager && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -760,8 +760,8 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                         </TableCell>
                         {!isManager && (
                           <TableCell className="text-right">
-                            <span className={workshop.rough_pl >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
-                              ₹{Number(workshop.rough_pl || 0).toLocaleString("en-IN")}
+                            <span className={(workshop.total_pl || 0) >= 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>
+                              ₹{Number(workshop.total_pl || 0).toLocaleString("en-IN")}
                             </span>
                           </TableCell>
                         )}
@@ -886,10 +886,10 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                       <div className="text-xs text-muted-foreground">Cash Collected</div>
                                     </div>
                                     <div className="bg-background rounded-lg p-3 border">
-                                      <div className={`text-lg font-bold ${(workshop.total_pl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        ₹{Number(workshop.total_pl || 0).toLocaleString("en-IN")}
+                                      <div className={`text-lg font-bold ${(workshop.rough_pl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        ₹{Number(workshop.rough_pl || 0).toLocaleString("en-IN")}
                                       </div>
-                                      <div className="text-xs text-muted-foreground">Total P&L (incl. High Ticket)</div>
+                                      <div className="text-xs text-muted-foreground">Workshop P&L (Revenue - Ad Spend)</div>
                                     </div>
                                   </div>
                                 </div>
