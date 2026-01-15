@@ -1455,6 +1455,7 @@ const CloserAssignedCalls = () => {
             refetch();
             queryClient.invalidateQueries({ queryKey: ["sales-closers"] });
             queryClient.invalidateQueries({ queryKey: ["adesh-booked-slots-rebook"] });
+            queryClient.invalidateQueries({ queryKey: ["adesh-booked-slots"] });
           }}
         />
       )}

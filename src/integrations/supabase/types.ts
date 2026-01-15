@@ -68,6 +68,7 @@ export type Database = {
           created_by: string | null
           due_amount: number | null
           id: string
+          last_rebooked_at: string | null
           lead_id: string
           offer_amount: number | null
           previous_closer_id: string | null
@@ -97,6 +98,7 @@ export type Database = {
           created_by?: string | null
           due_amount?: number | null
           id?: string
+          last_rebooked_at?: string | null
           lead_id: string
           offer_amount?: number | null
           previous_closer_id?: string | null
@@ -126,6 +128,7 @@ export type Database = {
           created_by?: string | null
           due_amount?: number | null
           id?: string
+          last_rebooked_at?: string | null
           lead_id?: string
           offer_amount?: number | null
           previous_closer_id?: string | null

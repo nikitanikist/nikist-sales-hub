@@ -1084,6 +1084,8 @@ const AllCloserCalls = () => {
           onSuccess={() => {
             setRebookingAppointment(null);
             refetch();
+            queryClient.invalidateQueries({ queryKey: ["adesh-booked-slots-rebook"] });
+            queryClient.invalidateQueries({ queryKey: ["adesh-booked-slots"] });
           }}
         />
       )}
