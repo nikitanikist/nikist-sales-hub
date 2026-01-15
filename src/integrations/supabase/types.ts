@@ -70,6 +70,7 @@ export type Database = {
           id: string
           last_rebooked_at: string | null
           lead_id: string
+          next_follow_up_date: string | null
           offer_amount: number | null
           previous_closer_id: string | null
           previous_scheduled_date: string | null
@@ -100,6 +101,7 @@ export type Database = {
           id?: string
           last_rebooked_at?: string | null
           lead_id: string
+          next_follow_up_date?: string | null
           offer_amount?: number | null
           previous_closer_id?: string | null
           previous_scheduled_date?: string | null
@@ -130,6 +132,7 @@ export type Database = {
           id?: string
           last_rebooked_at?: string | null
           lead_id?: string
+          next_follow_up_date?: string | null
           offer_amount?: number | null
           previous_closer_id?: string | null
           previous_scheduled_date?: string | null

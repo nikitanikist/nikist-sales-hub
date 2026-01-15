@@ -52,6 +52,7 @@ interface BatchStudent {
   due_amount: number | null;
   additional_comments: string | null;
   refund_reason: string | null;
+  next_follow_up_date: string | null;
 }
 
 interface EmiPayment {
@@ -123,6 +124,8 @@ const Batches = () => {
   const [refundNotes, setRefundNotes] = useState<string>("");
   const [notesStudent, setNotesStudent] = useState<BatchStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
+  const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
+  const [isFollowUpDateOpen, setIsFollowUpDateOpen] = useState(false);
   
   // Discontinued dialog state
   const [discontinuingStudent, setDiscontinuingStudent] = useState<BatchStudent | null>(null);
@@ -180,6 +183,7 @@ const Batches = () => {
           due_amount,
           additional_comments,
           refund_reason,
+          next_follow_up_date,
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
@@ -213,6 +217,7 @@ const Batches = () => {
         due_amount: apt.due_amount,
         additional_comments: apt.additional_comments,
         refund_reason: apt.refund_reason,
+        next_follow_up_date: apt.next_follow_up_date,
       })) as BatchStudent[];
     },
     enabled: !!selectedBatch,
@@ -558,18 +563,22 @@ const Batches = () => {
 
   // Update notes mutation
   const updateNotesMutation = useMutation({
-    mutationFn: async ({ appointmentId, notes }: { appointmentId: string; notes: string }) => {
+    mutationFn: async ({ appointmentId, notes, nextFollowUpDate }: { appointmentId: string; notes: string; nextFollowUpDate: string | null }) => {
       const { error } = await supabase
         .from("call_appointments")
-        .update({ additional_comments: notes })
+        .update({ 
+          additional_comments: notes,
+          next_follow_up_date: nextFollowUpDate
+        })
         .eq("id", appointmentId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["batch-students", selectedBatch?.id] });
-      toast({ title: "Notes Saved", description: "Notes have been saved successfully" });
+      toast({ title: "Notes Saved", description: "Notes and follow-up date have been saved successfully" });
       setNotesStudent(null);
       setNotesText("");
+      setFollowUpDate(undefined);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1481,6 +1490,7 @@ const Batches = () => {
                                         e.stopPropagation();
                                         setNotesStudent(student);
                                         setNotesText(student.additional_comments || "");
+                                        setFollowUpDate(student.next_follow_up_date ? new Date(student.next_follow_up_date) : undefined);
                                       }}>
                                         <FileText className="h-4 w-4 mr-2" />
                                         {student.additional_comments ? "Edit Notes" : "Add Notes"}
@@ -1708,7 +1718,7 @@ const Batches = () => {
 
         {/* Notes Dialog - Hidden for Managers and Closers */}
         {!isManager && !isCloser && (
-          <Dialog open={!!notesStudent} onOpenChange={(open) => { if (!open) { setNotesStudent(null); setNotesText(""); } }}>
+          <Dialog open={!!notesStudent} onOpenChange={(open) => { if (!open) { setNotesStudent(null); setNotesText(""); setFollowUpDate(undefined); } }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>{notesStudent?.additional_comments ? "Edit Notes" : "Add Notes"}</DialogTitle>
@@ -1727,14 +1737,57 @@ const Batches = () => {
                     rows={4}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Next Follow-up Date</Label>
+                  <Popover open={isFollowUpDateOpen} onOpenChange={setIsFollowUpDateOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !followUpDate && "text-muted-foreground"
+                        )}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {followUpDate ? format(followUpDate, "dd MMM yyyy") : "Select follow-up date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={followUpDate}
+                        onSelect={(date) => {
+                          setFollowUpDate(date);
+                          setIsFollowUpDateOpen(false);
+                        }}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {followUpDate && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setFollowUpDate(undefined)}
+                      className="text-muted-foreground"
+                    >
+                      <X className="h-3 w-3 mr-1" /> Clear date
+                    </Button>
+                  )}
+                </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => { setNotesStudent(null); setNotesText(""); }}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setNotesStudent(null); setNotesText(""); setFollowUpDate(undefined); }}>Cancel</Button>
                 <Button 
-                  onClick={() => notesStudent && updateNotesMutation.mutate({ appointmentId: notesStudent.id, notes: notesText })}
+                  onClick={() => notesStudent && updateNotesMutation.mutate({ 
+                    appointmentId: notesStudent.id, 
+                    notes: notesText,
+                    nextFollowUpDate: followUpDate ? format(followUpDate, "yyyy-MM-dd") : null
+                  })}
                   disabled={updateNotesMutation.isPending}
                 >
-                  {updateNotesMutation.isPending ? "Saving..." : "Save Notes"}
+                  {updateNotesMutation.isPending ? "Saving..." : "Save"}
                 </Button>
               </DialogFooter>
             </DialogContent>
