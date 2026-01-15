@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { PaymentPlatformSelect } from "@/components/PaymentPlatformSelect";
 
 interface Lead {
   id: string;
@@ -66,6 +67,13 @@ export function AddFuturesStudentDialog({
   const [cashReceived, setCashReceived] = useState("");
   const [notes, setNotes] = useState("");
   const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
+  
+  // New payment detail fields
+  const [noCostEmi, setNoCostEmi] = useState("");
+  const [gstFees, setGstFees] = useState("");
+  const [platformFees, setPlatformFees] = useState("");
+  const [paymentPlatform, setPaymentPlatform] = useState("UPI (IDFC)");
+  const [paymentRemarks, setPaymentRemarks] = useState("");
 
   const resetForm = () => {
     setSearchQuery("");
@@ -80,6 +88,12 @@ export function AddFuturesStudentDialog({
     setCashReceived("");
     setNotes("");
     setActiveTab("search");
+    // Reset new fields
+    setNoCostEmi("");
+    setGstFees("");
+    setPlatformFees("");
+    setPaymentPlatform("UPI (IDFC)");
+    setPaymentRemarks("");
   };
 
   const handleClose = () => {
@@ -123,6 +137,11 @@ export function AddFuturesStudentDialog({
       const cashNum = parseFloat(cashReceived) || 0;
       const dueNum = Math.max(0, offerNum - cashNum);
       
+      // Validate payment platform if cash received
+      if (cashNum > 0 && !paymentPlatform) {
+        throw new Error("Payment Platform is required when cash is received");
+      }
+      
       let leadId = selectedLead?.id;
       
       // If adding new customer, create lead first
@@ -148,7 +167,7 @@ export function AddFuturesStudentDialog({
       const { data: { user } } = await supabase.auth.getUser();
       
       // Add student to futures batch
-      const { error: studentError } = await supabase
+      const { data: studentData, error: studentError } = await supabase
         .from("futures_mentorship_students")
         .insert({
           batch_id: batchId,
@@ -159,24 +178,33 @@ export function AddFuturesStudentDialog({
           due_amount: dueNum,
           notes: notes || null,
           created_by: user?.id,
-        });
+          // New payment detail fields
+          no_cost_emi: parseFloat(noCostEmi) || 0,
+          gst_fees: parseFloat(gstFees) || 0,
+          platform_fees: parseFloat(platformFees) || 0,
+          payment_platform: cashNum > 0 ? paymentPlatform : null,
+          payment_remarks: paymentRemarks || null,
+        })
+        .select("id")
+        .single();
       
       if (studentError) throw new Error(`Failed to add student: ${studentError.message}`);
       
       // If there's initial cash received, create first EMI record
-      if (cashNum > 0) {
+      if (cashNum > 0 && studentData) {
         await supabase.from("futures_emi_payments").insert({
-          student_id: (await supabase
-            .from("futures_mentorship_students")
-            .select("id")
-            .eq("batch_id", batchId)
-            .eq("lead_id", leadId)
-            .single()).data?.id,
+          student_id: studentData.id,
           emi_number: 1,
           amount: cashNum,
           payment_date: format(conversionDate, "yyyy-MM-dd"),
           previous_cash_received: 0,
           created_by: user?.id,
+          // New payment detail fields
+          no_cost_emi: parseFloat(noCostEmi) || 0,
+          gst_fees: parseFloat(gstFees) || 0,
+          platform_fees: parseFloat(platformFees) || 0,
+          payment_platform: paymentPlatform,
+          remarks: paymentRemarks || null,
         });
       }
     },
@@ -200,6 +228,12 @@ export function AddFuturesStudentDialog({
     
     if (activeTab === "new" && (!customerName.trim() || !email.trim())) {
       toast({ title: "Error", description: "Customer name and email are required", variant: "destructive" });
+      return;
+    }
+    
+    const cashNum = parseFloat(cashReceived) || 0;
+    if (cashNum > 0 && !paymentPlatform) {
+      toast({ title: "Error", description: "Payment Platform is required when cash is received", variant: "destructive" });
       return;
     }
     
@@ -321,10 +355,40 @@ export function AddFuturesStudentDialog({
                 <Input type="number" value={offerAmount} onChange={(e) => setOfferAmount(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Cash Received (₹)</Label>
+                <Label>Cash Collected (₹)</Label>
                 <Input type="number" value={cashReceived} onChange={(e) => setCashReceived(e.target.value)} placeholder="0" />
               </div>
             </div>
+            
+            {/* New Payment Detail Fields */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>No Cost EMI (₹)</Label>
+                <Input type="number" value={noCostEmi} onChange={(e) => setNoCostEmi(e.target.value)} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>GST Fees (₹)</Label>
+                <Input type="number" value={gstFees} onChange={(e) => setGstFees(e.target.value)} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Platform Fees (₹)</Label>
+                <Input type="number" value={platformFees} onChange={(e) => setPlatformFees(e.target.value)} placeholder="0" />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Payment Platform {parseFloat(cashReceived) > 0 ? "*" : ""}</Label>
+              <PaymentPlatformSelect
+                value={paymentPlatform}
+                onValueChange={setPaymentPlatform}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Payment Remarks (optional)</Label>
+              <Textarea value={paymentRemarks} onChange={(e) => setPaymentRemarks(e.target.value)} placeholder="Any payment-related notes..." rows={2} />
+            </div>
+            
             <div className="space-y-2">
               <Label>Notes (optional)</Label>
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional notes..." rows={2} />

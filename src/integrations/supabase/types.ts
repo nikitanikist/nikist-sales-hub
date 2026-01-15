@@ -480,9 +480,14 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           emi_number: number
+          gst_fees: number | null
           id: string
+          no_cost_emi: number | null
           payment_date: string
+          payment_platform: string | null
+          platform_fees: number | null
           previous_cash_received: number | null
+          remarks: string | null
           student_id: string
         }
         Insert: {
@@ -490,9 +495,14 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           emi_number: number
+          gst_fees?: number | null
           id?: string
+          no_cost_emi?: number | null
           payment_date: string
+          payment_platform?: string | null
+          platform_fees?: number | null
           previous_cash_received?: number | null
+          remarks?: string | null
           student_id: string
         }
         Update: {
@@ -500,9 +510,14 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           emi_number?: number
+          gst_fees?: number | null
           id?: string
+          no_cost_emi?: number | null
           payment_date?: string
+          payment_platform?: string | null
+          platform_fees?: number | null
           previous_cash_received?: number | null
+          remarks?: string | null
           student_id?: string
         }
         Relationships: [
@@ -572,10 +587,15 @@ export type Database = {
           created_at: string
           created_by: string | null
           due_amount: number | null
+          gst_fees: number | null
           id: string
           lead_id: string | null
+          no_cost_emi: number | null
           notes: string | null
           offer_amount: number | null
+          payment_platform: string | null
+          payment_remarks: string | null
+          platform_fees: number | null
           refund_reason: string | null
           status: string
         }
@@ -587,10 +607,15 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           due_amount?: number | null
+          gst_fees?: number | null
           id?: string
           lead_id?: string | null
+          no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
           refund_reason?: string | null
           status?: string
         }
@@ -602,10 +627,15 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           due_amount?: number | null
+          gst_fees?: number | null
           id?: string
           lead_id?: string | null
+          no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
           refund_reason?: string | null
           status?: string
         }
