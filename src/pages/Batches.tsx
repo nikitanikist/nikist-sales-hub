@@ -1015,31 +1015,43 @@ const Batches = () => {
                       if (!filterRefunded) setFilterDiscontinued(false);
                     }}
                   >
-                    <div className="p-4 bg-amber-50 h-full">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Refunded</p>
-                          <div className="text-2xl font-bold text-amber-700">
-                            ₹{refundedTotals.received.toLocaleString('en-IN')}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {refundedTotals.count} students
-                          </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                      {/* Left side: Total */}
+                      <div className="p-4 flex flex-col justify-center bg-amber-50">
+                        <p className="text-sm text-muted-foreground">Refunded</p>
+                        <div className="text-base sm:text-lg font-bold text-amber-700 whitespace-nowrap">
+                          ₹{refundedTotals.received.toLocaleString('en-IN')}
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <RefreshCcw className="h-8 w-8 text-amber-400" />
-                          {filterRefunded && (
-                            <Badge variant="secondary" className="bg-amber-100 text-amber-700">
-                              Filter Active
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      {filterRefunded && (
-                        <p className="text-xs text-amber-600 mt-2">
-                          Click to show all students
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {refundedTotals.count} students
                         </p>
-                      )}
+                        {filterRefunded && (
+                          <Badge variant="secondary" className="bg-amber-100 text-amber-700 mt-2 w-fit">
+                            Filter Active
+                          </Badge>
+                        )}
+                      </div>
+                      {/* Right side: By Closer */}
+                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                        {refundedBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No data</p>
+                        ) : (
+                          refundedBreakdown.map((closer, idx) => (
+                            <div key={closer.closerId} className={cn(
+                              "flex justify-between items-baseline text-sm gap-2",
+                              idx < refundedBreakdown.length - 1 && "border-b pb-1"
+                            )}>
+                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>
+                                {closer.closerName}
+                              </span>
+                              <span className="font-medium whitespace-nowrap">
+                                ₹{closer.received.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </Card>
 
@@ -1054,31 +1066,43 @@ const Batches = () => {
                       if (!filterDiscontinued) setFilterRefunded(false);
                     }}
                   >
-                    <div className="p-4 bg-red-50 h-full">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Discontinued</p>
-                          <div className="text-2xl font-bold text-red-700">
-                            ₹{discontinuedTotals.received.toLocaleString('en-IN')}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {discontinuedTotals.count} students
-                          </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                      {/* Left side: Total */}
+                      <div className="p-4 flex flex-col justify-center bg-red-50">
+                        <p className="text-sm text-muted-foreground">Discontinued</p>
+                        <div className="text-base sm:text-lg font-bold text-red-700 whitespace-nowrap">
+                          ₹{discontinuedTotals.received.toLocaleString('en-IN')}
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <X className="h-8 w-8 text-red-400" />
-                          {filterDiscontinued && (
-                            <Badge variant="secondary" className="bg-red-100 text-red-700">
-                              Filter Active
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      {filterDiscontinued && (
-                        <p className="text-xs text-red-600 mt-2">
-                          Click to show all students
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {discontinuedTotals.count} students
                         </p>
-                      )}
+                        {filterDiscontinued && (
+                          <Badge variant="secondary" className="bg-red-100 text-red-700 mt-2 w-fit">
+                            Filter Active
+                          </Badge>
+                        )}
+                      </div>
+                      {/* Right side: By Closer */}
+                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                        {discontinuedBreakdown.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No data</p>
+                        ) : (
+                          discontinuedBreakdown.map((closer, idx) => (
+                            <div key={closer.closerId} className={cn(
+                              "flex justify-between items-baseline text-sm gap-2",
+                              idx < discontinuedBreakdown.length - 1 && "border-b pb-1"
+                            )}>
+                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>
+                                {closer.closerName}
+                              </span>
+                              <span className="font-medium whitespace-nowrap">
+                                ₹{closer.received.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </Card>
 
