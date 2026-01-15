@@ -106,6 +106,41 @@ export function UpdateFuturesEmiDialog({
   const [editPaymentPlatform, setEditPaymentPlatform] = useState("UPI (IDFC)");
   const [editRemarks, setEditRemarks] = useState("");
 
+  // Auto-calculate Platform Fees and GST based on Cash Collected
+  const calculatePaymentDetails = (cashAmount: number) => {
+    const platformFees = cashAmount * 0.025; // 2.5% of cash collected
+    const gst = (cashAmount - platformFees) * 0.18; // 18% of (cash - platform fees)
+    return { platformFees, gst };
+  };
+
+  // Handler for new EMI amount change
+  const handleEmiAmountChange = (value: string) => {
+    setEmiAmount(value);
+    const cash = parseFloat(value) || 0;
+    if (cash > 0) {
+      const { platformFees, gst } = calculatePaymentDetails(cash);
+      setNewPlatformFees(platformFees.toFixed(2));
+      setNewGstFees(gst.toFixed(2));
+    } else {
+      setNewPlatformFees("");
+      setNewGstFees("");
+    }
+  };
+
+  // Handler for edit EMI amount change
+  const handleEditEmiAmountChange = (value: string) => {
+    setEditEmiAmount(value);
+    const cash = parseFloat(value) || 0;
+    if (cash > 0) {
+      const { platformFees, gst } = calculatePaymentDetails(cash);
+      setEditPlatformFees(platformFees.toFixed(2));
+      setEditGstFees(gst.toFixed(2));
+    } else {
+      setEditPlatformFees("");
+      setEditGstFees("");
+    }
+  };
+
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
@@ -600,7 +635,7 @@ export function UpdateFuturesEmiDialog({
                     type="number"
                     placeholder={`Max ₹${remaining.toLocaleString("en-IN")}`}
                     value={emiAmount}
-                    onChange={(e) => setEmiAmount(e.target.value)}
+                    onChange={(e) => handleEmiAmountChange(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -634,15 +669,6 @@ export function UpdateFuturesEmiDialog({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>GST Fees (₹)</Label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={newGstFees}
-                    onChange={(e) => setNewGstFees(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
                   <Label>Platform Fees (₹)</Label>
                   <Input
                     type="number"
@@ -650,6 +676,17 @@ export function UpdateFuturesEmiDialog({
                     value={newPlatformFees}
                     onChange={(e) => setNewPlatformFees(e.target.value)}
                   />
+                  <p className="text-xs text-muted-foreground">2.5% of Cash</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>GST Fees (₹)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={newGstFees}
+                    onChange={(e) => setNewGstFees(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">18% of (Cash - Fees)</p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -723,7 +760,7 @@ export function UpdateFuturesEmiDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Cash Collected (₹)</Label>
-                <Input type="number" value={editEmiAmount} onChange={(e) => setEditEmiAmount(e.target.value)} />
+                <Input type="number" value={editEmiAmount} onChange={(e) => handleEditEmiAmountChange(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Payment Date</Label>
@@ -751,12 +788,14 @@ export function UpdateFuturesEmiDialog({
                 <Input type="number" value={editNoCostEmi} onChange={(e) => setEditNoCostEmi(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>GST Fees (₹)</Label>
-                <Input type="number" value={editGstFees} onChange={(e) => setEditGstFees(e.target.value)} />
-              </div>
-              <div className="space-y-2">
                 <Label>Platform Fees (₹)</Label>
                 <Input type="number" value={editPlatformFees} onChange={(e) => setEditPlatformFees(e.target.value)} />
+                <p className="text-xs text-muted-foreground">2.5% of Cash</p>
+              </div>
+              <div className="space-y-2">
+                <Label>GST Fees (₹)</Label>
+                <Input type="number" value={editGstFees} onChange={(e) => setEditGstFees(e.target.value)} />
+                <p className="text-xs text-muted-foreground">18% of (Cash - Fees)</p>
               </div>
             </div>
             <div className="space-y-2">
