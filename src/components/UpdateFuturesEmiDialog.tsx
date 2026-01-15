@@ -29,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { PaymentPlatformSelect } from "@/components/PaymentPlatformSelect";
 
 interface FuturesEmiPayment {
   id: string;
@@ -39,6 +41,11 @@ interface FuturesEmiPayment {
   created_at: string;
   created_by: string | null;
   created_by_profile?: { full_name: string } | null;
+  no_cost_emi: number | null;
+  gst_fees: number | null;
+  platform_fees: number | null;
+  payment_platform: string | null;
+  remarks: string | null;
 }
 
 interface UpdateFuturesEmiDialogProps {
@@ -84,6 +91,20 @@ export function UpdateFuturesEmiDialog({
   const [isEditDatePopoverOpen, setIsEditDatePopoverOpen] = useState(false);
   const [deletingEmi, setDeletingEmi] = useState<FuturesEmiPayment | null>(null);
   const [isProcessingEmi, setIsProcessingEmi] = useState(false);
+  
+  // New payment detail fields for Add EMI form
+  const [newNoCostEmi, setNewNoCostEmi] = useState("");
+  const [newGstFees, setNewGstFees] = useState("");
+  const [newPlatformFees, setNewPlatformFees] = useState("");
+  const [newPaymentPlatform, setNewPaymentPlatform] = useState("UPI (IDFC)");
+  const [newRemarks, setNewRemarks] = useState("");
+  
+  // New payment detail fields for Edit EMI dialog
+  const [editNoCostEmi, setEditNoCostEmi] = useState("");
+  const [editGstFees, setEditGstFees] = useState("");
+  const [editPlatformFees, setEditPlatformFees] = useState("");
+  const [editPaymentPlatform, setEditPaymentPlatform] = useState("UPI (IDFC)");
+  const [editRemarks, setEditRemarks] = useState("");
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -94,6 +115,12 @@ export function UpdateFuturesEmiDialog({
       setDisplayDueAmount(dueAmount);
       setNewOfferAmount(offerAmount);
       setIsEditingOfferAmount(false);
+      // Reset new EMI fields
+      setNewNoCostEmi("");
+      setNewGstFees("");
+      setNewPlatformFees("");
+      setNewPaymentPlatform("UPI (IDFC)");
+      setNewRemarks("");
     }
   }, [open, cashReceived, dueAmount, offerAmount]);
 
@@ -193,11 +220,24 @@ export function UpdateFuturesEmiDialog({
       return;
     }
     
+    if (!editPaymentPlatform) {
+      toast({ title: "Error", description: "Payment Platform is required", variant: "destructive" });
+      return;
+    }
+    
     setIsProcessingEmi(true);
     try {
       const { error: updateError } = await supabase
         .from("futures_emi_payments")
-        .update({ amount: newAmount, payment_date: format(editEmiDate, "yyyy-MM-dd") })
+        .update({ 
+          amount: newAmount, 
+          payment_date: format(editEmiDate, "yyyy-MM-dd"),
+          no_cost_emi: parseFloat(editNoCostEmi) || 0,
+          gst_fees: parseFloat(editGstFees) || 0,
+          platform_fees: parseFloat(editPlatformFees) || 0,
+          payment_platform: editPaymentPlatform,
+          remarks: editRemarks || null,
+        })
         .eq("id", editingEmi.id);
       
       if (updateError) throw updateError;
@@ -244,6 +284,11 @@ export function UpdateFuturesEmiDialog({
       toast({ title: "Amount Exceeds Due", description: `EMI amount cannot exceed remaining due of ₹${remaining.toLocaleString("en-IN")}`, variant: "destructive" });
       return;
     }
+    
+    if (hasEmiToSave && !newPaymentPlatform) {
+      toast({ title: "Error", description: "Payment Platform is required", variant: "destructive" });
+      return;
+    }
 
     setIsSaving(true);
     
@@ -265,6 +310,11 @@ export function UpdateFuturesEmiDialog({
             payment_date: format(paymentDate, "yyyy-MM-dd"),
             previous_cash_received: cashReceived,
             created_by: currentUser?.id,
+            no_cost_emi: parseFloat(newNoCostEmi) || 0,
+            gst_fees: parseFloat(newGstFees) || 0,
+            platform_fees: parseFloat(newPlatformFees) || 0,
+            payment_platform: newPaymentPlatform,
+            remarks: newRemarks || null,
           });
 
         if (emiError) throw new Error(`Failed to add EMI: ${emiError.message}`);
@@ -322,6 +372,12 @@ export function UpdateFuturesEmiDialog({
       toast({ title: "Saved Successfully", description: messages.join(". ") });
       setEmiAmount("");
       setPaymentDate(new Date());
+      // Reset new EMI fields
+      setNewNoCostEmi("");
+      setNewGstFees("");
+      setNewPlatformFees("");
+      setNewPaymentPlatform("UPI (IDFC)");
+      setNewRemarks("");
       onSuccess();
 
       if (options.closeAfterSuccess) {
@@ -336,7 +392,7 @@ export function UpdateFuturesEmiDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Update EMI</DialogTitle>
           <DialogDescription>
@@ -462,25 +518,37 @@ export function UpdateFuturesEmiDialog({
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
             ) : emiPayments && emiPayments.length > 0 ? (
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
-                      <th className="text-left px-4 py-2 font-medium">EMI #</th>
-                      <th className="text-left px-4 py-2 font-medium">Amount</th>
-                      <th className="text-left px-4 py-2 font-medium">Date</th>
-                      <th className="text-left px-4 py-2 font-medium">Updated By</th>
-                      <th className="text-left px-4 py-2 font-medium">Actions</th>
+                      <th className="text-left px-3 py-2 font-medium">EMI #</th>
+                      <th className="text-left px-3 py-2 font-medium">Cash Collected</th>
+                      <th className="text-left px-3 py-2 font-medium">No Cost EMI</th>
+                      <th className="text-left px-3 py-2 font-medium">GST</th>
+                      <th className="text-left px-3 py-2 font-medium">Platform Fees</th>
+                      <th className="text-left px-3 py-2 font-medium">Platform</th>
+                      <th className="text-left px-3 py-2 font-medium">Date</th>
+                      <th className="text-left px-3 py-2 font-medium">Remarks</th>
+                      <th className="text-left px-3 py-2 font-medium">Updated By</th>
+                      <th className="text-left px-3 py-2 font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {emiPayments.map((emi) => (
                       <tr key={emi.id} className="border-t">
-                        <td className="px-4 py-2">EMI {emi.emi_number}</td>
-                        <td className="px-4 py-2 text-green-600">₹{Number(emi.amount).toLocaleString("en-IN")}</td>
-                        <td className="px-4 py-2">{format(new Date(emi.payment_date), "dd MMM yyyy")}</td>
-                        <td className="px-4 py-2 text-muted-foreground">{emi.created_by_profile?.full_name || "Unknown"}</td>
-                        <td className="px-4 py-2">
+                        <td className="px-3 py-2">EMI {emi.emi_number}</td>
+                        <td className="px-3 py-2 text-green-600">₹{Number(emi.amount).toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2">₹{Number(emi.no_cost_emi || 0).toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2">₹{Number(emi.gst_fees || 0).toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2">₹{Number(emi.platform_fees || 0).toLocaleString("en-IN")}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{emi.payment_platform || "-"}</td>
+                        <td className="px-3 py-2">{format(new Date(emi.payment_date), "dd MMM yyyy")}</td>
+                        <td className="px-3 py-2 text-muted-foreground max-w-[150px] truncate" title={emi.remarks || ""}>
+                          {emi.remarks || "-"}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground">{emi.created_by_profile?.full_name || "Unknown"}</td>
+                        <td className="px-3 py-2">
                           <div className="flex items-center gap-1">
                             <Button 
                               variant="ghost" 
@@ -490,6 +558,11 @@ export function UpdateFuturesEmiDialog({
                                 setEditingEmi(emi);
                                 setEditEmiAmount(String(emi.amount));
                                 setEditEmiDate(new Date(emi.payment_date));
+                                setEditNoCostEmi(String(emi.no_cost_emi || 0));
+                                setEditGstFees(String(emi.gst_fees || 0));
+                                setEditPlatformFees(String(emi.platform_fees || 0));
+                                setEditPaymentPlatform(emi.payment_platform || "UPI (IDFC)");
+                                setEditRemarks(emi.remarks || "");
                               }}
                             >
                               <Pencil className="h-3.5 w-3.5" />
@@ -516,13 +589,13 @@ export function UpdateFuturesEmiDialog({
 
           {/* Add New EMI */}
           {!isFullyPaid && (
-            <div className="space-y-3 rounded-lg border p-4">
+            <div className="space-y-4 rounded-lg border p-4">
               <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
                 Add EMI {nextEmiNumber} Payment
               </h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Amount (₹)</Label>
+                  <Label>Cash Collected (₹)</Label>
                   <Input
                     type="number"
                     placeholder={`Max ₹${remaining.toLocaleString("en-IN")}`}
@@ -550,9 +623,54 @@ export function UpdateFuturesEmiDialog({
                   </Popover>
                 </div>
               </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>No Cost EMI (₹)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={newNoCostEmi}
+                    onChange={(e) => setNewNoCostEmi(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>GST Fees (₹)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={newGstFees}
+                    onChange={(e) => setNewGstFees(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Platform Fees (₹)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={newPlatformFees}
+                    onChange={(e) => setNewPlatformFees(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Platform *</Label>
+                <PaymentPlatformSelect
+                  value={newPaymentPlatform}
+                  onValueChange={setNewPaymentPlatform}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Remarks (optional)</Label>
+                <Textarea
+                  placeholder="Any payment-related notes..."
+                  value={newRemarks}
+                  onChange={(e) => setNewRemarks(e.target.value)}
+                  rows={2}
+                />
+              </div>
               <Button 
                 onClick={() => handleSaveAll({ closeAfterSuccess: false })} 
-                disabled={isSaving || isLoadingEmi || !emiAmount}
+                disabled={isSaving || isLoadingEmi || !emiAmount || !newPaymentPlatform}
                 className="w-full"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
@@ -596,39 +714,70 @@ export function UpdateFuturesEmiDialog({
 
       {/* Edit EMI Dialog */}
       <AlertDialog open={!!editingEmi} onOpenChange={(open) => !open && setEditingEmi(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Edit EMI {editingEmi?.emi_number}</AlertDialogTitle>
-            <AlertDialogDescription>Update the amount or date for this EMI payment.</AlertDialogDescription>
+            <AlertDialogDescription>Update the details for this EMI payment.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Amount (₹)</Label>
-              <Input type="number" value={editEmiAmount} onChange={(e) => setEditEmiAmount(e.target.value)} />
+          <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Cash Collected (₹)</Label>
+                <Input type="number" value={editEmiAmount} onChange={(e) => setEditEmiAmount(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Date</Label>
+                <Popover open={isEditDatePopoverOpen} onOpenChange={setIsEditDatePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {format(editEmiDate, "dd MMM yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={editEmiDate}
+                      onSelect={(date) => { if (date) setEditEmiDate(date); setIsEditDatePopoverOpen(false); }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>No Cost EMI (₹)</Label>
+                <Input type="number" value={editNoCostEmi} onChange={(e) => setEditNoCostEmi(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>GST Fees (₹)</Label>
+                <Input type="number" value={editGstFees} onChange={(e) => setEditGstFees(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Platform Fees (₹)</Label>
+                <Input type="number" value={editPlatformFees} onChange={(e) => setEditPlatformFees(e.target.value)} />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Payment Date</Label>
-              <Popover open={isEditDatePopoverOpen} onOpenChange={setIsEditDatePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal">
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {format(editEmiDate, "dd MMM yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={editEmiDate}
-                    onSelect={(date) => { if (date) setEditEmiDate(date); setIsEditDatePopoverOpen(false); }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label>Payment Platform *</Label>
+              <PaymentPlatformSelect
+                value={editPaymentPlatform}
+                onValueChange={setEditPaymentPlatform}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Remarks (optional)</Label>
+              <Textarea
+                value={editRemarks}
+                onChange={(e) => setEditRemarks(e.target.value)}
+                rows={2}
+              />
             </div>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleUpdateEmi} disabled={isProcessingEmi}>
+            <AlertDialogAction onClick={handleUpdateEmi} disabled={isProcessingEmi || !editPaymentPlatform}>
               {isProcessingEmi ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save Changes
             </AlertDialogAction>
