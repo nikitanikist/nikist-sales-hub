@@ -114,6 +114,7 @@ const Batches = () => {
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<"all" | "initial" | "emi">("all");
   const [isDateFromOpen, setIsDateFromOpen] = useState(false);
   const [isDateToOpen, setIsDateToOpen] = useState(false);
+  const [filterTodayFollowUp, setFilterTodayFollowUp] = useState(false);
   
   // Edit batch dialog state
   const [editingStudent, setEditingStudent] = useState<BatchStudent | null>(null);
@@ -351,12 +352,17 @@ const Batches = () => {
         matchesPaymentType = (student.cash_received || 0) > 0;
       }
       
-      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType;
+      // Today's follow-up filter
+      const todayFormatted = format(new Date(), "yyyy-MM-dd");
+      const matchesTodayFollowUp = !filterTodayFollowUp || 
+        student.next_follow_up_date === todayFormatted;
+      
+      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType && matchesTodayFollowUp;
     });
-  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments]);
+  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp]);
 
   // Calculate closer breakdown and totals based on filtered students
-  const { closerBreakdown, totals, refundedBreakdown, refundedTotals, discontinuedBreakdown, discontinuedTotals } = useMemo(() => {
+  const { closerBreakdown, totals, refundedBreakdown, refundedTotals, discontinuedBreakdown, discontinuedTotals, todayFollowUpCount } = useMemo(() => {
     // Separate students by status
     const activeStudents = filteredStudents.filter(s => 
       s.status !== 'refunded' && s.status !== 'discontinued'
@@ -427,15 +433,22 @@ const Batches = () => {
     const discontinuedBreakdownCalc = calculateBreakdown(discontinuedStudents);
     const discontinuedTotalsCalc = calculateTotals(discontinuedBreakdownCalc);
     
+    // Calculate today's follow-up count (from ALL students, not filtered)
+    const todayFormatted = format(new Date(), "yyyy-MM-dd");
+    const todayFollowUpCount = (batchStudents || []).filter(s => 
+      s.next_follow_up_date === todayFormatted
+    ).length;
+    
     return { 
       closerBreakdown: activeBreakdown, 
       totals: activeTotals,
       refundedBreakdown: refundedBreakdownCalc,
       refundedTotals: refundedTotalsCalc,
       discontinuedBreakdown: discontinuedBreakdownCalc,
-      discontinuedTotals: discontinuedTotalsCalc
+      discontinuedTotals: discontinuedTotalsCalc,
+      todayFollowUpCount
     };
-  }, [filteredStudents, batchEmiPayments]);
+  }, [filteredStudents, batchEmiPayments, batchStudents]);
 
   // Filter batches based on search query
   const filteredBatches = useMemo(() => {
@@ -455,8 +468,9 @@ const Batches = () => {
     if (selectedClasses.length > 0) count++;
     if (dateFrom || dateTo) count++;
     if (!isManager && !isCloser && paymentTypeFilter !== "all") count++;
+    if (filterTodayFollowUp) count++;
     return count;
-  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser]);
+  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser, filterTodayFollowUp]);
 
   // Clear all filters (managers don't have payment type filter)
   const clearAllFilters = () => {
@@ -464,6 +478,7 @@ const Batches = () => {
     setSelectedClasses([]);
     setDateFrom(undefined);
     setDateTo(undefined);
+    setFilterTodayFollowUp(false);
     if (!isManager && !isCloser) {
       setPaymentTypeFilter("all");
     }
@@ -1040,6 +1055,42 @@ const Batches = () => {
                           ))
                         )}
                       </div>
+                    </div>
+                  </Card>
+
+                  {/* Today's Follow-up Card */}
+                  <Card 
+                    className={cn(
+                      "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                      filterTodayFollowUp && "ring-2 ring-purple-500"
+                    )}
+                    onClick={() => setFilterTodayFollowUp(!filterTodayFollowUp)}
+                  >
+                    <div className="p-4 bg-purple-50">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Today's Follow-ups</p>
+                          <div className="text-2xl font-bold text-purple-700">
+                            {todayFollowUpCount}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Students to contact today
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <Calendar className="h-8 w-8 text-purple-400" />
+                          {filterTodayFollowUp && (
+                            <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                              Filter Active
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      {filterTodayFollowUp && (
+                        <p className="text-xs text-purple-600 mt-2">
+                          Click to show all students
+                        </p>
+                      )}
                     </div>
                   </Card>
                 </div>
