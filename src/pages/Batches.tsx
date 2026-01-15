@@ -126,6 +126,7 @@ const Batches = () => {
   const [notesText, setNotesText] = useState<string>("");
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
   const [isFollowUpDateOpen, setIsFollowUpDateOpen] = useState(false);
+  const [viewingNotesStudent, setViewingNotesStudent] = useState<BatchStudent | null>(null);
   
   // Discontinued dialog state
   const [discontinuingStudent, setDiscontinuingStudent] = useState<BatchStudent | null>(null);
@@ -1393,17 +1394,14 @@ const Batches = () => {
                               <TableCell className="font-medium">
                                 <div className="flex items-center gap-2">
                                   {student.contact_name}
-                                  {student.additional_comments && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <FileText className="h-4 w-4 text-blue-500 cursor-help" />
-                                        </TooltipTrigger>
-                                        <TooltipContent className="max-w-xs">
-                                          <p className="text-sm whitespace-pre-wrap">{student.additional_comments}</p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
+                                  {(student.additional_comments || student.next_follow_up_date) && (
+                                    <FileText 
+                                      className="h-4 w-4 text-blue-500 cursor-pointer hover:text-blue-700 transition-colors" 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewingNotesStudent(student);
+                                      }}
+                                    />
                                   )}
                                 </div>
                               </TableCell>
@@ -1793,6 +1791,60 @@ const Batches = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* View Notes Dialog (read-only) */}
+        <Dialog open={!!viewingNotesStudent} onOpenChange={(open) => { 
+          if (!open) setViewingNotesStudent(null); 
+        }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Notes & Follow-up</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              {/* Student Info */}
+              <div>
+                <p className="font-medium">{viewingNotesStudent?.contact_name}</p>
+                <p className="text-sm text-muted-foreground">{viewingNotesStudent?.email}</p>
+              </div>
+              
+              {/* Next Follow-up Date */}
+              <div className="space-y-1">
+                <Label className="text-muted-foreground">Next Follow-up Date</Label>
+                <p className="font-medium">
+                  {viewingNotesStudent?.next_follow_up_date 
+                    ? format(new Date(viewingNotesStudent.next_follow_up_date), "dd MMM yyyy")
+                    : "Not set"}
+                </p>
+              </div>
+              
+              {/* Notes */}
+              <div className="space-y-1">
+                <Label className="text-muted-foreground">Notes</Label>
+                <p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md min-h-[60px]">
+                  {viewingNotesStudent?.additional_comments || "No notes added"}
+                </p>
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setViewingNotesStudent(null)}>
+                Close
+              </Button>
+              <Button onClick={() => {
+                if (viewingNotesStudent) {
+                  setNotesStudent(viewingNotesStudent);
+                  setNotesText(viewingNotesStudent.additional_comments || "");
+                  setFollowUpDate(viewingNotesStudent.next_follow_up_date 
+                    ? new Date(viewingNotesStudent.next_follow_up_date) 
+                    : undefined);
+                  setViewingNotesStudent(null);
+                }
+              }}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Mark as Discontinued Confirmation Dialog - Hidden for Managers and Closers */}
         {!isManager && !isCloser && (
