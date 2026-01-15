@@ -75,6 +75,26 @@ export function AddFuturesStudentDialog({
   const [paymentPlatform, setPaymentPlatform] = useState("UPI (IDFC)");
   const [paymentRemarks, setPaymentRemarks] = useState("");
 
+  // Auto-calculate Platform Fees and GST based on Cash Collected
+  const calculatePaymentDetails = (cashAmount: number) => {
+    const platformFees = cashAmount * 0.025; // 2.5% of cash collected
+    const gst = (cashAmount - platformFees) * 0.18; // 18% of (cash - platform fees)
+    return { platformFees, gst };
+  };
+
+  const handleCashReceivedChange = (value: string) => {
+    setCashReceived(value);
+    const cash = parseFloat(value) || 0;
+    if (cash > 0) {
+      const { platformFees, gst } = calculatePaymentDetails(cash);
+      setPlatformFees(platformFees.toFixed(2));
+      setGstFees(gst.toFixed(2));
+    } else {
+      setPlatformFees("");
+      setGstFees("");
+    }
+  };
+
   const resetForm = () => {
     setSearchQuery("");
     setSearchResults([]);
@@ -356,7 +376,7 @@ export function AddFuturesStudentDialog({
               </div>
               <div className="space-y-2">
                 <Label>Cash Collected (₹)</Label>
-                <Input type="number" value={cashReceived} onChange={(e) => setCashReceived(e.target.value)} placeholder="0" />
+                <Input type="number" value={cashReceived} onChange={(e) => handleCashReceivedChange(e.target.value)} placeholder="0" />
               </div>
             </div>
             
@@ -367,12 +387,14 @@ export function AddFuturesStudentDialog({
                 <Input type="number" value={noCostEmi} onChange={(e) => setNoCostEmi(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>GST Fees (₹)</Label>
-                <Input type="number" value={gstFees} onChange={(e) => setGstFees(e.target.value)} placeholder="0" />
-              </div>
-              <div className="space-y-2">
                 <Label>Platform Fees (₹)</Label>
                 <Input type="number" value={platformFees} onChange={(e) => setPlatformFees(e.target.value)} placeholder="0" />
+                <p className="text-xs text-muted-foreground">2.5% of Cash Collected</p>
+              </div>
+              <div className="space-y-2">
+                <Label>GST Fees (₹)</Label>
+                <Input type="number" value={gstFees} onChange={(e) => setGstFees(e.target.value)} placeholder="0" />
+                <p className="text-xs text-muted-foreground">18% of (Cash - Platform Fees)</p>
               </div>
             </div>
             
