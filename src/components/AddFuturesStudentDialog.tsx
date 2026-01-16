@@ -95,6 +95,17 @@ export function AddFuturesStudentDialog({
     }
   };
 
+  // Handler for platform fees change - recalculates GST
+  const handlePlatformFeesChange = (value: string) => {
+    setPlatformFees(value);
+    const cash = parseFloat(cashReceived) || 0;
+    const platformFeesNum = parseFloat(value) || 0;
+    if (cash > 0) {
+      const gst = (cash - platformFeesNum) * 0.18;
+      setGstFees(gst.toFixed(2));
+    }
+  };
+
   const resetForm = () => {
     setSearchQuery("");
     setSearchResults([]);
@@ -388,7 +399,7 @@ export function AddFuturesStudentDialog({
               </div>
               <div className="space-y-2">
                 <Label>Platform Fees (₹)</Label>
-                <Input type="number" value={platformFees} onChange={(e) => setPlatformFees(e.target.value)} placeholder="0" />
+                <Input type="number" value={platformFees} onChange={(e) => handlePlatformFeesChange(e.target.value)} placeholder="0" />
                 <p className="text-xs text-muted-foreground">2.5% of Cash Collected</p>
               </div>
               <div className="space-y-2">
