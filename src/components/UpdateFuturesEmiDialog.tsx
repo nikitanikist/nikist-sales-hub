@@ -141,6 +141,28 @@ export function UpdateFuturesEmiDialog({
     }
   };
 
+  // Handler for new EMI platform fees change - recalculates GST
+  const handleNewPlatformFeesChange = (value: string) => {
+    setNewPlatformFees(value);
+    const cash = parseFloat(emiAmount) || 0;
+    const platformFeesNum = parseFloat(value) || 0;
+    if (cash > 0) {
+      const gst = (cash - platformFeesNum) * 0.18;
+      setNewGstFees(gst.toFixed(2));
+    }
+  };
+
+  // Handler for edit EMI platform fees change - recalculates GST
+  const handleEditPlatformFeesChange = (value: string) => {
+    setEditPlatformFees(value);
+    const cash = parseFloat(editEmiAmount) || 0;
+    const platformFeesNum = parseFloat(value) || 0;
+    if (cash > 0) {
+      const gst = (cash - platformFeesNum) * 0.18;
+      setEditGstFees(gst.toFixed(2));
+    }
+  };
+
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
@@ -674,7 +696,7 @@ export function UpdateFuturesEmiDialog({
                     type="number"
                     placeholder="0"
                     value={newPlatformFees}
-                    onChange={(e) => setNewPlatformFees(e.target.value)}
+                    onChange={(e) => handleNewPlatformFeesChange(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">2.5% of Cash</p>
                 </div>
@@ -789,7 +811,7 @@ export function UpdateFuturesEmiDialog({
               </div>
               <div className="space-y-2">
                 <Label>Platform Fees (₹)</Label>
-                <Input type="number" value={editPlatformFees} onChange={(e) => setEditPlatformFees(e.target.value)} />
+                <Input type="number" value={editPlatformFees} onChange={(e) => handleEditPlatformFeesChange(e.target.value)} />
                 <p className="text-xs text-muted-foreground">2.5% of Cash</p>
               </div>
               <div className="space-y-2">
