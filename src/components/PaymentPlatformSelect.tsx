@@ -10,7 +10,7 @@ export const PAYMENT_PLATFORMS = [
   "UPI (IDFC)",
   "UPI (Deepanshu)",
   "TagMango",
-  "Razorpay",
+  "Raz",
   "Bitcoin",
 ] as const;
 
