@@ -109,7 +109,7 @@ export function UpdateFuturesEmiDialog({
   // Auto-calculate Platform Fees and GST based on Cash Collected
   const calculatePaymentDetails = (cashAmount: number) => {
     const platformFees = cashAmount * 0.025; // 2.5% of cash collected
-    const gst = (cashAmount - platformFees) * 0.18; // 18% of (cash - platform fees)
+    const gst = (cashAmount / 1.18) * 0.18; // GST extracted from GST-inclusive amount
     return { platformFees, gst };
   };
 
@@ -145,9 +145,8 @@ export function UpdateFuturesEmiDialog({
   const handleNewPlatformFeesChange = (value: string) => {
     setNewPlatformFees(value);
     const cash = parseFloat(emiAmount) || 0;
-    const platformFeesNum = parseFloat(value) || 0;
     if (cash > 0) {
-      const gst = (cash - platformFeesNum) * 0.18;
+      const gst = (cash / 1.18) * 0.18;
       setNewGstFees(gst.toFixed(2));
     }
   };
@@ -156,9 +155,8 @@ export function UpdateFuturesEmiDialog({
   const handleEditPlatformFeesChange = (value: string) => {
     setEditPlatformFees(value);
     const cash = parseFloat(editEmiAmount) || 0;
-    const platformFeesNum = parseFloat(value) || 0;
     if (cash > 0) {
-      const gst = (cash - platformFeesNum) * 0.18;
+      const gst = (cash / 1.18) * 0.18;
       setEditGstFees(gst.toFixed(2));
     }
   };
@@ -708,7 +706,7 @@ export function UpdateFuturesEmiDialog({
                     value={newGstFees}
                     onChange={(e) => setNewGstFees(e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">18% of (Cash - Fees)</p>
+                  <p className="text-xs text-muted-foreground">Cash ÷ 1.18 × 0.18</p>
                 </div>
               </div>
               <div className="space-y-2">
