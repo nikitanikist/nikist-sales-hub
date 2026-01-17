@@ -815,7 +815,7 @@ export function UpdateFuturesEmiDialog({
               <div className="space-y-2">
                 <Label>GST Fees (₹)</Label>
                 <Input type="number" value={editGstFees} onChange={(e) => setEditGstFees(e.target.value)} />
-                <p className="text-xs text-muted-foreground">18% of (Cash - Fees)</p>
+                <p className="text-xs text-muted-foreground">Cash / 1.18 x 0.18</p>
               </div>
             </div>
             <div className="space-y-2">
