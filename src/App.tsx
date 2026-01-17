@@ -19,6 +19,7 @@ import Onboarding from "./pages/Onboarding";
 import Users from "./pages/Users";
 import Batches from "./pages/Batches";
 import FuturesMentorship from "./pages/FuturesMentorship";
+import HighFuture from "./pages/HighFuture";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="/sales-closers/:closerId/calls" element={<CloserAssignedCalls />} />
               <Route path="/batches" element={<Batches />} />
               <Route path="/futures-mentorship" element={<FuturesMentorship />} />
+              <Route path="/high-future" element={<HighFuture />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />

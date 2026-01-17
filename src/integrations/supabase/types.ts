@@ -708,6 +708,180 @@ export type Database = {
           },
         ]
       }
+      high_future_batches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          event_dates: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          event_dates?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          event_dates?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      high_future_emi_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          created_by: string | null
+          emi_number: number
+          gst_fees: number | null
+          id: string
+          no_cost_emi: number | null
+          payment_date: string
+          payment_platform: string | null
+          platform_fees: number | null
+          previous_cash_received: number | null
+          remarks: string | null
+          student_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          created_by?: string | null
+          emi_number: number
+          gst_fees?: number | null
+          id?: string
+          no_cost_emi?: number | null
+          payment_date: string
+          payment_platform?: string | null
+          platform_fees?: number | null
+          previous_cash_received?: number | null
+          remarks?: string | null
+          student_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          created_by?: string | null
+          emi_number?: number
+          gst_fees?: number | null
+          id?: string
+          no_cost_emi?: number | null
+          payment_date?: string
+          payment_platform?: string | null
+          platform_fees?: number | null
+          previous_cash_received?: number | null
+          remarks?: string | null
+          student_id?: string
+        }
+        Relationships: []
+      }
+      high_future_offer_amount_history: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          new_amount: number
+          previous_amount: number
+          reason: string | null
+          student_id: string
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_amount: number
+          previous_amount: number
+          reason?: string | null
+          student_id: string
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_amount?: number
+          previous_amount?: number
+          reason?: string | null
+          student_id?: string
+        }
+        Relationships: []
+      }
+      high_future_students: {
+        Row: {
+          batch_id: string
+          cash_received: number | null
+          classes_access: number | null
+          conversion_date: string
+          created_at: string
+          created_by: string | null
+          due_amount: number | null
+          gst_fees: number | null
+          id: string
+          lead_id: string | null
+          no_cost_emi: number | null
+          notes: string | null
+          offer_amount: number | null
+          payment_platform: string | null
+          payment_remarks: string | null
+          platform_fees: number | null
+          refund_reason: string | null
+          status: string
+        }
+        Insert: {
+          batch_id: string
+          cash_received?: number | null
+          classes_access?: number | null
+          conversion_date?: string
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          gst_fees?: number | null
+          id?: string
+          lead_id?: string | null
+          no_cost_emi?: number | null
+          notes?: string | null
+          offer_amount?: number | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
+          refund_reason?: string | null
+          status?: string
+        }
+        Update: {
+          batch_id?: string
+          cash_received?: number | null
+          classes_access?: number | null
+          conversion_date?: string
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          gst_fees?: number | null
+          id?: string
+          lead_id?: string | null
+          no_cost_emi?: number | null
+          notes?: string | null
+          offer_amount?: number | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
+          refund_reason?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       lead_assignments: {
         Row: {
           created_at: string
