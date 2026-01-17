@@ -78,7 +78,7 @@ export function AddFuturesStudentDialog({
   // Auto-calculate Platform Fees and GST based on Cash Collected
   const calculatePaymentDetails = (cashAmount: number) => {
     const platformFees = cashAmount * 0.025; // 2.5% of cash collected
-    const gst = (cashAmount - platformFees) * 0.18; // 18% of (cash - platform fees)
+    const gst = (cashAmount / 1.18) * 0.18; // GST extracted from GST-inclusive amount
     return { platformFees, gst };
   };
 
@@ -99,9 +99,8 @@ export function AddFuturesStudentDialog({
   const handlePlatformFeesChange = (value: string) => {
     setPlatformFees(value);
     const cash = parseFloat(cashReceived) || 0;
-    const platformFeesNum = parseFloat(value) || 0;
     if (cash > 0) {
-      const gst = (cash - platformFeesNum) * 0.18;
+      const gst = (cash / 1.18) * 0.18;
       setGstFees(gst.toFixed(2));
     }
   };
@@ -405,7 +404,7 @@ export function AddFuturesStudentDialog({
               <div className="space-y-2">
                 <Label>GST Fees (₹)</Label>
                 <Input type="number" value={gstFees} onChange={(e) => setGstFees(e.target.value)} placeholder="0" />
-                <p className="text-xs text-muted-foreground">18% of (Cash - Platform Fees)</p>
+                <p className="text-xs text-muted-foreground">Cash ÷ 1.18 × 0.18</p>
               </div>
             </div>
             
