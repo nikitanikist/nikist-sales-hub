@@ -787,7 +787,15 @@ export type Database = {
           remarks?: string | null
           student_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "high_future_emi_payments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "high_future_students"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       high_future_offer_amount_history: {
         Row: {
@@ -817,7 +825,15 @@ export type Database = {
           reason?: string | null
           student_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "high_future_offer_amount_history_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "high_future_students"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       high_future_students: {
         Row: {
@@ -880,7 +896,22 @@ export type Database = {
           refund_reason?: string | null
           status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "high_future_students_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "high_future_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "high_future_students_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lead_assignments: {
         Row: {
