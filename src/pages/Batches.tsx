@@ -117,6 +117,8 @@ const Batches = () => {
   const [filterTodayFollowUp, setFilterTodayFollowUp] = useState(false);
   const [filterRefunded, setFilterRefunded] = useState(false);
   const [filterDiscontinued, setFilterDiscontinued] = useState(false);
+  const [filterFullPayment, setFilterFullPayment] = useState(false);
+  const [filterRemaining, setFilterRemaining] = useState(false);
   
   // Edit batch dialog state
   const [editingStudent, setEditingStudent] = useState<BatchStudent | null>(null);
@@ -365,11 +367,56 @@ const Batches = () => {
         (filterRefunded && student.status === 'refunded') ||
         (filterDiscontinued && student.status === 'discontinued');
       
-      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType && matchesTodayFollowUp && matchesStatusFilter;
+      // Full payment filter (due_amount = 0 and has made payment)
+      const matchesFullPayment = !filterFullPayment || 
+        ((student.due_amount || 0) === 0 && (student.cash_received || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
+      
+      // Remaining amount filter (due_amount > 0)
+      const matchesRemaining = !filterRemaining || 
+        ((student.due_amount || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
+      
+      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType && matchesTodayFollowUp && matchesStatusFilter && matchesFullPayment && matchesRemaining;
     });
-  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp, filterRefunded, filterDiscontinued]);
+  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining]);
 
-  // Calculate closer breakdown and totals based on filtered students
+  // Calculate totals from ALL students (not filtered) for summary cards
+  const allStudentsTotals = useMemo(() => {
+    if (!batchStudents) return { 
+      offered: 0, received: 0, due: 0, 
+      count: 0, fullPaymentCount: 0, duePaymentCount: 0,
+      refundedCount: 0, refundedReceived: 0,
+      discontinuedCount: 0, discontinuedReceived: 0,
+      emiCollected: 0
+    };
+    
+    const activeStudents = batchStudents.filter(s => 
+      s.status !== 'refunded' && s.status !== 'discontinued'
+    );
+    const refundedStudents = batchStudents.filter(s => s.status === 'refunded');
+    const discontinuedStudents = batchStudents.filter(s => s.status === 'discontinued');
+    
+    // Calculate EMI collected for all active students
+    const emiCollected = activeStudents.reduce((sum, student) => {
+      const studentEmis = batchEmiPayments?.filter(emi => emi.appointment_id === student.id) || [];
+      return sum + studentEmis.reduce((emiSum, emi) => emiSum + Number(emi.amount), 0);
+    }, 0);
+    
+    return {
+      offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
+      received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+      due: activeStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0),
+      count: activeStudents.length,
+      fullPaymentCount: activeStudents.filter(s => (s.due_amount || 0) === 0 && (s.cash_received || 0) > 0).length,
+      duePaymentCount: activeStudents.filter(s => (s.due_amount || 0) > 0).length,
+      refundedCount: refundedStudents.length,
+      refundedReceived: refundedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+      discontinuedCount: discontinuedStudents.length,
+      discontinuedReceived: discontinuedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+      emiCollected
+    };
+  }, [batchStudents, batchEmiPayments]);
+
+  // Calculate closer breakdown and totals based on filtered students (for breakdown display)
   const { closerBreakdown, totals, refundedBreakdown, refundedTotals, discontinuedBreakdown, discontinuedTotals, todayFollowUpCount } = useMemo(() => {
     // Separate students by status
     const activeStudents = filteredStudents.filter(s => 
@@ -479,8 +526,10 @@ const Batches = () => {
     if (filterTodayFollowUp) count++;
     if (filterRefunded) count++;
     if (filterDiscontinued) count++;
+    if (filterFullPayment) count++;
+    if (filterRemaining) count++;
     return count;
-  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser, filterTodayFollowUp, filterRefunded, filterDiscontinued]);
+  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining]);
 
   // Clear all filters (managers don't have payment type filter)
   const clearAllFilters = () => {
@@ -491,6 +540,8 @@ const Batches = () => {
     setFilterTodayFollowUp(false);
     setFilterRefunded(false);
     setFilterDiscontinued(false);
+    setFilterFullPayment(false);
+    setFilterRemaining(false);
     if (!isManager && !isCloser) {
       setPaymentTypeFilter("all");
     }
@@ -911,14 +962,17 @@ const Batches = () => {
               <div className="space-y-4">
                 {/* Row 1: Active Student Cards (3 columns) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Offered Amount Card */}
+                  {/* Offered Amount Card - Always shows all students data */}
                   <Card className="overflow-hidden">
                     <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                       <div className="p-4 flex flex-col justify-center bg-blue-50">
                         <p className="text-sm text-muted-foreground">Total Offered</p>
                         <div className="text-base sm:text-lg font-bold text-blue-700 whitespace-nowrap">
-                          ₹{totals.offered.toLocaleString('en-IN')}
+                          ₹{allStudentsTotals.offered.toLocaleString('en-IN')}
                         </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {allStudentsTotals.count} students
+                        </p>
                       </div>
                       <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
                         <p className="text-xs text-muted-foreground font-medium">By Closer</p>
@@ -941,14 +995,17 @@ const Batches = () => {
                     </div>
                   </Card>
 
-                  {/* Cash Received Card */}
+                  {/* Cash Received Card - Always shows all students data */}
                   <Card className="overflow-hidden">
                     <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                       <div className="p-4 flex flex-col justify-center bg-green-50">
                         <p className="text-sm text-muted-foreground">Cash Received</p>
                         <div className="text-base sm:text-lg font-bold text-green-700 whitespace-nowrap">
-                          ₹{totals.received.toLocaleString('en-IN')}
+                          ₹{allStudentsTotals.received.toLocaleString('en-IN')}
                         </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {allStudentsTotals.count} students
+                        </p>
                       </div>
                       <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
                         <p className="text-xs text-muted-foreground font-medium">By Closer</p>
@@ -971,14 +1028,38 @@ const Batches = () => {
                     </div>
                   </Card>
 
-                  {/* Remaining Amount Card */}
-                  <Card className="overflow-hidden">
+                  {/* Remaining Amount Card - Clickable filter, always shows all students data */}
+                  <Card 
+                    className={cn(
+                      "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                      filterRemaining && "ring-2 ring-orange-500"
+                    )}
+                    onClick={() => {
+                      if (filterRemaining) {
+                        setFilterRemaining(false);
+                      } else {
+                        setFilterRemaining(true);
+                        setFilterRefunded(false);
+                        setFilterDiscontinued(false);
+                        setFilterTodayFollowUp(false);
+                        setFilterFullPayment(false);
+                      }
+                    }}
+                  >
                     <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
                       <div className="p-4 flex flex-col justify-center bg-orange-50">
                         <p className="text-sm text-muted-foreground">Remaining Amount</p>
                         <div className="text-base sm:text-lg font-bold text-orange-700 whitespace-nowrap">
-                          ₹{totals.due.toLocaleString('en-IN')}
+                          ₹{allStudentsTotals.due.toLocaleString('en-IN')}
                         </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {allStudentsTotals.duePaymentCount} students
+                        </p>
+                        {filterRemaining && (
+                          <Badge variant="secondary" className="bg-orange-100 text-orange-700 mt-2 w-fit">
+                            Filter Active
+                          </Badge>
+                        )}
                       </div>
                       <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
                         <p className="text-xs text-muted-foreground font-medium">By Closer</p>
@@ -1002,8 +1083,8 @@ const Batches = () => {
                   </Card>
                 </div>
 
-                {/* Row 2: Refunded, Discontinued & Today's Follow-up Cards (3 columns) */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Row 2: Refunded, Discontinued, Full Payment & Today's Follow-up Cards (4 columns) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Refunded Amount Card */}
                   <Card 
                     className={cn(
@@ -1011,47 +1092,30 @@ const Batches = () => {
                       filterRefunded && "ring-2 ring-amber-500"
                     )}
                     onClick={() => {
-                      setFilterRefunded(!filterRefunded);
-                      if (!filterRefunded) setFilterDiscontinued(false);
+                      if (filterRefunded) {
+                        setFilterRefunded(false);
+                      } else {
+                        setFilterRefunded(true);
+                        setFilterDiscontinued(false);
+                        setFilterTodayFollowUp(false);
+                        setFilterFullPayment(false);
+                        setFilterRemaining(false);
+                      }
                     }}
                   >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                      {/* Left side: Total */}
-                      <div className="p-4 flex flex-col justify-center bg-amber-50">
-                        <p className="text-sm text-muted-foreground">Refunded</p>
-                        <div className="text-base sm:text-lg font-bold text-amber-700 whitespace-nowrap">
-                          ₹{refundedTotals.received.toLocaleString('en-IN')}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {refundedTotals.count} students
-                        </p>
-                        {filterRefunded && (
-                          <Badge variant="secondary" className="bg-amber-100 text-amber-700 mt-2 w-fit">
-                            Filter Active
-                          </Badge>
-                        )}
+                    <div className="p-4 bg-amber-50 h-full">
+                      <p className="text-sm text-muted-foreground">Refunded</p>
+                      <div className="text-xl font-bold text-amber-700">
+                        ₹{allStudentsTotals.refundedReceived.toLocaleString('en-IN')}
                       </div>
-                      {/* Right side: By Closer */}
-                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                        {refundedBreakdown.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No data</p>
-                        ) : (
-                          refundedBreakdown.map((closer, idx) => (
-                            <div key={closer.closerId} className={cn(
-                              "flex justify-between items-baseline text-sm gap-2",
-                              idx < refundedBreakdown.length - 1 && "border-b pb-1"
-                            )}>
-                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>
-                                {closer.closerName}
-                              </span>
-                              <span className="font-medium whitespace-nowrap">
-                                ₹{closer.received.toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {allStudentsTotals.refundedCount} students
+                      </p>
+                      {filterRefunded && (
+                        <Badge variant="secondary" className="bg-amber-100 text-amber-700 mt-2 w-fit">
+                          Filter Active
+                        </Badge>
+                      )}
                     </div>
                   </Card>
 
@@ -1062,47 +1126,64 @@ const Batches = () => {
                       filterDiscontinued && "ring-2 ring-red-500"
                     )}
                     onClick={() => {
-                      setFilterDiscontinued(!filterDiscontinued);
-                      if (!filterDiscontinued) setFilterRefunded(false);
+                      if (filterDiscontinued) {
+                        setFilterDiscontinued(false);
+                      } else {
+                        setFilterDiscontinued(true);
+                        setFilterRefunded(false);
+                        setFilterTodayFollowUp(false);
+                        setFilterFullPayment(false);
+                        setFilterRemaining(false);
+                      }
                     }}
                   >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
-                      {/* Left side: Total */}
-                      <div className="p-4 flex flex-col justify-center bg-red-50">
-                        <p className="text-sm text-muted-foreground">Discontinued</p>
-                        <div className="text-base sm:text-lg font-bold text-red-700 whitespace-nowrap">
-                          ₹{discontinuedTotals.received.toLocaleString('en-IN')}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {discontinuedTotals.count} students
-                        </p>
-                        {filterDiscontinued && (
-                          <Badge variant="secondary" className="bg-red-100 text-red-700 mt-2 w-fit">
-                            Filter Active
-                          </Badge>
-                        )}
+                    <div className="p-4 bg-red-50 h-full">
+                      <p className="text-sm text-muted-foreground">Discontinued</p>
+                      <div className="text-xl font-bold text-red-700">
+                        ₹{allStudentsTotals.discontinuedReceived.toLocaleString('en-IN')}
                       </div>
-                      {/* Right side: By Closer */}
-                      <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
-                        <p className="text-xs text-muted-foreground font-medium">By Closer</p>
-                        {discontinuedBreakdown.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No data</p>
-                        ) : (
-                          discontinuedBreakdown.map((closer, idx) => (
-                            <div key={closer.closerId} className={cn(
-                              "flex justify-between items-baseline text-sm gap-2",
-                              idx < discontinuedBreakdown.length - 1 && "border-b pb-1"
-                            )}>
-                              <span className="truncate min-w-0 flex-1" title={closer.closerName}>
-                                {closer.closerName}
-                              </span>
-                              <span className="font-medium whitespace-nowrap">
-                                ₹{closer.received.toLocaleString('en-IN')}
-                              </span>
-                            </div>
-                          ))
-                        )}
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {allStudentsTotals.discontinuedCount} students
+                      </p>
+                      {filterDiscontinued && (
+                        <Badge variant="secondary" className="bg-red-100 text-red-700 mt-2 w-fit">
+                          Filter Active
+                        </Badge>
+                      )}
+                    </div>
+                  </Card>
+
+                  {/* Full Payment Card - NEW */}
+                  <Card 
+                    className={cn(
+                      "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                      filterFullPayment && "ring-2 ring-emerald-500"
+                    )}
+                    onClick={() => {
+                      if (filterFullPayment) {
+                        setFilterFullPayment(false);
+                      } else {
+                        setFilterFullPayment(true);
+                        setFilterRefunded(false);
+                        setFilterDiscontinued(false);
+                        setFilterTodayFollowUp(false);
+                        setFilterRemaining(false);
+                      }
+                    }}
+                  >
+                    <div className="p-4 bg-emerald-50 h-full">
+                      <p className="text-sm text-muted-foreground">Full Payment</p>
+                      <div className="text-xl font-bold text-emerald-700">
+                        {allStudentsTotals.fullPaymentCount}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Students with no dues
+                      </p>
+                      {filterFullPayment && (
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 mt-2 w-fit">
+                          Filter Active
+                        </Badge>
+                      )}
                     </div>
                   </Card>
 
@@ -1112,32 +1193,35 @@ const Batches = () => {
                       "overflow-hidden cursor-pointer transition-all hover:shadow-md",
                       filterTodayFollowUp && "ring-2 ring-purple-500"
                     )}
-                    onClick={() => setFilterTodayFollowUp(!filterTodayFollowUp)}
+                    onClick={() => {
+                      if (filterTodayFollowUp) {
+                        setFilterTodayFollowUp(false);
+                      } else {
+                        setFilterTodayFollowUp(true);
+                        setFilterRefunded(false);
+                        setFilterDiscontinued(false);
+                        setFilterFullPayment(false);
+                        setFilterRemaining(false);
+                      }
+                    }}
                   >
                     <div className="p-4 bg-purple-50 h-full">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-muted-foreground">Today's Follow-ups</p>
-                          <div className="text-2xl font-bold text-purple-700">
+                          <div className="text-xl font-bold text-purple-700">
                             {todayFollowUpCount}
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Students to contact today
+                            Students to contact
                           </p>
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <Calendar className="h-8 w-8 text-purple-400" />
-                          {filterTodayFollowUp && (
-                            <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                              Filter Active
-                            </Badge>
-                          )}
-                        </div>
+                        <Calendar className="h-6 w-6 text-purple-400" />
                       </div>
                       {filterTodayFollowUp && (
-                        <p className="text-xs text-purple-600 mt-2">
-                          Click to show all students
-                        </p>
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 mt-2 w-fit">
+                          Filter Active
+                        </Badge>
                       )}
                     </div>
                   </Card>
@@ -1153,7 +1237,19 @@ const Batches = () => {
               <CardTitle>Students</CardTitle>
               <CardDescription>{filteredStudents.length} of {batchStudents?.length || 0} students</CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              {/* Clear All Button - Visible when filters are active */}
+              {activeFilterCount > 0 && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={clearAllFilters}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear All
+                </Button>
+              )}
               {/* Filter Button with Sheet */}
               <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
                 <SheetTrigger asChild>
