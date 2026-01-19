@@ -1520,9 +1520,28 @@ export type Database = {
         Returns: {
           booking_amount_calls: number
           converted_calls: number
+          cross_workshop_count: number
+          fresh_booking_amount: number
+          fresh_cash_received: number
+          fresh_converted: number
+          fresh_not_converted: number
+          fresh_offer_amount: number
+          fresh_remaining: number
+          fresh_rescheduled_done: number
+          fresh_rescheduled_remaining: number
+          fresh_sales_count: number
           not_converted_calls: number
           refunded_calls: number
           registration_count: number
+          rejoin_booking_amount: number
+          rejoin_cash_received: number
+          rejoin_converted: number
+          rejoin_not_converted: number
+          rejoin_offer_amount: number
+          rejoin_remaining: number
+          rejoin_rescheduled_done: number
+          rejoin_rescheduled_remaining: number
+          rejoin_sales_count: number
           remaining_calls: number
           rescheduled_done: number
           rescheduled_remaining: number
