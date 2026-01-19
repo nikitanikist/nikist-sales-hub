@@ -33,7 +33,9 @@ type CallCategory =
   | "booking_amount" 
   | "remaining"
   | "all_booked"
-  | "refunded";
+  | "refunded"
+  | "rejoin"
+  | "cross_workshop";
 
 interface WorkshopCallsDialogProps {
   open: boolean;
@@ -51,6 +53,8 @@ const categoryLabels: Record<CallCategory, string> = {
   remaining: "Remaining Calls",
   all_booked: "All Booked Calls",
   refunded: "Refunded Calls",
+  rejoin: "Rejoin Calls",
+  cross_workshop: "Cross-Workshop Payments",
 };
 
 const categoryColors: Record<CallCategory, string> = {
@@ -62,6 +66,8 @@ const categoryColors: Record<CallCategory, string> = {
   remaining: "bg-blue-500",
   all_booked: "bg-slate-500",
   refunded: "bg-amber-500",
+  rejoin: "bg-amber-600",
+  cross_workshop: "bg-gray-500",
 };
 
 const statusLabels: Record<string, string> = {
@@ -92,6 +98,8 @@ interface WorkshopCall {
   contact_name: string;
   email: string;
   phone: string | null;
+  original_workshop_title: string | null;
+  payment_workshop_title: string | null;
 }
 
 interface WorkshopSalesLead {
@@ -134,6 +142,13 @@ export function WorkshopCallsDialog({
         });
         if (error) throw error;
         return (data || []) as WorkshopSalesLead[];
+      } else if (category === 'rejoin' || category === 'cross_workshop') {
+        const { data, error } = await supabase.rpc('get_workshop_calls_by_category', {
+          p_workshop_title: workshopTitle,
+          p_category: category,
+        });
+        if (error) throw error;
+        return (data || []) as WorkshopCall[];
       } else {
         const { data, error } = await supabase.rpc('get_workshop_calls_by_category', {
           p_workshop_title: workshopTitle,
@@ -263,7 +278,7 @@ export function WorkshopCallsDialog({
   };
 
   // Check if we should show the action column (for non-refunded categories, non-manager users)
-  const showActionColumn = category !== 'refunded' && !isManager;
+  const showActionColumn = category !== 'refunded' && category !== 'rejoin' && category !== 'cross_workshop' && !isManager;
 
   return (
     <>
@@ -293,7 +308,13 @@ export function WorkshopCallsDialog({
                   )}
                   <TableHead>Status</TableHead>
                   <TableHead>Closer</TableHead>
-                  {(category === "converted" || category === "rescheduled_done" || category === "refunded") && !isManager && (
+                  {category === 'rejoin' && (
+                    <TableHead>Paid In Workshop</TableHead>
+                  )}
+                  {category === 'cross_workshop' && (
+                    <TableHead>Original Workshop (Revenue Credited To)</TableHead>
+                  )}
+                  {(category === "converted" || category === "rescheduled_done" || category === "refunded" || category === "rejoin") && !isManager && (
                     <>
                       <TableHead className="text-right">Offer</TableHead>
                       <TableHead className="text-right">Received</TableHead>
@@ -408,7 +429,21 @@ export function WorkshopCallsDialog({
                       <TableCell>
                         {call.closer_name || "Unassigned"}
                       </TableCell>
-                      {(category === "converted" || category === "rescheduled_done" || category === "refunded") && !isManager && regularCall && (
+                      {category === 'rejoin' && regularCall && (
+                        <TableCell>
+                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                            {regularCall.payment_workshop_title || "Unknown"}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {category === 'cross_workshop' && regularCall && (
+                        <TableCell>
+                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">
+                            {regularCall.original_workshop_title || "Unknown"}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {(category === "converted" || category === "rescheduled_done" || category === "refunded" || category === "rejoin") && !isManager && regularCall && (
                         <>
                           <TableCell className="text-right">
                             ₹{Number(regularCall.offer_amount || 0).toLocaleString("en-IN")}

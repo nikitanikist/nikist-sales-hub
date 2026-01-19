@@ -1508,6 +1508,8 @@ export type Database = {
           id: string
           lead_id: string
           offer_amount: number
+          original_workshop_title: string
+          payment_workshop_title: string
           phone: string
           scheduled_date: string
           scheduled_time: string

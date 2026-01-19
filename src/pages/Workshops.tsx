@@ -26,7 +26,9 @@ type CallCategory =
   | "booking_amount" 
   | "remaining"
   | "all_booked"
-  | "refunded";
+  | "refunded"
+  | "rejoin"
+  | "cross_workshop";
 
 const statusColors: Record<string, string> = {
   planned: "bg-blue-500",
@@ -110,6 +112,28 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           total_cash_received: Number(item.total_cash_received) || 0,
           total_calls_booked: Number(item.total_calls_booked) || 0,
           refunded_calls: Number(item.refunded_calls) || 0,
+          // Fresh sales breakdown
+          fresh_sales_count: Number(item.fresh_sales_count) || 0,
+          fresh_converted: Number(item.fresh_converted) || 0,
+          fresh_not_converted: Number(item.fresh_not_converted) || 0,
+          fresh_remaining: Number(item.fresh_remaining) || 0,
+          fresh_rescheduled_remaining: Number(item.fresh_rescheduled_remaining) || 0,
+          fresh_rescheduled_done: Number(item.fresh_rescheduled_done) || 0,
+          fresh_booking_amount: Number(item.fresh_booking_amount) || 0,
+          fresh_offer_amount: Number(item.fresh_offer_amount) || 0,
+          fresh_cash_received: Number(item.fresh_cash_received) || 0,
+          // Rejoin sales breakdown
+          rejoin_sales_count: Number(item.rejoin_sales_count) || 0,
+          rejoin_converted: Number(item.rejoin_converted) || 0,
+          rejoin_not_converted: Number(item.rejoin_not_converted) || 0,
+          rejoin_remaining: Number(item.rejoin_remaining) || 0,
+          rejoin_rescheduled_remaining: Number(item.rejoin_rescheduled_remaining) || 0,
+          rejoin_rescheduled_done: Number(item.rejoin_rescheduled_done) || 0,
+          rejoin_booking_amount: Number(item.rejoin_booking_amount) || 0,
+          rejoin_offer_amount: Number(item.rejoin_offer_amount) || 0,
+          rejoin_cash_received: Number(item.rejoin_cash_received) || 0,
+          // Cross-workshop payments
+          cross_workshop_count: Number(item.cross_workshop_count) || 0,
         };
         return acc;
       }, {} as Record<string, { 
@@ -125,6 +149,25 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
         total_cash_received: number;
         total_calls_booked: number;
         refunded_calls: number;
+        fresh_sales_count: number;
+        fresh_converted: number;
+        fresh_not_converted: number;
+        fresh_remaining: number;
+        fresh_rescheduled_remaining: number;
+        fresh_rescheduled_done: number;
+        fresh_booking_amount: number;
+        fresh_offer_amount: number;
+        fresh_cash_received: number;
+        rejoin_sales_count: number;
+        rejoin_converted: number;
+        rejoin_not_converted: number;
+        rejoin_remaining: number;
+        rejoin_rescheduled_remaining: number;
+        rejoin_rescheduled_done: number;
+        rejoin_booking_amount: number;
+        rejoin_offer_amount: number;
+        rejoin_cash_received: number;
+        cross_workshop_count: number;
       }>);
 
       // Calculate metrics for each workshop
@@ -142,17 +185,41 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           total_cash_received: 0,
           total_calls_booked: 0,
           refunded_calls: 0,
+          fresh_sales_count: 0,
+          fresh_converted: 0,
+          fresh_not_converted: 0,
+          fresh_remaining: 0,
+          fresh_rescheduled_remaining: 0,
+          fresh_rescheduled_done: 0,
+          fresh_booking_amount: 0,
+          fresh_offer_amount: 0,
+          fresh_cash_received: 0,
+          rejoin_sales_count: 0,
+          rejoin_converted: 0,
+          rejoin_not_converted: 0,
+          rejoin_remaining: 0,
+          rejoin_rescheduled_remaining: 0,
+          rejoin_rescheduled_done: 0,
+          rejoin_booking_amount: 0,
+          rejoin_offer_amount: 0,
+          rejoin_cash_received: 0,
+          cross_workshop_count: 0,
         };
         const registrationCount = metrics.registrations;
         const salesCount = metrics.sales;
 
-        // Calculate revenue and P&L
-        const totalRevenue = salesCount * PRODUCT_PRICE;
+        // Calculate fresh revenue
+        const freshRevenue = metrics.fresh_sales_count * PRODUCT_PRICE;
+        // Calculate rejoin revenue (credited to this workshop as original)
+        const rejoinRevenue = metrics.rejoin_sales_count * PRODUCT_PRICE;
+        // Total workshop revenue
+        const totalRevenue = freshRevenue + rejoinRevenue;
         const adSpend = Number(workshop.ad_spend || 0);
         const roughPL = totalRevenue - adSpend;
 
-        // Calculate total P&L including high ticket
-        const totalPL = totalRevenue + metrics.total_cash_received - adSpend;
+        // Calculate total P&L including high ticket from both fresh and rejoin
+        const totalCashReceived = metrics.fresh_cash_received + metrics.rejoin_cash_received;
+        const totalPL = totalRevenue + totalCashReceived - adSpend;
 
         return {
           ...workshop,
@@ -171,6 +238,30 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           total_pl: totalPL,
           total_calls_booked: metrics.total_calls_booked,
           refunded_calls: metrics.refunded_calls,
+          // Fresh breakdown
+          fresh_sales_count: metrics.fresh_sales_count,
+          fresh_converted: metrics.fresh_converted,
+          fresh_not_converted: metrics.fresh_not_converted,
+          fresh_remaining: metrics.fresh_remaining,
+          fresh_rescheduled_remaining: metrics.fresh_rescheduled_remaining,
+          fresh_rescheduled_done: metrics.fresh_rescheduled_done,
+          fresh_booking_amount: metrics.fresh_booking_amount,
+          fresh_revenue: freshRevenue,
+          fresh_offer_amount: metrics.fresh_offer_amount,
+          fresh_cash_received: metrics.fresh_cash_received,
+          // Rejoin breakdown
+          rejoin_sales_count: metrics.rejoin_sales_count,
+          rejoin_converted: metrics.rejoin_converted,
+          rejoin_not_converted: metrics.rejoin_not_converted,
+          rejoin_remaining: metrics.rejoin_remaining,
+          rejoin_rescheduled_remaining: metrics.rejoin_rescheduled_remaining,
+          rejoin_rescheduled_done: metrics.rejoin_rescheduled_done,
+          rejoin_booking_amount: metrics.rejoin_booking_amount,
+          rejoin_revenue: rejoinRevenue,
+          rejoin_offer_amount: metrics.rejoin_offer_amount,
+          rejoin_cash_received: metrics.rejoin_cash_received,
+          // Cross-workshop
+          cross_workshop_count: metrics.cross_workshop_count,
         };
       });
       
@@ -792,14 +883,14 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                           <TableCell colSpan={isManager ? 6 : 9} className="p-4">
-                            <div className={`grid grid-cols-1 ${isManager ? '' : 'md:grid-cols-2'} gap-6`}>
-                              {/* Call Statistics */}
+                            <div className="space-y-6">
+                              {/* Fresh Call Statistics */}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                                   <Phone className="h-4 w-4" />
-                                  Call Statistics
+                                  Fresh Calls (Paid During This Workshop)
                                 </div>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 md:grid-cols-9 gap-3">
                                   <div 
                                     className="bg-slate-100 dark:bg-slate-800 rounded-lg p-3 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-slate-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "all_booked"); }}
@@ -833,14 +924,14 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_remaining"); }}
                                   >
                                     <div className="text-2xl font-bold text-orange-500">{workshop.rescheduled_remaining || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Rescheduled Remaining</div>
+                                    <div className="text-xs text-muted-foreground">Resch. Remaining</div>
                                   </div>
                                   <div 
                                     className="bg-background rounded-lg p-3 border cursor-pointer hover:border-teal-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_done"); }}
                                   >
                                     <div className="text-2xl font-bold text-teal-500">{workshop.rescheduled_done || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Rescheduled Done</div>
+                                    <div className="text-xs text-muted-foreground">Resch. Done</div>
                                   </div>
                                   <div 
                                     className="bg-background rounded-lg p-3 border cursor-pointer hover:border-purple-400 hover:shadow-sm transition-all"
@@ -859,6 +950,69 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                 </div>
                               </div>
                               
+                              {/* Rejoin Calls Section - Only show if there are rejoin sales */}
+                              {(workshop.rejoin_sales_count > 0) && (
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-amber-600">
+                                    <Phone className="h-4 w-4" />
+                                    Rejoin Calls (Originated Here, Paid in Later Workshop)
+                                  </div>
+                                  <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+                                    <div 
+                                      className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border-2 border-amber-300 dark:border-amber-700 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                      onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                                    >
+                                      <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{workshop.rejoin_sales_count || 0}</div>
+                                      <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Total Rejoin</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                      <div className="text-lg font-bold text-green-600">{workshop.rejoin_converted || 0}</div>
+                                      <div className="text-xs text-muted-foreground">Converted</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                      <div className="text-lg font-bold text-red-500">{workshop.rejoin_not_converted || 0}</div>
+                                      <div className="text-xs text-muted-foreground">Not Converted</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                      <div className="text-lg font-bold text-blue-500">{workshop.rejoin_remaining || 0}</div>
+                                      <div className="text-xs text-muted-foreground">Remaining</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                      <div className="text-lg font-bold text-orange-500">{workshop.rejoin_rescheduled_remaining || 0}</div>
+                                      <div className="text-xs text-muted-foreground">Resch. Remaining</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                      <div className="text-lg font-bold text-teal-500">{workshop.rejoin_rescheduled_done || 0}</div>
+                                      <div className="text-xs text-muted-foreground">Resch. Done</div>
+                                    </div>
+                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                      <div className="text-lg font-bold text-purple-600">{workshop.rejoin_booking_amount || 0}</div>
+                                      <div className="text-xs text-muted-foreground">Booking Amount</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Cross-Workshop Payments - Only show if there are cross-workshop payments */}
+                              {(workshop.cross_workshop_count > 0) && (
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                                    <Phone className="h-4 w-4" />
+                                    Cross-Workshop Payments (Paid Here, Credited to Original Workshop)
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div 
+                                      className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all"
+                                      onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "cross_workshop"); }}
+                                    >
+                                      <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{workshop.cross_workshop_count || 0}</div>
+                                      <div className="text-xs text-gray-500 font-medium">Cross-Workshop Payments</div>
+                                      <div className="text-xs text-gray-400 mt-1">Revenue credited to their original workshop</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
                               {/* Revenue Breakdown - Hidden for managers */}
                               {!isManager && (
                                 <div className="space-y-3">
@@ -866,13 +1020,23 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                     <IndianRupee className="h-4 w-4" />
                                     Revenue Breakdown
                                   </div>
-                                  <div className="grid grid-cols-2 gap-3">
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {/* Fresh Revenue */}
                                     <div className="bg-background rounded-lg p-3 border">
                                       <div className="text-lg font-bold text-foreground">
-                                        ₹{Number(workshop.total_revenue || 0).toLocaleString("en-IN")}
+                                        ₹{Number(workshop.fresh_revenue || 0).toLocaleString("en-IN")}
                                       </div>
-                                      <div className="text-xs text-muted-foreground">Workshop Revenue (₹497 × {workshop.sales_count})</div>
+                                      <div className="text-xs text-muted-foreground">Fresh Workshop Revenue (₹497 × {workshop.fresh_sales_count})</div>
                                     </div>
+                                    {/* Rejoin Revenue */}
+                                    {(workshop.rejoin_sales_count > 0) && (
+                                      <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200">
+                                        <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                                          ₹{Number(workshop.rejoin_revenue || 0).toLocaleString("en-IN")}
+                                        </div>
+                                        <div className="text-xs text-amber-600">Rejoin Revenue (₹497 × {workshop.rejoin_sales_count})</div>
+                                      </div>
+                                    )}
                                     <div className="bg-background rounded-lg p-3 border">
                                       <div className="text-lg font-bold text-foreground">
                                         ₹{Number(workshop.total_offer_amount || 0).toLocaleString("en-IN")}
@@ -883,13 +1047,13 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                       <div className="text-lg font-bold text-green-600">
                                         ₹{Number(workshop.total_cash_received || 0).toLocaleString("en-IN")}
                                       </div>
-                                      <div className="text-xs text-muted-foreground">Cash Collected</div>
+                                      <div className="text-xs text-muted-foreground">Total Cash Collected</div>
                                     </div>
                                     <div className="bg-background rounded-lg p-3 border">
                                       <div className={`text-lg font-bold ${(workshop.rough_pl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         ₹{Number(workshop.rough_pl || 0).toLocaleString("en-IN")}
                                       </div>
-                                      <div className="text-xs text-muted-foreground">Workshop P&L (Revenue - Ad Spend)</div>
+                                      <div className="text-xs text-muted-foreground">Workshop P&L (Total Revenue - Ad Spend)</div>
                                     </div>
                                   </div>
                                 </div>
