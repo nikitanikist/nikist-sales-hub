@@ -213,7 +213,7 @@ export function AddBatchStudentDialog({
         .insert({
           lead_id: leadId,
           batch_id: batchId,
-          closer_id: user?.id,
+          closer_id: null,  // Manually added students have no closer
           status: "converted",
           scheduled_date: format(conversionDate, "yyyy-MM-dd"),
           scheduled_time: "00:00:00",

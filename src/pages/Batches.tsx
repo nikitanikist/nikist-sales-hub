@@ -1629,7 +1629,9 @@ const Batches = () => {
                               )}
                               {!isCloser && (
                                 <TableCell className="text-sm text-muted-foreground">
-                                  {student.closer_name || "-"}
+                                  {student.closer_name || (
+                                    <span className="italic">Added Manually</span>
+                                  )}
                                 </TableCell>
                               )}
                               <TableCell className="text-sm text-muted-foreground">{student.email}</TableCell>
