@@ -88,7 +88,7 @@ const CLASSES_ACCESS_LABELS: Record<number, string> = {
 const Batches = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isManager, isCloser, profileId } = useUserRole();
+  const { isAdmin, isManager, isCloser, profileId } = useUserRole();
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
@@ -900,7 +900,7 @@ const Batches = () => {
           
           {/* Right side: Add Student Button + Compact Students Enrolled Card */}
           <div className="flex items-center gap-3">
-            {isManager && (
+            {(isAdmin || isManager) && (
               <Button onClick={() => setIsAddStudentOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Student
