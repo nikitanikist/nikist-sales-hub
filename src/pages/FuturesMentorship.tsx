@@ -54,6 +54,14 @@ interface FuturesEmiPayment {
   emi_number: number;
   amount: number;
   payment_date: string;
+  created_at: string | null;
+  created_by: string | null;
+  created_by_profile?: { full_name: string } | null;
+  no_cost_emi: number | null;
+  gst_fees: number | null;
+  platform_fees: number | null;
+  payment_platform: string | null;
+  remarks: string | null;
 }
 
 const FuturesMentorship = () => {
@@ -171,7 +179,7 @@ const FuturesMentorship = () => {
       
       const { data, error } = await supabase
         .from("futures_emi_payments")
-        .select("*")
+        .select("*, created_by_profile:profiles!created_by(full_name)")
         .eq("student_id", expandedStudentId)
         .order("emi_number", { ascending: true });
       
@@ -767,19 +775,16 @@ const FuturesMentorship = () => {
                 ) : (
                   filteredStudents.map((student) => (
                     <React.Fragment key={student.id}>
-                      <TableRow>
+                      <TableRow 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
+                      >
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
-                          >
-                            {expandedStudentId === student.id ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </Button>
+                          {expandedStudentId === student.id ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
                         </TableCell>
                         <TableCell>{format(new Date(student.conversion_date), "dd MMM yyyy")}</TableCell>
                         <TableCell className="font-medium">{student.contact_name}</TableCell>
@@ -789,7 +794,7 @@ const FuturesMentorship = () => {
                         <TableCell className="text-sm">{student.email}</TableCell>
                         <TableCell className="text-sm">{student.phone || "-"}</TableCell>
                         <TableCell>{getStatusBadge(student.status)}</TableCell>
-                        <TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon">
@@ -826,23 +831,73 @@ const FuturesMentorship = () => {
                       </TableRow>
                       {/* Expanded EMI Row */}
                       {expandedStudentId === student.id && (
-                        <TableRow className="bg-muted/30">
+                        <TableRow className="bg-muted/30 hover:bg-muted/30">
                           <TableCell colSpan={10} className="py-4">
                             <div className="pl-8">
-                              <h4 className="font-medium mb-2">EMI Payment History</h4>
+                              <h4 className="font-medium mb-3">EMI Payment History</h4>
                               {emiLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : studentEmiPayments && studentEmiPayments.length > 0 ? (
-                                <div className="grid grid-cols-4 gap-4">
-                                  {studentEmiPayments.map((emi) => (
-                                    <div key={emi.id} className="bg-background border rounded-md p-3">
-                                      <p className="font-medium">EMI {emi.emi_number}</p>
-                                      <p className="text-green-600">₹{Number(emi.amount).toLocaleString('en-IN')}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {format(new Date(emi.payment_date), "dd MMM yyyy")}
-                                      </p>
-                                    </div>
-                                  ))}
+                                <div className="rounded-md border overflow-x-auto">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead className="w-[80px]">EMI #</TableHead>
+                                        <TableHead>Cash Collected</TableHead>
+                                        <TableHead>No Cost EMI</TableHead>
+                                        <TableHead>GST</TableHead>
+                                        <TableHead>Platform Fees</TableHead>
+                                        <TableHead>Platform</TableHead>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Remarks</TableHead>
+                                        <TableHead>Updated By</TableHead>
+                                        <TableHead className="w-[100px]">Actions</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {studentEmiPayments.map((emi) => (
+                                        <TableRow key={emi.id}>
+                                          <TableCell className="font-medium">EMI {emi.emi_number}</TableCell>
+                                          <TableCell className="text-green-600">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
+                                          <TableCell>₹{Number(emi.no_cost_emi || 0).toLocaleString('en-IN')}</TableCell>
+                                          <TableCell>₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</TableCell>
+                                          <TableCell>₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</TableCell>
+                                          <TableCell>{emi.payment_platform || "-"}</TableCell>
+                                          <TableCell>{format(new Date(emi.payment_date), "dd MMM yyyy")}</TableCell>
+                                          <TableCell className="max-w-[150px] truncate" title={emi.remarks || undefined}>
+                                            {emi.remarks || "-"}
+                                          </TableCell>
+                                          <TableCell>{emi.created_by_profile?.full_name || "Unknown"}</TableCell>
+                                          <TableCell>
+                                            <div className="flex gap-1">
+                                              <Button 
+                                                variant="ghost" 
+                                                size="icon"
+                                                className="h-7 w-7"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setEmiStudent(student);
+                                                }}
+                                              >
+                                                <Pencil className="h-3.5 w-3.5" />
+                                              </Button>
+                                              <Button 
+                                                variant="ghost" 
+                                                size="icon"
+                                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setEmiStudent(student);
+                                                }}
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
                                 </div>
                               ) : (
                                 <p className="text-muted-foreground text-sm">No EMI payments recorded</p>
