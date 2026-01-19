@@ -950,68 +950,64 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                 </div>
                               </div>
                               
-                              {/* Rejoin Calls Section - Only show if there are rejoin sales */}
-                              {(workshop.rejoin_sales_count > 0) && (
-                                <div className="space-y-3">
-                                  <div className="flex items-center gap-2 text-sm font-medium text-amber-600">
-                                    <Phone className="h-4 w-4" />
-                                    Rejoin Calls (Originated Here, Paid in Later Workshop)
+                              {/* Rejoin Calls Section */}
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm font-medium text-amber-600">
+                                  <Phone className="h-4 w-4" />
+                                  Rejoin Calls (Originated Here, Paid in Later Workshop)
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+                                  <div 
+                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border-2 border-amber-300 dark:border-amber-700 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{workshop.rejoin_sales_count || 0}</div>
+                                    <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Total Rejoin</div>
                                   </div>
-                                  <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
-                                    <div 
-                                      className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border-2 border-amber-300 dark:border-amber-700 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
-                                      onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
-                                    >
-                                      <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{workshop.rejoin_sales_count || 0}</div>
-                                      <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Total Rejoin</div>
-                                    </div>
-                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                      <div className="text-lg font-bold text-green-600">{workshop.rejoin_converted || 0}</div>
-                                      <div className="text-xs text-muted-foreground">Converted</div>
-                                    </div>
-                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                      <div className="text-lg font-bold text-red-500">{workshop.rejoin_not_converted || 0}</div>
-                                      <div className="text-xs text-muted-foreground">Not Converted</div>
-                                    </div>
-                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                      <div className="text-lg font-bold text-blue-500">{workshop.rejoin_remaining || 0}</div>
-                                      <div className="text-xs text-muted-foreground">Remaining</div>
-                                    </div>
-                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                      <div className="text-lg font-bold text-orange-500">{workshop.rejoin_rescheduled_remaining || 0}</div>
-                                      <div className="text-xs text-muted-foreground">Resch. Remaining</div>
-                                    </div>
-                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                      <div className="text-lg font-bold text-teal-500">{workshop.rejoin_rescheduled_done || 0}</div>
-                                      <div className="text-xs text-muted-foreground">Resch. Done</div>
-                                    </div>
-                                    <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                      <div className="text-lg font-bold text-purple-600">{workshop.rejoin_booking_amount || 0}</div>
-                                      <div className="text-xs text-muted-foreground">Booking Amount</div>
-                                    </div>
+                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                    <div className="text-lg font-bold text-green-600">{workshop.rejoin_converted || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Converted</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                    <div className="text-lg font-bold text-red-500">{workshop.rejoin_not_converted || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Not Converted</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                    <div className="text-lg font-bold text-blue-500">{workshop.rejoin_remaining || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Remaining</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                    <div className="text-lg font-bold text-orange-500">{workshop.rejoin_rescheduled_remaining || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Resch. Remaining</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                    <div className="text-lg font-bold text-teal-500">{workshop.rejoin_rescheduled_done || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Resch. Done</div>
+                                  </div>
+                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
+                                    <div className="text-lg font-bold text-purple-600">{workshop.rejoin_booking_amount || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Booking Amount</div>
                                   </div>
                                 </div>
-                              )}
+                              </div>
 
-                              {/* Cross-Workshop Payments - Only show if there are cross-workshop payments */}
-                              {(workshop.cross_workshop_count > 0) && (
-                                <div className="space-y-3">
-                                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                                    <Phone className="h-4 w-4" />
-                                    Cross-Workshop Payments (Paid Here, Credited to Original Workshop)
-                                  </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div 
-                                      className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all"
-                                      onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "cross_workshop"); }}
-                                    >
-                                      <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{workshop.cross_workshop_count || 0}</div>
-                                      <div className="text-xs text-gray-500 font-medium">Cross-Workshop Payments</div>
-                                      <div className="text-xs text-gray-400 mt-1">Revenue credited to their original workshop</div>
-                                    </div>
+                              {/* Cross-Workshop Payments */}
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                                  <Phone className="h-4 w-4" />
+                                  Cross-Workshop Payments (Paid Here, Credited to Original Workshop)
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div 
+                                    className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "cross_workshop"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{workshop.cross_workshop_count || 0}</div>
+                                    <div className="text-xs text-gray-500 font-medium">Cross-Workshop Payments</div>
+                                    <div className="text-xs text-gray-400 mt-1">Revenue credited to their original workshop</div>
                                   </div>
                                 </div>
-                              )}
+                              </div>
                               
                               {/* Revenue Breakdown - Hidden for managers */}
                               {!isManager && (
@@ -1029,14 +1025,12 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                                       <div className="text-xs text-muted-foreground">Fresh Workshop Revenue (₹497 × {workshop.fresh_sales_count})</div>
                                     </div>
                                     {/* Rejoin Revenue */}
-                                    {(workshop.rejoin_sales_count > 0) && (
-                                      <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200">
-                                        <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
-                                          ₹{Number(workshop.rejoin_revenue || 0).toLocaleString("en-IN")}
-                                        </div>
-                                        <div className="text-xs text-amber-600">Rejoin Revenue (₹497 × {workshop.rejoin_sales_count})</div>
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200">
+                                      <div className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                                        ₹{Number(workshop.rejoin_revenue || 0).toLocaleString("en-IN")}
                                       </div>
-                                    )}
+                                      <div className="text-xs text-amber-600">Rejoin Revenue (₹497 × {workshop.rejoin_sales_count || 0})</div>
+                                    </div>
                                     <div className="bg-background rounded-lg p-3 border">
                                       <div className="text-lg font-bold text-foreground">
                                         ₹{Number(workshop.total_offer_amount || 0).toLocaleString("en-IN")}
