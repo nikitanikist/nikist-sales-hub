@@ -62,7 +62,7 @@ export type Database = {
           calendly_invitee_uri: string | null
           cash_received: number | null
           classes_access: number | null
-          closer_id: string
+          closer_id: string | null
           closer_remarks: string | null
           conversion_date: string | null
           created_at: string
@@ -99,7 +99,7 @@ export type Database = {
           calendly_invitee_uri?: string | null
           cash_received?: number | null
           classes_access?: number | null
-          closer_id: string
+          closer_id?: string | null
           closer_remarks?: string | null
           conversion_date?: string | null
           created_at?: string
@@ -136,7 +136,7 @@ export type Database = {
           calendly_invitee_uri?: string | null
           cash_received?: number | null
           classes_access?: number | null
-          closer_id?: string
+          closer_id?: string | null
           closer_remarks?: string | null
           conversion_date?: string | null
           created_at?: string
