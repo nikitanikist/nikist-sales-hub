@@ -64,14 +64,20 @@ export type Database = {
           classes_access: number | null
           closer_id: string
           closer_remarks: string | null
+          conversion_date: string | null
           created_at: string
           created_by: string | null
           due_amount: number | null
+          gst_fees: number | null
           id: string
           last_rebooked_at: string | null
           lead_id: string
           next_follow_up_date: string | null
+          no_cost_emi: number | null
           offer_amount: number | null
+          payment_platform: string | null
+          payment_remarks: string | null
+          platform_fees: number | null
           previous_closer_id: string | null
           previous_scheduled_date: string | null
           previous_scheduled_time: string | null
@@ -95,14 +101,20 @@ export type Database = {
           classes_access?: number | null
           closer_id: string
           closer_remarks?: string | null
+          conversion_date?: string | null
           created_at?: string
           created_by?: string | null
           due_amount?: number | null
+          gst_fees?: number | null
           id?: string
           last_rebooked_at?: string | null
           lead_id: string
           next_follow_up_date?: string | null
+          no_cost_emi?: number | null
           offer_amount?: number | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
           previous_closer_id?: string | null
           previous_scheduled_date?: string | null
           previous_scheduled_time?: string | null
@@ -126,14 +138,20 @@ export type Database = {
           classes_access?: number | null
           closer_id?: string
           closer_remarks?: string | null
+          conversion_date?: string | null
           created_at?: string
           created_by?: string | null
           due_amount?: number | null
+          gst_fees?: number | null
           id?: string
           last_rebooked_at?: string | null
           lead_id?: string
           next_follow_up_date?: string | null
+          no_cost_emi?: number | null
           offer_amount?: number | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
           previous_closer_id?: string | null
           previous_scheduled_date?: string | null
           previous_scheduled_time?: string | null
@@ -366,11 +384,16 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           emi_number: number
+          gst_fees: number | null
           id: string
           new_classes_access: number | null
+          no_cost_emi: number | null
           payment_date: string
+          payment_platform: string | null
+          platform_fees: number | null
           previous_cash_received: number | null
           previous_classes_access: number | null
+          remarks: string | null
         }
         Insert: {
           amount: number
@@ -378,11 +401,16 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           emi_number: number
+          gst_fees?: number | null
           id?: string
           new_classes_access?: number | null
+          no_cost_emi?: number | null
           payment_date: string
+          payment_platform?: string | null
+          platform_fees?: number | null
           previous_cash_received?: number | null
           previous_classes_access?: number | null
+          remarks?: string | null
         }
         Update: {
           amount?: number
@@ -390,11 +418,16 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           emi_number?: number
+          gst_fees?: number | null
           id?: string
           new_classes_access?: number | null
+          no_cost_emi?: number | null
           payment_date?: string
+          payment_platform?: string | null
+          platform_fees?: number | null
           previous_cash_received?: number | null
           previous_classes_access?: number | null
+          remarks?: string | null
         }
         Relationships: [
           {

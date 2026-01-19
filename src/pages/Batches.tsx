@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil } from "lucide-react";
 import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
+import { AddBatchStudentDialog } from "@/components/AddBatchStudentDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
@@ -139,6 +140,9 @@ const Batches = () => {
   
   // EMI update dialog state
   const [emiStudent, setEmiStudent] = useState<BatchStudent | null>(null);
+  
+  // Add student dialog state
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -894,24 +898,32 @@ const Batches = () => {
             </div>
           </div>
           
-          {/* Right side: Compact Students Enrolled Card */}
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="py-3 px-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-primary/10">
-                  <Users className="h-4 w-4 text-primary" />
+          {/* Right side: Add Student Button + Compact Students Enrolled Card */}
+          <div className="flex items-center gap-3">
+            {isManager && (
+              <Button onClick={() => setIsAddStudentOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Student
+              </Button>
+            )}
+            <Card className="bg-primary/5 border-primary/20">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-primary/10">
+                    <Users className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Students Enrolled</p>
+                    <p className="text-xl font-bold">
+                      {activeFilterCount > 0 
+                        ? `${filteredStudents.length} of ${batchStudents?.length || 0}` 
+                        : batchStudents?.length || 0}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Students Enrolled</p>
-                  <p className="text-xl font-bold">
-                    {activeFilterCount > 0 
-                      ? `${filteredStudents.length} of ${batchStudents?.length || 0}` 
-                      : batchStudents?.length || 0}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Summary Cards - Hidden for Managers */}
@@ -2112,6 +2124,20 @@ const Batches = () => {
               queryClient.invalidateQueries({ queryKey: ["batch-students"] });
               queryClient.invalidateQueries({ queryKey: ["batch-student-emi"] });
               queryClient.invalidateQueries({ queryKey: ["batch-all-emi-payments"] });
+            }}
+          />
+        )}
+        
+        {/* Add Student Dialog */}
+        {selectedBatch && (
+          <AddBatchStudentDialog
+            open={isAddStudentOpen}
+            onOpenChange={setIsAddStudentOpen}
+            batchId={selectedBatch.id}
+            batchName={selectedBatch.name}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["batch-students"] });
+              queryClient.invalidateQueries({ queryKey: ["batches"] });
             }}
           />
         )}
