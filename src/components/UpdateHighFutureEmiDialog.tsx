@@ -30,7 +30,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { PaymentPlatformSelect } from "@/components/PaymentPlatformSelect";
+import { PaymentPlatformSelect, getPlatformFeeRate, getPlatformFeesHint } from "@/components/PaymentPlatformSelect";
 
 interface HighFutureEmiPayment {
   id: string;
@@ -106,9 +106,10 @@ export function UpdateHighFutureEmiDialog({
   const [editPaymentPlatform, setEditPaymentPlatform] = useState("UPI (IDFC)");
   const [editRemarks, setEditRemarks] = useState("");
 
-  // Auto-calculate Platform Fees and GST based on Cash Collected
-  const calculatePaymentDetails = (cashAmount: number) => {
-    const platformFees = cashAmount * 0.025; // 2.5% of cash collected
+  // Auto-calculate Platform Fees and GST based on Cash Collected and Payment Platform
+  const calculatePaymentDetails = (cashAmount: number, platform: string) => {
+    const feeRate = getPlatformFeeRate(platform);
+    const platformFees = cashAmount * feeRate;
     const gst = (cashAmount / 1.18) * 0.18; // GST extracted from GST-inclusive amount
     return { platformFees, gst };
   };
@@ -118,7 +119,7 @@ export function UpdateHighFutureEmiDialog({
     setEmiAmount(value);
     const cash = parseFloat(value) || 0;
     if (cash > 0) {
-      const { platformFees, gst } = calculatePaymentDetails(cash);
+      const { platformFees, gst } = calculatePaymentDetails(cash, newPaymentPlatform);
       setNewPlatformFees(platformFees.toFixed(2));
       setNewGstFees(gst.toFixed(2));
     } else {
@@ -127,17 +128,37 @@ export function UpdateHighFutureEmiDialog({
     }
   };
 
+  // Handler for new EMI payment platform change
+  const handleNewPaymentPlatformChange = (platform: string) => {
+    setNewPaymentPlatform(platform);
+    const cash = parseFloat(emiAmount) || 0;
+    if (cash > 0) {
+      const { platformFees } = calculatePaymentDetails(cash, platform);
+      setNewPlatformFees(platformFees.toFixed(2));
+    }
+  };
+
   // Handler for edit EMI amount change
   const handleEditEmiAmountChange = (value: string) => {
     setEditEmiAmount(value);
     const cash = parseFloat(value) || 0;
     if (cash > 0) {
-      const { platformFees, gst } = calculatePaymentDetails(cash);
+      const { platformFees, gst } = calculatePaymentDetails(cash, editPaymentPlatform);
       setEditPlatformFees(platformFees.toFixed(2));
       setEditGstFees(gst.toFixed(2));
     } else {
       setEditPlatformFees("");
       setEditGstFees("");
+    }
+  };
+
+  // Handler for edit EMI payment platform change
+  const handleEditPaymentPlatformChange = (platform: string) => {
+    setEditPaymentPlatform(platform);
+    const cash = parseFloat(editEmiAmount) || 0;
+    if (cash > 0) {
+      const { platformFees } = calculatePaymentDetails(cash, platform);
+      setEditPlatformFees(platformFees.toFixed(2));
     }
   };
 
@@ -688,16 +709,18 @@ export function UpdateHighFutureEmiDialog({
                     onChange={(e) => setNewNoCostEmi(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Platform Fees (₹)</Label>
-                  <Input
-                    type="number"
-                    placeholder="0"
-                    value={newPlatformFees}
-                    onChange={(e) => handleNewPlatformFeesChange(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">2.5% of Cash</p>
-                </div>
+              <div className="space-y-2">
+                <Label>Platform Fees (₹)</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={newPlatformFees}
+                  onChange={(e) => handleNewPlatformFeesChange(e.target.value)}
+                />
+                {getPlatformFeesHint(newPaymentPlatform) && (
+                  <p className="text-xs text-muted-foreground">{getPlatformFeesHint(newPaymentPlatform)}</p>
+                )}
+              </div>
                 <div className="space-y-2">
                   <Label>GST Fees (₹)</Label>
                   <Input
@@ -713,7 +736,7 @@ export function UpdateHighFutureEmiDialog({
                 <Label>Payment Platform *</Label>
                 <PaymentPlatformSelect
                   value={newPaymentPlatform}
-                  onValueChange={setNewPaymentPlatform}
+                  onValueChange={handleNewPaymentPlatformChange}
                 />
               </div>
               <div className="space-y-2">
@@ -810,7 +833,9 @@ export function UpdateHighFutureEmiDialog({
               <div className="space-y-2">
                 <Label>Platform Fees (₹)</Label>
                 <Input type="number" value={editPlatformFees} onChange={(e) => handleEditPlatformFeesChange(e.target.value)} />
-                <p className="text-xs text-muted-foreground">2.5% of Cash</p>
+                {getPlatformFeesHint(editPaymentPlatform) && (
+                  <p className="text-xs text-muted-foreground">{getPlatformFeesHint(editPaymentPlatform)}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>GST Fees (₹)</Label>
@@ -822,7 +847,7 @@ export function UpdateHighFutureEmiDialog({
               <Label>Payment Platform *</Label>
               <PaymentPlatformSelect
                 value={editPaymentPlatform}
-                onValueChange={setEditPaymentPlatform}
+                onValueChange={handleEditPaymentPlatformChange}
               />
             </div>
             <div className="space-y-2">

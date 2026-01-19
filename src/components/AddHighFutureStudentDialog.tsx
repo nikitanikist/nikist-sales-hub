@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import { PaymentPlatformSelect } from "@/components/PaymentPlatformSelect";
+import { PaymentPlatformSelect, getPlatformFeeRate, getPlatformFeesHint } from "@/components/PaymentPlatformSelect";
 
 interface Lead {
   id: string;
@@ -75,9 +75,10 @@ export function AddHighFutureStudentDialog({
   const [paymentPlatform, setPaymentPlatform] = useState("UPI (IDFC)");
   const [paymentRemarks, setPaymentRemarks] = useState("");
 
-  // Auto-calculate Platform Fees and GST based on Cash Collected
-  const calculatePaymentDetails = (cashAmount: number) => {
-    const platformFees = cashAmount * 0.025; // 2.5% of cash collected
+  // Auto-calculate Platform Fees and GST based on Cash Collected and Payment Platform
+  const calculatePaymentDetails = (cashAmount: number, platform: string) => {
+    const feeRate = getPlatformFeeRate(platform);
+    const platformFees = cashAmount * feeRate;
     const gst = (cashAmount / 1.18) * 0.18; // GST extracted from GST-inclusive amount
     return { platformFees, gst };
   };
@@ -86,12 +87,22 @@ export function AddHighFutureStudentDialog({
     setCashReceived(value);
     const cash = parseFloat(value) || 0;
     if (cash > 0) {
-      const { platformFees, gst } = calculatePaymentDetails(cash);
+      const { platformFees, gst } = calculatePaymentDetails(cash, paymentPlatform);
       setPlatformFees(platformFees.toFixed(2));
       setGstFees(gst.toFixed(2));
     } else {
       setPlatformFees("");
       setGstFees("");
+    }
+  };
+
+  // Handler for payment platform change - recalculates platform fees
+  const handlePaymentPlatformChange = (platform: string) => {
+    setPaymentPlatform(platform);
+    const cash = parseFloat(cashReceived) || 0;
+    if (cash > 0) {
+      const { platformFees } = calculatePaymentDetails(cash, platform);
+      setPlatformFees(platformFees.toFixed(2));
     }
   };
 
@@ -399,7 +410,9 @@ export function AddHighFutureStudentDialog({
               <div className="space-y-2">
                 <Label>Platform Fees (₹)</Label>
                 <Input type="number" value={platformFees} onChange={(e) => handlePlatformFeesChange(e.target.value)} placeholder="0" />
-                <p className="text-xs text-muted-foreground">2.5% of Cash Collected</p>
+                {getPlatformFeesHint(paymentPlatform) && (
+                  <p className="text-xs text-muted-foreground">{getPlatformFeesHint(paymentPlatform)}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>GST Fees (₹)</Label>
@@ -412,7 +425,7 @@ export function AddHighFutureStudentDialog({
               <Label>Payment Platform {parseFloat(cashReceived) > 0 ? "*" : ""}</Label>
               <PaymentPlatformSelect
                 value={paymentPlatform}
-                onValueChange={setPaymentPlatform}
+                onValueChange={handlePaymentPlatformChange}
               />
             </div>
             

@@ -11,8 +11,35 @@ export const PAYMENT_PLATFORMS = [
   "UPI (Deepanshu)",
   "TagMango",
   "Raz",
+  "Razorpay",
   "Bitcoin",
 ] as const;
+
+// Helper function to get platform fee rate
+export const getPlatformFeeRate = (platform: string): number => {
+  switch (platform) {
+    case "Raz":
+      return 0.035; // 3.5%
+    case "Razorpay":
+    case "TagMango":
+      return 0.025; // 2.5%
+    default:
+      return 0; // UPI (IDFC), UPI (Deepanshu), Bitcoin
+  }
+};
+
+// Helper function to get hint text for platform fees
+export const getPlatformFeesHint = (platform: string): string => {
+  switch (platform) {
+    case "Raz":
+      return "3.5% of Cash";
+    case "Razorpay":
+    case "TagMango":
+      return "2.5% of Cash";
+    default:
+      return "";
+  }
+};
 
 interface PaymentPlatformSelectProps {
   value: string;
