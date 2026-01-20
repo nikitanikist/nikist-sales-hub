@@ -60,8 +60,8 @@ const AppLayout = () => {
   }
 
   // All menu items for admin
-  const adminMenuItems = [
-    { title: "Dashboard", icon: LayoutDashboard, path: "/" },
+  const adminMenuItems: { title: string; icon: typeof LayoutDashboard; path: string; isBeta?: boolean }[] = [
+    { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true },
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Customer Insights", icon: ClipboardList, path: "/onboarding" },
     { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
@@ -69,28 +69,28 @@ const AppLayout = () => {
     { title: "Batches", icon: GraduationCap, path: "/batches" },
     { title: "Futures Mentorship", icon: TrendingUp, path: "/futures-mentorship" },
     { title: "High Future", icon: Zap, path: "/high-future" },
-    { title: "All Workshops", icon: Calendar, path: "/workshops" },
-    { title: "Sales", icon: DollarSign, path: "/sales" },
-    { title: "Active Funnels", icon: TrendingUp, path: "/funnels" },
-    { title: "Products", icon: Package, path: "/products" },
+    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true },
+    { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true },
+    { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true },
+    { title: "Products", icon: Package, path: "/products", isBeta: true },
     { title: "Users", icon: UsersRound, path: "/users" },
   ];
 
   // Limited menu items for closers
-  const closerMenuItems = [
+  const closerMenuItems: { title: string; icon: typeof LayoutDashboard; path: string; isBeta?: boolean }[] = [
     { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "Batches", icon: GraduationCap, path: "/batches" },
   ];
 
   // Manager menu items - can see closers, workshops, customers (read-only), batches, and futures mentorship
-  const managerMenuItems = [
+  const managerMenuItems: { title: string; icon: typeof LayoutDashboard; path: string; isBeta?: boolean }[] = [
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
     { title: "Batches", icon: GraduationCap, path: "/batches" },
     { title: "Futures Mentorship", icon: TrendingUp, path: "/futures-mentorship" },
     { title: "High Future", icon: Zap, path: "/high-future" },
-    { title: "All Workshops", icon: Calendar, path: "/workshops" },
+    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true },
   ];
 
   // Choose menu items based on role
@@ -123,6 +123,14 @@ const AppLayout = () => {
                   >
                     <item.icon className="h-5 w-5" />
                     <span>{item.title}</span>
+                    {item.isBeta && (
+                      <Badge 
+                        variant="outline" 
+                        className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-warning text-foreground border-warning font-medium"
+                      >
+                        Beta
+                      </Badge>
+                    )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
