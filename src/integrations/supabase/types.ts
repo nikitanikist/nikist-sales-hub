@@ -1386,6 +1386,7 @@ export type Database = {
           is_free: boolean | null
           lead_id: string | null
           location: string | null
+          mango_id: string | null
           max_participants: number | null
           product_id: string | null
           start_date: string
@@ -1406,6 +1407,7 @@ export type Database = {
           is_free?: boolean | null
           lead_id?: string | null
           location?: string | null
+          mango_id?: string | null
           max_participants?: number | null
           product_id?: string | null
           start_date: string
@@ -1426,6 +1428,7 @@ export type Database = {
           is_free?: boolean | null
           lead_id?: string | null
           location?: string | null
+          mango_id?: string | null
           max_participants?: number | null
           product_id?: string | null
           start_date?: string
