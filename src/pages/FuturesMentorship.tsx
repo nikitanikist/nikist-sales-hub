@@ -100,6 +100,7 @@ const FuturesMentorship = () => {
   const [emiStudent, setEmiStudent] = useState<FuturesStudent | null>(null);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [discontinuingStudent, setDiscontinuingStudent] = useState<FuturesStudent | null>(null);
+  const [deletingStudent, setDeletingStudent] = useState<FuturesStudent | null>(null);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -358,7 +359,28 @@ const FuturesMentorship = () => {
     },
   });
 
-  const handleCloseForm = () => {
+  // Delete student mutation (admin only)
+  const deleteStudentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // First delete associated EMI payments
+      await supabase.from("futures_emi_payments").delete().eq("student_id", id);
+      // Delete offer amount history
+      await supabase.from("futures_offer_amount_history").delete().eq("student_id", id);
+      // Then delete the student
+      const { error } = await supabase.from("futures_mentorship_students").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["futures-students"] });
+      queryClient.invalidateQueries({ queryKey: ["futures-batches"] });
+      toast({ title: "Student deleted", description: "Student entry has been permanently removed" });
+      setDeletingStudent(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
     setIsCreateOpen(false);
     setEditingBatch(null);
     setFormName("");
@@ -825,6 +847,15 @@ const FuturesMentorship = () => {
                                   </DropdownMenuItem>
                                 </>
                               )}
+                              {isAdmin && (
+                                <DropdownMenuItem 
+                                  onClick={() => setDeletingStudent(student)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Student
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -1006,6 +1037,29 @@ const FuturesMentorship = () => {
               onClick={() => discontinuingStudent && discontinueMutation.mutate(discontinuingStudent.id)}
             >
               Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Student Dialog (Admin Only) */}
+      <AlertDialog open={!!deletingStudent} onOpenChange={(open) => !open && setDeletingStudent(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Student</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {deletingStudent?.contact_name}? 
+              This will permanently remove the student and all their EMI payment records. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deletingStudent && deleteStudentMutation.mutate(deletingStudent.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteStudentMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
