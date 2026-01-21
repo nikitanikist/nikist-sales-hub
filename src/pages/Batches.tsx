@@ -711,6 +711,7 @@ const Batches = () => {
     },
   });
 
+  const handleCloseForm = () => {
     setIsCreateOpen(false);
     setEditingBatch(null);
     setFormName("");
