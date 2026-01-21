@@ -708,6 +708,32 @@ serve(async (req) => {
       }
     }
 
+    // Send notification to the closer about the rebooked call
+    let closerNotificationSent = false;
+    if (aisensyApiKey && aisensySource) {
+      console.log('Sending notification to closer for rebooked call');
+      
+      try {
+        const closerNotificationResponse = await fetch(
+          `${supabaseUrl}/functions/v1/send-closer-notification`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ appointment_id }),
+          }
+        );
+        
+        const closerNotificationResult = await closerNotificationResponse.json();
+        console.log('Closer notification response:', closerNotificationResult);
+        closerNotificationSent = closerNotificationResponse.ok;
+      } catch (closerError) {
+        console.error('Error sending notification to closer:', closerError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -731,6 +757,7 @@ serve(async (req) => {
           error: calendlyError,
         },
         kamal_notification_sent: kamalNotificationSent,
+        closer_notification_sent: closerNotificationSent,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
