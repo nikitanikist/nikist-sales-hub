@@ -398,6 +398,7 @@ const HighFuture = () => {
     },
   });
 
+  const handleCloseForm = () => {
     setIsCreateOpen(false);
     setEditingBatch(null);
     setFormName("");

@@ -381,6 +381,7 @@ const FuturesMentorship = () => {
     },
   });
 
+  const handleCloseForm = () => {
     setIsCreateOpen(false);
     setEditingBatch(null);
     setFormName("");
