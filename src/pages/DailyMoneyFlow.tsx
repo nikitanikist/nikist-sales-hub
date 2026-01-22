@@ -38,7 +38,7 @@ interface MoneyFlowEntry {
   creator_name?: string | null;
 }
 
-type InsightsPeriod = '1m' | '3m' | '6m' | '1y' | 'custom';
+type InsightsPeriod = '1m' | '3m' | '6m' | '1y' | 'lifetime' | 'custom';
 
 const DailyMoneyFlow = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -222,6 +222,15 @@ const DailyMoneyFlow = () => {
       case '1y':
         periodStart = subMonths(now, 12);
         break;
+      case 'lifetime':
+        // Use the earliest entry date as start
+        if (entries.length > 0) {
+          const dates = entries.map(e => new Date(e.date).getTime());
+          periodStart = new Date(Math.min(...dates));
+        } else {
+          periodStart = subMonths(now, 12);
+        }
+        break;
       case 'custom':
         periodStart = customDateRange.from || subMonths(now, 3);
         periodEnd = customDateRange.to || now;
@@ -393,6 +402,7 @@ const DailyMoneyFlow = () => {
       case '3m': return 'Last 3 Months';
       case '6m': return 'Last 6 Months';
       case '1y': return 'Last 1 Year';
+      case 'lifetime': return 'Lifetime';
       case 'custom': return 'Custom Range';
     }
   };
@@ -478,7 +488,12 @@ const DailyMoneyFlow = () => {
           {/* Insights Section */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-lg font-semibold">Period Insights</CardTitle>
+              <div>
+                <CardTitle className="text-lg font-semibold">Period Insights</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {format(insightsData.periodStart, "dd MMM yyyy")} - {format(insightsData.periodEnd, "dd MMM yyyy")} ({insightsData.daysCount} days)
+                </p>
+              </div>
               <div className="flex items-center gap-2">
                 <Select value={insightsPeriod} onValueChange={(value) => setInsightsPeriod(value as InsightsPeriod)}>
                   <SelectTrigger className="w-[160px]">
@@ -489,6 +504,7 @@ const DailyMoneyFlow = () => {
                     <SelectItem value="3m">Last 3 Months</SelectItem>
                     <SelectItem value="6m">Last 6 Months</SelectItem>
                     <SelectItem value="1y">Last 1 Year</SelectItem>
+                    <SelectItem value="lifetime">Lifetime</SelectItem>
                     <SelectItem value="custom">Custom Range</SelectItem>
                   </SelectContent>
                 </Select>
