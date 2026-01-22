@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Download, Smartphone, Share, Plus, Check, Monitor, ArrowLeft } from "lucide-react";
+import { Download, Smartphone, Share, Plus, Check, Monitor, ArrowLeft, AlertTriangle, Copy, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -11,9 +12,11 @@ interface BeforeInstallPromptEvent extends Event {
 
 const Install = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isIOSSafari, setIsIOSSafari] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
@@ -23,7 +26,13 @@ const Install = () => {
     const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
     const isAndroidDevice = /android/.test(userAgent);
     
+    // Detect if user is in Safari on iOS (not Chrome, Firefox, etc.)
+    // Chrome on iOS includes "crios", Firefox includes "fxios", Edge includes "edgios"
+    const isSafariBrowser = !(/crios|fxios|edgios|opera|opr/.test(userAgent)) && /safari/.test(userAgent);
+    const isIOSSafariBrowser = isIOSDevice && isSafariBrowser;
+    
     setIsIOS(isIOSDevice);
+    setIsIOSSafari(isIOSSafariBrowser);
     setIsAndroid(isAndroidDevice);
 
     // Check if app is already installed (running in standalone mode)
@@ -65,6 +74,22 @@ const Install = () => {
       setIsInstalled(true);
     }
     setDeferredPrompt(null);
+  };
+
+  const copyUrlToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
+      toast({
+        title: "URL Copied!",
+        description: "Now open Safari and paste this URL",
+      });
+    } catch (err) {
+      toast({
+        title: "Copy failed",
+        description: "Please manually copy the URL from the address bar",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isStandalone) {
@@ -185,7 +210,44 @@ const Install = () => {
               </p>
             </CardContent>
           </Card>
+        ) : isIOS && !isIOSSafari ? (
+          /* iOS but NOT Safari - show Safari required message */
+          <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-5 w-5" />
+                Safari Required
+              </CardTitle>
+              <CardDescription className="text-amber-600 dark:text-amber-300">
+                On iPhone/iPad, apps can only be installed through Safari. Chrome and other browsers don't support this feature on iOS.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button onClick={copyUrlToClipboard} className="w-full" size="lg">
+                <Copy className="mr-2 h-5 w-5" />
+                Copy URL to Clipboard
+              </Button>
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-background p-4 space-y-3">
+                <p className="font-medium text-foreground">After copying:</p>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">1</span>
+                    Open the <strong>Safari</strong> browser
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">2</span>
+                    Paste the URL in the address bar
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">3</span>
+                    Follow the installation steps there
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         ) : isIOS ? (
+          /* iOS Safari - show installation instructions */
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -204,7 +266,7 @@ const Install = () => {
                 <div>
                   <p className="font-medium text-foreground">Tap the Share button</p>
                   <p className="text-sm text-muted-foreground">
-                    Look for the <Share className="inline h-4 w-4" /> icon at the bottom of Safari
+                    Look for the <Share className="inline h-4 w-4" /> icon at the <strong>bottom</strong> of Safari (or top on iPad)
                   </p>
                 </div>
               </div>
@@ -213,9 +275,12 @@ const Install = () => {
                   2
                 </div>
                 <div>
-                  <p className="font-medium text-foreground">Scroll down and tap "Add to Home Screen"</p>
+                  <p className="font-medium text-foreground">Scroll down in the menu</p>
                   <p className="text-sm text-muted-foreground">
-                    Look for the <Plus className="inline h-4 w-4" /> icon in the menu
+                    Find and tap <strong>"Add to Home Screen"</strong> <Plus className="inline h-4 w-4" />
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    ⚠️ On iOS 15, you may need to scroll down to see this option
                   </p>
                 </div>
               </div>
@@ -224,11 +289,21 @@ const Install = () => {
                   3
                 </div>
                 <div>
-                  <p className="font-medium text-foreground">Tap "Add" to confirm</p>
+                  <p className="font-medium text-foreground">Tap "Add" in the top right</p>
                   <p className="text-sm text-muted-foreground">
                     The app icon will appear on your home screen
                   </p>
                 </div>
+              </div>
+              
+              {/* Troubleshooting section */}
+              <div className="border-t pt-4 mt-4">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Don't see "Add to Home Screen"?</p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• Make sure you're not in Private Browsing mode</li>
+                  <li>• Try refreshing the page first</li>
+                  <li>• Ensure you're using Safari (not Chrome or another browser)</li>
+                </ul>
               </div>
             </CardContent>
           </Card>
