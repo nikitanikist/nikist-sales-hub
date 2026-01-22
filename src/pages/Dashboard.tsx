@@ -99,44 +99,53 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
             Welcome back! Here's an overview of your CRM activity.
           </p>
         </div>
-        <div className="hidden md:block">
+        <div className="w-full sm:w-auto">
           <AutomationStatusWidget />
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      
+      {/* Stats Cards - 2 columns on mobile, 4 on desktop */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
           <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 px-4 sm:px-6 pt-4 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium">{stat.title}</CardTitle>
               <stat.icon className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
+            <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+              <div className="text-lg sm:text-2xl font-bold">{stat.value}</div>
             </CardContent>
           </Card>
         ))}
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Leads by Status</CardTitle>
+        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
+          <CardTitle className="text-base sm:text-lg">Leads by Status</CardTitle>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+        <CardContent className="px-2 sm:px-6 pb-4 sm:pb-6">
+          <ResponsiveContainer width="100%" height={window.innerWidth < 640 ? 200 : 300}>
             <BarChart data={leadsByStatus}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="status" />
-              <YAxis />
+              <XAxis 
+                dataKey="status" 
+                tick={{ fontSize: window.innerWidth < 640 ? 10 : 12 }}
+                interval={0}
+                angle={window.innerWidth < 640 ? -45 : 0}
+                textAnchor={window.innerWidth < 640 ? "end" : "middle"}
+                height={window.innerWidth < 640 ? 60 : 30}
+              />
+              <YAxis tick={{ fontSize: 10 }} width={30} />
               <Tooltip />
-              <Bar dataKey="count" fill="hsl(var(--primary))" />
+              <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

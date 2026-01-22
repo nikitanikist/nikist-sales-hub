@@ -780,43 +780,41 @@ const CloserAssignedCalls = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/sales-closers")}>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+        <Button variant="ghost" size="icon" onClick={() => navigate("/sales-closers")} className="w-fit">
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">
             {statusFilter === 'converted' ? 'Converted Calls' : 
              statusFilter === 'not_converted' ? 'Not Converted Calls' : 
              statusFilter === 'reschedule' ? 'Rescheduled Calls' : 'Assigned Calls'}
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {closer?.full_name || "Loading..."}
           </p>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle>
+              <CardTitle className="text-base sm:text-lg">
                 {statusFilter === 'converted' ? 'All Converted Calls' : 
                  statusFilter === 'not_converted' ? 'All Not Converted Calls' : 
                  statusFilter === 'reschedule' ? 'All Rescheduled Calls' : 'All Assigned Calls'}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 {processedAppointments.length} calls found
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={handleRefresh}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button variant="outline" size="icon" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4 mt-4">
+          <div className="flex flex-col gap-3 mt-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -826,104 +824,108 @@ const CloserAssignedCalls = () => {
                 className="pl-10"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[220px]">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="scheduled">Scheduled</SelectItem>
-                <SelectItem value="converted">All Converted</SelectItem>
-                <SelectItem value="converted_beginner">Converted (Beginner)</SelectItem>
-                <SelectItem value="converted_intermediate">Converted (Intermediate)</SelectItem>
-                <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
-                <SelectItem value="booking_amount">Booking Amount</SelectItem>
-                <SelectItem value="not_converted">Not Converted</SelectItem>
-                <SelectItem value="not_decided">Not Decided</SelectItem>
-                <SelectItem value="so_so">So-So</SelectItem>
-                <SelectItem value="reschedule">Reschedule</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="refunded">Refunded</SelectItem>
-              </SelectContent>
-            </Select>
-            <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-[200px] justify-start text-left font-normal"
+            <div className="flex flex-wrap gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="converted">All Converted</SelectItem>
+                  <SelectItem value="converted_beginner">Converted (Beginner)</SelectItem>
+                  <SelectItem value="converted_intermediate">Converted (Intermediate)</SelectItem>
+                  <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
+                  <SelectItem value="booking_amount">Booking Amount</SelectItem>
+                  <SelectItem value="not_converted">Not Converted</SelectItem>
+                  <SelectItem value="not_decided">Not Decided</SelectItem>
+                  <SelectItem value="so_so">So-So</SelectItem>
+                  <SelectItem value="reschedule">Reschedule</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="refunded">Refunded</SelectItem>
+                </SelectContent>
+              </Select>
+              <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex-1 sm:flex-none sm:w-[180px] justify-start text-left font-normal"
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    <span className="truncate">
+                      {dateFilter === "custom" && customDate
+                        ? format(customDate, "PP")
+                        : dateFilter === "all"
+                        ? "All Dates"
+                        : dateFilter === "today"
+                        ? "Today"
+                        : dateFilter === "tomorrow"
+                        ? "Tomorrow"
+                        : dateFilter === "this_week"
+                        ? "This Week"
+                        : dateFilter === "future"
+                        ? "Future"
+                        : dateFilter === "past"
+                        ? "Past"
+                        : "Select"}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="w-auto p-0" 
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  collisionPadding={10}
+                  avoidCollisions={true}
                 >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {dateFilter === "custom" && customDate
-                    ? format(customDate, "PPP")
-                    : dateFilter === "all"
-                    ? "All Dates"
-                    : dateFilter === "today"
-                    ? "Today"
-                    : dateFilter === "tomorrow"
-                    ? "Tomorrow"
-                    : dateFilter === "this_week"
-                    ? "This Week"
-                    : dateFilter === "future"
-                    ? "Future Calls"
-                    : dateFilter === "past"
-                    ? "Past Calls"
-                    : "Select Date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent 
-                className="w-auto p-0" 
-                align="start"
-                side="bottom"
-                sideOffset={4}
-                collisionPadding={10}
-                avoidCollisions={true}
-              >
-                <div className="p-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { value: "all", label: "All" },
-                      { value: "today", label: "Today" },
-                      { value: "tomorrow", label: "Tomorrow" },
-                      { value: "this_week", label: "This Week" },
-                      { value: "future", label: "Future" },
-                      { value: "past", label: "Past" },
-                    ].map((option) => (
-                      <Button
-                        key={option.value}
-                        variant={dateFilter === option.value ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => {
-                          setDateFilter(option.value);
-                          setCustomDate(undefined);
+                  <div className="p-3 space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: "all", label: "All" },
+                        { value: "today", label: "Today" },
+                        { value: "tomorrow", label: "Tomorrow" },
+                        { value: "this_week", label: "This Week" },
+                        { value: "future", label: "Future" },
+                        { value: "past", label: "Past" },
+                      ].map((option) => (
+                        <Button
+                          key={option.value}
+                          variant={dateFilter === option.value ? "default" : "outline"}
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            setDateFilter(option.value);
+                            setCustomDate(undefined);
+                            setIsDatePopoverOpen(false);
+                          }}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="border-t pt-3">
+                      <p className="text-xs text-muted-foreground mb-2">Or select a specific date:</p>
+                      <CalendarComponent
+                        mode="single"
+                        selected={customDate}
+                        onSelect={(date) => {
+                          setCustomDate(date);
+                          if (date) {
+                            setDateFilter("custom");
+                          }
                           setIsDatePopoverOpen(false);
                         }}
-                      >
-                        {option.label}
-                      </Button>
-                    ))}
+                        className="rounded-md border pointer-events-auto"
+                      />
+                    </div>
                   </div>
-                  <div className="border-t pt-3">
-                    <p className="text-xs text-muted-foreground mb-2">Or select a specific date:</p>
-                    <CalendarComponent
-                      mode="single"
-                      selected={customDate}
-                      onSelect={(date) => {
-                        setCustomDate(date);
-                        if (date) {
-                          setDateFilter("custom");
-                        }
-                        setIsDatePopoverOpen(false);
-                      }}
-                      className="rounded-md border pointer-events-auto"
-                    />
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0 sm:px-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
