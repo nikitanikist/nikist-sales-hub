@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
@@ -29,7 +29,7 @@ interface MoneyFlowEntry {
   notes: string | null;
   created_by: string | null;
   created_at: string;
-  profiles?: { full_name: string } | null;
+  creator_name?: string | null;
 }
 
 const DailyMoneyFlow = () => {
@@ -43,15 +43,60 @@ const DailyMoneyFlow = () => {
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["daily-money-flow"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      // First fetch money flow entries
+      const { data: moneyFlowData, error: moneyFlowError } = await supabase
         .from("daily_money_flow")
-        .select("*, profiles:created_by(full_name)")
+        .select("*")
         .order("date", { ascending: false });
 
-      if (error) throw error;
-      return data as MoneyFlowEntry[];
+      if (moneyFlowError) throw moneyFlowError;
+
+      // Get unique creator IDs
+      const creatorIds = [...new Set(moneyFlowData?.map(e => e.created_by).filter(Boolean))];
+      
+      // Fetch profiles for creators
+      let profilesMap: Record<string, string> = {};
+      if (creatorIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", creatorIds);
+        
+        if (profilesData) {
+          profilesMap = Object.fromEntries(profilesData.map(p => [p.id, p.full_name]));
+        }
+      }
+
+      // Merge creator names
+      return (moneyFlowData || []).map(entry => ({
+        ...entry,
+        creator_name: entry.created_by ? profilesMap[entry.created_by] : null
+      })) as MoneyFlowEntry[];
     },
   });
+
+  // Real-time subscription for live updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('daily-money-flow-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'daily_money_flow'
+        },
+        () => {
+          // Invalidate and refetch when any change occurs
+          queryClient.invalidateQueries({ queryKey: ["daily-money-flow"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -304,7 +349,7 @@ const DailyMoneyFlow = () => {
                     <TableCell className="text-right">{formatCurrency(Number(entry.total_revenue))}</TableCell>
                     <TableCell className="text-right">{formatCurrency(Number(entry.cash_collected))}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{entry.notes || "-"}</TableCell>
-                    <TableCell>{entry.profiles?.full_name || "-"}</TableCell>
+                    <TableCell>{entry.creator_name || "-"}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
