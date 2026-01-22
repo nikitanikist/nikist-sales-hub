@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear, subYears, getDay, startOfWeek, endOfWeek } from "date-fns";
+import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear, subYears, getDay, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, IndianRupee, TrendingUp, TrendingDown, Calendar, Trash2, Pencil, Upload, Trophy, ChevronLeft, ChevronRight, Target, Percent, Award, Star, Zap, BarChart3 } from "lucide-react";
@@ -38,7 +38,7 @@ interface MoneyFlowEntry {
   creator_name?: string | null;
 }
 
-type InsightsPeriod = 'yesterday' | 'thisMonth' | '1m' | '3m' | '6m' | '1y' | 'lifetime' | 'custom';
+type InsightsPeriod = 'today' | 'yesterday' | 'thisMonth' | '1m' | '3m' | '6m' | '1y' | 'lifetime' | 'custom';
 
 const DailyMoneyFlow = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -210,50 +210,59 @@ const DailyMoneyFlow = () => {
     let periodEnd: Date = now;
 
     switch (insightsPeriod) {
+      case 'today':
+        // Just today (single day)
+        periodStart = startOfDay(now);
+        periodEnd = endOfDay(now);
+        break;
       case 'yesterday':
-        // Just yesterday (single day)
+        // Just yesterday (single day) - use startOfDay/endOfDay for proper range
         const yesterdayDate = subDays(now, 1);
-        periodStart = yesterdayDate;
-        periodEnd = yesterdayDate;
+        periodStart = startOfDay(yesterdayDate);
+        periodEnd = endOfDay(yesterdayDate);
         break;
       case 'thisMonth':
         // From 1st of current month to today
-        periodStart = startOfMonth(now);
-        periodEnd = now;
+        periodStart = startOfDay(startOfMonth(now));
+        periodEnd = endOfDay(now);
         break;
       case '1m':
-        // Previous calendar month (e.g., if today is Jan 22, show Dec 1 - Dec 31)
+        // Previous calendar month (e.g., if today is Jan 23, show Dec 1 - Dec 31)
         const lastMonth = subMonths(now, 1);
-        periodStart = startOfMonth(lastMonth);
-        periodEnd = endOfMonth(lastMonth);
+        periodStart = startOfDay(startOfMonth(lastMonth));
+        periodEnd = endOfDay(endOfMonth(lastMonth));
         break;
       case '3m':
-        periodStart = subMonths(now, 3);
+        periodStart = startOfDay(subMonths(now, 3));
+        periodEnd = endOfDay(now);
         break;
       case '6m':
-        periodStart = subMonths(now, 6);
+        periodStart = startOfDay(subMonths(now, 6));
+        periodEnd = endOfDay(now);
         break;
       case '1y':
-        // Previous calendar year (e.g., if in 2025, show Jan 1 - Dec 31, 2024)
+        // Previous calendar year (e.g., if in 2026, show Jan 1 - Dec 31, 2025)
         const lastYear = subYears(now, 1);
-        periodStart = startOfYear(lastYear);
-        periodEnd = endOfYear(lastYear);
+        periodStart = startOfDay(startOfYear(lastYear));
+        periodEnd = endOfDay(endOfYear(lastYear));
         break;
       case 'lifetime':
         // Use the earliest entry date as start
         if (entries.length > 0) {
           const dates = entries.map(e => new Date(e.date).getTime());
-          periodStart = new Date(Math.min(...dates));
+          periodStart = startOfDay(new Date(Math.min(...dates)));
         } else {
-          periodStart = subMonths(now, 12);
+          periodStart = startOfDay(subMonths(now, 12));
         }
+        periodEnd = endOfDay(now);
         break;
       case 'custom':
-        periodStart = customDateRange.from || subMonths(now, 3);
-        periodEnd = customDateRange.to || now;
+        periodStart = startOfDay(customDateRange.from || subMonths(now, 3));
+        periodEnd = endOfDay(customDateRange.to || now);
         break;
       default:
-        periodStart = subMonths(now, 3);
+        periodStart = startOfDay(subMonths(now, 3));
+        periodEnd = endOfDay(now);
     }
 
     const filteredEntries = entries.filter((e) => {
@@ -415,6 +424,7 @@ const DailyMoneyFlow = () => {
 
   const getPeriodLabel = (period: InsightsPeriod) => {
     switch (period) {
+      case 'today': return 'Today';
       case 'yesterday': return 'Yesterday';
       case 'thisMonth': return 'This Month';
       case '1m': return 'Last Month';
@@ -519,6 +529,7 @@ const DailyMoneyFlow = () => {
                     <SelectValue placeholder="Select period" />
                   </SelectTrigger>
                   <SelectContent className="z-50 bg-popover">
+                    <SelectItem value="today">Today</SelectItem>
                     <SelectItem value="yesterday">Yesterday</SelectItem>
                     <SelectItem value="thisMonth">This Month</SelectItem>
                     <SelectItem value="1m">Last Month</SelectItem>
