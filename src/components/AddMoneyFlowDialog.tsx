@@ -145,34 +145,34 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
         <DialogHeader>
-          <DialogTitle>{editingEntry ? "Edit Entry" : "Add Daily Data"}</DialogTitle>
+          <DialogTitle className="text-lg sm:text-xl">{editingEntry ? "Edit Entry" : "Add Daily Data"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
           {/* Date Selection */}
           <div className="space-y-3">
-            <Label>Select Date</Label>
+            <Label className="text-sm sm:text-base">Select Date</Label>
             <RadioGroup
               value={dateOption}
               onValueChange={(value) => setDateOption(value as "today" | "yesterday" | "custom")}
-              className="flex gap-4"
+              className="flex flex-wrap gap-3 sm:gap-4"
             >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="today" id="today" />
-                <Label htmlFor="today" className="cursor-pointer font-normal">
+              <div className="flex items-center space-x-2 min-w-[80px]">
+                <RadioGroupItem value="today" id="today" className="h-5 w-5" />
+                <Label htmlFor="today" className="cursor-pointer font-normal text-sm sm:text-base">
                   Today
                 </Label>
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="yesterday" id="yesterday" />
-                <Label htmlFor="yesterday" className="cursor-pointer font-normal">
+              <div className="flex items-center space-x-2 min-w-[80px]">
+                <RadioGroupItem value="yesterday" id="yesterday" className="h-5 w-5" />
+                <Label htmlFor="yesterday" className="cursor-pointer font-normal text-sm sm:text-base">
                   Yesterday
                 </Label>
               </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="custom" id="custom" />
-                <Label htmlFor="custom" className="cursor-pointer font-normal">
+              <div className="flex items-center space-x-2 min-w-[80px]">
+                <RadioGroupItem value="custom" id="custom" className="h-5 w-5" />
+                <Label htmlFor="custom" className="cursor-pointer font-normal text-sm sm:text-base">
                   Custom
                 </Label>
               </div>
@@ -184,7 +184,7 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal",
+                      "w-full justify-start text-left font-normal h-11 sm:h-10",
                       !customDate && "text-muted-foreground"
                     )}
                   >
@@ -192,7 +192,7 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
                     {customDate ? format(customDate, "dd MMM yyyy") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0 z-50" align="start">
                   <Calendar
                     mode="single"
                     selected={customDate}
@@ -207,21 +207,22 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
               </Popover>
             )}
 
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Selected: {format(new Date(getSelectedDate()), "dd MMM yyyy")}
             </p>
           </div>
 
           {/* Total Revenue */}
           <div className="space-y-2">
-            <Label htmlFor="revenue">Total Revenue (₹)</Label>
+            <Label htmlFor="revenue" className="text-sm sm:text-base">Total Revenue (₹)</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
               <Input
                 id="revenue"
                 type="number"
+                inputMode="numeric"
                 placeholder="0"
-                className="pl-8"
+                className="pl-8 h-11 sm:h-10 text-base"
                 value={totalRevenue}
                 onChange={(e) => setTotalRevenue(e.target.value)}
               />
@@ -230,14 +231,15 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
 
           {/* Cash Collected */}
           <div className="space-y-2">
-            <Label htmlFor="cash">Cash Collected (₹)</Label>
+            <Label htmlFor="cash" className="text-sm sm:text-base">Cash Collected (₹)</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
               <Input
                 id="cash"
                 type="number"
+                inputMode="numeric"
                 placeholder="0"
-                className="pl-8"
+                className="pl-8 h-11 sm:h-10 text-base"
                 value={cashCollected}
                 onChange={(e) => setCashCollected(e.target.value)}
               />
@@ -246,22 +248,23 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Label htmlFor="notes" className="text-sm sm:text-base">Notes (Optional)</Label>
             <Textarea
               id="notes"
               placeholder="Any additional notes..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
+              className="text-base"
             />
           </div>
 
           {/* Submit Button */}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 sm:pt-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-11 sm:h-10">
               Cancel
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending} className="h-11 sm:h-10">
               {mutation.isPending ? "Saving..." : editingEntry ? "Update" : "Save Entry"}
             </Button>
           </div>
