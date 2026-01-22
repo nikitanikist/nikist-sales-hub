@@ -905,41 +905,41 @@ const Batches = () => {
   // Batch detail view
   if (selectedBatch) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-4">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           {/* Left side: Back button + Batch info */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Button variant="ghost" size="icon" onClick={handleBackToBatches}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">{selectedBatch.name}</h1>
-              <p className="text-muted-foreground">
-                Start Date: {format(new Date(selectedBatch.start_date), "dd MMM yyyy")} • 
+              <h1 className="text-lg sm:text-2xl font-bold">{selectedBatch.name}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Start: {format(new Date(selectedBatch.start_date), "dd MMM yyyy")} • 
                 {selectedBatch.is_active ? " Active" : " Inactive"}
               </p>
             </div>
           </div>
           
-          {/* Right side: Add Student Button + Compact Students Enrolled Card */}
-          <div className="flex items-center gap-3">
+          {/* Right side: Add Student Button + Students Enrolled Card */}
+          <div className="flex items-center gap-2 sm:gap-3 justify-end">
             {(isAdmin || isManager) && (
-              <Button onClick={() => setIsAddStudentOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Student
+              <Button onClick={() => setIsAddStudentOpen(true)} size="sm" className="sm:h-10">
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Add Student</span>
               </Button>
             )}
             <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="py-3 px-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-primary/10">
-                    <Users className="h-4 w-4 text-primary" />
+              <CardContent className="py-2 sm:py-3 px-3 sm:px-4">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="p-1.5 sm:p-2 rounded-full bg-primary/10">
+                    <Users className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Students Enrolled</p>
-                    <p className="text-xl font-bold">
+                    <p className="text-xs text-muted-foreground">Students</p>
+                    <p className="text-base sm:text-xl font-bold">
                       {activeFilterCount > 0 
-                        ? `${filteredStudents.length} of ${batchStudents?.length || 0}` 
+                        ? `${filteredStudents.length}/${batchStudents?.length || 0}` 
                         : batchStudents?.length || 0}
                     </p>
                   </div>
@@ -2184,77 +2184,77 @@ const Batches = () => {
 
   // Batches list view
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
-            <GraduationCap className="h-6 w-6 text-primary" />
+            <GraduationCap className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">Batches</h1>
-            <p className="text-muted-foreground">Manage course batches and student access</p>
+            <h1 className="text-xl sm:text-2xl font-bold">Batches</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">Manage course batches and student access</p>
           </div>
         </div>
         {!isManager && !isCloser && (
           <Dialog open={isCreateOpen || !!editingBatch} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
             <DialogTrigger asChild>
-              <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-              Add Batch
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingBatch ? "Edit Batch" : "Create New Batch"}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Batch Name <span className="text-red-500">*</span></Label>
-                <Input
-                  placeholder="e.g., Batch 1 - Jan 3"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Start Date <span className="text-red-500">*</span></Label>
-                <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn("w-full justify-start text-left font-normal", !formStartDate && "text-muted-foreground")}
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {formStartDate ? format(formStartDate, "dd MMM yyyy") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={formStartDate}
-                      onSelect={(date) => { setFormStartDate(date); setIsDatePopoverOpen(false); }}
-                      initialFocus
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="flex items-center justify-between">
-                <Label>Active</Label>
-                <Switch checked={formIsActive} onCheckedChange={setFormIsActive} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={handleCloseForm}>Cancel</Button>
-              <Button 
-                onClick={handleSubmit} 
-                disabled={createMutation.isPending || updateMutation.isPending}
-              >
-                {(createMutation.isPending || updateMutation.isPending) ? "Saving..." : editingBatch ? "Update" : "Create"}
+              <Button onClick={() => setIsCreateOpen(true)} size="sm" className="sm:h-10 w-fit">
+                <Plus className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Add Batch</span>
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingBatch ? "Edit Batch" : "Create New Batch"}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Batch Name <span className="text-red-500">*</span></Label>
+                  <Input
+                    placeholder="e.g., Batch 1 - Jan 3"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Start Date <span className="text-red-500">*</span></Label>
+                  <Popover open={isDatePopoverOpen} onOpenChange={setIsDatePopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn("w-full justify-start text-left font-normal", !formStartDate && "text-muted-foreground")}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {formStartDate ? format(formStartDate, "dd MMM yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={formStartDate}
+                        onSelect={(date) => { setFormStartDate(date); setIsDatePopoverOpen(false); }}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label>Active</Label>
+                  <Switch checked={formIsActive} onCheckedChange={setFormIsActive} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={handleCloseForm}>Cancel</Button>
+                <Button 
+                  onClick={handleSubmit} 
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  {(createMutation.isPending || updateMutation.isPending) ? "Saving..." : editingBatch ? "Update" : "Create"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 

@@ -187,11 +187,11 @@ const SalesClosers = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sales Closers</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Sales Closers</h1>
+          <p className="text-sm text-muted-foreground mt-1 sm:mt-2">
             {isCloser && !isAdmin 
               ? "View your performance metrics" 
               : "View and manage sales team performance metrics"
@@ -258,19 +258,20 @@ const SalesClosers = () => {
 
       {/* Summary Cards - Only for admins and managers */}
       {(isAdmin || isManager) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card 
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
             onClick={() => navigate("/sales-closers/all-calls")}
           >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                All Assigned Calls
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+                <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">All Assigned Calls</span>
+                <span className="sm:hidden">Assigned</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{totals.assigned}</div>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-blue-600">{totals.assigned}</div>
             </CardContent>
           </Card>
 
@@ -278,14 +279,15 @@ const SalesClosers = () => {
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-green-500"
             onClick={() => navigate("/sales-closers/all-calls?status=converted")}
           >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <CheckCircle className="h-4 w-4" />
-                All Converted Calls
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">All Converted Calls</span>
+                <span className="sm:hidden">Converted</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{totals.converted}</div>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-green-600">{totals.converted}</div>
             </CardContent>
           </Card>
 
@@ -293,14 +295,15 @@ const SalesClosers = () => {
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-red-500"
             onClick={() => navigate("/sales-closers/all-calls?status=not_converted")}
           >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <XCircle className="h-4 w-4" />
-                All Not Converted Calls
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+                <XCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Not Converted</span>
+                <span className="sm:hidden">Not Conv.</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{totals.not_converted}</div>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-red-600">{totals.not_converted}</div>
             </CardContent>
           </Card>
 
@@ -308,27 +311,28 @@ const SalesClosers = () => {
             className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-purple-500"
             onClick={() => navigate("/sales-closers/all-calls?status=reschedule")}
           >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <RotateCcw className="h-4 w-4" />
-                All Rescheduled Calls
+            <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+                <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">All Rescheduled</span>
+                <span className="sm:hidden">Resch.</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{totals.rescheduled}</div>
+            <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+              <div className="text-xl sm:text-2xl font-bold text-purple-600">{totals.rescheduled}</div>
             </CardContent>
           </Card>
         </div>
       )}
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <CardTitle>
+              <CardTitle className="text-base sm:text-lg">
                 {isCloser && !isAdmin ? "Your Performance" : "Closers Performance"}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 {isCloser && !isAdmin 
                   ? "Track your sales metrics and performance" 
                   : "Track sales team metrics and performance"
@@ -360,90 +364,139 @@ const SalesClosers = () => {
             </div>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0 sm:px-6">
           {isLoading || roleLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading closers...</div>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead className="text-right">Assigned</TableHead>
-                    <TableHead className="text-right">Converted</TableHead>
-                    <TableHead className="text-right">Not Converted</TableHead>
-                    <TableHead className="text-right">Rescheduled</TableHead>
-                    {!isManager && <TableHead className="text-right">Earning Till Now</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredClosers && filteredClosers.length > 0 ? (
-                    filteredClosers.map((closer) => (
-                      <TableRow key={closer.id}>
-                        <TableCell className="font-medium">{closer.full_name}</TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="text-sm text-blue-600">{closer.email}</div>
-                            {closer.phone && (
-                              <div className="text-sm text-blue-600">{closer.phone}</div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link
-                            to={`/sales-closers/${closer.id}/calls`}
-                            className="font-medium text-primary hover:underline"
-                          >
-                            {closer.assigned}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link
-                            to={`/sales-closers/${closer.id}/calls?status=converted`}
-                            className="font-medium text-green-600 hover:underline"
-                          >
-                            {closer.converted}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link
-                            to={`/sales-closers/${closer.id}/calls?status=not_converted`}
-                            className="font-medium text-red-600 hover:underline"
-                          >
-                            {closer.not_converted}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link
-                            to={`/sales-closers/${closer.id}/calls?status=reschedule`}
-                            className="font-medium text-purple-600 hover:underline"
-                          >
-                            {closer.rescheduled}
-                          </Link>
-                        </TableCell>
-                        {!isManager && (
-                          <TableCell className="text-right font-semibold">
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead className="text-right">Assigned</TableHead>
+                      <TableHead className="text-right">Converted</TableHead>
+                      <TableHead className="text-right">Not Converted</TableHead>
+                      <TableHead className="text-right">Rescheduled</TableHead>
+                      {!isManager && <TableHead className="text-right">Earning Till Now</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredClosers && filteredClosers.length > 0 ? (
+                      filteredClosers.map((closer) => (
+                        <TableRow key={closer.id}>
+                          <TableCell className="font-medium">{closer.full_name}</TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="text-sm text-blue-600">{closer.email}</div>
+                              {closer.phone && (
+                                <div className="text-sm text-blue-600">{closer.phone}</div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
                             <Link
-                              to={`/sales-closers/${closer.id}/calls?status=converted`}
-                              className="text-primary hover:underline"
+                              to={`/sales-closers/${closer.id}/calls`}
+                              className="font-medium text-primary hover:underline"
                             >
-                              ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
+                              {closer.assigned}
                             </Link>
                           </TableCell>
-                        )}
+                          <TableCell className="text-right">
+                            <Link
+                              to={`/sales-closers/${closer.id}/calls?status=converted`}
+                              className="font-medium text-green-600 hover:underline"
+                            >
+                              {closer.converted}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Link
+                              to={`/sales-closers/${closer.id}/calls?status=not_converted`}
+                              className="font-medium text-red-600 hover:underline"
+                            >
+                              {closer.not_converted}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Link
+                              to={`/sales-closers/${closer.id}/calls?status=reschedule`}
+                              className="font-medium text-purple-600 hover:underline"
+                            >
+                              {closer.rescheduled}
+                            </Link>
+                          </TableCell>
+                          {!isManager && (
+                            <TableCell className="text-right font-semibold">
+                              <Link
+                                to={`/sales-closers/${closer.id}/calls?status=converted`}
+                                className="text-primary hover:underline"
+                              >
+                                ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
+                              </Link>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={isManager ? 6 : 7} className="text-center py-8 text-muted-foreground">
+                          No sales closers found
+                        </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={isManager ? 6 : 7} className="text-center py-8 text-muted-foreground">
-                        No sales closers found
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="sm:hidden space-y-3 px-4">
+                {filteredClosers && filteredClosers.length > 0 ? (
+                  filteredClosers.map((closer) => (
+                    <div key={closer.id} className="p-4 rounded-lg border bg-card space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium">{closer.full_name}</div>
+                          <div className="text-xs text-blue-600 truncate max-w-[180px]">{closer.email}</div>
+                        </div>
+                        {!isManager && (
+                          <Link
+                            to={`/sales-closers/${closer.id}/calls?status=converted`}
+                            className="text-sm font-semibold text-primary hover:underline"
+                          >
+                            ₹{(closer.earnings ?? 0).toLocaleString("en-IN")}
+                          </Link>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-center text-sm">
+                        <Link to={`/sales-closers/${closer.id}/calls`} className="block">
+                          <div className="text-xs text-muted-foreground">Assigned</div>
+                          <div className="font-medium text-primary">{closer.assigned}</div>
+                        </Link>
+                        <Link to={`/sales-closers/${closer.id}/calls?status=converted`} className="block">
+                          <div className="text-xs text-muted-foreground">Conv.</div>
+                          <div className="font-medium text-green-600">{closer.converted}</div>
+                        </Link>
+                        <Link to={`/sales-closers/${closer.id}/calls?status=not_converted`} className="block">
+                          <div className="text-xs text-muted-foreground">Not Conv.</div>
+                          <div className="font-medium text-red-600">{closer.not_converted}</div>
+                        </Link>
+                        <Link to={`/sales-closers/${closer.id}/calls?status=reschedule`} className="block">
+                          <div className="text-xs text-muted-foreground">Resch.</div>
+                          <div className="font-medium text-purple-600">{closer.rescheduled}</div>
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No sales closers found
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -225,13 +225,13 @@ const Calls = () => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">1:1 Call Schedule</h1>
+    <div className="space-y-4 sm:space-y-6">
+      <h1 className="text-xl sm:text-3xl font-bold">1:1 Call Schedule</h1>
 
       {/* Date Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-2 flex-wrap">
+        <CardContent className="pt-4 sm:pt-6">
+          <div className="grid grid-cols-2 sm:flex gap-2 sm:flex-wrap">
             <Button
               variant={dateFilter === 'yesterday' ? 'default' : 'outline'}
               onClick={() => handleDateFilterChange('yesterday')}
@@ -289,7 +289,7 @@ const Calls = () => {
 
       {/* Closer Cards - Hidden for Managers */}
       {!isManager && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 overflow-x-auto">
           {/* Show All Closers Card */}
           <Card 
             className={cn(
@@ -421,10 +421,10 @@ const Calls = () => {
 
       {/* Appointments Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Appointments for {format(new Date(selectedDate), 'MMMM dd, yyyy')}</CardTitle>
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="text-base sm:text-lg">Appointments for {format(new Date(selectedDate), 'MMM dd, yyyy')}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0 sm:px-6">
           {isLoading || roleLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : !appointments || appointments.length === 0 ? (
@@ -432,57 +432,107 @@ const Calls = () => {
               No appointments scheduled for this date
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Closer</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Offer Amount</TableHead>
-                    <TableHead>Cash Collection</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {appointments
-                    .filter(apt => selectedCloserId ? apt.closer_id === selectedCloserId : true)
-                    .map((appointment) => {
-                      const lead = Array.isArray(appointment.lead) ? appointment.lead[0] : appointment.lead;
-                      const closer = Array.isArray(appointment.closer) ? appointment.closer[0] : appointment.closer;
-                      return (
-                        <TableRow key={appointment.id}>
-                          <TableCell className="font-medium">
-                            <div>{lead?.contact_name || 'N/A'}</div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">{lead?.email || 'N/A'}</div>
-                            <div className="text-sm text-muted-foreground">{lead?.phone || '-'}</div>
-                          </TableCell>
-                          <TableCell>{format(new Date(appointment.scheduled_date), 'dd-MM-yyyy')}</TableCell>
-                          <TableCell>
-                            {format(parse(appointment.scheduled_time.substring(0, 5), 'HH:mm', new Date()), 'h:mm a')}
-                          </TableCell>
-                          <TableCell>{closer?.full_name || 'N/A'}</TableCell>
-                          <TableCell>
-                            <Badge className={cn("text-white", getStatusColor(appointment.status))}>
-                              {appointment.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            ₹{(appointment.offer_amount || 0).toLocaleString('en-IN')}
-                          </TableCell>
-                          <TableCell>
-                            ₹{(appointment.cash_received || 0).toLocaleString('en-IN')}
-                          </TableCell>
-                        </TableRow>
-                      );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Closer</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Offer Amount</TableHead>
+                      <TableHead>Cash Collection</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {appointments
+                      .filter(apt => selectedCloserId ? apt.closer_id === selectedCloserId : true)
+                      .map((appointment) => {
+                        const lead = Array.isArray(appointment.lead) ? appointment.lead[0] : appointment.lead;
+                        const closer = Array.isArray(appointment.closer) ? appointment.closer[0] : appointment.closer;
+                        return (
+                          <TableRow key={appointment.id}>
+                            <TableCell className="font-medium">
+                              <div>{lead?.contact_name || 'N/A'}</div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">{lead?.email || 'N/A'}</div>
+                              <div className="text-sm text-muted-foreground">{lead?.phone || '-'}</div>
+                            </TableCell>
+                            <TableCell>{format(new Date(appointment.scheduled_date), 'dd-MM-yyyy')}</TableCell>
+                            <TableCell>
+                              {format(parse(appointment.scheduled_time.substring(0, 5), 'HH:mm', new Date()), 'h:mm a')}
+                            </TableCell>
+                            <TableCell>{closer?.full_name || 'N/A'}</TableCell>
+                            <TableCell>
+                              <Badge className={cn("text-white", getStatusColor(appointment.status))}>
+                                {appointment.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              ₹{(appointment.offer_amount || 0).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell>
+                              ₹{(appointment.cash_received || 0).toLocaleString('en-IN')}
+                            </TableCell>
+                          </TableRow>
+                        );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="sm:hidden space-y-3 px-4">
+                {appointments
+                  .filter(apt => selectedCloserId ? apt.closer_id === selectedCloserId : true)
+                  .map((appointment) => {
+                    const lead = Array.isArray(appointment.lead) ? appointment.lead[0] : appointment.lead;
+                    const closer = Array.isArray(appointment.closer) ? appointment.closer[0] : appointment.closer;
+                    return (
+                      <div key={appointment.id} className="p-4 rounded-lg border bg-card space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium">{lead?.contact_name || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground">{closer?.full_name || 'N/A'}</div>
+                          </div>
+                          <Badge className={cn("text-white text-xs", getStatusColor(appointment.status))}>
+                            {appointment.status}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-xs text-muted-foreground">Date</span>
+                            <div>{format(new Date(appointment.scheduled_date), 'dd-MM-yyyy')}</div>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground">Time</span>
+                            <div>{format(parse(appointment.scheduled_time.substring(0, 5), 'HH:mm', new Date()), 'h:mm a')}</div>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground">Offer</span>
+                            <div className="font-medium">₹{(appointment.offer_amount || 0).toLocaleString('en-IN')}</div>
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground">Cash</span>
+                            <div className="font-medium text-green-600">₹{(appointment.cash_received || 0).toLocaleString('en-IN')}</div>
+                          </div>
+                        </div>
+                        {lead?.email && (
+                          <div className="text-xs text-blue-600 truncate">{lead.email}</div>
+                        )}
+                        {lead?.phone && (
+                          <div className="text-xs text-blue-600">{lead.phone}</div>
+                        )}
+                      </div>
+                    );
+                })}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

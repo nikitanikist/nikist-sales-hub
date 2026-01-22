@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar, Upload, RotateCcw } from "lucide-react";
+import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar, Upload, RotateCcw, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -965,18 +965,18 @@ const Leads = () => {
   const paginatedAssignments = groupedAssignmentsArray.slice(startIndex, endIndex);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Customer Count Card */}
       <Card className="w-fit">
-        <CardContent className="py-3 px-4 flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Users className="h-5 w-5 text-primary" />
+        <CardContent className="py-2 sm:py-3 px-3 sm:px-4 flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
+            <Users className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               {hasActiveFilters ? "Filtered Customers" : "Total Customers"}
             </p>
-            <p className="text-2xl font-semibold">
+            <p className="text-xl sm:text-2xl font-semibold">
               {hasActiveFilters ? groupedAssignmentsArray.length : (leadsCount ?? 0)}
             </p>
           </div>
@@ -984,9 +984,9 @@ const Leads = () => {
       </Card>
 
       {/* Header with Search */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1 max-w-md">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by name, phone or email"
@@ -995,40 +995,58 @@ const Leads = () => {
               onChange={(e) => handleSearchChange(e.target.value)}
             />
           </div>
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={() => setIsFilterOpen(true)}
-            className="relative"
-          >
-            <Filter className="h-4 w-4" />
-            {hasActiveFilters && (
-              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-primary rounded-full" />
-            )}
-          </Button>
-          <Button variant="outline" size="icon" onClick={() => {
-            queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-            queryClient.invalidateQueries({ queryKey: ["all-leads"] });
-          }}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          {isAdmin && (
-            <Button variant="outline" onClick={() => setIsImportOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
-              Import
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => setIsFilterOpen(true)}
+              className="relative"
+            >
+              <Filter className="h-4 w-4" />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-primary rounded-full" />
+              )}
             </Button>
-          )}
-          {!isManager && (
-            <Button onClick={() => {
-              setEditingLead(null);
-              setSelectedWorkshops([]);
-              setSelectedProducts([]);
-              setConnectWorkshopFunnel(false);
-              setIsOpen(true);
+            <Button variant="outline" size="icon" onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+              queryClient.invalidateQueries({ queryKey: ["all-leads"] });
             }}>
-              Add Customer
+              <RefreshCw className="h-4 w-4" />
             </Button>
-          )}
+            {isAdmin && (
+              <Button variant="outline" onClick={() => setIsImportOpen(true)} className="hidden sm:flex">
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+            )}
+            {isAdmin && (
+              <Button variant="outline" size="icon" onClick={() => setIsImportOpen(true)} className="sm:hidden">
+                <Upload className="h-4 w-4" />
+              </Button>
+            )}
+            {!isManager && (
+              <Button onClick={() => {
+                setEditingLead(null);
+                setSelectedWorkshops([]);
+                setSelectedProducts([]);
+                setConnectWorkshopFunnel(false);
+                setIsOpen(true);
+              }} className="hidden sm:flex">
+                Add Customer
+              </Button>
+            )}
+            {!isManager && (
+              <Button onClick={() => {
+                setEditingLead(null);
+                setSelectedWorkshops([]);
+                setSelectedProducts([]);
+                setConnectWorkshopFunnel(false);
+                setIsOpen(true);
+              }} size="icon" className="sm:hidden">
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1038,7 +1056,10 @@ const Leads = () => {
           {isLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : (
-            <Table>
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden sm:block">
+                <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Customer</TableHead>
@@ -1337,6 +1358,109 @@ const Leads = () => {
                 })}
               </TableBody>
             </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="sm:hidden space-y-3 p-4">
+                {paginatedAssignments.map((group: any) => {
+                  const lead = group.lead;
+                  
+                  if (group.assignments.length === 0) {
+                    return (
+                      <div key={lead.id} className="p-4 rounded-lg border bg-card space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div className="font-medium">{lead.contact_name}</div>
+                          <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
+                            ACTIVE
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-blue-600 space-y-0.5">
+                          {lead.email && <div className="truncate">{lead.email}</div>}
+                          {lead.phone && <div>{formatPhoneDisplay(lead.phone, lead.country).display}</div>}
+                        </div>
+                        <div className="flex justify-between items-center text-xs text-muted-foreground pt-1">
+                          <span>{lead.assigned_profile?.full_name || "-"}</span>
+                          <span>{lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : "-"}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return group.assignments.map((assignment: any) => (
+                    <div key={assignment.id} className="p-4 rounded-lg border bg-card space-y-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{lead.contact_name}</div>
+                          {assignment.workshop?.title && (
+                            <div className="text-xs text-muted-foreground truncate">{assignment.workshop.title}</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {assignment.is_refunded ? (
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/20 text-xs">
+                              REFUNDED
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/20 text-xs">
+                              ACTIVE
+                            </Badge>
+                          )}
+                          {!isManager && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-40 bg-background border shadow-lg z-50">
+                                <DropdownMenuItem
+                                  className="cursor-pointer text-sm"
+                                  onClick={() => {
+                                    setEditingLead(lead);
+                                    const workshopIds = group.assignments.filter((a: any) => a.workshop_id).map((a: any) => a.workshop_id);
+                                    const productIds = group.assignments.filter((a: any) => a.product_id).map((a: any) => a.product_id);
+                                    setSelectedWorkshops(workshopIds);
+                                    setSelectedProducts(productIds);
+                                    setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
+                                    setIsOpen(true);
+                                  }}
+                                >
+                                  <Edit className="mr-2 h-3 w-3" />
+                                  Edit
+                                </DropdownMenuItem>
+                                {!assignment.is_refunded && !assignment.id?.startsWith('consolidated-') && (
+                                  <DropdownMenuItem
+                                    className="text-amber-600 cursor-pointer text-sm"
+                                    onClick={() => handleMarkAsRefund(lead, assignment)}
+                                  >
+                                    <RotateCcw className="mr-2 h-3 w-3" />
+                                    Mark Refund
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-xs text-blue-600 space-y-0.5">
+                        {lead.email && <div className="truncate">{lead.email}</div>}
+                        {lead.phone && <div>{formatPhoneDisplay(lead.phone, lead.country).display}</div>}
+                      </div>
+                      {assignment.product && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">{assignment.product.product_name}</span>
+                          <span className="font-medium text-primary">₹{assignment.product.price?.toLocaleString('en-IN')}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center text-xs text-muted-foreground pt-1 border-t">
+                        <span>{lead.assigned_profile?.full_name || "-"}</span>
+                        <span>{lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : "-"}</span>
+                      </div>
+                    </div>
+                  ));
+                })}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
