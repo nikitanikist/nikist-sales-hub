@@ -115,20 +115,20 @@ const Sales = () => {
   const totalRevenue = sales?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Sales</h1>
-          <p className="text-muted-foreground">Track your closed deals and revenue</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Sales</h1>
+          <p className="text-sm text-muted-foreground">Track your closed deals and revenue</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingSale(null)}>
+            <Button onClick={() => setEditingSale(null)} className="w-full sm:w-auto h-11 sm:h-10">
               <Plus className="mr-2 h-4 w-4" />
               Record Sale
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingSale ? "Edit Sale" : "Record New Sale"}</DialogTitle>
             </DialogHeader>
@@ -137,7 +137,7 @@ const Sales = () => {
                 <div className="space-y-2">
                   <Label htmlFor="lead_id">Lead</Label>
                   <Select name="lead_id" defaultValue={editingSale?.lead_id} required>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 sm:h-10">
                       <SelectValue placeholder="Select a lead" />
                     </SelectTrigger>
                     <SelectContent>
@@ -149,7 +149,7 @@ const Sales = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="amount">Amount ($)</Label>
                     <Input
@@ -159,6 +159,7 @@ const Sales = () => {
                       step="0.01"
                       defaultValue={editingSale?.amount}
                       required
+                      className="h-11 sm:h-10"
                     />
                   </div>
                   <div className="space-y-2">
@@ -169,6 +170,7 @@ const Sales = () => {
                       type="date"
                       defaultValue={editingSale?.closed_date ? format(new Date(editingSale.closed_date), "yyyy-MM-dd") : ""}
                       required
+                      className="h-11 sm:h-10"
                     />
                   </div>
                 </div>
@@ -183,7 +185,7 @@ const Sales = () => {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">
+                <Button type="submit" className="w-full sm:w-auto h-11 sm:h-10">
                   {editingSale ? "Update" : "Record"} Sale
                 </Button>
               </DialogFooter>
@@ -193,47 +195,98 @@ const Sales = () => {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <DollarSign className="h-5 w-5 text-success" />
-            Total Revenue: ${totalRevenue.toLocaleString()}
+            Total Revenue: <span className="text-base sm:text-xl">${totalRevenue.toLocaleString()}</span>
           </CardTitle>
         </CardHeader>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Sales History</CardTitle>
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="text-lg sm:text-xl">Sales History</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           {isLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lead</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Close Date</TableHead>
-                  <TableHead>Sales Rep</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sales?.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell className="font-medium">{sale.lead?.company_name}</TableCell>
-                    <TableCell className="text-success font-semibold">
-                      ${Number(sale.amount).toLocaleString()}
-                    </TableCell>
-                    <TableCell>{format(new Date(sale.closed_date), "MMM dd, yyyy")}</TableCell>
-                    <TableCell>{sale.sales_rep?.full_name}</TableCell>
-                    <TableCell className="max-w-xs truncate">{sale.description || "-"}</TableCell>
-                    <TableCell className="text-right">
+            <>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Lead</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Close Date</TableHead>
+                    <TableHead>Sales Rep</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sales?.map((sale) => (
+                    <TableRow key={sale.id}>
+                      <TableCell className="font-medium">{sale.lead?.company_name}</TableCell>
+                      <TableCell className="text-success font-semibold">
+                        ${Number(sale.amount).toLocaleString()}
+                      </TableCell>
+                      <TableCell>{format(new Date(sale.closed_date), "MMM dd, yyyy")}</TableCell>
+                      <TableCell>{sale.sales_rep?.full_name}</TableCell>
+                      <TableCell className="max-w-xs truncate">{sale.description || "-"}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingSale(sale);
+                            setIsOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(sale.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+              {sales?.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No sales found</div>
+              ) : (
+                sales?.map((sale) => (
+                  <div key={sale.id} className="rounded-lg border bg-card p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{sale.lead?.company_name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{sale.sales_rep?.full_name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-success font-semibold">${Number(sale.amount).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(sale.closed_date), "MMM dd, yyyy")}</p>
+                      </div>
+                    </div>
+                    
+                    {sale.description && (
+                      <p className="text-xs text-muted-foreground truncate mt-2 pt-2 border-t">{sale.description}</p>
+                    )}
+                    
+                    <div className="flex justify-end gap-1 mt-2 pt-2 border-t">
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0"
                         onClick={() => {
                           setEditingSale(sale);
                           setIsOpen(true);
@@ -244,15 +297,17 @@ const Sales = () => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        className="h-8 w-8 p-0"
                         onClick={() => deleteMutation.mutate(sale.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

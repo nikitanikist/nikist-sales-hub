@@ -266,165 +266,172 @@ const Products = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-2 mb-6">
-        <Package className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold">Products</h1>
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Package className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+          <h1 className="text-2xl sm:text-3xl font-bold">Products</h1>
+        </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>All Products</CardTitle>
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="text-lg sm:text-xl">All Products</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-4 mb-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+        <CardContent className="px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
+            <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
+                  className="pl-8 h-11 sm:h-10"
                 />
               </div>
             </div>
             
-            <Select value={selectedFunnel} onValueChange={setSelectedFunnel}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Filter by funnel" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Funnels</SelectItem>
-                {funnels.map((funnel) => (
-                  <SelectItem key={funnel.id} value={funnel.id}>
-                    {funnel.funnel_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={selectedFunnel} onValueChange={setSelectedFunnel}>
+                <SelectTrigger className="flex-1 sm:w-[180px] h-11 sm:h-10">
+                  <SelectValue placeholder="Filter by funnel" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Funnels</SelectItem>
+                  {funnels.map((funnel) => (
+                    <SelectItem key={funnel.id} value={funnel.id}>
+                      {funnel.funnel_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Button variant="outline" onClick={() => refetch()}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
-            </Button>
+              <Button variant="outline" size="icon" onClick={() => refetch()} className="h-11 w-11 sm:h-10 sm:w-10">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
 
-            <Dialog open={isDialogOpen} onOpenChange={(open) => {
-              setIsDialogOpen(open);
-              if (!open) {
-                resetForm();
-              }
-            }}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Product
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="funnel">Funnel *</Label>
-                    <Select value={formData.funnel_id} onValueChange={(value) => setFormData({ ...formData, funnel_id: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a funnel" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {funnels.map((funnel) => (
-                          <SelectItem key={funnel.id} value={funnel.id}>
-                            {funnel.funnel_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) {
+                  resetForm();
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button className="h-11 sm:h-10">
+                    <Plus className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Product</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="funnel">Funnel *</Label>
+                      <Select value={formData.funnel_id} onValueChange={(value) => setFormData({ ...formData, funnel_id: value })}>
+                        <SelectTrigger className="h-11 sm:h-10">
+                          <SelectValue placeholder="Select a funnel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {funnels.map((funnel) => (
+                            <SelectItem key={funnel.id} value={funnel.id}>
+                              {funnel.funnel_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div>
-                    <Label htmlFor="product_name">Product Name *</Label>
-                    <Input
-                      id="product_name"
-                      value={formData.product_name}
-                      onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                      placeholder="e.g., Insider Crypto Club"
-                    />
-                  </div>
+                    <div>
+                      <Label htmlFor="product_name">Product Name *</Label>
+                      <Input
+                        id="product_name"
+                        value={formData.product_name}
+                        onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                        placeholder="e.g., Insider Crypto Club"
+                        className="h-11 sm:h-10"
+                      />
+                    </div>
 
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Product description..."
-                      rows={3}
-                    />
-                  </div>
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        placeholder="Product description..."
+                        rows={3}
+                      />
+                    </div>
 
-                  <div>
-                    <Label htmlFor="price">Price (₹) *</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      value={formData.price}
-                      onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                      placeholder="0"
-                      min="0"
-                      step="0.01"
-                    />
-                  </div>
+                    <div>
+                      <Label htmlFor="price">Price (₹) *</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        value={formData.price}
+                        onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        className="h-11 sm:h-10"
+                      />
+                    </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="is_active"
-                      checked={formData.is_active}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                    />
-                    <Label htmlFor="is_active">Active</Label>
-                  </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="is_active"
+                        checked={formData.is_active}
+                        onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                      />
+                      <Label htmlFor="is_active">Active</Label>
+                    </div>
 
-                  {editingProduct && (
-                    <div className="border-t pt-4 mt-4">
-                      <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
-                      <div className="space-y-2">
-                        <div>
-                          <Label htmlFor="workshop_link" className="text-xs">Link to Workshop</Label>
-                          <Select value={formData.workshop_id} onValueChange={(value) => setFormData({ ...formData, workshop_id: value })}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a workshop" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="">None</SelectItem>
-                              {workshops.map((workshop: any) => (
-                                <SelectItem key={workshop.id} value={workshop.id}>
-                                  {workshop.title}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                    {editingProduct && (
+                      <div className="border-t pt-4 mt-4">
+                        <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
+                        <div className="space-y-2">
+                          <div>
+                            <Label htmlFor="workshop_link" className="text-xs">Link to Workshop</Label>
+                            <Select value={formData.workshop_id} onValueChange={(value) => setFormData({ ...formData, workshop_id: value })}>
+                              <SelectTrigger className="h-11 sm:h-10">
+                                <SelectValue placeholder="Select a workshop" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                {workshops.map((workshop: any) => (
+                                  <SelectItem key={workshop.id} value={workshop.id}>
+                                    {workshop.title}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSubmit}>
-                    {editingProduct ? "Update" : "Create"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                    )}
+                  </div>
+                  <DialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSubmit} className="w-full sm:w-auto h-11 sm:h-10">
+                      {editingProduct ? "Update" : "Create"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           {isLoading ? (
             <div className="text-center py-8">Loading products...</div>
           ) : (
-            <div className="rounded-md border">
+            <>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -505,6 +512,65 @@ const Products = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No products found</div>
+              ) : (
+                filteredProducts.map((product) => (
+                  <div key={product.id} className="rounded-lg border bg-card p-4">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{product.product_name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{product.funnel?.funnel_name || "N/A"}</p>
+                        {product.mango_id && (
+                          <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">{product.mango_id}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={product.is_active ? "default" : "secondary"} className="text-xs">
+                          {product.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                      <div className="bg-muted/50 rounded-md p-2">
+                        {Number(product.price || 0) === 0 ? (
+                          <div className="text-sm font-semibold text-green-600">Free</div>
+                        ) : (
+                          <div className="text-sm font-semibold">₹{Number(product.price).toLocaleString("en-IN")}</div>
+                        )}
+                        <div className="text-[10px] text-muted-foreground">Price</div>
+                      </div>
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <div className="text-sm font-semibold">{getUserCount(product.id)}</div>
+                        <div className="text-[10px] text-muted-foreground">Users</div>
+                      </div>
+                      <div className="bg-muted/50 rounded-md p-2">
+                        {Number(product.price || 0) === 0 ? (
+                          <Badge variant="secondary" className="bg-green-500/10 text-green-700 text-[10px] px-1">Free</Badge>
+                        ) : (
+                          <Badge variant="default" className="bg-blue-500/10 text-blue-700 text-[10px] px-1">Paid</Badge>
+                        )}
+                        <div className="text-[10px] text-muted-foreground">Type</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end gap-1 pt-2 border-t">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEdit(product)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(product.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

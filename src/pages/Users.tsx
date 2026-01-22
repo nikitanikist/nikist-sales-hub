@@ -216,20 +216,20 @@ const Users = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground mt-2">Manage CRM users and their roles</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Users</h1>
+          <p className="text-sm text-muted-foreground mt-1">Manage CRM users and their roles</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto h-11 sm:h-10">
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
             </DialogHeader>
@@ -242,6 +242,7 @@ const Users = () => {
                   value={formData.full_name}
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   required
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div className="space-y-2">
@@ -253,6 +254,7 @@ const Users = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div className="space-y-2">
@@ -262,12 +264,13 @@ const Users = () => {
                   placeholder="Enter phone number (optional)"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role *</Label>
                 <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 sm:h-10">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -287,13 +290,14 @@ const Users = () => {
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
                   minLength={6}
+                  className="h-11 sm:h-10"
                 />
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-11 sm:h-10">
                   {isSubmitting ? "Adding..." : "Add User"}
                 </Button>
               </DialogFooter>
@@ -303,20 +307,22 @@ const Users = () => {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="px-4 sm:px-6">
           <div className="flex items-center gap-2">
             <UsersIcon className="h-5 w-5" />
             <div>
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>View and manage all CRM users</CardDescription>
+              <CardTitle className="text-lg sm:text-xl">All Users</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">View and manage all CRM users</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading users...</div>
           ) : (
-            <div className="rounded-md border">
+            <>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -369,13 +375,55 @@ const Users = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+              {users && users.length > 0 ? (
+                users.map((user) => (
+                  <div key={user.id} className="rounded-lg border bg-card p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{user.full_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                        {user.phone && <p className="text-xs text-muted-foreground">{user.phone}</p>}
+                      </div>
+                      <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+                        {getRoleLabel(user.role)}
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-2 border-t mt-2">
+                      <p className="text-xs text-muted-foreground">
+                        Added {format(new Date(user.role_created_at), "dd MMM yyyy")}
+                      </p>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEditDialog(user)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteUserId(user.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">No users found</div>
+              )}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
@@ -388,6 +436,7 @@ const Users = () => {
                 value={formData.full_name}
                 onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                 required
+                className="h-11 sm:h-10"
               />
             </div>
             <div className="space-y-2">
@@ -399,6 +448,7 @@ const Users = () => {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
+                className="h-11 sm:h-10"
               />
             </div>
             <div className="space-y-2">
@@ -408,12 +458,13 @@ const Users = () => {
                 placeholder="Enter phone number (optional)"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="h-11 sm:h-10"
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit_role">Role *</Label>
               <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
-                <SelectTrigger>
+                <SelectTrigger className="h-11 sm:h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -432,14 +483,15 @@ const Users = () => {
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 minLength={6}
+                className="h-11 sm:h-10"
               />
               <p className="text-xs text-muted-foreground">Leave blank to keep the current password</p>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-11 sm:h-10">
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
