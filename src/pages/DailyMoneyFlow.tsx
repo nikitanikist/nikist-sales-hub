@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, subDays, subMonths, startOfMonth, endOfMonth, getDay, startOfWeek, endOfWeek } from "date-fns";
+import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear, subYears, getDay, startOfWeek, endOfWeek } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, IndianRupee, TrendingUp, TrendingDown, Calendar, Trash2, Pencil, Upload, Trophy, ChevronLeft, ChevronRight, Target, Percent, Award, Star, Zap, BarChart3 } from "lucide-react";
@@ -211,7 +211,10 @@ const DailyMoneyFlow = () => {
 
     switch (insightsPeriod) {
       case '1m':
-        periodStart = subMonths(now, 1);
+        // Previous calendar month (e.g., if today is Jan 22, show Dec 1 - Dec 31)
+        const lastMonth = subMonths(now, 1);
+        periodStart = startOfMonth(lastMonth);
+        periodEnd = endOfMonth(lastMonth);
         break;
       case '3m':
         periodStart = subMonths(now, 3);
@@ -220,7 +223,10 @@ const DailyMoneyFlow = () => {
         periodStart = subMonths(now, 6);
         break;
       case '1y':
-        periodStart = subMonths(now, 12);
+        // Previous calendar year (e.g., if in 2025, show Jan 1 - Dec 31, 2024)
+        const lastYear = subYears(now, 1);
+        periodStart = startOfYear(lastYear);
+        periodEnd = endOfYear(lastYear);
         break;
       case 'lifetime':
         // Use the earliest entry date as start
@@ -401,7 +407,7 @@ const DailyMoneyFlow = () => {
       case '1m': return 'Last Month';
       case '3m': return 'Last 3 Months';
       case '6m': return 'Last 6 Months';
-      case '1y': return 'Last 1 Year';
+      case '1y': return 'Last Year';
       case 'lifetime': return 'Lifetime';
       case 'custom': return 'Custom Range';
     }
@@ -503,7 +509,7 @@ const DailyMoneyFlow = () => {
                     <SelectItem value="1m">Last Month</SelectItem>
                     <SelectItem value="3m">Last 3 Months</SelectItem>
                     <SelectItem value="6m">Last 6 Months</SelectItem>
-                    <SelectItem value="1y">Last 1 Year</SelectItem>
+                    <SelectItem value="1y">Last Year</SelectItem>
                     <SelectItem value="lifetime">Lifetime</SelectItem>
                     <SelectItem value="custom">Custom Range</SelectItem>
                   </SelectContent>
