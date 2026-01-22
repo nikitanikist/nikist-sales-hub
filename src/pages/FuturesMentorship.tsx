@@ -462,14 +462,15 @@ const FuturesMentorship = () => {
   // Batch List View
   if (!selectedBatch) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6">
+        {/* Responsive Header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">Futures Mentorship</h1>
+            <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6" />
+            <h1 className="text-xl sm:text-2xl font-bold">Futures Mentorship</h1>
           </div>
           {isAdmin && (
-            <Button onClick={() => setIsCreateOpen(true)}>
+            <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto h-11 sm:h-10">
               <Plus className="h-4 w-4 mr-2" />
               Add Batch
             </Button>
@@ -477,76 +478,120 @@ const FuturesMentorship = () => {
         </div>
 
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Batches</CardTitle>
-              <div className="relative w-64">
+          <CardHeader className="pb-3 sm:pb-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-lg sm:text-xl">Batches</CardTitle>
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search batches..."
                   value={batchSearchQuery}
                   onChange={(e) => setBatchSearchQuery(e.target.value)}
-                  className="pl-8"
+                  className="pl-8 h-11 sm:h-10"
                 />
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 sm:px-6">
             {batchesLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin" />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Batch Name</TableHead>
-                    <TableHead>Event Dates</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Students</TableHead>
-                    {isAdmin && <TableHead className="text-right">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Desktop Table */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Batch Name</TableHead>
+                        <TableHead>Event Dates</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Students</TableHead>
+                        {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredBatches.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            No batches found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredBatches.map((batch) => (
+                          <TableRow 
+                            key={batch.id} 
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setSelectedBatch(batch)}
+                          >
+                            <TableCell className="font-medium">{batch.name}</TableCell>
+                            <TableCell>{batch.event_dates || "TBD"}</TableCell>
+                            <TableCell>{getBatchStatusBadge(batch.status)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <Users className="h-4 w-4 text-muted-foreground" />
+                                {batch.students_count}
+                              </div>
+                            </TableCell>
+                            {isAdmin && (
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(batch)}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => setDeletingBatch(batch)}>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="sm:hidden space-y-3">
                   {filteredBatches.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        No batches found
-                      </TableCell>
-                    </TableRow>
+                    <p className="text-center text-muted-foreground py-8">No batches found</p>
                   ) : (
                     filteredBatches.map((batch) => (
-                      <TableRow 
-                        key={batch.id} 
-                        className="cursor-pointer hover:bg-muted/50"
+                      <div 
+                        key={batch.id}
+                        className="p-4 rounded-lg border bg-card cursor-pointer active:bg-muted/50"
                         onClick={() => setSelectedBatch(batch)}
                       >
-                        <TableCell className="font-medium">{batch.name}</TableCell>
-                        <TableCell>{batch.event_dates || "TBD"}</TableCell>
-                        <TableCell>{getBatchStatusBadge(batch.status)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                            {batch.students_count}
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{batch.name}</p>
+                            <p className="text-sm text-muted-foreground">{batch.event_dates || "TBD"}</p>
                           </div>
-                        </TableCell>
-                        {isAdmin && (
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" onClick={() => openEditDialog(batch)}>
+                          {isAdmin && (
+                            <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(batch)}>
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => setDeletingBatch(batch)}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeletingBatch(batch)}>
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          {getBatchStatusBadge(batch.status)}
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Users className="h-4 w-4" />
+                            {batch.students_count} students
+                          </div>
+                        </div>
+                      </div>
                     ))
                   )}
-                </TableBody>
-              </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
@@ -624,67 +669,68 @@ const FuturesMentorship = () => {
 
   // Batch Detail View
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => setSelectedBatch(null)}>
+    <div className="space-y-4 sm:space-y-6">
+      {/* Responsive Header */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <Button variant="ghost" onClick={() => setSelectedBatch(null)} className="w-fit">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
         <div>
-          <h1 className="text-2xl font-bold">{selectedBatch.name}</h1>
-          <p className="text-muted-foreground">Event Dates: {selectedBatch.event_dates || "TBD"}</p>
+          <h1 className="text-xl sm:text-2xl font-bold">{selectedBatch.name}</h1>
+          <p className="text-sm text-muted-foreground">Event Dates: {selectedBatch.event_dates || "TBD"}</p>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Summary Cards - 2 column on mobile */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card className="bg-blue-50">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Total Offered</p>
-            <p className="text-2xl font-bold text-blue-700">₹{totals.offered.toLocaleString('en-IN')}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Total Offered</p>
+            <p className="text-lg sm:text-2xl font-bold text-blue-700">₹{totals.offered.toLocaleString('en-IN')}</p>
           </CardContent>
         </Card>
         <Card className="bg-green-50">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Cash Received</p>
-            <p className="text-2xl font-bold text-green-700">₹{totals.received.toLocaleString('en-IN')}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Cash Received</p>
+            <p className="text-lg sm:text-2xl font-bold text-green-700">₹{totals.received.toLocaleString('en-IN')}</p>
           </CardContent>
         </Card>
         <Card className="bg-orange-50">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Remaining Amount</p>
-            <p className="text-2xl font-bold text-orange-700">₹{totals.due.toLocaleString('en-IN')}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Remaining</p>
+            <p className="text-lg sm:text-2xl font-bold text-orange-700">₹{totals.due.toLocaleString('en-IN')}</p>
           </CardContent>
         </Card>
         <Card className="bg-purple-50">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Students Enrolled</p>
-            <p className="text-2xl font-bold text-purple-700">{totals.count}</p>
+          <CardContent className="p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-muted-foreground">Enrolled</p>
+            <p className="text-lg sm:text-2xl font-bold text-purple-700">{totals.count}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Students Table */}
+      {/* Students Section */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-3 sm:pb-6">
           <div>
-            <CardTitle>Students</CardTitle>
+            <CardTitle className="text-lg sm:text-xl">Students</CardTitle>
             <CardDescription>{filteredStudents.length} of {batchStudents?.length || 0} students</CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" className="relative">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filters
+                <Button variant="outline" className="relative h-11 sm:h-10">
+                  <Filter className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Filters</span>
                   {activeFilterCount > 0 && (
-                    <Badge className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                    <Badge className="ml-1 sm:ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
                       {activeFilterCount}
                     </Badge>
                   )}
                 </Button>
               </SheetTrigger>
-              <SheetContent className="w-[400px] overflow-y-auto">
+              <SheetContent className="w-full sm:w-[400px] overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle>Filters</SheetTitle>
                 </SheetHeader>
@@ -692,7 +738,7 @@ const FuturesMentorship = () => {
                   <div className="space-y-3">
                     <Label>Status</Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-11 sm:h-10">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -705,10 +751,10 @@ const FuturesMentorship = () => {
                   </div>
                   <div className="space-y-3">
                     <Label>Date Range</Label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <Popover open={isDateFromOpen} onOpenChange={setIsDateFromOpen}>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("flex-1 justify-start", !dateFrom && "text-muted-foreground")}>
+                          <Button variant="outline" className={cn("flex-1 justify-start h-11 sm:h-10", !dateFrom && "text-muted-foreground")}>
                             <Calendar className="mr-2 h-4 w-4" />
                             {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From"}
                           </Button>
@@ -723,7 +769,7 @@ const FuturesMentorship = () => {
                       </Popover>
                       <Popover open={isDateToOpen} onOpenChange={setIsDateToOpen}>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className={cn("flex-1 justify-start", !dateTo && "text-muted-foreground")}>
+                          <Button variant="outline" className={cn("flex-1 justify-start h-11 sm:h-10", !dateTo && "text-muted-foreground")}>
                             <Calendar className="mr-2 h-4 w-4" />
                             {dateTo ? format(dateTo, "dd MMM yyyy") : "To"}
                           </Button>
@@ -739,23 +785,23 @@ const FuturesMentorship = () => {
                     </div>
                   </div>
                 </div>
-                <SheetFooter>
-                  <Button variant="outline" onClick={clearAllFilters}>Clear All</Button>
-                  <Button onClick={() => setIsFilterOpen(false)}>Apply</Button>
+                <SheetFooter className="flex-row gap-2">
+                  <Button variant="outline" onClick={clearAllFilters} className="flex-1 h-11 sm:h-10">Clear All</Button>
+                  <Button onClick={() => setIsFilterOpen(false)} className="flex-1 h-11 sm:h-10">Apply</Button>
                 </SheetFooter>
               </SheetContent>
             </Sheet>
-            <Button variant="outline" onClick={exportStudentsCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Export
+            <Button variant="outline" onClick={exportStudentsCSV} className="h-11 sm:h-10">
+              <Download className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Export</span>
             </Button>
-            <Button onClick={() => setAddStudentOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Student
+            <Button onClick={() => setAddStudentOpen(true)} className="h-11 sm:h-10">
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Add Student</span>
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-3 sm:px-6">
           <div className="mb-4">
             <div className="relative w-full">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -763,7 +809,7 @@ const FuturesMentorship = () => {
                 placeholder="Search students..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
+                className="pl-8 h-11 sm:h-10"
               />
             </div>
           </div>
@@ -773,176 +819,304 @@ const FuturesMentorship = () => {
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  <TableHead>Conversion Date</TableHead>
-                  <TableHead>Student Name</TableHead>
-                  <TableHead>Amount Offered</TableHead>
-                  <TableHead>Cash Received</TableHead>
-                  <TableHead>Due Amount</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStudents.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                      No students found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredStudents.map((student) => (
-                    <React.Fragment key={student.id}>
-                      <TableRow 
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
-                      >
-                        <TableCell>
-                          {expandedStudentId === student.id ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </TableCell>
-                        <TableCell>{format(new Date(student.conversion_date), "dd MMM yyyy")}</TableCell>
-                        <TableCell className="font-medium">{student.contact_name}</TableCell>
-                        <TableCell>₹{student.offer_amount.toLocaleString('en-IN')}</TableCell>
-                        <TableCell className="text-green-600">₹{student.cash_received.toLocaleString('en-IN')}</TableCell>
-                        <TableCell className="text-orange-600">₹{student.due_amount.toLocaleString('en-IN')}</TableCell>
-                        <TableCell className="text-sm">{student.email}</TableCell>
-                        <TableCell className="text-sm">{student.phone || "-"}</TableCell>
-                        <TableCell>{getStatusBadge(student.status)}</TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setEmiStudent(student)}>
-                                <IndianRupee className="h-4 w-4 mr-2" />
-                                Update EMI
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                setNotesStudent(student);
-                                setNotesText(student.notes || "");
-                              }}>
-                                <FileText className="h-4 w-4 mr-2" />
-                                Edit Notes
-                              </DropdownMenuItem>
-                              {student.status === "active" && (
-                                <>
-                                  <DropdownMenuItem onClick={() => setRefundingStudent(student)}>
-                                    <RefreshCcw className="h-4 w-4 mr-2" />
-                                    Mark as Refunded
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => setDiscontinuingStudent(student)}>
-                                    <X className="h-4 w-4 mr-2" />
-                                    Discontinued
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                              {isAdmin && (
-                                <DropdownMenuItem 
-                                  onClick={() => setDeletingStudent(student)}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete Student
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+            <>
+              {/* Desktop Table */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Conversion Date</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Amount Offered</TableHead>
+                      <TableHead>Cash Received</TableHead>
+                      <TableHead>Due Amount</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStudents.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                          No students found
                         </TableCell>
                       </TableRow>
-                      {/* Expanded EMI Row */}
-                      {expandedStudentId === student.id && (
-                        <TableRow className="bg-muted/30 hover:bg-muted/30">
-                          <TableCell colSpan={10} className="py-4">
-                            <div className="pl-8">
-                              <h4 className="font-medium mb-3">EMI Payment History</h4>
-                              {emiLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : studentEmiPayments && studentEmiPayments.length > 0 ? (
-                                <div className="rounded-md border overflow-x-auto">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead className="w-[80px]">EMI #</TableHead>
-                                        <TableHead>Cash Collected</TableHead>
-                                        <TableHead>No Cost EMI</TableHead>
-                                        <TableHead>GST</TableHead>
-                                        <TableHead>Platform Fees</TableHead>
-                                        <TableHead>Platform</TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Remarks</TableHead>
-                                        <TableHead>Updated By</TableHead>
-                                        <TableHead className="w-[100px]">Actions</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {studentEmiPayments.map((emi) => (
-                                        <TableRow key={emi.id}>
-                                          <TableCell className="font-medium">EMI {emi.emi_number}</TableCell>
-                                          <TableCell className="text-green-600">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
-                                          <TableCell>₹{Number(emi.no_cost_emi || 0).toLocaleString('en-IN')}</TableCell>
-                                          <TableCell>₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</TableCell>
-                                          <TableCell>₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</TableCell>
-                                          <TableCell>{emi.payment_platform || "-"}</TableCell>
-                                          <TableCell>{format(new Date(emi.payment_date), "dd MMM yyyy")}</TableCell>
-                                          <TableCell className="max-w-[150px] truncate" title={emi.remarks || undefined}>
-                                            {emi.remarks || "-"}
-                                          </TableCell>
-                                          <TableCell>{emi.created_by_profile?.full_name || "Unknown"}</TableCell>
-                                          <TableCell>
-                                            <div className="flex gap-1">
-                                              <Button 
-                                                variant="ghost" 
-                                                size="icon"
-                                                className="h-7 w-7"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setEmiStudent(student);
-                                                }}
-                                              >
-                                                <Pencil className="h-3.5 w-3.5" />
-                                              </Button>
-                                              <Button 
-                                                variant="ghost" 
-                                                size="icon"
-                                                className="h-7 w-7 text-destructive hover:text-destructive"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setEmiStudent(student);
-                                                }}
-                                              >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                              </Button>
-                                            </div>
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
+                    ) : (
+                      filteredStudents.map((student) => (
+                        <React.Fragment key={student.id}>
+                          <TableRow 
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
+                          >
+                            <TableCell>
+                              {expandedStudentId === student.id ? (
+                                <ChevronDown className="h-4 w-4" />
                               ) : (
-                                <p className="text-muted-foreground text-sm">No EMI payments recorded</p>
+                                <ChevronRight className="h-4 w-4" />
                               )}
+                            </TableCell>
+                            <TableCell>{format(new Date(student.conversion_date), "dd MMM yyyy")}</TableCell>
+                            <TableCell className="font-medium">{student.contact_name}</TableCell>
+                            <TableCell>₹{student.offer_amount.toLocaleString('en-IN')}</TableCell>
+                            <TableCell className="text-green-600">₹{student.cash_received.toLocaleString('en-IN')}</TableCell>
+                            <TableCell className="text-orange-600">₹{student.due_amount.toLocaleString('en-IN')}</TableCell>
+                            <TableCell className="text-sm">{student.email}</TableCell>
+                            <TableCell className="text-sm">{student.phone || "-"}</TableCell>
+                            <TableCell>{getStatusBadge(student.status)}</TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setEmiStudent(student)}>
+                                    <IndianRupee className="h-4 w-4 mr-2" />
+                                    Update EMI
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => {
+                                    setNotesStudent(student);
+                                    setNotesText(student.notes || "");
+                                  }}>
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Edit Notes
+                                  </DropdownMenuItem>
+                                  {student.status === "active" && (
+                                    <>
+                                      <DropdownMenuItem onClick={() => setRefundingStudent(student)}>
+                                        <RefreshCcw className="h-4 w-4 mr-2" />
+                                        Mark as Refunded
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => setDiscontinuingStudent(student)}>
+                                        <X className="h-4 w-4 mr-2" />
+                                        Discontinued
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  {isAdmin && (
+                                    <DropdownMenuItem 
+                                      onClick={() => setDeletingStudent(student)}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete Student
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                          {/* Expanded EMI Row */}
+                          {expandedStudentId === student.id && (
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableCell colSpan={10} className="py-4">
+                                <div className="pl-8">
+                                  <h4 className="font-medium mb-3">EMI Payment History</h4>
+                                  {emiLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : studentEmiPayments && studentEmiPayments.length > 0 ? (
+                                    <div className="rounded-md border overflow-x-auto">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead className="w-[80px]">EMI #</TableHead>
+                                            <TableHead>Cash Collected</TableHead>
+                                            <TableHead>No Cost EMI</TableHead>
+                                            <TableHead>GST</TableHead>
+                                            <TableHead>Platform Fees</TableHead>
+                                            <TableHead>Platform</TableHead>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Remarks</TableHead>
+                                            <TableHead>Updated By</TableHead>
+                                            <TableHead className="w-[100px]">Actions</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {studentEmiPayments.map((emi) => (
+                                            <TableRow key={emi.id}>
+                                              <TableCell className="font-medium">EMI {emi.emi_number}</TableCell>
+                                              <TableCell className="text-green-600">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
+                                              <TableCell>₹{Number(emi.no_cost_emi || 0).toLocaleString('en-IN')}</TableCell>
+                                              <TableCell>₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</TableCell>
+                                              <TableCell>₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</TableCell>
+                                              <TableCell>{emi.payment_platform || "-"}</TableCell>
+                                              <TableCell>{format(new Date(emi.payment_date), "dd MMM yyyy")}</TableCell>
+                                              <TableCell className="max-w-[150px] truncate" title={emi.remarks || undefined}>
+                                                {emi.remarks || "-"}
+                                              </TableCell>
+                                              <TableCell>{emi.created_by_profile?.full_name || "Unknown"}</TableCell>
+                                              <TableCell>
+                                                <div className="flex gap-1">
+                                                  <Button 
+                                                    variant="ghost" 
+                                                    size="icon"
+                                                    className="h-7 w-7"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setEmiStudent(student);
+                                                    }}
+                                                  >
+                                                    <Pencil className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                  <Button 
+                                                    variant="ghost" 
+                                                    size="icon"
+                                                    className="h-7 w-7 text-destructive hover:text-destructive"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setEmiStudent(student);
+                                                    }}
+                                                  >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                  </Button>
+                                                </div>
+                                              </TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  ) : (
+                                    <p className="text-muted-foreground text-sm">No EMI payments recorded</p>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="sm:hidden space-y-3">
+                {filteredStudents.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">No students found</p>
+                ) : (
+                  filteredStudents.map((student) => (
+                    <div key={student.id} className="rounded-lg border bg-card overflow-hidden">
+                      <div 
+                        className="p-4 cursor-pointer active:bg-muted/50"
+                        onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {expandedStudentId === student.id ? (
+                              <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{student.contact_name}</p>
+                              <p className="text-xs text-muted-foreground">{format(new Date(student.conversion_date), "dd MMM yyyy")}</p>
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {getStatusBadge(student.status)}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setEmiStudent(student)}>
+                                  <IndianRupee className="h-4 w-4 mr-2" />
+                                  Update EMI
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  setNotesStudent(student);
+                                  setNotesText(student.notes || "");
+                                }}>
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  Edit Notes
+                                </DropdownMenuItem>
+                                {student.status === "active" && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => setRefundingStudent(student)}>
+                                      <RefreshCcw className="h-4 w-4 mr-2" />
+                                      Mark as Refunded
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setDiscontinuingStudent(student)}>
+                                      <X className="h-4 w-4 mr-2" />
+                                      Discontinued
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {isAdmin && (
+                                  <DropdownMenuItem 
+                                    onClick={() => setDeletingStudent(student)}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Student
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-sm mt-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Offered</p>
+                            <p className="font-medium">₹{student.offer_amount.toLocaleString('en-IN')}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Received</p>
+                            <p className="font-medium text-green-600">₹{student.cash_received.toLocaleString('en-IN')}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Due</p>
+                            <p className="font-medium text-orange-600">₹{student.due_amount.toLocaleString('en-IN')}</p>
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-2 truncate">
+                          {student.email} {student.phone && `• ${student.phone}`}
+                        </div>
+                      </div>
+                      
+                      {/* Mobile Expanded EMI Section */}
+                      {expandedStudentId === student.id && (
+                        <div className="border-t bg-muted/30 p-4">
+                          <h4 className="font-medium mb-3 text-sm">EMI Payment History</h4>
+                          {emiLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : studentEmiPayments && studentEmiPayments.length > 0 ? (
+                            <div className="space-y-2">
+                              {studentEmiPayments.map((emi) => (
+                                <div key={emi.id} className="p-3 rounded-md border bg-background text-sm">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <span className="font-medium">EMI {emi.emi_number}</span>
+                                    <span className="text-green-600 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                                    <span>Date: {format(new Date(emi.payment_date), "dd MMM yyyy")}</span>
+                                    <span>Platform: {emi.payment_platform || "-"}</span>
+                                    <span>GST: ₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</span>
+                                    <span>Fees: ₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</span>
+                                  </div>
+                                  {emi.remarks && (
+                                    <p className="text-xs text-muted-foreground mt-1 truncate">Remarks: {emi.remarks}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground text-sm">No EMI payments recorded</p>
+                          )}
+                        </div>
                       )}
-                    </React.Fragment>
+                    </div>
                   ))
                 )}
-              </TableBody>
-            </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
