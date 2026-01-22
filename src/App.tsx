@@ -23,6 +23,7 @@ import HighFuture from "./pages/HighFuture";
 import DailyMoneyFlow from "./pages/DailyMoneyFlow";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
+import Install from "./pages/Install";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/install" element={<Install />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
