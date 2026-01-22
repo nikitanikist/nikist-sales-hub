@@ -414,98 +414,98 @@ const DailyMoneyFlow = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Daily Money Flow</h1>
-          <p className="text-muted-foreground">Track daily revenue and cash collection</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Daily Money Flow</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Track daily revenue and cash collection</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Bulk Import
+          <Button variant="outline" size="sm" className="sm:size-default h-10" onClick={() => setIsImportDialogOpen(true)}>
+            <Upload className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Bulk Import</span>
           </Button>
-          <Button onClick={() => setIsAddDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Data
+          <Button size="sm" className="sm:size-default h-10" onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Add Data</span>
           </Button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
-            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Today's Revenue</CardTitle>
+            <IndianRupee className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(todayRevenue)}</div>
-            <p className="text-xs text-muted-foreground">{format(new Date(), "dd MMM yyyy")}</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{formatCompactCurrency(todayRevenue)}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{format(new Date(), "dd MMM yyyy")}</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Cash</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Today's Cash</CardTitle>
+            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(todayCash)}</div>
-            <p className="text-xs text-muted-foreground">Cash collected today</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{formatCompactCurrency(todayCash)}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Collected today</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month Revenue</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Month Revenue</CardTitle>
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(monthRevenue)}</div>
-            <p className="text-xs text-muted-foreground">{format(new Date(), "MMMM yyyy")}</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{formatCompactCurrency(monthRevenue)}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{format(new Date(), "MMM yyyy")}</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month Cash</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Month Cash</CardTitle>
+            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(monthCash)}</div>
-            <p className="text-xs text-muted-foreground">Total collected this month</p>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+            <div className="text-lg sm:text-2xl font-bold">{formatCompactCurrency(monthCash)}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Collected this month</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Business Intelligence Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="trends">Trends & Growth</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="records">Records</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">Overview</TabsTrigger>
+          <TabsTrigger value="trends" className="text-xs sm:text-sm py-2">Trends</TabsTrigger>
+          <TabsTrigger value="performance" className="text-xs sm:text-sm py-2">Performance</TabsTrigger>
+          <TabsTrigger value="records" className="text-xs sm:text-sm py-2">Records</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
           {/* Insights Section */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:p-6">
               <div>
-                <CardTitle className="text-lg font-semibold">Period Insights</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {format(insightsData.periodStart, "dd MMM yyyy")} - {format(insightsData.periodEnd, "dd MMM yyyy")} ({insightsData.daysCount} days)
+                <CardTitle className="text-base sm:text-lg font-semibold">Period Insights</CardTitle>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                  {format(insightsData.periodStart, "dd MMM")} - {format(insightsData.periodEnd, "dd MMM yyyy")} ({insightsData.daysCount} days)
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Select value={insightsPeriod} onValueChange={(value) => setInsightsPeriod(value as InsightsPeriod)}>
-                  <SelectTrigger className="w-[160px]">
+                  <SelectTrigger className="w-full sm:w-[160px] h-10">
                     <SelectValue placeholder="Select period" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 bg-popover">
                     <SelectItem value="1m">Last Month</SelectItem>
                     <SelectItem value="3m">Last 3 Months</SelectItem>
                     <SelectItem value="6m">Last 6 Months</SelectItem>
@@ -517,94 +517,102 @@ const DailyMoneyFlow = () => {
                 {insightsPeriod === 'custom' && (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" className="h-10 justify-start">
                         <Calendar className="h-4 w-4 mr-2" />
                         {customDateRange.from && customDateRange.to 
-                          ? `${format(customDateRange.from, "dd MMM")} - ${format(customDateRange.to, "dd MMM yyyy")}`
+                          ? `${format(customDateRange.from, "dd MMM")} - ${format(customDateRange.to, "dd MMM")}`
                           : "Pick dates"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
+                    <PopoverContent className="w-auto p-0 z-50" align="end">
+                      <CalendarComponent
+                        mode="range"
+                        selected={{ from: customDateRange.from, to: customDateRange.to }}
+                        onSelect={(range) => setCustomDateRange({ from: range?.from, to: range?.to })}
+                        numberOfMonths={1}
+                        className="sm:hidden"
+                      />
                       <CalendarComponent
                         mode="range"
                         selected={{ from: customDateRange.from, to: customDateRange.to }}
                         onSelect={(range) => setCustomDateRange({ from: range?.from, to: range?.to })}
                         numberOfMonths={2}
+                        className="hidden sm:block"
                       />
                     </PopoverContent>
                   </Popover>
                 )}
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <CardContent className="p-4 sm:p-6">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                 {/* Total Cash Collection */}
-                <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <div className="rounded-lg border bg-card p-3 sm:p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
-                      <IndianRupee className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <div className="p-1.5 sm:p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                      <IndianRupee className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400" />
                     </div>
-                    <span className="text-sm font-medium text-muted-foreground">Total Cash Collection</span>
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Cash Collection</span>
                   </div>
-                  <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  <div className="text-lg sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                     {formatCompactCurrency(insightsData.totalCash)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {insightsData.daysCount} days in {getPeriodLabel(insightsPeriod).toLowerCase()}
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                    {insightsData.daysCount} days
                   </p>
                 </div>
 
                 {/* Total Revenue */}
-                <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <div className="rounded-lg border bg-card p-3 sm:p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
-                      <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <div className="p-1.5 sm:p-2 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                      <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <span className="text-sm font-medium text-muted-foreground">Total Revenue</span>
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Revenue</span>
                   </div>
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
                     {formatCompactCurrency(insightsData.totalRevenue)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Booked during the period
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                    Booked
                   </p>
                 </div>
 
                 {/* Collection Efficiency */}
-                <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <div className="rounded-lg border bg-card p-3 sm:p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
-                      <Percent className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                    <div className="p-1.5 sm:p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                      <Percent className="h-3 w-3 sm:h-4 sm:w-4 text-purple-600 dark:text-purple-400" />
                     </div>
-                    <span className="text-sm font-medium text-muted-foreground">Collection Efficiency</span>
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Efficiency</span>
                   </div>
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                  <div className="text-lg sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
                     {insightsData.collectionEfficiency}%
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                     {formatCompactCurrency(insightsData.gap)} pending
                   </p>
                 </div>
 
                 {/* Best Collection Day */}
-                <div className="rounded-lg border bg-card p-4 shadow-sm">
+                <div className="rounded-lg border bg-card p-3 sm:p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="p-2 rounded-full bg-yellow-100 dark:bg-yellow-900/30">
-                      <Trophy className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+                    <div className="p-1.5 sm:p-2 rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+                      <Trophy className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600 dark:text-yellow-500" />
                     </div>
-                    <span className="text-sm font-medium text-muted-foreground">Best Collection Day</span>
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Best Day</span>
                   </div>
                   {insightsData.bestDay ? (
                     <>
-                      <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-500">
-                        {format(new Date(insightsData.bestDay.date), "dd MMM yyyy")}
+                      <div className="text-sm sm:text-2xl font-bold text-yellow-600 dark:text-yellow-500">
+                        {format(new Date(insightsData.bestDay.date), "dd MMM")}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatCompactCurrency(Number(insightsData.bestDay.cash_collected))} collected
+                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                        {formatCompactCurrency(Number(insightsData.bestDay.cash_collected))}
                       </p>
                     </>
                   ) : (
-                    <div className="text-sm text-muted-foreground">No data available</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">No data</div>
                   )}
                 </div>
               </div>
@@ -615,75 +623,75 @@ const DailyMoneyFlow = () => {
         {/* Trends & Growth Tab */}
         <TabsContent value="trends" className="space-y-4">
           {/* Month-over-Month Comparison */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {/* Cash Growth MoM */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Cash Growth (MoM)</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                <CardTitle className="text-xs sm:text-sm font-medium">Cash Growth</CardTitle>
                 {Number(momData.cashGrowth) >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-500" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-500" />
                 )}
               </CardHeader>
-              <CardContent>
-                <div className={`text-2xl font-bold ${Number(momData.cashGrowth) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <div className={`text-lg sm:text-2xl font-bold ${Number(momData.cashGrowth) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                   {Number(momData.cashGrowth) >= 0 ? '+' : ''}{momData.cashGrowth}%
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {formatCompactCurrency(momData.currentCash)} vs {formatCompactCurrency(momData.lastCash)} last month
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  {formatCompactCurrency(momData.currentCash)} vs {formatCompactCurrency(momData.lastCash)}
                 </p>
               </CardContent>
             </Card>
 
             {/* Revenue Growth MoM */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Revenue Growth (MoM)</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                <CardTitle className="text-xs sm:text-sm font-medium">Revenue Growth</CardTitle>
                 {Number(momData.revenueGrowth) >= 0 ? (
-                  <TrendingUp className="h-4 w-4 text-emerald-500" />
+                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-500" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-500" />
                 )}
               </CardHeader>
-              <CardContent>
-                <div className={`text-2xl font-bold ${Number(momData.revenueGrowth) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <div className={`text-lg sm:text-2xl font-bold ${Number(momData.revenueGrowth) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                   {Number(momData.revenueGrowth) >= 0 ? '+' : ''}{momData.revenueGrowth}%
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {formatCompactCurrency(momData.currentRevenue)} vs {formatCompactCurrency(momData.lastRevenue)} last month
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  {formatCompactCurrency(momData.currentRevenue)} vs {formatCompactCurrency(momData.lastRevenue)}
                 </p>
               </CardContent>
             </Card>
 
             {/* Projected Monthly Cash */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Projected Month End</CardTitle>
-                <Target className="h-4 w-4 text-muted-foreground" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                <CardTitle className="text-xs sm:text-sm font-medium">Projected End</CardTitle>
+                <Target className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-primary">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <div className="text-lg sm:text-2xl font-bold text-primary">
                   {formatCompactCurrency(momData.projectedCash)}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Based on {momData.daysPassed} days avg • {momData.daysRemaining} days left
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  {momData.daysRemaining} days left
                 </p>
               </CardContent>
             </Card>
 
             {/* Daily Average */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Daily Average</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                <CardTitle className="text-xs sm:text-sm font-medium">Daily Average</CardTitle>
+                <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+              <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                <div className="text-lg sm:text-2xl font-bold">
                   {formatCompactCurrency(momData.dailyAvgCash)}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  This month's daily cash avg
+                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                  This month avg
                 </p>
               </CardContent>
             </Card>
@@ -692,24 +700,24 @@ const DailyMoneyFlow = () => {
           {/* Chart with Rolling Averages */}
           {chartData.length > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle>Cash Collection with 7-Day Rolling Average</CardTitle>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-sm sm:text-base">Cash Collection (7-Day Avg)</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <CardContent className="p-2 sm:p-6">
+                <ChartContainer config={chartConfig} className="h-[200px] sm:h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="date" className="text-xs" />
-                      <YAxis className="text-xs" tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
+                      <XAxis dataKey="date" className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} />
+                      <YAxis className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
                       <Tooltip content={<ChartTooltipContent />} />
-                      <Legend />
+                      <Legend wrapperStyle={{ fontSize: '12px' }} />
                       <Line
                         type="monotone"
                         dataKey="cash"
                         stroke="hsl(var(--chart-2))"
                         strokeWidth={2}
-                        dot={{ fill: "hsl(var(--chart-2))" }}
+                        dot={{ fill: "hsl(var(--chart-2))", r: 2 }}
                         name="Daily Cash"
                       />
                       <Line
@@ -734,19 +742,19 @@ const DailyMoneyFlow = () => {
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Weekday Performance Chart */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex flex-wrap items-center gap-2 text-sm sm:text-base">
                   Day-of-Week Performance
-                  <Badge variant="secondary" className="ml-2">Last 90 Days</Badge>
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs">Last 90 Days</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[250px] w-full">
+              <CardContent className="p-2 sm:p-6">
+                <ChartContainer config={chartConfig} className="h-[180px] sm:h-[250px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={weekdayData.weekdayStats}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="day" className="text-xs" />
-                      <YAxis className="text-xs" tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
+                      <XAxis dataKey="day" className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} />
+                      <YAxis className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
                       <Tooltip 
                         formatter={(value: number) => [formatCurrency(value), 'Avg Cash']}
                         labelFormatter={(label) => `${label}`}
@@ -760,51 +768,71 @@ const DailyMoneyFlow = () => {
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartContainer>
-                <div className="mt-4 p-3 rounded-lg bg-muted/50">
+                <div className="mt-3 sm:mt-4 p-2 sm:p-3 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-2">
-                    <Star className="h-4 w-4 text-yellow-500" />
-                    <span className="text-sm font-medium">Best Day: {weekdayData.bestWeekday.day}</span>
-                    <span className="text-sm text-muted-foreground">
-                      ({formatCurrency(weekdayData.bestWeekday.avgCash)} avg)
+                    <Star className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500" />
+                    <span className="text-xs sm:text-sm font-medium">Best Day: {weekdayData.bestWeekday.day}</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">
+                      ({formatCompactCurrency(weekdayData.bestWeekday.avgCash)} avg)
                     </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Weekday Stats Table */}
+            {/* Weekday Stats - Mobile Card View + Desktop Table */}
             <Card>
-              <CardHeader>
-                <CardTitle>Weekday Breakdown</CardTitle>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-sm sm:text-base">Weekday Breakdown</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Day</TableHead>
-                      <TableHead className="text-right">Avg Cash</TableHead>
-                      <TableHead className="text-right">Total Cash</TableHead>
-                      <TableHead className="text-right">Days</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {weekdayData.weekdayStats.map((day) => (
-                      <TableRow key={day.day}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {day.day}
-                            {day.day === weekdayData.bestWeekday.day && (
-                              <Star className="h-3 w-3 text-yellow-500" />
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">{formatCurrency(day.avgCash)}</TableCell>
-                        <TableCell className="text-right">{formatCompactCurrency(day.totalCash)}</TableCell>
-                        <TableCell className="text-right">{day.count}</TableCell>
+              <CardContent className="p-4 sm:p-6">
+                {/* Desktop Table */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Day</TableHead>
+                        <TableHead className="text-right">Avg Cash</TableHead>
+                        <TableHead className="text-right">Total Cash</TableHead>
+                        <TableHead className="text-right">Days</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {weekdayData.weekdayStats.map((day) => (
+                        <TableRow key={day.day}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {day.day}
+                              {day.day === weekdayData.bestWeekday.day && (
+                                <Star className="h-3 w-3 text-yellow-500" />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">{formatCurrency(day.avgCash)}</TableCell>
+                          <TableCell className="text-right">{formatCompactCurrency(day.totalCash)}</TableCell>
+                          <TableCell className="text-right">{day.count}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* Mobile Card View */}
+                <div className="sm:hidden space-y-2">
+                  {weekdayData.weekdayStats.map((day) => (
+                    <div key={day.day} className="flex items-center justify-between p-2 rounded-lg border">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{day.day}</span>
+                        {day.day === weekdayData.bestWeekday.day && (
+                          <Star className="h-3 w-3 text-yellow-500" />
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium">{formatCompactCurrency(day.avgCash)}</div>
+                        <div className="text-[10px] text-muted-foreground">{day.count} days</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -813,50 +841,50 @@ const DailyMoneyFlow = () => {
         {/* Records Tab */}
         <TabsContent value="records" className="space-y-4">
           {allTimeRecords && (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
               {/* Best Day Ever */}
               <Card className="border-yellow-200 dark:border-yellow-900/50 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">🏆 Best Day Ever</CardTitle>
-                  <Trophy className="h-5 w-5 text-yellow-600" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium">🏆 Best Day</CardTitle>
+                  <Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                  <div className="text-lg sm:text-2xl font-bold text-yellow-700 dark:text-yellow-400">
                     {formatCompactCurrency(allTimeRecords.bestDay.cash)}
                   </div>
-                  <p className="text-sm text-yellow-600 dark:text-yellow-500 mt-1">
-                    {format(new Date(allTimeRecords.bestDay.date), "dd MMMM yyyy")}
+                  <p className="text-[10px] sm:text-sm text-yellow-600 dark:text-yellow-500 mt-1">
+                    {format(new Date(allTimeRecords.bestDay.date), "dd MMM yy")}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Best Week Ever */}
               <Card className="border-blue-200 dark:border-blue-900/50 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">🔥 Best Week Ever</CardTitle>
-                  <Zap className="h-5 w-5 text-blue-600" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium">🔥 Best Week</CardTitle>
+                  <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                  <div className="text-lg sm:text-2xl font-bold text-blue-700 dark:text-blue-400">
                     {formatCompactCurrency(allTimeRecords.bestWeek.cash)}
                   </div>
-                  <p className="text-sm text-blue-600 dark:text-blue-500 mt-1">
-                    Week of {format(new Date(allTimeRecords.bestWeek.startDate), "dd MMM yyyy")}
+                  <p className="text-[10px] sm:text-sm text-blue-600 dark:text-blue-500 mt-1">
+                    {format(new Date(allTimeRecords.bestWeek.startDate), "dd MMM yy")}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Best Month Ever */}
-              <Card className="border-emerald-200 dark:border-emerald-900/50 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">⭐ Best Month Ever</CardTitle>
-                  <Award className="h-5 w-5 text-emerald-600" />
+              <Card className="border-emerald-200 dark:border-emerald-900/50 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 col-span-2 lg:col-span-1">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium">⭐ Best Month</CardTitle>
+                  <Award className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                  <div className="text-lg sm:text-2xl font-bold text-emerald-700 dark:text-emerald-400">
                     {formatCompactCurrency(allTimeRecords.bestMonth.cash)}
                   </div>
-                  <p className="text-sm text-emerald-600 dark:text-emerald-500 mt-1">
+                  <p className="text-[10px] sm:text-sm text-emerald-600 dark:text-emerald-500 mt-1">
                     {allTimeRecords.bestMonth.month}
                   </p>
                 </CardContent>
@@ -864,48 +892,48 @@ const DailyMoneyFlow = () => {
 
               {/* Lifetime Cash */}
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Lifetime Cash Collected</CardTitle>
-                  <IndianRupee className="h-4 w-4 text-muted-foreground" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium">Lifetime Cash</CardTitle>
+                  <IndianRupee className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-emerald-600">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                  <div className="text-lg sm:text-2xl font-bold text-emerald-600">
                     {formatCompactCurrency(allTimeRecords.lifetimeCash)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Across {allTimeRecords.totalDays} days of data
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                    {allTimeRecords.totalDays} days
                   </p>
                 </CardContent>
               </Card>
 
               {/* Lifetime Revenue */}
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Lifetime Revenue</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium">Lifetime Revenue</CardTitle>
+                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-600">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600">
                     {formatCompactCurrency(allTimeRecords.lifetimeRevenue)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Total booked revenue
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                    Total booked
                   </p>
                 </CardContent>
               </Card>
 
               {/* Lifetime Efficiency */}
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Lifetime Efficiency</CardTitle>
-                  <Percent className="h-4 w-4 text-muted-foreground" />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 p-3 sm:p-6">
+                  <CardTitle className="text-xs sm:text-sm font-medium">Lifetime Efficiency</CardTitle>
+                  <Percent className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-purple-600">
+                <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
+                  <div className="text-lg sm:text-2xl font-bold text-purple-600">
                     {allTimeRecords.lifetimeEfficiency}%
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Overall collection rate
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                    Collection rate
                   </p>
                 </CardContent>
               </Card>
@@ -919,24 +947,24 @@ const DailyMoneyFlow = () => {
         <div className="grid gap-4 lg:grid-cols-2">
           {/* Revenue vs Cash Line Chart */}
           <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>Revenue vs Cash Collection Trend</CardTitle>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-sm sm:text-base">Revenue vs Cash Collection</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-[300px] w-full">
+            <CardContent className="p-2 sm:p-6">
+              <ChartContainer config={chartConfig} className="h-[200px] sm:h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" className="text-xs" />
-                    <YAxis className="text-xs" tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
+                    <XAxis dataKey="date" className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} />
+                    <YAxis className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
                     <Tooltip content={<ChartTooltipContent />} />
-                    <Legend />
+                    <Legend wrapperStyle={{ fontSize: '12px' }} />
                     <Line
                       type="monotone"
                       dataKey="revenue"
                       stroke="hsl(var(--primary))"
                       strokeWidth={2}
-                      dot={{ fill: "hsl(var(--primary))" }}
+                      dot={{ fill: "hsl(var(--primary))", r: 2 }}
                       name="Revenue"
                     />
                     <Line
@@ -944,8 +972,8 @@ const DailyMoneyFlow = () => {
                       dataKey="cash"
                       stroke="hsl(var(--chart-2))"
                       strokeWidth={2}
-                      dot={{ fill: "hsl(var(--chart-2))" }}
-                      name="Cash Collected"
+                      dot={{ fill: "hsl(var(--chart-2))", r: 2 }}
+                      name="Cash"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -955,16 +983,16 @@ const DailyMoneyFlow = () => {
 
           {/* Revenue Area Chart */}
           <Card>
-            <CardHeader>
-              <CardTitle>Daily Revenue</CardTitle>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-sm sm:text-base">Daily Revenue</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-[250px] w-full">
+            <CardContent className="p-2 sm:p-6">
+              <ChartContainer config={chartConfig} className="h-[180px] sm:h-[250px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" className="text-xs" />
-                    <YAxis className="text-xs" tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
+                    <XAxis dataKey="date" className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} />
+                    <YAxis className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
                     <Tooltip content={<ChartTooltipContent />} />
                     <Area
                       type="monotone"
@@ -982,22 +1010,22 @@ const DailyMoneyFlow = () => {
 
           {/* Cash Bar Chart */}
           <Card>
-            <CardHeader>
-              <CardTitle>Daily Cash Collection</CardTitle>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-sm sm:text-base">Daily Cash Collection</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-[250px] w-full">
+            <CardContent className="p-2 sm:p-6">
+              <ChartContainer config={chartConfig} className="h-[180px] sm:h-[250px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" className="text-xs" />
-                    <YAxis className="text-xs" tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
+                    <XAxis dataKey="date" className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} />
+                    <YAxis className="text-[10px] sm:text-xs" tick={{ fontSize: 10 }} tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
                     <Tooltip content={<ChartTooltipContent />} />
                     <Bar
                       dataKey="cash"
                       fill="hsl(var(--chart-2))"
                       radius={[4, 4, 0, 0]}
-                      name="Cash Collected"
+                      name="Cash"
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1009,109 +1037,162 @@ const DailyMoneyFlow = () => {
 
       {/* Data Table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>All Entries</CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:p-6">
+          <CardTitle className="text-sm sm:text-base">All Entries</CardTitle>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Show</span>
+            <span className="text-xs sm:text-sm text-muted-foreground">Show</span>
             <Select value={String(pageSize)} onValueChange={handlePageSizeChange}>
-              <SelectTrigger className="w-[80px]">
+              <SelectTrigger className="w-[70px] h-9 sm:w-[80px]">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-popover">
                 <SelectItem value="20">20</SelectItem>
                 <SelectItem value="50">50</SelectItem>
                 <SelectItem value="100">100</SelectItem>
               </SelectContent>
             </Select>
-            <span className="text-sm text-muted-foreground">entries</span>
+            <span className="text-xs sm:text-sm text-muted-foreground">entries</span>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 sm:p-6">
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : entries.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No entries yet. Click "Add Data" to get started.
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              No entries yet. Tap "Add Data" to get started.
             </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Revenue</TableHead>
-                    <TableHead className="text-right">Cash Collected</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>Added By</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedEntries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="font-medium">
-                        {format(new Date(entry.date), "dd MMM yyyy")}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(entry.total_revenue))}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(entry.cash_collected))}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{entry.notes || "-"}</TableCell>
-                      <TableCell>{entry.creator_name || "-"}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setEditingEntry(entry)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setDeletingId(entry.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
+              {/* Desktop Table */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Cash</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead>Added By</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedEntries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className="font-medium">
+                          {format(new Date(entry.date), "dd MMM yyyy")}
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(Number(entry.total_revenue))}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(Number(entry.cash_collected))}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{entry.notes || "-"}</TableCell>
+                        <TableCell>{entry.creator_name || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setEditingEntry(entry)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDeletingId(entry.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="sm:hidden space-y-3">
+                {paginatedEntries.map((entry) => (
+                  <div key={entry.id} className="p-3 rounded-lg border bg-card">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <div className="font-medium text-sm">
+                          {format(new Date(entry.date), "dd MMM yyyy")}
+                        </div>
+                        {entry.creator_name && (
+                          <div className="text-[10px] text-muted-foreground">by {entry.creator_name}</div>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEditingEntry(entry)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setDeletingId(entry.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground text-xs">Revenue</span>
+                        <div className="font-medium">{formatCompactCurrency(Number(entry.total_revenue))}</div>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground text-xs">Cash</span>
+                        <div className="font-medium">{formatCompactCurrency(Number(entry.cash_collected))}</div>
+                      </div>
+                    </div>
+                    {entry.notes && (
+                      <div className="mt-2 text-xs text-muted-foreground truncate">{entry.notes}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
               {/* Pagination Controls */}
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <div className="text-sm text-muted-foreground">
-                  Showing {startIndex + 1} to {Math.min(endIndex, entries.length)} of {entries.length} entries
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t">
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  {startIndex + 1}-{Math.min(endIndex, entries.length)} of {entries.length}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-9 px-2 sm:px-3"
                     onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
                   >
                     <ChevronLeft className="h-4 w-4" />
-                    Previous
+                    <span className="hidden sm:inline ml-1">Previous</span>
                   </Button>
                   <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
                       let pageNum: number;
-                      if (totalPages <= 5) {
+                      if (totalPages <= 3) {
                         pageNum = i + 1;
-                      } else if (currentPage <= 3) {
+                      } else if (currentPage <= 2) {
                         pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
+                      } else if (currentPage >= totalPages - 1) {
+                        pageNum = totalPages - 2 + i;
                       } else {
-                        pageNum = currentPage - 2 + i;
+                        pageNum = currentPage - 1 + i;
                       }
                       return (
                         <Button
                           key={pageNum}
                           variant={currentPage === pageNum ? "default" : "outline"}
                           size="sm"
-                          className="w-8 h-8 p-0"
+                          className="w-8 h-8 p-0 text-xs sm:text-sm"
                           onClick={() => setCurrentPage(pageNum)}
                         >
                           {pageNum}
@@ -1122,10 +1203,11 @@ const DailyMoneyFlow = () => {
                   <Button
                     variant="outline"
                     size="sm"
+                    className="h-9 px-2 sm:px-3"
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages}
                   >
-                    Next
+                    <span className="hidden sm:inline mr-1">Next</span>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>

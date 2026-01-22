@@ -151,22 +151,22 @@ const AppLayout = () => {
         </Sidebar>
         <main className="flex-1 overflow-auto">
           <div className="sticky top-0 z-10 bg-background border-b border-border">
-            <div className="flex items-center justify-between px-4 py-3">
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3">
               {/* Left Section: Toggle + Heading */}
-              <div className="flex items-center gap-3">
-                <SidebarTrigger />
-                <h1 className="text-xl font-semibold">Nikist CRM</h1>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <SidebarTrigger className="h-9 w-9 sm:h-10 sm:w-10" />
+                <h1 className="text-lg sm:text-xl font-semibold hidden sm:block">Nikist CRM</h1>
               </div>
               
               {/* Right Section: Notifications + Profile */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 sm:gap-4">
                 {/* Notification Bell with Badge */}
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10">
+                  <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
                   {notificationCount > 0 && (
                     <Badge 
                       variant="destructive" 
-                      className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs rounded-full"
+                      className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] sm:text-xs rounded-full"
                     >
                       {notificationCount}
                     </Badge>
@@ -176,27 +176,27 @@ const AppLayout = () => {
                 {/* Profile Dropdown */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className="bg-primary text-primary-foreground">
+                    <Button variant="ghost" className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-full p-0">
+                      <Avatar className="h-9 w-9 sm:h-10 sm:w-10">
+                        <AvatarFallback className="bg-primary text-primary-foreground text-sm sm:text-base">
                           {user.email?.[0].toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuContent align="end" className="w-56 z-50 bg-popover">
                     <DropdownMenuLabel>
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium">My Account</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem className="min-h-[44px] sm:min-h-0">
                       <User className="mr-2 h-4 w-4" />
                       Edit profile
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={signOut}>
+                    <DropdownMenuItem onClick={signOut} className="min-h-[44px] sm:min-h-0">
                       <LogOut className="mr-2 h-4 w-4" />
                       Sign Out
                     </DropdownMenuItem>
@@ -205,7 +205,7 @@ const AppLayout = () => {
               </div>
             </div>
           </div>
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <Outlet />
           </div>
         </main>
