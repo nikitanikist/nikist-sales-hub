@@ -4,11 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, IndianRupee, TrendingUp, Calendar, Trash2, Pencil } from "lucide-react";
+import { Plus, IndianRupee, TrendingUp, Calendar, Trash2, Pencil, Upload } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, BarChart, Bar } from "recharts";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import AddMoneyFlowDialog from "@/components/AddMoneyFlowDialog";
+import { ImportMoneyFlowDialog } from "@/components/ImportMoneyFlowDialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
@@ -34,6 +35,7 @@ interface MoneyFlowEntry {
 
 const DailyMoneyFlow = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<MoneyFlowEntry | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -170,10 +172,16 @@ const DailyMoneyFlow = () => {
           <h1 className="text-3xl font-bold">Daily Money Flow</h1>
           <p className="text-muted-foreground">Track daily revenue and cash collection</p>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Data
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Bulk Import
+          </Button>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Data
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -408,6 +416,12 @@ const DailyMoneyFlow = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Import Dialog */}
+      <ImportMoneyFlowDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+      />
     </div>
   );
 };
