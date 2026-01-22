@@ -262,131 +262,138 @@ const Funnels = () => {
   };
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-6">
       <Card>
-        <CardHeader>
-          <CardTitle>Active Funnels</CardTitle>
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="text-lg sm:text-xl">Active Funnels</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-2 mb-4">
+        <CardContent className="px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <div className="relative flex-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search funnels..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
+                className="pl-8 h-11 sm:h-10"
               />
             </div>
-            <Button variant="outline" size="icon" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
-            <Dialog open={isDialogOpen} onOpenChange={(open) => {
-              setIsDialogOpen(open);
-              if (!open) resetForm();
-            }}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Funnel
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{editingFunnel ? "Edit Funnel" : "Add New Funnel"}</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="funnel_name">Funnel Name</Label>
-                    <Input
-                      id="funnel_name"
-                      value={formData.funnel_name}
-                      onChange={(e) => setFormData({ ...formData, funnel_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="amount">Amount (₹)</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      step="0.01"
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="total_leads">Total Leads</Label>
-                    <Input
-                      id="total_leads"
-                      type="number"
-                      value={formData.total_leads}
-                      onChange={(e) => setFormData({ ...formData, total_leads: e.target.value })}
-                      required
-                    />
-                  </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="icon" onClick={() => refetch()} className="h-11 w-11 sm:h-10 sm:w-10">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="icon" className="h-11 w-11 sm:h-10 sm:w-10">
+                <Filter className="h-4 w-4" />
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) resetForm();
+              }}>
+                <DialogTrigger asChild>
+                  <Button className="h-11 sm:h-10">
+                    <Plus className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Funnel</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingFunnel ? "Edit Funnel" : "Add New Funnel"}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="funnel_name">Funnel Name</Label>
+                      <Input
+                        id="funnel_name"
+                        value={formData.funnel_name}
+                        onChange={(e) => setFormData({ ...formData, funnel_name: e.target.value })}
+                        required
+                        className="h-11 sm:h-10"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="amount">Amount (₹)</Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                        required
+                        className="h-11 sm:h-10"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="total_leads">Total Leads</Label>
+                      <Input
+                        id="total_leads"
+                        type="number"
+                        value={formData.total_leads}
+                        onChange={(e) => setFormData({ ...formData, total_leads: e.target.value })}
+                        required
+                        className="h-11 sm:h-10"
+                      />
+                    </div>
 
-                  {editingFunnel && (
-                    <div className="border-t pt-4 mt-4">
-                      <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
-                      <div className="space-y-3">
-                        <div>
-                          <Label htmlFor="workshop_link" className="text-xs">Link to Workshop</Label>
-                          <Select value={formData.workshop_id} onValueChange={(value) => setFormData({ ...formData, workshop_id: value })}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a workshop" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="">None</SelectItem>
-                              {workshops.map((workshop: any) => (
-                                <SelectItem key={workshop.id} value={workshop.id}>
-                                  {workshop.title}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="product_link" className="text-xs">Link to Product</Label>
-                          <Select value={formData.product_id} onValueChange={(value) => setFormData({ ...formData, product_id: value })}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a product" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="">None</SelectItem>
-                              {products.filter((p: any) => p.funnel_id === editingFunnel.id).map((product: any) => (
-                                <SelectItem key={product.id} value={product.id}>
-                                  {product.product_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                    {editingFunnel && (
+                      <div className="border-t pt-4 mt-4">
+                        <Label className="text-sm font-medium mb-3 block">Quick Actions</Label>
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor="workshop_link" className="text-xs">Link to Workshop</Label>
+                            <Select value={formData.workshop_id} onValueChange={(value) => setFormData({ ...formData, workshop_id: value })}>
+                              <SelectTrigger className="h-11 sm:h-10">
+                                <SelectValue placeholder="Select a workshop" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                {workshops.map((workshop: any) => (
+                                  <SelectItem key={workshop.id} value={workshop.id}>
+                                    {workshop.title}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="product_link" className="text-xs">Link to Product</Label>
+                            <Select value={formData.product_id} onValueChange={(value) => setFormData({ ...formData, product_id: value })}>
+                              <SelectTrigger className="h-11 sm:h-10">
+                                <SelectValue placeholder="Select a product" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">None</SelectItem>
+                                {products.filter((p: any) => p.funnel_id === editingFunnel.id).map((product: any) => (
+                                  <SelectItem key={product.id} value={product.id}>
+                                    {product.product_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  <div className="flex gap-2">
-                    <Button type="submit" className="flex-1">
-                      {editingFunnel ? "Update" : "Create"}
-                    </Button>
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button type="submit" className="flex-1 h-11 sm:h-10">
+                        {editingFunnel ? "Update" : "Create"}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-11 sm:h-10">
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           {isLoading ? (
             <div className="text-center py-8">Loading funnels...</div>
           ) : (
-            <div className="rounded-md border">
+            <>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -441,6 +448,60 @@ const Funnels = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+              {filteredFunnels.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No funnels found</div>
+              ) : (
+                filteredFunnels.map((funnel) => (
+                  <div key={funnel.id} className="rounded-lg border bg-card p-4">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{funnel.funnel_name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {funnel.created_at ? format(new Date(funnel.created_at), "MMM dd, yyyy") : "N/A"}
+                        </p>
+                      </div>
+                      {Number(funnel.amount || 0) === 0 ? (
+                        <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200 text-xs">
+                          Free
+                        </Badge>
+                      ) : (
+                        <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200 text-xs">
+                          Paid
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <div className="text-sm font-semibold">{getWorkshopCount(funnel.id)}</div>
+                        <div className="text-[10px] text-muted-foreground">Workshops</div>
+                      </div>
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <div className="text-sm font-semibold">{getProductCount(funnel.id)}</div>
+                        <div className="text-[10px] text-muted-foreground">Products</div>
+                      </div>
+                      <div className="bg-muted/50 rounded-md p-2">
+                        <div className="text-sm font-semibold">{getLeadCount(funnel.id)}</div>
+                        <div className="text-[10px] text-muted-foreground">Leads</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end gap-1 pt-2 border-t">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEdit(funnel)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(funnel.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

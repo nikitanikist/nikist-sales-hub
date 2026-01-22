@@ -527,12 +527,12 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   }, [queryClient]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end items-center">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:justify-end sm:items-center gap-3">
         {!isManager && (
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingWorkshop(null)}>
+              <Button onClick={() => setEditingWorkshop(null)} className="w-full sm:w-auto h-11 sm:h-10">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Workshop
               </Button>
@@ -753,17 +753,17 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
+        <CardHeader className="px-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <CardTitle>All Workshops</CardTitle>
-              <CardDescription>Manage and track workshop performance</CardDescription>
+              <CardTitle className="text-lg sm:text-xl">All Workshops</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">Manage and track workshop performance</CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={handleRefresh}>
+              <Button variant="outline" size="icon" onClick={handleRefresh} className="h-10 w-10 sm:h-9 sm:w-9">
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="h-10 w-10 sm:h-9 sm:w-9">
                 <Filter className="h-4 w-4" />
               </Button>
             </div>
@@ -771,22 +771,25 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           <div className="relative mt-4">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search workshops by name..."
+              placeholder="Search workshops..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+              className="pl-10 h-11 sm:h-10"
             />
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           {error && (
-            <div className="text-center py-4 text-red-500 bg-red-50 rounded-md mb-4">
+            <div className="text-center py-4 text-red-500 bg-red-50 rounded-md mb-4 text-sm">
               Error loading workshops: {error.message}
             </div>
           )}
           {isLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : (
+            <>
+            {/* Desktop Table View */}
+            <div className="hidden sm:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1061,6 +1064,222 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                 })}
               </TableBody>
             </Table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="sm:hidden space-y-3">
+              {filteredWorkshops?.map((workshop) => {
+                const isExpanded = expandedRows.has(workshop.id);
+                return (
+                  <div
+                    key={workshop.id}
+                    className="rounded-lg border bg-card overflow-hidden"
+                  >
+                    <div 
+                      className="p-4 cursor-pointer"
+                      onClick={() => toggleRowExpand(workshop.id)}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{workshop.title}</p>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                            <Calendar className="h-3 w-3" />
+                            {workshop.start_date ? format(new Date(workshop.start_date), "MMM dd, yyyy") : "N/A"}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {Number(workshop.amount || 0) === 0 ? (
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200 text-xs">
+                              Free
+                            </Badge>
+                          ) : (
+                            <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200 text-xs">
+                              ₹{Number(workshop.amount).toLocaleString("en-IN")}
+                            </Badge>
+                          )}
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2 text-center mt-3">
+                        <div className="bg-muted/50 rounded-md p-2">
+                          <div className="text-sm font-semibold">{workshop.registration_count || 0}</div>
+                          <div className="text-[10px] text-muted-foreground">Registrations</div>
+                        </div>
+                        <div className="bg-muted/50 rounded-md p-2">
+                          <div className="text-sm font-semibold">{workshop.sales_count || 0}</div>
+                          <div className="text-[10px] text-muted-foreground">Sales</div>
+                        </div>
+                        {!isManager && (
+                          <div className="bg-muted/50 rounded-md p-2">
+                            <div className={`text-sm font-semibold ${(workshop.total_pl || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              ₹{Number(workshop.total_pl || 0).toLocaleString("en-IN")}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">P&L</div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {!isManager && (
+                        <div className="flex justify-end gap-1 mt-3 pt-2 border-t" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => {
+                              setEditingWorkshop(workshop);
+                              setIsOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => deleteMutation.mutate(workshop.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Mobile Expanded Content */}
+                    {isExpanded && (
+                      <div className="border-t bg-muted/30 p-4 space-y-4">
+                        {/* Fresh Calls */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> Fresh Calls
+                          </p>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "all_booked"); }}
+                            >
+                              <div className="text-sm font-bold">{workshop.total_calls_booked || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Booked</div>
+                            </div>
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "converted"); }}
+                            >
+                              <div className="text-sm font-bold text-green-600">{workshop.converted_calls || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Converted</div>
+                            </div>
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "not_converted"); }}
+                            >
+                              <div className="text-sm font-bold text-red-500">{workshop.not_converted_calls || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Not Conv.</div>
+                            </div>
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "remaining"); }}
+                            >
+                              <div className="text-sm font-bold text-blue-500">{workshop.remaining_calls || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Remaining</div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_remaining"); }}
+                            >
+                              <div className="text-sm font-bold text-orange-500">{workshop.rescheduled_remaining || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Resch. Rem</div>
+                            </div>
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_done"); }}
+                            >
+                              <div className="text-sm font-bold text-teal-500">{workshop.rescheduled_done || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Resch. Done</div>
+                            </div>
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "booking_amount"); }}
+                            >
+                              <div className="text-sm font-bold text-purple-600">{workshop.booking_amount_calls || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Booking</div>
+                            </div>
+                            <div 
+                              className="bg-background rounded-md p-2 text-center border cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "refunded"); }}
+                            >
+                              <div className="text-sm font-bold text-amber-600">{workshop.refunded_calls || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Refunded</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Rejoin Calls */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-amber-600 flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> Rejoin Calls
+                          </p>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div 
+                              className="bg-amber-50 dark:bg-amber-900/20 rounded-md p-2 text-center border border-amber-200 cursor-pointer"
+                              onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                            >
+                              <div className="text-sm font-bold text-amber-700">{workshop.rejoin_sales_count || 0}</div>
+                              <div className="text-[10px] text-amber-600">Total</div>
+                            </div>
+                            <div className="bg-background rounded-md p-2 text-center border border-amber-200">
+                              <div className="text-sm font-bold text-green-600">{workshop.rejoin_converted || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Converted</div>
+                            </div>
+                            <div className="bg-background rounded-md p-2 text-center border border-amber-200">
+                              <div className="text-sm font-bold text-red-500">{workshop.rejoin_not_converted || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Not Conv.</div>
+                            </div>
+                            <div className="bg-background rounded-md p-2 text-center border border-amber-200">
+                              <div className="text-sm font-bold text-blue-500">{workshop.rejoin_remaining || 0}</div>
+                              <div className="text-[10px] text-muted-foreground">Remaining</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Revenue Breakdown - Hidden for managers */}
+                        {!isManager && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                              <IndianRupee className="h-3 w-3" /> Revenue
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="bg-background rounded-md p-2 border">
+                                <div className="text-sm font-bold">₹{Number(workshop.fresh_revenue || 0).toLocaleString("en-IN")}</div>
+                                <div className="text-[10px] text-muted-foreground">Fresh Revenue</div>
+                              </div>
+                              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-md p-2 border border-amber-200">
+                                <div className="text-sm font-bold text-amber-700">₹{Number(workshop.rejoin_revenue || 0).toLocaleString("en-IN")}</div>
+                                <div className="text-[10px] text-amber-600">Rejoin Revenue</div>
+                              </div>
+                              <div className="bg-background rounded-md p-2 border">
+                                <div className="text-sm font-bold text-green-600">₹{Number(workshop.total_cash_received || 0).toLocaleString("en-IN")}</div>
+                                <div className="text-[10px] text-muted-foreground">Cash Collected</div>
+                              </div>
+                              <div className="bg-background rounded-md p-2 border">
+                                <div className="text-sm font-bold">₹{Number(workshop.ad_spend || 0).toLocaleString("en-IN")}</div>
+                                <div className="text-[10px] text-muted-foreground">Ad Spend</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            </>
           )}
         </CardContent>
       </Card>
