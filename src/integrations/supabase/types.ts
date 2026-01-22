@@ -377,6 +377,39 @@ export type Database = {
           },
         ]
       }
+      daily_money_flow: {
+        Row: {
+          cash_collected: number
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          notes: string | null
+          total_revenue: number
+          updated_at: string
+        }
+        Insert: {
+          cash_collected?: number
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          notes?: string | null
+          total_revenue?: number
+          updated_at?: string
+        }
+        Update: {
+          cash_collected?: number
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          notes?: string | null
+          total_revenue?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       emi_payments: {
         Row: {
           amount: number

@@ -20,6 +20,7 @@ import Users from "./pages/Users";
 import Batches from "./pages/Batches";
 import FuturesMentorship from "./pages/FuturesMentorship";
 import HighFuture from "./pages/HighFuture";
+import DailyMoneyFlow from "./pages/DailyMoneyFlow";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/batches" element={<Batches />} />
               <Route path="/futures-mentorship" element={<FuturesMentorship />} />
               <Route path="/high-future" element={<HighFuture />} />
+              <Route path="/daily-money-flow" element={<DailyMoneyFlow />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />
