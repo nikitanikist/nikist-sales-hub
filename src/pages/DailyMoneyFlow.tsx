@@ -38,7 +38,7 @@ interface MoneyFlowEntry {
   creator_name?: string | null;
 }
 
-type InsightsPeriod = '1m' | '3m' | '6m' | '1y' | 'lifetime' | 'custom';
+type InsightsPeriod = 'yesterday' | 'thisMonth' | '1m' | '3m' | '6m' | '1y' | 'lifetime' | 'custom';
 
 const DailyMoneyFlow = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -210,6 +210,17 @@ const DailyMoneyFlow = () => {
     let periodEnd: Date = now;
 
     switch (insightsPeriod) {
+      case 'yesterday':
+        // Just yesterday (single day)
+        const yesterdayDate = subDays(now, 1);
+        periodStart = yesterdayDate;
+        periodEnd = yesterdayDate;
+        break;
+      case 'thisMonth':
+        // From 1st of current month to today
+        periodStart = startOfMonth(now);
+        periodEnd = now;
+        break;
       case '1m':
         // Previous calendar month (e.g., if today is Jan 22, show Dec 1 - Dec 31)
         const lastMonth = subMonths(now, 1);
@@ -404,6 +415,8 @@ const DailyMoneyFlow = () => {
 
   const getPeriodLabel = (period: InsightsPeriod) => {
     switch (period) {
+      case 'yesterday': return 'Yesterday';
+      case 'thisMonth': return 'This Month';
       case '1m': return 'Last Month';
       case '3m': return 'Last 3 Months';
       case '6m': return 'Last 6 Months';
@@ -506,6 +519,8 @@ const DailyMoneyFlow = () => {
                     <SelectValue placeholder="Select period" />
                   </SelectTrigger>
                   <SelectContent className="z-50 bg-popover">
+                    <SelectItem value="yesterday">Yesterday</SelectItem>
+                    <SelectItem value="thisMonth">This Month</SelectItem>
                     <SelectItem value="1m">Last Month</SelectItem>
                     <SelectItem value="3m">Last 3 Months</SelectItem>
                     <SelectItem value="6m">Last 6 Months</SelectItem>
