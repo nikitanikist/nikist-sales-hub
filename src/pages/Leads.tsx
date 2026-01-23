@@ -90,6 +90,7 @@ const Leads = () => {
   const [selectedWorkshops, setSelectedWorkshops] = useState<string[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [connectWorkshopFunnel, setConnectWorkshopFunnel] = useState(false);
+  const [selectedConvertedFromWorkshop, setSelectedConvertedFromWorkshop] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
@@ -327,7 +328,7 @@ const Leads = () => {
   });
 
   const saveMutation = useMutation({
-    mutationFn: async ({ leadData, workshopIds, productIds, isConnected, previousAssignedTo }: any) => {
+    mutationFn: async ({ leadData, workshopIds, productIds, isConnected, previousAssignedTo, convertedFromWorkshopId }: any) => {
       // Upsert lead basic info
       let leadId = editingLead?.id;
       if (editingLead) {
@@ -382,6 +383,7 @@ const Leads = () => {
           funnel_id: firstFunnelId,
           is_connected: true,
           created_by: user?.id,
+          converted_from_workshop_id: convertedFromWorkshopId || null,
         });
         
         // Add remaining workshops as separate assignments
@@ -407,6 +409,7 @@ const Leads = () => {
             workshop_id: null,
             is_connected: false,
             created_by: user?.id,
+            converted_from_workshop_id: convertedFromWorkshopId || null,
           });
         }
       } else {
@@ -431,6 +434,7 @@ const Leads = () => {
             workshop_id: null,
             is_connected: false,
             created_by: user?.id,
+            converted_from_workshop_id: convertedFromWorkshopId || null,
           });
         });
       }
@@ -451,6 +455,7 @@ const Leads = () => {
       setSelectedWorkshops([]);
       setSelectedProducts([]);
       setConnectWorkshopFunnel(false);
+      setSelectedConvertedFromWorkshop(null);
     },
     onError: (error: any) => {
       toast.error(error.message);
@@ -712,12 +717,26 @@ const Leads = () => {
       assigned_to: formData.get("assigned_to") === "none" ? null : (formData.get("assigned_to") || null),
     };
 
+    // Default to earliest selected workshop if not explicitly set
+    let convertedFromId = selectedConvertedFromWorkshop;
+    if (!convertedFromId && selectedProducts.length > 0 && selectedWorkshops.length > 0) {
+      // Find the earliest workshop by start_date among selected workshops
+      const selectedWorkshopData = workshops?.filter(w => selectedWorkshops.includes(w.id)) || [];
+      if (selectedWorkshopData.length > 0) {
+        const sorted = [...selectedWorkshopData].sort((a, b) => 
+          new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+        );
+        convertedFromId = sorted[0].id;
+      }
+    }
+
     saveMutation.mutate({
       leadData,
       workshopIds: selectedWorkshops,
       productIds: selectedProducts,
       isConnected: connectWorkshopFunnel,
       previousAssignedTo: editingLead?.assigned_to,
+      convertedFromWorkshopId: convertedFromId,
     });
   };
 
@@ -1030,6 +1049,7 @@ const Leads = () => {
                 setSelectedWorkshops([]);
                 setSelectedProducts([]);
                 setConnectWorkshopFunnel(false);
+                setSelectedConvertedFromWorkshop(null);
                 setIsOpen(true);
               }} className="hidden sm:flex">
                 Add Customer
@@ -1041,6 +1061,7 @@ const Leads = () => {
                 setSelectedWorkshops([]);
                 setSelectedProducts([]);
                 setConnectWorkshopFunnel(false);
+                setSelectedConvertedFromWorkshop(null);
                 setIsOpen(true);
               }} size="icon" className="sm:hidden">
                 <Plus className="h-4 w-4" />
@@ -1137,6 +1158,7 @@ const Leads = () => {
                                     setSelectedWorkshops([]);
                                     setSelectedProducts([]);
                                     setConnectWorkshopFunnel(false);
+                                    setSelectedConvertedFromWorkshop(null);
                                     setIsOpen(true);
                                   }}
                                 >
@@ -1284,9 +1306,12 @@ const Leads = () => {
                                   const productIds = group.assignments
                                     .filter((a: any) => a.product_id)
                                     .map((a: any) => a.product_id);
+                                  // Get existing converted_from_workshop_id from product assignments
+                                  const existingConvertedFrom = group.assignments.find((a: any) => a.product_id && a.converted_from_workshop_id)?.converted_from_workshop_id;
                                   setSelectedWorkshops(workshopIds);
                                   setSelectedProducts(productIds);
                                   setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
+                                  setSelectedConvertedFromWorkshop(existingConvertedFrom || null);
                                   setIsOpen(true);
                                 }}
                               >
@@ -1419,9 +1444,11 @@ const Leads = () => {
                                     setEditingLead(lead);
                                     const workshopIds = group.assignments.filter((a: any) => a.workshop_id).map((a: any) => a.workshop_id);
                                     const productIds = group.assignments.filter((a: any) => a.product_id).map((a: any) => a.product_id);
+                                    const existingConvertedFrom = group.assignments.find((a: any) => a.product_id && a.converted_from_workshop_id)?.converted_from_workshop_id;
                                     setSelectedWorkshops(workshopIds);
                                     setSelectedProducts(productIds);
                                     setConnectWorkshopFunnel(group.assignments.some((a: any) => a.is_connected));
+                                    setSelectedConvertedFromWorkshop(existingConvertedFrom || null);
                                     setIsOpen(true);
                                   }}
                                 >
@@ -1621,6 +1648,36 @@ const Leads = () => {
                     Connect first workshop with first product (e.g., Free Workshop + Free Product)
                   </Label>
                 </div>
+                {/* Sale From Workshop dropdown - shown when products are selected and there are workshops */}
+                {selectedProducts.length > 0 && selectedWorkshops.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-sm">Sale From Workshop (Revenue Attribution)</Label>
+                    <Select
+                      value={selectedConvertedFromWorkshop || "auto"}
+                      onValueChange={(value) => setSelectedConvertedFromWorkshop(value === "auto" ? null : value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select workshop for revenue credit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">
+                          Auto (Earliest Workshop)
+                        </SelectItem>
+                        {workshops?.filter(w => selectedWorkshops.includes(w.id))
+                          .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+                          .map((workshop) => (
+                            <SelectItem key={workshop.id} value={workshop.id}>
+                              {workshop.title} ({new Date(workshop.start_date).toLocaleDateString()})
+                            </SelectItem>
+                          ))
+                        }
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      This workshop will receive the revenue credit for this sale. Useful for rejoin tracking.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

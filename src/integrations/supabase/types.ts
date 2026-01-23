@@ -981,6 +981,7 @@ export type Database = {
       }
       lead_assignments: {
         Row: {
+          converted_from_workshop_id: string | null
           created_at: string
           created_by: string | null
           funnel_id: string | null
@@ -995,6 +996,7 @@ export type Database = {
           workshop_id: string | null
         }
         Insert: {
+          converted_from_workshop_id?: string | null
           created_at?: string
           created_by?: string | null
           funnel_id?: string | null
@@ -1009,6 +1011,7 @@ export type Database = {
           workshop_id?: string | null
         }
         Update: {
+          converted_from_workshop_id?: string | null
           created_at?: string
           created_by?: string | null
           funnel_id?: string | null
@@ -1023,6 +1026,13 @@ export type Database = {
           workshop_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "lead_assignments_converted_from_workshop_id_fkey"
+            columns: ["converted_from_workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lead_assignments_created_by_fkey"
             columns: ["created_by"]

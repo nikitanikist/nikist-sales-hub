@@ -52,6 +52,7 @@ export const ImportCustomersDialog = ({
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [selectedAssignTo, setSelectedAssignTo] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("new");
+  const [selectedConvertedFromWorkshop, setSelectedConvertedFromWorkshop] = useState<string>("");
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState({ success: 0, duplicates: 0, errors: 0 });
@@ -62,6 +63,7 @@ export const ImportCustomersDialog = ({
     setSelectedProduct("");
     setSelectedAssignTo("");
     setSelectedStatus("new");
+    setSelectedConvertedFromWorkshop("");
     setParsedRows([]);
     setImportProgress(0);
     setImportResults({ success: 0, duplicates: 0, errors: 0 });
@@ -265,12 +267,18 @@ export const ImportCustomersDialog = ({
             ? products.find(p => p.id === productId)?.funnel_id 
             : null;
 
+          // Determine converted_from_workshop_id for product assignments
+          const convertedFromId = productId 
+            ? (selectedConvertedFromWorkshop || selectedWorkshop || null)
+            : null;
+
           await supabase.from("lead_assignments").insert({
             lead_id: newLead.id,
             workshop_id: selectedWorkshop || null,
             product_id: productId,
             funnel_id: funnelId,
             is_connected: !!(selectedWorkshop && productId),
+            converted_from_workshop_id: convertedFromId,
             created_by: user?.id,
           });
         }
@@ -434,6 +442,25 @@ export const ImportCustomersDialog = ({
                         </Select>
                       </div>
                     </div>
+                    {/* Sale From Workshop dropdown - shown when both product and workshop are selected */}
+                    {selectedProduct && selectedWorkshop && (
+                      <div className="space-y-2">
+                        <Label>Sale From Workshop (Revenue Attribution)</Label>
+                        <Select value={selectedConvertedFromWorkshop || selectedWorkshop} onValueChange={setSelectedConvertedFromWorkshop}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select workshop for revenue credit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {workshops?.map(w => (
+                              <SelectItem key={w.id} value={w.id}>{w.title}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          This workshop will receive the revenue credit for these sales.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -493,26 +520,42 @@ export const ImportCustomersDialog = ({
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="new">New</SelectItem>
-                          <SelectItem value="contacted">Contacted</SelectItem>
-                          <SelectItem value="qualified">Qualified</SelectItem>
-                          <SelectItem value="won">Won</SelectItem>
-                          <SelectItem value="lost">Lost</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="new">New</SelectItem>
+                            <SelectItem value="contacted">Contacted</SelectItem>
+                            <SelectItem value="qualified">Qualified</SelectItem>
+                            <SelectItem value="won">Won</SelectItem>
+                            <SelectItem value="lost">Lost</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {/* Sale From Workshop - shown when both product and workshop are selected */}
+                      {selectedProduct && selectedWorkshop && (
+                        <div className="space-y-2">
+                          <Label>Sale From Workshop</Label>
+                          <Select value={selectedConvertedFromWorkshop || selectedWorkshop} onValueChange={setSelectedConvertedFromWorkshop}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Revenue credited to" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {workshops?.map(w => (
+                                <SelectItem key={w.id} value={w.id}>{w.title}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
-                  </div>
 
-                  <div className="flex-1 min-h-0 border rounded-lg overflow-auto">
-                    <table className="min-w-[1100px] w-full caption-bottom text-sm">
-                      <TableHeader>
+                    <div className="flex-1 min-h-0 border rounded-lg overflow-auto">
+                      <table className="min-w-[1100px] w-full caption-bottom text-sm">
+                        <TableHeader>
                         <TableRow>
                           <TableHead className="w-[60px]">Status</TableHead>
                           <TableHead>Name</TableHead>
