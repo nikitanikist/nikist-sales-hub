@@ -717,10 +717,16 @@ app.use("*", async (c: any, next: any) => {
     return next();
   }
 
-  // Check API key if configured
+  // Check API key if configured - support both header and query param
   if (mcpApiKey) {
     const authHeader = c.req.header("Authorization");
-    const providedKey = authHeader?.replace("Bearer ", "");
+    const headerKey = authHeader?.replace("Bearer ", "");
+    
+    // Also check query parameter (for Claude connector compatibility)
+    const url = new URL(c.req.url);
+    const queryKey = url.searchParams.get("api_key");
+    
+    const providedKey = headerKey || queryKey;
     
     if (providedKey !== mcpApiKey) {
       return c.json({ error: "Unauthorized" }, 401);
