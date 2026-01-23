@@ -758,11 +758,8 @@ app.all("/*", async (c: any) => {
     
     console.log(`Handling MCP request: ${c.req.method} ${c.req.url}`);
     
-    // CRITICAL: Connect the transport to the server before handling requests
-    await mcpServer.connect(transport);
-    
-    // Handle the request
-    const response = await transport.handleRequest(c.req.raw);
+    // Pass mcpServer to handleRequest - this is the correct mcp-lite API
+    const response = await transport.handleRequest(c.req.raw, mcpServer);
     
     console.log(`MCP response status: ${response.status}`);
     
