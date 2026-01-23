@@ -1,5 +1,6 @@
-import { Hono } from "hono";
-import { McpServer, StreamableHttpTransport } from "mcp-lite";
+// @ts-nocheck - Using esm.sh imports for Deno compatibility
+import { Hono } from "https://esm.sh/hono@4.4.0";
+import { McpServer, StreamableHttpTransport } from "https://esm.sh/mcp-lite@0.10.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.78.0";
 
 const app = new Hono();
@@ -33,8 +34,10 @@ mcpServer.tool({
     },
     required: [],
   },
-  handler: async ({ start_date, end_date, workshop_title, product_name }) => {
+  handler: async (params: { start_date?: string; end_date?: string; workshop_title?: string; product_name?: string }) => {
     try {
+      const { start_date, end_date } = params;
+      
       let query = supabase
         .from("call_appointments")
         .select(`
@@ -62,13 +65,13 @@ mcpServer.tool({
 
       if (error) throw error;
 
-      const totalOfferAmount = calls?.reduce((sum, c) => sum + (c.offer_amount || 0), 0) || 0;
-      const totalCashReceived = calls?.reduce((sum, c) => sum + (c.cash_received || 0), 0) || 0;
+      const totalOfferAmount = calls?.reduce((sum: number, c: any) => sum + (c.offer_amount || 0), 0) || 0;
+      const totalCashReceived = calls?.reduce((sum: number, c: any) => sum + (c.cash_received || 0), 0) || 0;
       const totalConversions = calls?.length || 0;
 
       // Get workshop-wise breakdown if no specific filter
-      let workshopBreakdown = [];
-      if (!workshop_title) {
+      let workshopBreakdown: any[] = [];
+      if (!params.workshop_title) {
         const { data: workshopMetrics } = await supabase.rpc("get_workshop_metrics");
         if (workshopMetrics) {
           const { data: workshops } = await supabase.from("workshops").select("id, title");
@@ -103,7 +106,8 @@ mcpServer.tool({
       return {
         content: [{ type: "text", text: JSON.stringify(summary, null, 2) }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
         content: [{ type: "text", text: `Error fetching revenue summary: ${error.message}` }],
         isError: true,
@@ -124,9 +128,9 @@ mcpServer.tool({
     },
     required: [],
   },
-  handler: async ({ date, closer_name }) => {
+  handler: async (params: { date?: string; closer_name?: string }) => {
     try {
-      const targetDate = date || new Date().toISOString().split("T")[0];
+      const targetDate = params.date || new Date().toISOString().split("T")[0];
       
       const { data: metrics, error } = await supabase.rpc("get_closer_call_metrics", {
         target_date: targetDate,
@@ -136,9 +140,9 @@ mcpServer.tool({
 
       let results = metrics || [];
       
-      if (closer_name) {
+      if (params.closer_name) {
         results = results.filter((m: any) => 
-          m.full_name?.toLowerCase().includes(closer_name.toLowerCase())
+          m.full_name?.toLowerCase().includes(params.closer_name!.toLowerCase())
         );
       }
 
@@ -162,7 +166,8 @@ mcpServer.tool({
           text: JSON.stringify({ date: targetDate, closers: formatted }, null, 2) 
         }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
         content: [{ type: "text", text: `Error fetching closer performance: ${error.message}` }],
         isError: true,
@@ -182,10 +187,10 @@ mcpServer.tool({
     },
     required: ["query"],
   },
-  handler: async ({ query }) => {
+  handler: async (params: { query: string }) => {
     try {
       const { data: results, error } = await supabase.rpc("search_leads", {
-        search_query: query,
+        search_query: params.query,
       });
 
       if (error) throw error;
@@ -256,7 +261,8 @@ mcpServer.tool({
           }, null, 2) 
         }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
         content: [{ type: "text", text: `Error searching customers: ${error.message}` }],
         isError: true,
@@ -283,7 +289,7 @@ mcpServer.tool({
     },
     required: [],
   },
-  handler: async ({ product_type, overdue_only }) => {
+  handler: async (params: { product_type?: string; overdue_only?: boolean }) => {
     try {
       const today = new Date().toISOString().split("T")[0];
       const results: any[] = [];
@@ -296,7 +302,7 @@ mcpServer.tool({
       ];
 
       for (const table of tables) {
-        if (product_type && table.type !== product_type) continue;
+        if (params.product_type && table.type !== params.product_type) continue;
 
         let query = supabase
           .from(table.name)
@@ -311,7 +317,7 @@ mcpServer.tool({
           `)
           .is("paid_at", null);
 
-        if (overdue_only) {
+        if (params.overdue_only) {
           query = query.lt("due_date", today);
         }
 
@@ -380,7 +386,8 @@ mcpServer.tool({
           }, null, 2) 
         }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
         content: [{ type: "text", text: `Error fetching pending EMIs: ${error.message}` }],
         isError: true,
@@ -402,9 +409,9 @@ mcpServer.tool({
     },
     required: [],
   },
-  handler: async ({ date, closer_name, status }) => {
+  handler: async (params: { date?: string; closer_name?: string; status?: string }) => {
     try {
-      const targetDate = date || new Date().toISOString().split("T")[0];
+      const targetDate = params.date || new Date().toISOString().split("T")[0];
 
       let query = supabase
         .from("call_appointments")
@@ -428,8 +435,8 @@ mcpServer.tool({
         .eq("scheduled_date", targetDate)
         .order("scheduled_time", { ascending: true });
 
-      if (status) {
-        query = query.eq("status", status);
+      if (params.status) {
+        query = query.eq("status", params.status);
       }
 
       const { data: calls, error } = await query;
@@ -437,9 +444,9 @@ mcpServer.tool({
 
       let results = calls || [];
 
-      if (closer_name) {
+      if (params.closer_name) {
         results = results.filter((c: any) => 
-          c.closer?.full_name?.toLowerCase().includes(closer_name.toLowerCase())
+          c.closer?.full_name?.toLowerCase().includes(params.closer_name!.toLowerCase())
         );
       }
 
@@ -474,7 +481,8 @@ mcpServer.tool({
           }, null, 2) 
         }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
         content: [{ type: "text", text: `Error fetching daily calls: ${error.message}` }],
         isError: true,
@@ -494,7 +502,7 @@ mcpServer.tool({
     },
     required: [],
   },
-  handler: async ({ workshop_title }) => {
+  handler: async (params: { workshop_title?: string }) => {
     try {
       const { data: metrics, error } = await supabase.rpc("get_workshop_metrics");
       if (error) throw error;
@@ -532,9 +540,9 @@ mcpServer.tool({
         };
       });
 
-      if (workshop_title) {
+      if (params.workshop_title) {
         results = results.filter((r: any) => 
-          r.workshop_title?.toLowerCase().includes(workshop_title.toLowerCase())
+          r.workshop_title?.toLowerCase().includes(params.workshop_title!.toLowerCase())
         );
       }
 
@@ -552,7 +560,8 @@ mcpServer.tool({
           }, null, 2) 
         }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
         content: [{ type: "text", text: `Error fetching workshop metrics: ${error.message}` }],
         isError: true,
@@ -574,27 +583,27 @@ mcpServer.tool({
     },
     required: [],
   },
-  handler: async ({ start_date, end_date, payment_mode }) => {
+  handler: async (params: { start_date?: string; end_date?: string; payment_mode?: string }) => {
     try {
       let query = supabase
         .from("daily_money_flows")
         .select("*")
         .order("payment_date", { ascending: false });
 
-      if (start_date) {
-        query = query.gte("payment_date", start_date);
+      if (params.start_date) {
+        query = query.gte("payment_date", params.start_date);
       }
-      if (end_date) {
-        query = query.lte("payment_date", end_date);
+      if (params.end_date) {
+        query = query.lte("payment_date", params.end_date);
       }
-      if (payment_mode) {
-        query = query.eq("payment_mode", payment_mode);
+      if (params.payment_mode) {
+        query = query.eq("payment_mode", params.payment_mode);
       }
 
       const { data: flows, error } = await query;
       if (error) throw error;
 
-      const totalAmount = flows?.reduce((sum, f) => sum + (f.amount || 0), 0) || 0;
+      const totalAmount = flows?.reduce((sum: number, f: any) => sum + (f.amount || 0), 0) || 0;
 
       // Group by payment mode
       const byMode: Record<string, number> = {};
@@ -620,7 +629,8 @@ mcpServer.tool({
           }, null, 2) 
         }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
         content: [{ type: "text", text: `Error fetching money flow: ${error.message}` }],
         isError: true,
@@ -629,59 +639,68 @@ mcpServer.tool({
   },
 });
 
-// Tool 8: Run Custom Read Query (with safety restrictions)
+// Tool 8: Get Database Overview
 mcpServer.tool({
-  name: "run_read_query",
-  description: "Run a custom read-only SQL query against the database. Only SELECT statements are allowed. Use this for advanced data analysis that other tools don't cover.",
+  name: "get_database_overview",
+  description: "Get an overview of the CRM database with counts of key entities like leads, workshops, products, calls, etc.",
   inputSchema: {
     type: "object",
-    properties: {
-      query: { 
-        type: "string", 
-        description: "SQL SELECT query to run. Must be read-only (no INSERT, UPDATE, DELETE, DROP, etc.)" 
-      },
-    },
-    required: ["query"],
+    properties: {},
+    required: [],
   },
-  handler: async ({ query }) => {
+  handler: async () => {
     try {
-      // Validate query is read-only
-      const upperQuery = query.toUpperCase().trim();
-      const dangerousKeywords = [
-        "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", 
-        "CREATE", "GRANT", "REVOKE", "EXECUTE", "EXEC", "CALL"
-      ];
-      
-      for (const keyword of dangerousKeywords) {
-        if (upperQuery.includes(keyword)) {
-          return {
-            content: [{ 
-              type: "text", 
-              text: `Error: Query contains forbidden keyword '${keyword}'. Only SELECT queries are allowed.` 
-            }],
-            isError: true,
-          };
-        }
-      }
+      // Get counts from various tables
+      const [
+        { count: leadsCount },
+        { count: workshopsCount },
+        { count: productsCount },
+        { count: callsCount },
+        { count: batchStudentsCount },
+        { count: futuresStudentsCount },
+        { count: highFutureStudentsCount },
+        { count: closersCount },
+      ] = await Promise.all([
+        supabase.from("leads").select("*", { count: "exact", head: true }),
+        supabase.from("workshops").select("*", { count: "exact", head: true }),
+        supabase.from("products").select("*", { count: "exact", head: true }),
+        supabase.from("call_appointments").select("*", { count: "exact", head: true }),
+        supabase.from("batch_students").select("*", { count: "exact", head: true }),
+        supabase.from("futures_students").select("*", { count: "exact", head: true }),
+        supabase.from("high_future_students").select("*", { count: "exact", head: true }),
+        supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "sales_rep"),
+      ]);
 
-      if (!upperQuery.startsWith("SELECT")) {
-        return {
-          content: [{ type: "text", text: "Error: Query must start with SELECT." }],
-          isError: true,
-        };
-      }
-
-      // Use the Supabase RPC to run the query (you'd need to create this function)
-      // For now, we'll provide guidance
       return {
         content: [{ 
           type: "text", 
-          text: `Custom queries are not yet enabled. Please use the other available tools:\n- get_revenue_summary\n- get_closer_performance\n- search_customers\n- get_pending_emis\n- get_daily_calls\n- get_workshop_metrics\n- get_money_flow\n\nIf you need a specific query capability, let me know and I can add it as a dedicated tool.` 
+          text: JSON.stringify({
+            overview: {
+              total_leads: leadsCount,
+              total_workshops: workshopsCount,
+              total_products: productsCount,
+              total_call_appointments: callsCount,
+              batch_students: batchStudentsCount,
+              futures_students: futuresStudentsCount,
+              high_future_students: highFutureStudentsCount,
+              sales_closers: closersCount,
+            },
+            available_tools: [
+              "get_revenue_summary - Revenue and sales data",
+              "get_closer_performance - Sales closer metrics",
+              "search_customers - Find customers by name/email/phone",
+              "get_pending_emis - Overdue EMI payments",
+              "get_daily_calls - Scheduled calls for a date",
+              "get_workshop_metrics - Workshop performance data",
+              "get_money_flow - Payment transactions",
+            ],
+          }, null, 2) 
         }],
       };
-    } catch (error) {
+    } catch (err) {
+      const error = err as Error;
       return {
-        content: [{ type: "text", text: `Error running query: ${error.message}` }],
+        content: [{ type: "text", text: `Error fetching database overview: ${error.message}` }],
         isError: true,
       };
     }
@@ -693,7 +712,7 @@ mcpServer.tool({
 const transport = new StreamableHttpTransport();
 
 // API Key authentication middleware
-app.use("*", async (c, next) => {
+app.use("*", async (c: any, next: any) => {
   // Skip auth for OPTIONS requests
   if (c.req.method === "OPTIONS") {
     return next();
@@ -713,7 +732,7 @@ app.use("*", async (c, next) => {
 });
 
 // Handle all MCP requests
-app.all("/*", async (c) => {
+app.all("/*", async (c: any) => {
   // CORS headers
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -738,8 +757,8 @@ app.all("/*", async (c) => {
       status: response.status,
       headers: newHeaders,
     });
-  } catch (error) {
-    console.error("MCP Error:", error);
+  } catch (err) {
+    console.error("MCP Error:", err);
     return c.json({ error: "Internal server error" }, 500);
   }
 });
