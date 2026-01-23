@@ -21,8 +21,7 @@ const mcpServer = new McpServer({
 // ============== TOOL DEFINITIONS ==============
 
 // Tool 1: Get Revenue Summary
-mcpServer.tool({
-  name: "get_revenue_summary",
+mcpServer.tool("get_revenue_summary", {
   description: "Get revenue summary from the CRM. Can filter by date range, workshop, or product. Returns total cash collected, offer amounts, and conversion counts.",
   inputSchema: {
     type: "object",
@@ -117,8 +116,7 @@ mcpServer.tool({
 });
 
 // Tool 2: Get Closer Performance
-mcpServer.tool({
-  name: "get_closer_performance",
+mcpServer.tool("get_closer_performance", {
   description: "Get performance metrics for sales closers. Shows calls completed, conversions, revenue generated, and pending calls.",
   inputSchema: {
     type: "object",
@@ -177,8 +175,7 @@ mcpServer.tool({
 });
 
 // Tool 3: Search Customers
-mcpServer.tool({
-  name: "search_customers",
+mcpServer.tool("search_customers", {
   description: "Search for customers by name, email, or phone number. Returns customer details, assigned workshops, products, and call history.",
   inputSchema: {
     type: "object",
@@ -272,8 +269,7 @@ mcpServer.tool({
 });
 
 // Tool 4: Get Pending EMIs
-mcpServer.tool({
-  name: "get_pending_emis",
+mcpServer.tool("get_pending_emis", {
   description: "Get list of pending or overdue EMI payments. Shows customer name, amount due, due date, and days overdue.",
   inputSchema: {
     type: "object",
@@ -294,95 +290,119 @@ mcpServer.tool({
       const today = new Date().toISOString().split("T")[0];
       const results: any[] = [];
 
-      // Fetch from all three EMI tables
-      const tables = [
-        { name: "batch_emi_payments", type: "batches" },
-        { name: "futures_emi_payments", type: "futures" },
-        { name: "high_future_emi_payments", type: "high_future" },
-      ];
+      // Get pending EMIs from call_appointments with due_amount > 0
+      const { data: pendingCalls, error: callsError } = await supabase
+        .from("call_appointments")
+        .select(`
+          id,
+          due_amount,
+          cash_received,
+          offer_amount,
+          scheduled_date,
+          lead:leads!call_appointments_lead_id_fkey(
+            contact_name,
+            phone,
+            email
+          )
+        `)
+        .gt("due_amount", 0)
+        .in("status", ["converted_beginner", "converted_intermediate", "converted_advance", "converted", "booking_amount"]);
 
-      for (const table of tables) {
-        if (params.product_type && table.type !== params.product_type) continue;
+      if (callsError) throw callsError;
 
-        let query = supabase
-          .from(table.name)
-          .select(`
-            id,
-            student_id,
-            emi_number,
-            amount,
-            due_date,
-            paid_at,
-            notes
-          `)
-          .is("paid_at", null);
-
-        if (params.overdue_only) {
-          query = query.lt("due_date", today);
-        }
-
-        const { data, error } = await query;
-        if (error) {
-          console.error(`Error fetching ${table.name}:`, error);
-          continue;
-        }
-
-        // Get student details
-        const studentTable = table.type === "batches" 
-          ? "batch_students" 
-          : table.type === "futures" 
-            ? "futures_students" 
-            : "high_future_students";
-
-        const studentIds = data?.map((d: any) => d.student_id) || [];
-        if (studentIds.length === 0) continue;
-
-        const { data: students } = await supabase
-          .from(studentTable)
-          .select("id, student_name, phone, email")
-          .in("id", studentIds);
-
-        const studentMap = new Map(students?.map((s: any) => [s.id, s]) || []);
-
-        data?.forEach((emi: any) => {
-          const student = studentMap.get(emi.student_id);
-          const dueDate = new Date(emi.due_date);
-          const todayDate = new Date(today);
-          const daysOverdue = Math.floor((todayDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-
-          results.push({
-            product_type: table.type,
-            student_name: student?.student_name || "Unknown",
-            phone: student?.phone,
-            email: student?.email,
-            emi_number: emi.emi_number,
-            amount: emi.amount,
-            due_date: emi.due_date,
-            days_overdue: daysOverdue > 0 ? daysOverdue : 0,
-            is_overdue: daysOverdue > 0,
-            notes: emi.notes,
-          });
+      pendingCalls?.forEach((call: any) => {
+        results.push({
+          product_type: "batch",
+          student_name: call.lead?.contact_name || "Unknown",
+          phone: call.lead?.phone,
+          email: call.lead?.email,
+          due_amount: call.due_amount,
+          cash_received: call.cash_received,
+          offer_amount: call.offer_amount,
+          scheduled_date: call.scheduled_date,
         });
+      });
+
+      // Get futures students with due amount
+      const { data: futuresStudents } = await supabase
+        .from("futures_mentorship_students")
+        .select(`
+          id,
+          due_amount,
+          cash_received,
+          offer_amount,
+          conversion_date,
+          lead:leads!futures_mentorship_students_lead_id_fkey(
+            contact_name,
+            phone,
+            email
+          )
+        `)
+        .gt("due_amount", 0);
+
+      futuresStudents?.forEach((student: any) => {
+        results.push({
+          product_type: "futures",
+          student_name: student.lead?.contact_name || "Unknown",
+          phone: student.lead?.phone,
+          email: student.lead?.email,
+          due_amount: student.due_amount,
+          cash_received: student.cash_received,
+          offer_amount: student.offer_amount,
+          conversion_date: student.conversion_date,
+        });
+      });
+
+      // Get high future students with due amount
+      const { data: highFutureStudents } = await supabase
+        .from("high_future_students")
+        .select(`
+          id,
+          due_amount,
+          cash_received,
+          offer_amount,
+          conversion_date,
+          lead:leads!high_future_students_lead_id_fkey(
+            contact_name,
+            phone,
+            email
+          )
+        `)
+        .gt("due_amount", 0);
+
+      highFutureStudents?.forEach((student: any) => {
+        results.push({
+          product_type: "high_future",
+          student_name: student.lead?.contact_name || "Unknown",
+          phone: student.lead?.phone,
+          email: student.lead?.email,
+          due_amount: student.due_amount,
+          cash_received: student.cash_received,
+          offer_amount: student.offer_amount,
+          conversion_date: student.conversion_date,
+        });
+      });
+
+      // Filter by product type if specified
+      let filteredResults = results;
+      if (params.product_type) {
+        filteredResults = results.filter(r => r.product_type === params.product_type);
       }
 
-      // Sort by days overdue (most overdue first)
-      results.sort((a, b) => b.days_overdue - a.days_overdue);
+      // Sort by due amount descending
+      filteredResults.sort((a, b) => (b.due_amount || 0) - (a.due_amount || 0));
 
-      const totalPending = results.reduce((sum, r) => sum + r.amount, 0);
-      const overdueCount = results.filter(r => r.is_overdue).length;
-      const overdueAmount = results.filter(r => r.is_overdue).reduce((sum, r) => sum + r.amount, 0);
+      const totalPending = filteredResults.reduce((sum, r) => sum + (r.due_amount || 0), 0);
 
       return {
         content: [{ 
           type: "text", 
           text: JSON.stringify({
             summary: {
-              total_pending_emis: results.length,
+              total_pending_count: filteredResults.length,
               total_pending_amount: totalPending,
-              overdue_count: overdueCount,
-              overdue_amount: overdueAmount,
             },
-            emis: results,
+            pending_payments: filteredResults,
           }, null, 2) 
         }],
       };
@@ -397,8 +417,7 @@ mcpServer.tool({
 });
 
 // Tool 5: Get Daily Calls Schedule
-mcpServer.tool({
-  name: "get_daily_calls",
+mcpServer.tool("get_daily_calls", {
   description: "Get scheduled calls for a specific date. Shows time, customer, closer assigned, and status.",
   inputSchema: {
     type: "object",
@@ -422,7 +441,7 @@ mcpServer.tool({
           status,
           offer_amount,
           cash_received,
-          notes,
+          closer_remarks,
           zoom_link,
           lead:leads!call_appointments_lead_id_fkey(
             contact_name,
@@ -461,7 +480,7 @@ mcpServer.tool({
         zoom_link: c.zoom_link,
         offer_amount: c.offer_amount,
         cash_received: c.cash_received,
-        notes: c.notes,
+        remarks: c.closer_remarks,
       }));
 
       // Calculate summary
@@ -492,8 +511,7 @@ mcpServer.tool({
 });
 
 // Tool 6: Get Workshop Metrics
-mcpServer.tool({
-  name: "get_workshop_metrics",
+mcpServer.tool("get_workshop_metrics", {
   description: "Get detailed metrics for workshops including registrations, sales, conversions, fresh vs rejoin breakdown.",
   inputSchema: {
     type: "object",
@@ -571,61 +589,46 @@ mcpServer.tool({
 });
 
 // Tool 7: Get Money Flow Summary
-mcpServer.tool({
-  name: "get_money_flow",
-  description: "Get daily money flow summary showing all payments received across different payment modes.",
+mcpServer.tool("get_money_flow", {
+  description: "Get daily money flow summary showing cash collected and revenue.",
   inputSchema: {
     type: "object",
     properties: {
       start_date: { type: "string", description: "Start date in YYYY-MM-DD format" },
       end_date: { type: "string", description: "End date in YYYY-MM-DD format" },
-      payment_mode: { type: "string", description: "Filter by payment mode (optional)" },
     },
     required: [],
   },
-  handler: async (params: { start_date?: string; end_date?: string; payment_mode?: string }) => {
+  handler: async (params: { start_date?: string; end_date?: string }) => {
     try {
       let query = supabase
-        .from("daily_money_flows")
+        .from("daily_money_flow")
         .select("*")
-        .order("payment_date", { ascending: false });
+        .order("date", { ascending: false });
 
       if (params.start_date) {
-        query = query.gte("payment_date", params.start_date);
+        query = query.gte("date", params.start_date);
       }
       if (params.end_date) {
-        query = query.lte("payment_date", params.end_date);
-      }
-      if (params.payment_mode) {
-        query = query.eq("payment_mode", params.payment_mode);
+        query = query.lte("date", params.end_date);
       }
 
       const { data: flows, error } = await query;
       if (error) throw error;
 
-      const totalAmount = flows?.reduce((sum: number, f: any) => sum + (f.amount || 0), 0) || 0;
-
-      // Group by payment mode
-      const byMode: Record<string, number> = {};
-      flows?.forEach((f: any) => {
-        byMode[f.payment_mode] = (byMode[f.payment_mode] || 0) + f.amount;
-      });
-
-      // Group by date
-      const byDate: Record<string, number> = {};
-      flows?.forEach((f: any) => {
-        byDate[f.payment_date] = (byDate[f.payment_date] || 0) + f.amount;
-      });
+      const totalCashCollected = flows?.reduce((sum: number, f: any) => sum + (f.cash_collected || 0), 0) || 0;
+      const totalRevenue = flows?.reduce((sum: number, f: any) => sum + (f.total_revenue || 0), 0) || 0;
 
       return {
         content: [{ 
           type: "text", 
           text: JSON.stringify({
-            total_amount: totalAmount,
-            total_transactions: flows?.length || 0,
-            by_payment_mode: byMode,
-            by_date: byDate,
-            transactions: flows?.slice(0, 50), // Limit to 50 most recent
+            summary: {
+              total_cash_collected: totalCashCollected,
+              total_revenue: totalRevenue,
+              total_days: flows?.length || 0,
+            },
+            daily_flows: flows?.slice(0, 30), // Limit to 30 most recent
           }, null, 2) 
         }],
       };
@@ -640,8 +643,7 @@ mcpServer.tool({
 });
 
 // Tool 8: Get Database Overview
-mcpServer.tool({
-  name: "get_database_overview",
+mcpServer.tool("get_database_overview", {
   description: "Get an overview of the CRM database with counts of key entities like leads, workshops, products, calls, etc.",
   inputSchema: {
     type: "object",
@@ -656,7 +658,6 @@ mcpServer.tool({
         { count: workshopsCount },
         { count: productsCount },
         { count: callsCount },
-        { count: batchStudentsCount },
         { count: futuresStudentsCount },
         { count: highFutureStudentsCount },
         { count: closersCount },
@@ -665,8 +666,7 @@ mcpServer.tool({
         supabase.from("workshops").select("*", { count: "exact", head: true }),
         supabase.from("products").select("*", { count: "exact", head: true }),
         supabase.from("call_appointments").select("*", { count: "exact", head: true }),
-        supabase.from("batch_students").select("*", { count: "exact", head: true }),
-        supabase.from("futures_students").select("*", { count: "exact", head: true }),
+        supabase.from("futures_mentorship_students").select("*", { count: "exact", head: true }),
         supabase.from("high_future_students").select("*", { count: "exact", head: true }),
         supabase.from("user_roles").select("*", { count: "exact", head: true }).eq("role", "sales_rep"),
       ]);
@@ -680,7 +680,6 @@ mcpServer.tool({
               total_workshops: workshopsCount,
               total_products: productsCount,
               total_call_appointments: callsCount,
-              batch_students: batchStudentsCount,
               futures_students: futuresStudentsCount,
               high_future_students: highFutureStudentsCount,
               sales_closers: closersCount,
@@ -689,10 +688,10 @@ mcpServer.tool({
               "get_revenue_summary - Revenue and sales data",
               "get_closer_performance - Sales closer metrics",
               "search_customers - Find customers by name/email/phone",
-              "get_pending_emis - Overdue EMI payments",
+              "get_pending_emis - Pending EMI payments",
               "get_daily_calls - Scheduled calls for a date",
               "get_workshop_metrics - Workshop performance data",
-              "get_money_flow - Payment transactions",
+              "get_money_flow - Daily money flow data",
             ],
           }, null, 2) 
         }],
