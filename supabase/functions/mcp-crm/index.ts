@@ -708,6 +708,17 @@ mcpServer.tool("get_database_overview", {
 
 // ============== HTTP TRANSPORT ==============
 
+// CORS headers
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
+};
+
+// Create transport and bind to server ONCE at module level (critical fix!)
+const transport = new StreamableHttpTransport();
+const mcpHandler = transport.bind(mcpServer);
+
 // API Key authentication middleware
 app.use("*", async (c: any, next: any) => {
   // Skip auth for OPTIONS requests
@@ -739,27 +750,17 @@ app.use("*", async (c: any, next: any) => {
   return next();
 });
 
-// Handle all MCP requests - create transport per request to ensure proper binding
+// Handle all MCP requests using the bound handler
 app.all("/*", async (c: any) => {
-  // CORS headers
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
-  };
-
   if (c.req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Create a new transport for each request
-    const transport = new StreamableHttpTransport();
-    
     console.log(`Handling MCP request: ${c.req.method} ${c.req.url}`);
     
-    // Pass mcpServer to handleRequest - this is the correct mcp-lite API
-    const response = await transport.handleRequest(c.req.raw, mcpServer);
+    // Use the bound handler (this is the correct mcp-lite pattern)
+    const response = await mcpHandler(c.req.raw);
     
     console.log(`MCP response status: ${response.status}`);
     
