@@ -952,15 +952,14 @@ const Leads = () => {
         return acc;
       }, {});
     }
-  })();
+  })() || {};
 
   // Add leads without assignments ONLY when product/workshop filters are NOT active AND not using server search
   const hasProductOrWorkshopFilter = filters.productIds.length > 0 || filters.workshopIds.length > 0;
   
   if (!hasProductOrWorkshopFilter && !isUsingServerSearch) {
     filteredLeads?.forEach((lead) => {
-      if (!groupedAssignments?.[lead.id]) {
-        if (!groupedAssignments) return;
+      if (!groupedAssignments[lead.id]) {
         groupedAssignments[lead.id] = {
           lead: {
             ...lead,
