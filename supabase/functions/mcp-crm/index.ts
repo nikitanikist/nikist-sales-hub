@@ -708,8 +708,6 @@ mcpServer.tool("get_database_overview", {
 
 // ============== HTTP TRANSPORT ==============
 
-const transport = new StreamableHttpTransport();
-
 // API Key authentication middleware
 app.use("*", async (c: any, next: any) => {
   // Skip auth for OPTIONS requests
@@ -728,21 +726,26 @@ app.use("*", async (c: any, next: any) => {
     
     const providedKey = headerKey || queryKey;
     
+    // Log for debugging (no secrets)
+    console.log(`MCP Request: ${c.req.method} ${url.pathname} | Auth: ${headerKey ? 'header' : queryKey ? 'query' : 'none'}`);
+    
     if (providedKey !== mcpApiKey) {
+      console.log("Auth failed: invalid key");
       return c.json({ error: "Unauthorized" }, 401);
     }
+    console.log("Auth passed");
   }
 
   return next();
 });
 
-// Handle all MCP requests
+// Handle all MCP requests - create transport per request to ensure proper binding
 app.all("/*", async (c: any) => {
   // CORS headers
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, accept",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE",
   };
 
   if (c.req.method === "OPTIONS") {
@@ -750,7 +753,18 @@ app.all("/*", async (c: any) => {
   }
 
   try {
-    const response = await transport.handleRequest(c.req.raw, mcpServer);
+    // Create a new transport for each request
+    const transport = new StreamableHttpTransport();
+    
+    console.log(`Handling MCP request: ${c.req.method} ${c.req.url}`);
+    
+    // CRITICAL: Connect the transport to the server before handling requests
+    await mcpServer.connect(transport);
+    
+    // Handle the request
+    const response = await transport.handleRequest(c.req.raw);
+    
+    console.log(`MCP response status: ${response.status}`);
     
     // Add CORS headers to response
     const newHeaders = new Headers(response.headers);
@@ -764,7 +778,10 @@ app.all("/*", async (c: any) => {
     });
   } catch (err) {
     console.error("MCP Error:", err);
-    return c.json({ error: "Internal server error" }, 500);
+    return c.json({ 
+      error: "Internal server error",
+      message: err instanceof Error ? err.message : "Unknown error"
+    }, 500);
   }
 });
 
