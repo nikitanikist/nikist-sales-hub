@@ -204,7 +204,8 @@ const Leads = () => {
             assigned_profile:profiles!leads_assigned_to_fkey(id, full_name),
             previous_assigned_profile:profiles!leads_previous_assigned_to_fkey(id, full_name)
           ),
-          workshop:workshops(id, title),
+          workshop:workshops!lead_assignments_workshop_id_fkey(id, title),
+          converted_from_workshop:workshops!lead_assignments_converted_from_workshop_id_fkey(id, title),
           funnel:funnels(id, funnel_name),
           product:products(id, product_name, price)
         `)
@@ -584,7 +585,7 @@ const Leads = () => {
         id, 
         is_refunded, 
         refund_reason,
-        workshop:workshops(id, title),
+        workshop:workshops!lead_assignments_workshop_id_fkey(id, title),
         product:products(id, product_name, price)
       `)
       .eq("lead_id", leadId)
