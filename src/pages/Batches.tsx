@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil } from "lucide-react";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins } from "lucide-react";
 import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
 import { AddBatchStudentDialog } from "@/components/AddBatchStudentDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -548,8 +548,9 @@ const Batches = () => {
     if (filterDiscontinued) count++;
     if (filterFullPayment) count++;
     if (filterRemaining) count++;
+    if (filterPAE) count++;
     return count;
-  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining]);
+  }, [selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, isManager, isCloser, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining, filterPAE]);
 
   // Clear all filters (managers don't have payment type filter)
   const clearAllFilters = () => {
@@ -562,6 +563,7 @@ const Batches = () => {
     setFilterDiscontinued(false);
     setFilterFullPayment(false);
     setFilterRemaining(false);
+    setFilterPAE(false);
     if (!isManager && !isCloser) {
       setPaymentTypeFilter("all");
     }
@@ -1254,6 +1256,7 @@ const Batches = () => {
                         setFilterDiscontinued(false);
                         setFilterFullPayment(false);
                         setFilterRemaining(false);
+                        setFilterPAE(false);
                       }
                     }}
                   >
@@ -1272,6 +1275,46 @@ const Batches = () => {
                       </div>
                       {filterTodayFollowUp && (
                         <Badge variant="secondary" className="bg-purple-100 text-purple-700 mt-2 w-fit">
+                          Filter Active
+                        </Badge>
+                      )}
+                    </div>
+                  </Card>
+
+                  {/* Pay After Earning Card */}
+                  <Card 
+                    className={cn(
+                      "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                      filterPAE && "ring-2 ring-violet-500"
+                    )}
+                    onClick={() => {
+                      if (filterPAE) {
+                        setFilterPAE(false);
+                      } else {
+                        setFilterPAE(true);
+                        setFilterRefunded(false);
+                        setFilterDiscontinued(false);
+                        setFilterFullPayment(false);
+                        setFilterRemaining(false);
+                        setFilterTodayFollowUp(false);
+                      }
+                    }}
+                  >
+                    <div className="p-4 bg-violet-50 h-full">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Pay After Earning</p>
+                          <div className="text-xl font-bold text-violet-700">
+                            ₹{allStudentsTotals.paeAmount.toLocaleString('en-IN')}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {allStudentsTotals.paeCount} students
+                          </p>
+                        </div>
+                        <HandCoins className="h-6 w-6 text-violet-400" />
+                      </div>
+                      {filterPAE && (
+                        <Badge variant="secondary" className="bg-violet-100 text-violet-700 mt-2 w-fit">
                           Filter Active
                         </Badge>
                       )}
@@ -1641,6 +1684,11 @@ const Batches = () => {
                               <TableCell className="font-medium">
                                 <div className="flex items-center gap-2">
                                   {student.contact_name}
+                                  {student.pay_after_earning && (student.due_amount || 0) > 0 && (
+                                    <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200">
+                                      PAE
+                                    </Badge>
+                                  )}
                                   {(student.additional_comments || student.next_follow_up_date) && (
                                     <FileText 
                                       className="h-4 w-4 text-blue-500 cursor-pointer hover:text-blue-700 transition-colors" 
@@ -1738,6 +1786,7 @@ const Batches = () => {
                                         setNotesStudent(student);
                                         setNotesText(student.additional_comments || "");
                                         setFollowUpDate(student.next_follow_up_date ? new Date(student.next_follow_up_date) : undefined);
+                                        setPayAfterEarning(student.pay_after_earning || false);
                                       }}>
                                         <FileText className="h-4 w-4 mr-2" />
                                         {student.additional_comments ? "Edit Notes" : "Add Notes"}
@@ -2035,6 +2084,24 @@ const Batches = () => {
                     </Button>
                   )}
                 </div>
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="pae-toggle-batches" className="flex items-center gap-2">
+                        <HandCoins className="h-4 w-4 text-violet-600" />
+                        Pay After Earning (PAE)
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Student will pay remaining amount after earning from the course
+                      </p>
+                    </div>
+                    <Switch
+                      id="pae-toggle-batches"
+                      checked={payAfterEarning}
+                      onCheckedChange={setPayAfterEarning}
+                    />
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setNotesStudent(null); setNotesText(""); setFollowUpDate(undefined); }}>Cancel</Button>
@@ -2098,6 +2165,7 @@ const Batches = () => {
                   setFollowUpDate(viewingNotesStudent.next_follow_up_date 
                     ? new Date(viewingNotesStudent.next_follow_up_date) 
                     : undefined);
+                  setPayAfterEarning(viewingNotesStudent.pay_after_earning || false);
                   setViewingNotesStudent(null);
                 }
               }}>
