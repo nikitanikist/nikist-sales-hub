@@ -49,6 +49,7 @@ interface FuturesStudent {
   closer_id: string | null;
   closer_name: string | null;
   next_follow_up_date: string | null;
+  pay_after_earning: boolean;
 }
 
 interface FuturesEmiPayment {
@@ -101,6 +102,7 @@ const FuturesMentorship = () => {
   const [filterFullPayment, setFilterFullPayment] = useState(false);
   const [filterRemaining, setFilterRemaining] = useState(false);
   const [filterTodayFollowUp, setFilterTodayFollowUp] = useState(false);
+  const [filterPAE, setFilterPAE] = useState(false);
   
   // Dialog state
   const [refundingStudent, setRefundingStudent] = useState<FuturesStudent | null>(null);
@@ -108,6 +110,7 @@ const FuturesMentorship = () => {
   const [notesStudent, setNotesStudent] = useState<FuturesStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
+  const [payAfterEarning, setPayAfterEarning] = useState(false);
   const [isFollowUpDateOpen, setIsFollowUpDateOpen] = useState(false);
   const [emiStudent, setEmiStudent] = useState<FuturesStudent | null>(null);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
@@ -162,6 +165,7 @@ const FuturesMentorship = () => {
           refund_reason,
           closer_id,
           next_follow_up_date,
+          pay_after_earning,
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
@@ -186,6 +190,7 @@ const FuturesMentorship = () => {
         closer_id: student.closer_id,
         closer_name: student.closer?.full_name || null,
         next_follow_up_date: student.next_follow_up_date,
+        pay_after_earning: student.pay_after_earning || false,
       })) as FuturesStudent[];
     },
     enabled: !!selectedBatch,
@@ -250,13 +255,17 @@ const FuturesMentorship = () => {
       const matchesFullPayment = !filterFullPayment || 
         ((student.due_amount || 0) === 0 && (student.cash_received || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
       
-      // Remaining amount filter (due_amount > 0)
+      // Remaining amount filter (due_amount > 0 and NOT PAE)
       const matchesRemaining = !filterRemaining || 
-        ((student.due_amount || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
+        ((student.due_amount || 0) > 0 && !student.pay_after_earning && student.status !== 'refunded' && student.status !== 'discontinued');
       
-      return matchesSearch && matchesStatusSheet && matchesDate && matchesTodayFollowUp && matchesStatusCard && matchesFullPayment && matchesRemaining;
+      // Pay After Earning filter (due_amount > 0 and PAE = true)
+      const matchesPAE = !filterPAE || 
+        ((student.due_amount || 0) > 0 && student.pay_after_earning && student.status !== 'refunded' && student.status !== 'discontinued');
+      
+      return matchesSearch && matchesStatusSheet && matchesDate && matchesTodayFollowUp && matchesStatusCard && matchesFullPayment && matchesRemaining && matchesPAE;
     });
-  }, [batchStudents, searchQuery, statusFilter, dateFrom, dateTo, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining]);
+  }, [batchStudents, searchQuery, statusFilter, dateFrom, dateTo, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining, filterPAE]);
 
   // Calculate totals and closer breakdown
   const { closerBreakdown, totals, allStudentsTotals, todayFollowUpCount } = useMemo(() => {
@@ -267,7 +276,8 @@ const FuturesMentorship = () => {
         offered: 0, received: 0, due: 0, count: 0, 
         fullPaymentCount: 0, duePaymentCount: 0,
         refundedCount: 0, refundedReceived: 0,
-        discontinuedCount: 0, discontinuedReceived: 0
+        discontinuedCount: 0, discontinuedReceived: 0,
+        paeAmount: 0, paeCount: 0
       },
       todayFollowUpCount: 0
     };
@@ -278,6 +288,15 @@ const FuturesMentorship = () => {
     );
     const refundedStudents = batchStudents.filter(s => s.status === 'refunded');
     const discontinuedStudents = batchStudents.filter(s => s.status === 'discontinued');
+    
+    // PAE students (active, has due amount, pay_after_earning = true)
+    const paeStudents = activeStudents.filter(s => 
+      s.pay_after_earning && (s.due_amount || 0) > 0
+    );
+    // Non-PAE students with due (active, has due amount, pay_after_earning = false)
+    const nonPaeStudentsWithDue = activeStudents.filter(s => 
+      !s.pay_after_earning && (s.due_amount || 0) > 0
+    );
     
     // Calculate closer breakdown for active students
     const breakdown: Record<string, { 
@@ -306,7 +325,10 @@ const FuturesMentorship = () => {
       
       breakdown[closerId].offered += student.offer_amount || 0;
       breakdown[closerId].received += student.cash_received || 0;
-      breakdown[closerId].due += student.due_amount || 0;
+      // Only include non-PAE due in closer breakdown
+      if (!student.pay_after_earning) {
+        breakdown[closerId].due += student.due_amount || 0;
+      }
       breakdown[closerId].count += 1;
     });
     
@@ -329,14 +351,17 @@ const FuturesMentorship = () => {
       allStudentsTotals: {
         offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
         received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
-        due: activeStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0),
+        // Due excludes PAE students
+        due: nonPaeStudentsWithDue.reduce((sum, s) => sum + (s.due_amount || 0), 0),
         count: activeStudents.length,
         fullPaymentCount: activeStudents.filter(s => (s.due_amount || 0) === 0 && (s.cash_received || 0) > 0).length,
-        duePaymentCount: activeStudents.filter(s => (s.due_amount || 0) > 0).length,
+        duePaymentCount: nonPaeStudentsWithDue.length,
         refundedCount: refundedStudents.length,
         refundedReceived: refundedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
         discontinuedCount: discontinuedStudents.length,
-        discontinuedReceived: discontinuedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0)
+        discontinuedReceived: discontinuedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+        paeAmount: paeStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0),
+        paeCount: paeStudents.length
       },
       todayFollowUpCount
     };
@@ -445,11 +470,12 @@ const FuturesMentorship = () => {
   });
 
   // Update notes mutation - now includes follow-up date
+  // Update notes mutation - now includes follow-up date and PAE
   const notesMutation = useMutation({
-    mutationFn: async ({ id, notes, nextFollowUpDate }: { id: string; notes: string; nextFollowUpDate: string | null }) => {
+    mutationFn: async ({ id, notes, nextFollowUpDate, payAfterEarning }: { id: string; notes: string; nextFollowUpDate: string | null; payAfterEarning: boolean }) => {
       const { error } = await supabase
         .from("futures_mentorship_students")
-        .update({ notes, next_follow_up_date: nextFollowUpDate })
+        .update({ notes, next_follow_up_date: nextFollowUpDate, pay_after_earning: payAfterEarning })
         .eq("id", id);
       if (error) throw error;
     },
@@ -459,6 +485,7 @@ const FuturesMentorship = () => {
       setNotesStudent(null);
       setNotesText("");
       setFollowUpDate(undefined);
+      setPayAfterEarning(false);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1614,7 +1641,8 @@ const FuturesMentorship = () => {
               onClick={() => notesStudent && notesMutation.mutate({ 
                 id: notesStudent.id, 
                 notes: notesText,
-                nextFollowUpDate: followUpDate ? format(followUpDate, "yyyy-MM-dd") : null
+                nextFollowUpDate: followUpDate ? format(followUpDate, "yyyy-MM-dd") : null,
+                payAfterEarning
               })}
               disabled={notesMutation.isPending}
             >

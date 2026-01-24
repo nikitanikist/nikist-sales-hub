@@ -54,6 +54,7 @@ interface BatchStudent {
   additional_comments: string | null;
   refund_reason: string | null;
   next_follow_up_date: string | null;
+  pay_after_earning: boolean;
 }
 
 interface EmiPayment {
@@ -120,6 +121,7 @@ const Batches = () => {
   const [filterDiscontinued, setFilterDiscontinued] = useState(false);
   const [filterFullPayment, setFilterFullPayment] = useState(false);
   const [filterRemaining, setFilterRemaining] = useState(false);
+  const [filterPAE, setFilterPAE] = useState(false);
   
   // Edit batch dialog state
   const [editingStudent, setEditingStudent] = useState<BatchStudent | null>(null);
@@ -131,6 +133,7 @@ const Batches = () => {
   const [notesStudent, setNotesStudent] = useState<BatchStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
+  const [payAfterEarning, setPayAfterEarning] = useState(false);
   const [isFollowUpDateOpen, setIsFollowUpDateOpen] = useState(false);
   const [viewingNotesStudent, setViewingNotesStudent] = useState<BatchStudent | null>(null);
   
@@ -195,6 +198,7 @@ const Batches = () => {
           additional_comments,
           refund_reason,
           next_follow_up_date,
+          pay_after_earning,
           lead:leads(contact_name, email, phone),
           closer:profiles!closer_id(full_name)
         `)
@@ -229,6 +233,7 @@ const Batches = () => {
         additional_comments: apt.additional_comments,
         refund_reason: apt.refund_reason,
         next_follow_up_date: apt.next_follow_up_date,
+        pay_after_earning: apt.pay_after_earning || false,
       })) as BatchStudent[];
     },
     enabled: !!selectedBatch,
@@ -376,13 +381,17 @@ const Batches = () => {
       const matchesFullPayment = !filterFullPayment || 
         ((student.due_amount || 0) === 0 && (student.cash_received || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
       
-      // Remaining amount filter (due_amount > 0)
+      // Remaining amount filter (due_amount > 0 and NOT PAE)
       const matchesRemaining = !filterRemaining || 
-        ((student.due_amount || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
+        ((student.due_amount || 0) > 0 && !student.pay_after_earning && student.status !== 'refunded' && student.status !== 'discontinued');
       
-      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType && matchesTodayFollowUp && matchesStatusFilter && matchesFullPayment && matchesRemaining;
+      // Pay After Earning filter (due_amount > 0 and PAE = true)
+      const matchesPAE = !filterPAE || 
+        ((student.due_amount || 0) > 0 && student.pay_after_earning && student.status !== 'refunded' && student.status !== 'discontinued');
+      
+      return matchesSearch && matchesCloser && matchesClasses && matchesDate && matchesPaymentType && matchesTodayFollowUp && matchesStatusFilter && matchesFullPayment && matchesRemaining && matchesPAE;
     });
-  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining]);
+  }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining, filterPAE]);
 
   // Calculate totals from ALL students (not filtered) for summary cards
   const allStudentsTotals = useMemo(() => {
@@ -391,7 +400,7 @@ const Batches = () => {
       count: 0, fullPaymentCount: 0, duePaymentCount: 0,
       refundedCount: 0, refundedReceived: 0,
       discontinuedCount: 0, discontinuedReceived: 0,
-      emiCollected: 0
+      emiCollected: 0, paeAmount: 0, paeCount: 0
     };
     
     const activeStudents = batchStudents.filter(s => 
@@ -399,6 +408,10 @@ const Batches = () => {
     );
     const refundedStudents = batchStudents.filter(s => s.status === 'refunded');
     const discontinuedStudents = batchStudents.filter(s => s.status === 'discontinued');
+    
+    // PAE students
+    const paeStudents = activeStudents.filter(s => s.pay_after_earning && (s.due_amount || 0) > 0);
+    const nonPaeStudentsWithDue = activeStudents.filter(s => !s.pay_after_earning && (s.due_amount || 0) > 0);
     
     // Calculate EMI collected for all active students
     const emiCollected = activeStudents.reduce((sum, student) => {
@@ -409,15 +422,17 @@ const Batches = () => {
     return {
       offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
       received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
-      due: activeStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0),
+      due: nonPaeStudentsWithDue.reduce((sum, s) => sum + (s.due_amount || 0), 0),
       count: activeStudents.length,
       fullPaymentCount: activeStudents.filter(s => (s.due_amount || 0) === 0 && (s.cash_received || 0) > 0).length,
-      duePaymentCount: activeStudents.filter(s => (s.due_amount || 0) > 0).length,
+      duePaymentCount: nonPaeStudentsWithDue.length,
       refundedCount: refundedStudents.length,
       refundedReceived: refundedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
       discontinuedCount: discontinuedStudents.length,
       discontinuedReceived: discontinuedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
-      emiCollected
+      emiCollected,
+      paeAmount: paeStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0),
+      paeCount: paeStudents.length
     };
   }, [batchStudents, batchEmiPayments]);
 
@@ -645,14 +660,15 @@ const Batches = () => {
     },
   });
 
-  // Update notes mutation
+  // Update notes mutation - includes PAE
   const updateNotesMutation = useMutation({
-    mutationFn: async ({ appointmentId, notes, nextFollowUpDate }: { appointmentId: string; notes: string; nextFollowUpDate: string | null }) => {
+    mutationFn: async ({ appointmentId, notes, nextFollowUpDate, payAfterEarning }: { appointmentId: string; notes: string; nextFollowUpDate: string | null; payAfterEarning: boolean }) => {
       const { error } = await supabase
         .from("call_appointments")
         .update({ 
           additional_comments: notes,
-          next_follow_up_date: nextFollowUpDate
+          next_follow_up_date: nextFollowUpDate,
+          pay_after_earning: payAfterEarning
         })
         .eq("id", appointmentId);
       if (error) throw error;
@@ -663,6 +679,7 @@ const Batches = () => {
       setNotesStudent(null);
       setNotesText("");
       setFollowUpDate(undefined);
+      setPayAfterEarning(false);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -2025,7 +2042,8 @@ const Batches = () => {
                   onClick={() => notesStudent && updateNotesMutation.mutate({ 
                     appointmentId: notesStudent.id, 
                     notes: notesText,
-                    nextFollowUpDate: followUpDate ? format(followUpDate, "yyyy-MM-dd") : null
+                    nextFollowUpDate: followUpDate ? format(followUpDate, "yyyy-MM-dd") : null,
+                    payAfterEarning
                   })}
                   disabled={updateNotesMutation.isPending}
                 >

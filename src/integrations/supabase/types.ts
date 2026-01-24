@@ -75,6 +75,7 @@ export type Database = {
           next_follow_up_date: string | null
           no_cost_emi: number | null
           offer_amount: number | null
+          pay_after_earning: boolean | null
           payment_platform: string | null
           payment_remarks: string | null
           platform_fees: number | null
@@ -112,6 +113,7 @@ export type Database = {
           next_follow_up_date?: string | null
           no_cost_emi?: number | null
           offer_amount?: number | null
+          pay_after_earning?: boolean | null
           payment_platform?: string | null
           payment_remarks?: string | null
           platform_fees?: number | null
@@ -149,6 +151,7 @@ export type Database = {
           next_follow_up_date?: string | null
           no_cost_emi?: number | null
           offer_amount?: number | null
+          pay_after_earning?: boolean | null
           payment_platform?: string | null
           payment_remarks?: string | null
           platform_fees?: number | null
@@ -661,6 +664,7 @@ export type Database = {
           no_cost_emi: number | null
           notes: string | null
           offer_amount: number | null
+          pay_after_earning: boolean | null
           payment_platform: string | null
           payment_remarks: string | null
           platform_fees: number | null
@@ -683,6 +687,7 @@ export type Database = {
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
+          pay_after_earning?: boolean | null
           payment_platform?: string | null
           payment_remarks?: string | null
           platform_fees?: number | null
@@ -705,6 +710,7 @@ export type Database = {
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
+          pay_after_earning?: boolean | null
           payment_platform?: string | null
           payment_remarks?: string | null
           platform_fees?: number | null
@@ -931,6 +937,7 @@ export type Database = {
           no_cost_emi: number | null
           notes: string | null
           offer_amount: number | null
+          pay_after_earning: boolean | null
           payment_platform: string | null
           payment_remarks: string | null
           platform_fees: number | null
@@ -953,6 +960,7 @@ export type Database = {
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
+          pay_after_earning?: boolean | null
           payment_platform?: string | null
           payment_remarks?: string | null
           platform_fees?: number | null
@@ -975,6 +983,7 @@ export type Database = {
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
+          pay_after_earning?: boolean | null
           payment_platform?: string | null
           payment_remarks?: string | null
           platform_fees?: number | null
