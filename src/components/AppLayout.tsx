@@ -1,17 +1,30 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useEffect } from "react";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Zap, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Zap, Wallet, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
+// Menu item type with optional children for submenus
+interface MenuItem {
+  title: string;
+  icon: typeof LayoutDashboard;
+  path?: string;
+  isBeta?: boolean;
+  children?: {
+    title: string;
+    path: string;
+  }[];
+}
+
 // Sidebar navigation component that uses useSidebar hook for auto-close on mobile
 interface SidebarNavigationProps {
-  menuItems: { title: string; icon: typeof LayoutDashboard; path: string; isBeta?: boolean }[];
+  menuItems: MenuItem[];
   navigate: (path: string) => void;
   location: { pathname: string };
   signOut: () => void;
@@ -45,23 +58,59 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail }
       <SidebarContent>
         <SidebarMenu>
           {menuItems.map((item) => (
-            <SidebarMenuItem key={item.path}>
-              <SidebarMenuButton
-                onClick={() => handleNavigation(item.path)}
-                isActive={location.pathname === item.path}
+            item.children ? (
+              // Collapsible menu item with children
+              <Collapsible
+                key={item.title}
+                defaultOpen={item.children.some(child => location.pathname === child.path)}
+                className="group/collapsible"
               >
-                <item.icon className="h-5 w-5" />
-                <span>{item.title}</span>
-                {item.isBeta && (
-                  <Badge 
-                    variant="outline" 
-                    className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-warning text-foreground border-warning font-medium"
-                  >
-                    Beta
-                  </Badge>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      isActive={item.children.some(child => location.pathname === child.path)}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      <span>{item.title}</span>
+                      <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {item.children.map((child) => (
+                        <SidebarMenuSubItem key={child.path}>
+                          <SidebarMenuSubButton
+                            onClick={() => handleNavigation(child.path)}
+                            isActive={location.pathname === child.path}
+                          >
+                            <span>{child.title}</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
+            ) : (
+              // Regular menu item without children
+              <SidebarMenuItem key={item.path}>
+                <SidebarMenuButton
+                  onClick={() => handleNavigation(item.path!)}
+                  isActive={location.pathname === item.path}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span>{item.title}</span>
+                  {item.isBeta && (
+                    <Badge 
+                      variant="outline" 
+                      className="ml-auto text-[10px] px-1.5 py-0 h-4 bg-warning text-foreground border-warning font-medium"
+                    >
+                      Beta
+                    </Badge>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
           ))}
         </SidebarMenu>
       </SidebarContent>
@@ -129,17 +178,23 @@ const AppLayout = () => {
     return null;
   }
 
-  // All menu items for admin - Daily Money Flow moved to second position
-  const adminMenuItems: { title: string; icon: typeof LayoutDashboard; path: string; isBeta?: boolean }[] = [
+  // All menu items for admin - with Cohort Batches submenu
+  const adminMenuItems: MenuItem[] = [
     { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true },
     { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow" },
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Customer Insights", icon: ClipboardList, path: "/onboarding" },
     { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
-    { title: "Batches", icon: GraduationCap, path: "/batches" },
-    { title: "Futures Mentorship", icon: TrendingUp, path: "/futures-mentorship" },
-    { title: "High Future", icon: Zap, path: "/high-future" },
+    { 
+      title: "Cohort Batches", 
+      icon: GraduationCap, 
+      children: [
+        { title: "Insider Crypto Club", path: "/batches" },
+        { title: "Future Mentorship", path: "/futures-mentorship" },
+        { title: "High Future", path: "/high-future" },
+      ]
+    },
     { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true },
     { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true },
     { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true },
@@ -147,21 +202,33 @@ const AppLayout = () => {
     { title: "Users", icon: UsersRound, path: "/users" },
   ];
 
-  // Limited menu items for closers
-  const closerMenuItems: { title: string; icon: typeof LayoutDashboard; path: string; isBeta?: boolean }[] = [
+  // Limited menu items for closers - only Insider Crypto Club
+  const closerMenuItems: MenuItem[] = [
     { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
-    { title: "Batches", icon: GraduationCap, path: "/batches" },
+    { 
+      title: "Cohort Batches", 
+      icon: GraduationCap, 
+      children: [
+        { title: "Insider Crypto Club", path: "/batches" },
+      ]
+    },
   ];
 
-  // Manager menu items - Daily Money Flow moved to first position
-  const managerMenuItems: { title: string; icon: typeof LayoutDashboard; path: string; isBeta?: boolean }[] = [
+  // Manager menu items - with Cohort Batches submenu
+  const managerMenuItems: MenuItem[] = [
     { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow" },
     { title: "Customers", icon: Users, path: "/leads" },
     { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
-    { title: "Batches", icon: GraduationCap, path: "/batches" },
-    { title: "Futures Mentorship", icon: TrendingUp, path: "/futures-mentorship" },
-    { title: "High Future", icon: Zap, path: "/high-future" },
+    { 
+      title: "Cohort Batches", 
+      icon: GraduationCap, 
+      children: [
+        { title: "Insider Crypto Club", path: "/batches" },
+        { title: "Future Mentorship", path: "/futures-mentorship" },
+        { title: "High Future", path: "/high-future" },
+      ]
+    },
     { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true },
   ];
 
