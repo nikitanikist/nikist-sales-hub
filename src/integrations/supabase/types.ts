@@ -649,6 +649,7 @@ export type Database = {
           batch_id: string
           cash_received: number | null
           classes_access: number | null
+          closer_id: string | null
           conversion_date: string
           created_at: string
           created_by: string | null
@@ -656,6 +657,7 @@ export type Database = {
           gst_fees: number | null
           id: string
           lead_id: string | null
+          next_follow_up_date: string | null
           no_cost_emi: number | null
           notes: string | null
           offer_amount: number | null
@@ -669,6 +671,7 @@ export type Database = {
           batch_id: string
           cash_received?: number | null
           classes_access?: number | null
+          closer_id?: string | null
           conversion_date?: string
           created_at?: string
           created_by?: string | null
@@ -676,6 +679,7 @@ export type Database = {
           gst_fees?: number | null
           id?: string
           lead_id?: string | null
+          next_follow_up_date?: string | null
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
@@ -689,6 +693,7 @@ export type Database = {
           batch_id?: string
           cash_received?: number | null
           classes_access?: number | null
+          closer_id?: string | null
           conversion_date?: string
           created_at?: string
           created_by?: string | null
@@ -696,6 +701,7 @@ export type Database = {
           gst_fees?: number | null
           id?: string
           lead_id?: string | null
+          next_follow_up_date?: string | null
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
@@ -711,6 +717,13 @@ export type Database = {
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "futures_mentorship_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "futures_mentorship_students_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -906,6 +919,7 @@ export type Database = {
           batch_id: string
           cash_received: number | null
           classes_access: number | null
+          closer_id: string | null
           conversion_date: string
           created_at: string
           created_by: string | null
@@ -913,6 +927,7 @@ export type Database = {
           gst_fees: number | null
           id: string
           lead_id: string | null
+          next_follow_up_date: string | null
           no_cost_emi: number | null
           notes: string | null
           offer_amount: number | null
@@ -926,6 +941,7 @@ export type Database = {
           batch_id: string
           cash_received?: number | null
           classes_access?: number | null
+          closer_id?: string | null
           conversion_date?: string
           created_at?: string
           created_by?: string | null
@@ -933,6 +949,7 @@ export type Database = {
           gst_fees?: number | null
           id?: string
           lead_id?: string | null
+          next_follow_up_date?: string | null
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
@@ -946,6 +963,7 @@ export type Database = {
           batch_id?: string
           cash_received?: number | null
           classes_access?: number | null
+          closer_id?: string | null
           conversion_date?: string
           created_at?: string
           created_by?: string | null
@@ -953,6 +971,7 @@ export type Database = {
           gst_fees?: number | null
           id?: string
           lead_id?: string | null
+          next_follow_up_date?: string | null
           no_cost_emi?: number | null
           notes?: string | null
           offer_amount?: number | null
@@ -968,6 +987,13 @@ export type Database = {
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "high_future_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "high_future_students_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {

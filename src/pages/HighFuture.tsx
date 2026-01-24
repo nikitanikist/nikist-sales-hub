@@ -46,6 +46,9 @@ interface HighFutureStudent {
   status: string;
   notes: string | null;
   refund_reason: string | null;
+  closer_id: string | null;
+  closer_name: string | null;
+  next_follow_up_date: string | null;
 }
 
 interface HighFutureEmiPayment {
@@ -92,11 +95,20 @@ const HighFuture = () => {
   const [isDateFromOpen, setIsDateFromOpen] = useState(false);
   const [isDateToOpen, setIsDateToOpen] = useState(false);
   
+  // Status filter cards
+  const [filterRefunded, setFilterRefunded] = useState(false);
+  const [filterDiscontinued, setFilterDiscontinued] = useState(false);
+  const [filterFullPayment, setFilterFullPayment] = useState(false);
+  const [filterRemaining, setFilterRemaining] = useState(false);
+  const [filterTodayFollowUp, setFilterTodayFollowUp] = useState(false);
+  
   // Dialog state
   const [refundingStudent, setRefundingStudent] = useState<HighFutureStudent | null>(null);
   const [refundNotes, setRefundNotes] = useState<string>("");
   const [notesStudent, setNotesStudent] = useState<HighFutureStudent | null>(null);
   const [notesText, setNotesText] = useState<string>("");
+  const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
+  const [isFollowUpDateOpen, setIsFollowUpDateOpen] = useState(false);
   const [emiStudent, setEmiStudent] = useState<HighFutureStudent | null>(null);
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [discontinuingStudent, setDiscontinuingStudent] = useState<HighFutureStudent | null>(null);
@@ -129,7 +141,7 @@ const HighFuture = () => {
     },
   });
 
-  // Fetch students for selected batch
+  // Fetch students for selected batch with closer info
   const { data: batchStudents, isLoading: studentsLoading } = useQuery({
     queryKey: ["high-future-students", selectedBatch?.id],
     queryFn: async () => {
@@ -147,7 +159,10 @@ const HighFuture = () => {
           status,
           notes,
           refund_reason,
-          lead:leads(contact_name, email, phone)
+          closer_id,
+          next_follow_up_date,
+          lead:leads(contact_name, email, phone),
+          closer:profiles!closer_id(full_name)
         `)
         .eq("batch_id", selectedBatch.id)
         .order("conversion_date", { ascending: false });
@@ -167,6 +182,9 @@ const HighFuture = () => {
         status: student.status,
         notes: student.notes,
         refund_reason: student.refund_reason,
+        closer_id: student.closer_id,
+        closer_name: student.closer?.full_name || null,
+        next_follow_up_date: student.next_follow_up_date,
       })) as HighFutureStudent[];
     },
     enabled: !!selectedBatch,
@@ -218,8 +236,10 @@ const HighFuture = () => {
         student.email.toLowerCase().includes(searchLower) ||
         (student.phone && student.phone.includes(searchQuery));
       
-      const matchesStatus = statusFilter === "all" || student.status === statusFilter;
+      // Status filter from sheet
+      const matchesStatusSheet = statusFilter === "all" || student.status === statusFilter;
       
+      // Date range filter
       let matchesDate = true;
       if (dateFrom || dateTo) {
         const conversionDate = startOfDay(new Date(student.conversion_date));
@@ -231,19 +251,112 @@ const HighFuture = () => {
         matchesDate = afterFrom && beforeTo;
       }
       
-      return matchesSearch && matchesStatus && matchesDate;
+      // Today's follow-up filter
+      const todayFormatted = format(new Date(), "yyyy-MM-dd");
+      const matchesTodayFollowUp = !filterTodayFollowUp || 
+        student.next_follow_up_date === todayFormatted;
+      
+      // Status card filters (Refunded/Discontinued)
+      const matchesStatusCard = 
+        (!filterRefunded && !filterDiscontinued) || 
+        (filterRefunded && student.status === 'refunded') ||
+        (filterDiscontinued && student.status === 'discontinued');
+      
+      // Full payment filter (due_amount = 0 and has made payment)
+      const matchesFullPayment = !filterFullPayment || 
+        ((student.due_amount || 0) === 0 && (student.cash_received || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
+      
+      // Remaining amount filter (due_amount > 0)
+      const matchesRemaining = !filterRemaining || 
+        ((student.due_amount || 0) > 0 && student.status !== 'refunded' && student.status !== 'discontinued');
+      
+      return matchesSearch && matchesStatusSheet && matchesDate && matchesTodayFollowUp && matchesStatusCard && matchesFullPayment && matchesRemaining;
     });
-  }, [batchStudents, searchQuery, statusFilter, dateFrom, dateTo]);
+  }, [batchStudents, searchQuery, statusFilter, dateFrom, dateTo, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining]);
 
-  // Calculate totals
-  const totals = useMemo(() => {
-    return {
-      offered: filteredStudents.reduce((sum, s) => sum + s.offer_amount, 0),
-      received: filteredStudents.reduce((sum, s) => sum + s.cash_received, 0),
-      due: filteredStudents.reduce((sum, s) => sum + s.due_amount, 0),
-      count: filteredStudents.length,
+  // Calculate totals and closer breakdown
+  const { closerBreakdown, totals, allStudentsTotals, todayFollowUpCount } = useMemo(() => {
+    if (!batchStudents) return { 
+      closerBreakdown: [], 
+      totals: { offered: 0, received: 0, due: 0, count: 0 },
+      allStudentsTotals: { 
+        offered: 0, received: 0, due: 0, count: 0, 
+        fullPaymentCount: 0, duePaymentCount: 0,
+        refundedCount: 0, refundedReceived: 0,
+        discontinuedCount: 0, discontinuedReceived: 0
+      },
+      todayFollowUpCount: 0
     };
-  }, [filteredStudents]);
+    
+    // Separate students by status
+    const activeStudents = batchStudents.filter(s => 
+      s.status !== 'refunded' && s.status !== 'discontinued'
+    );
+    const refundedStudents = batchStudents.filter(s => s.status === 'refunded');
+    const discontinuedStudents = batchStudents.filter(s => s.status === 'discontinued');
+    
+    // Calculate closer breakdown for active students
+    const breakdown: Record<string, { 
+      closerId: string; 
+      closerName: string; 
+      offered: number; 
+      received: number; 
+      due: number;
+      count: number;
+    }> = {};
+    
+    activeStudents.forEach(student => {
+      const closerId = student.closer_id || 'manual';
+      const closerName = student.closer_name || 'Added Manually';
+      
+      if (!breakdown[closerId]) {
+        breakdown[closerId] = { 
+          closerId, 
+          closerName, 
+          offered: 0, 
+          received: 0, 
+          due: 0,
+          count: 0
+        };
+      }
+      
+      breakdown[closerId].offered += student.offer_amount || 0;
+      breakdown[closerId].received += student.cash_received || 0;
+      breakdown[closerId].due += student.due_amount || 0;
+      breakdown[closerId].count += 1;
+    });
+    
+    const closerBreakdownArray = Object.values(breakdown).sort((a, b) => b.received - a.received);
+    
+    // Calculate today's follow-up count
+    const todayFormatted = format(new Date(), "yyyy-MM-dd");
+    const todayFollowUpCount = batchStudents.filter(s => 
+      s.next_follow_up_date === todayFormatted
+    ).length;
+    
+    return {
+      closerBreakdown: closerBreakdownArray,
+      totals: {
+        offered: closerBreakdownArray.reduce((sum, c) => sum + c.offered, 0),
+        received: closerBreakdownArray.reduce((sum, c) => sum + c.received, 0),
+        due: closerBreakdownArray.reduce((sum, c) => sum + c.due, 0),
+        count: closerBreakdownArray.reduce((sum, c) => sum + c.count, 0)
+      },
+      allStudentsTotals: {
+        offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
+        received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+        due: activeStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0),
+        count: activeStudents.length,
+        fullPaymentCount: activeStudents.filter(s => (s.due_amount || 0) === 0 && (s.cash_received || 0) > 0).length,
+        duePaymentCount: activeStudents.filter(s => (s.due_amount || 0) > 0).length,
+        refundedCount: refundedStudents.length,
+        refundedReceived: refundedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+        discontinuedCount: discontinuedStudents.length,
+        discontinuedReceived: discontinuedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0)
+      },
+      todayFollowUpCount
+    };
+  }, [batchStudents]);
 
   // Filter batches based on search
   const filteredBatches = useMemo(() => {
@@ -259,13 +372,23 @@ const HighFuture = () => {
     let count = 0;
     if (dateFrom || dateTo) count++;
     if (statusFilter !== "all") count++;
+    if (filterTodayFollowUp) count++;
+    if (filterRefunded) count++;
+    if (filterDiscontinued) count++;
+    if (filterFullPayment) count++;
+    if (filterRemaining) count++;
     return count;
-  }, [dateFrom, dateTo, statusFilter]);
+  }, [dateFrom, dateTo, statusFilter, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining]);
 
   const clearAllFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
     setStatusFilter("all");
+    setFilterTodayFollowUp(false);
+    setFilterRefunded(false);
+    setFilterDiscontinued(false);
+    setFilterFullPayment(false);
+    setFilterRemaining(false);
   };
 
   // Create batch mutation
@@ -337,20 +460,21 @@ const HighFuture = () => {
     },
   });
 
-  // Update notes mutation
+  // Update notes mutation - now includes follow-up date
   const notesMutation = useMutation({
-    mutationFn: async ({ id, notes }: { id: string; notes: string }) => {
+    mutationFn: async ({ id, notes, nextFollowUpDate }: { id: string; notes: string; nextFollowUpDate: string | null }) => {
       const { error } = await supabase
         .from("high_future_students")
-        .update({ notes })
+        .update({ notes, next_follow_up_date: nextFollowUpDate })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["high-future-students"] });
-      toast({ title: "Notes updated", description: "Notes have been saved" });
+      toast({ title: "Notes updated", description: "Notes and follow-up date have been saved" });
       setNotesStudent(null);
       setNotesText("");
+      setFollowUpDate(undefined);
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -429,7 +553,7 @@ const HighFuture = () => {
   const exportStudentsCSV = () => {
     if (!filteredStudents.length) return;
     
-    const headers = ["Conversion Date", "Student Name", "Amount Offered", "Cash Received", "Due Amount", "Email", "Phone", "Status"];
+    const headers = ["Conversion Date", "Student Name", "Amount Offered", "Cash Received", "Due Amount", "Email", "Phone", "Closer", "Status"];
     const rows = filteredStudents.map(s => [
       format(new Date(s.conversion_date), "yyyy-MM-dd"),
       s.contact_name,
@@ -438,6 +562,7 @@ const HighFuture = () => {
       s.due_amount,
       s.email,
       s.phone || "",
+      s.closer_name || "Added Manually",
       s.status
     ]);
     
@@ -699,31 +824,270 @@ const HighFuture = () => {
         </div>
       </div>
 
-      {/* Summary Cards - 2 column on mobile */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="bg-blue-50">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Total Offered</p>
-            <p className="text-lg sm:text-2xl font-bold text-blue-700">₹{totals.offered.toLocaleString('en-IN')}</p>
-          </CardContent>
+      {/* Row 1: Financial Cards with Closer Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Total Offered Card */}
+        <Card className="overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+            <div className="p-4 flex flex-col justify-center bg-blue-50">
+              <p className="text-sm text-muted-foreground">Total Offered</p>
+              <div className="text-base sm:text-lg font-bold text-blue-700 whitespace-nowrap">
+                ₹{allStudentsTotals.offered.toLocaleString('en-IN')}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {allStudentsTotals.count} students
+              </p>
+            </div>
+            <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+              <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+              {closerBreakdown.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No data</p>
+              ) : (
+                closerBreakdown.map((closer, idx) => (
+                  <div key={closer.closerId} className={cn(
+                    "flex justify-between items-baseline text-sm gap-2",
+                    idx < closerBreakdown.length - 1 && "border-b pb-1"
+                  )}>
+                    <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                    <span className="font-medium whitespace-nowrap">
+                      ₹{closer.offered.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </Card>
-        <Card className="bg-green-50">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Cash Received</p>
-            <p className="text-lg sm:text-2xl font-bold text-green-700">₹{totals.received.toLocaleString('en-IN')}</p>
-          </CardContent>
+
+        {/* Cash Received Card */}
+        <Card className="overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+            <div className="p-4 flex flex-col justify-center bg-green-50">
+              <p className="text-sm text-muted-foreground">Cash Received</p>
+              <div className="text-base sm:text-lg font-bold text-green-700 whitespace-nowrap">
+                ₹{allStudentsTotals.received.toLocaleString('en-IN')}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {allStudentsTotals.count} students
+              </p>
+            </div>
+            <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+              <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+              {closerBreakdown.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No data</p>
+              ) : (
+                closerBreakdown.map((closer, idx) => (
+                  <div key={closer.closerId} className={cn(
+                    "flex justify-between items-baseline text-sm gap-2",
+                    idx < closerBreakdown.length - 1 && "border-b pb-1"
+                  )}>
+                    <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                    <span className="font-medium whitespace-nowrap">
+                      ₹{closer.received.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </Card>
-        <Card className="bg-orange-50">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Remaining</p>
-            <p className="text-lg sm:text-2xl font-bold text-orange-700">₹{totals.due.toLocaleString('en-IN')}</p>
-          </CardContent>
+
+        {/* Remaining Amount Card - Clickable filter */}
+        <Card 
+          className={cn(
+            "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+            filterRemaining && "ring-2 ring-orange-500"
+          )}
+          onClick={() => {
+            if (filterRemaining) {
+              setFilterRemaining(false);
+            } else {
+              setFilterRemaining(true);
+              setFilterRefunded(false);
+              setFilterDiscontinued(false);
+              setFilterTodayFollowUp(false);
+              setFilterFullPayment(false);
+            }
+          }}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+            <div className="p-4 flex flex-col justify-center bg-orange-50">
+              <p className="text-sm text-muted-foreground">Remaining Amount</p>
+              <div className="text-base sm:text-lg font-bold text-orange-700 whitespace-nowrap">
+                ₹{allStudentsTotals.due.toLocaleString('en-IN')}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {allStudentsTotals.duePaymentCount} students
+              </p>
+              {filterRemaining && (
+                <Badge variant="secondary" className="bg-orange-100 text-orange-700 mt-2 w-fit">
+                  Filter Active
+                </Badge>
+              )}
+            </div>
+            <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+              <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+              {closerBreakdown.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No data</p>
+              ) : (
+                closerBreakdown.map((closer, idx) => (
+                  <div key={closer.closerId} className={cn(
+                    "flex justify-between items-baseline text-sm gap-2",
+                    idx < closerBreakdown.length - 1 && "border-b pb-1"
+                  )}>
+                    <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                    <span className="font-medium whitespace-nowrap">
+                      ₹{closer.due.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </Card>
-        <Card className="bg-purple-50">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-muted-foreground">Enrolled</p>
-            <p className="text-lg sm:text-2xl font-bold text-purple-700">{totals.count}</p>
-          </CardContent>
+      </div>
+
+      {/* Row 2: Status Filter Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Refunded Card */}
+        <Card 
+          className={cn(
+            "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+            filterRefunded && "ring-2 ring-amber-500"
+          )}
+          onClick={() => {
+            if (filterRefunded) {
+              setFilterRefunded(false);
+            } else {
+              setFilterRefunded(true);
+              setFilterDiscontinued(false);
+              setFilterTodayFollowUp(false);
+              setFilterFullPayment(false);
+              setFilterRemaining(false);
+            }
+          }}
+        >
+          <div className="p-4 bg-amber-50 h-full">
+            <p className="text-sm text-muted-foreground">Refunded</p>
+            <div className="text-xl font-bold text-amber-700">
+              ₹{allStudentsTotals.refundedReceived.toLocaleString('en-IN')}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {allStudentsTotals.refundedCount} students
+            </p>
+            {filterRefunded && (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-700 mt-2 w-fit">
+                Filter Active
+              </Badge>
+            )}
+          </div>
+        </Card>
+
+        {/* Discontinued Card */}
+        <Card 
+          className={cn(
+            "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+            filterDiscontinued && "ring-2 ring-red-500"
+          )}
+          onClick={() => {
+            if (filterDiscontinued) {
+              setFilterDiscontinued(false);
+            } else {
+              setFilterDiscontinued(true);
+              setFilterRefunded(false);
+              setFilterTodayFollowUp(false);
+              setFilterFullPayment(false);
+              setFilterRemaining(false);
+            }
+          }}
+        >
+          <div className="p-4 bg-red-50 h-full">
+            <p className="text-sm text-muted-foreground">Discontinued</p>
+            <div className="text-xl font-bold text-red-700">
+              ₹{allStudentsTotals.discontinuedReceived.toLocaleString('en-IN')}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {allStudentsTotals.discontinuedCount} students
+            </p>
+            {filterDiscontinued && (
+              <Badge variant="secondary" className="bg-red-100 text-red-700 mt-2 w-fit">
+                Filter Active
+              </Badge>
+            )}
+          </div>
+        </Card>
+
+        {/* Full Payment Card */}
+        <Card 
+          className={cn(
+            "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+            filterFullPayment && "ring-2 ring-emerald-500"
+          )}
+          onClick={() => {
+            if (filterFullPayment) {
+              setFilterFullPayment(false);
+            } else {
+              setFilterFullPayment(true);
+              setFilterRefunded(false);
+              setFilterDiscontinued(false);
+              setFilterTodayFollowUp(false);
+              setFilterRemaining(false);
+            }
+          }}
+        >
+          <div className="p-4 bg-emerald-50 h-full">
+            <p className="text-sm text-muted-foreground">Full Payment</p>
+            <div className="text-xl font-bold text-emerald-700">
+              {allStudentsTotals.fullPaymentCount}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Students with no dues
+            </p>
+            {filterFullPayment && (
+              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 mt-2 w-fit">
+                Filter Active
+              </Badge>
+            )}
+          </div>
+        </Card>
+
+        {/* Today's Follow-up Card */}
+        <Card 
+          className={cn(
+            "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+            filterTodayFollowUp && "ring-2 ring-purple-500"
+          )}
+          onClick={() => {
+            if (filterTodayFollowUp) {
+              setFilterTodayFollowUp(false);
+            } else {
+              setFilterTodayFollowUp(true);
+              setFilterRefunded(false);
+              setFilterDiscontinued(false);
+              setFilterFullPayment(false);
+              setFilterRemaining(false);
+            }
+          }}
+        >
+          <div className="p-4 bg-purple-50 h-full">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Today's Follow-ups</p>
+                <div className="text-xl font-bold text-purple-700">
+                  {todayFollowUpCount}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  To contact today
+                </p>
+              </div>
+              <Calendar className="h-8 w-8 text-purple-300" />
+            </div>
+            {filterTodayFollowUp && (
+              <Badge variant="secondary" className="bg-purple-100 text-purple-700 mt-2 w-fit">
+                Filter Active
+              </Badge>
+            )}
+          </div>
         </Card>
       </div>
 
@@ -735,6 +1099,12 @@ const HighFuture = () => {
             <CardDescription>{filteredStudents.length} of {batchStudents?.length || 0} students</CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
+            {activeFilterCount > 0 && (
+              <Button variant="outline" onClick={clearAllFilters} className="h-11 sm:h-10">
+                <X className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Clear All</span>
+              </Button>
+            )}
             <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
               <SheetTrigger asChild>
                 <Button variant="outline" className="relative h-11 sm:h-10">
@@ -848,16 +1218,15 @@ const HighFuture = () => {
                       <TableHead>Amount Offered</TableHead>
                       <TableHead>Cash Received</TableHead>
                       <TableHead>Due Amount</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
+                      <TableHead>Closer</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredStudents.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           No students found
                         </TableCell>
                       </TableRow>
@@ -876,12 +1245,18 @@ const HighFuture = () => {
                               )}
                             </TableCell>
                             <TableCell>{format(new Date(student.conversion_date), "dd MMM yyyy")}</TableCell>
-                            <TableCell className="font-medium">{student.contact_name}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {student.contact_name}
+                                {(student.notes || student.next_follow_up_date) && (
+                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell>₹{student.offer_amount.toLocaleString('en-IN')}</TableCell>
                             <TableCell className="text-green-600">₹{student.cash_received.toLocaleString('en-IN')}</TableCell>
                             <TableCell className="text-orange-600">₹{student.due_amount.toLocaleString('en-IN')}</TableCell>
-                            <TableCell className="text-sm">{student.email}</TableCell>
-                            <TableCell className="text-sm">{student.phone || "-"}</TableCell>
+                            <TableCell>{student.closer_name || "Added Manually"}</TableCell>
                             <TableCell>{getStatusBadge(student.status)}</TableCell>
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
@@ -898,6 +1273,7 @@ const HighFuture = () => {
                                   <DropdownMenuItem onClick={() => {
                                     setNotesStudent(student);
                                     setNotesText(student.notes || "");
+                                    setFollowUpDate(student.next_follow_up_date ? new Date(student.next_follow_up_date) : undefined);
                                   }}>
                                     <FileText className="h-4 w-4 mr-2" />
                                     Edit Notes
@@ -930,7 +1306,7 @@ const HighFuture = () => {
                           {/* Expanded EMI Row */}
                           {expandedStudentId === student.id && (
                             <TableRow className="bg-muted/30 hover:bg-muted/30">
-                              <TableCell colSpan={10} className="py-4">
+                              <TableCell colSpan={9} className="py-4">
                                 <div className="pl-8">
                                   <h4 className="font-medium mb-3">EMI Payment History</h4>
                                   {emiLoading ? (
@@ -1030,7 +1406,12 @@ const HighFuture = () => {
                               <ChevronRight className="h-4 w-4 flex-shrink-0" />
                             )}
                             <div className="min-w-0">
-                              <p className="font-medium truncate">{student.contact_name}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium truncate">{student.contact_name}</p>
+                                {(student.notes || student.next_follow_up_date) && (
+                                  <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground">{format(new Date(student.conversion_date), "dd MMM yyyy")}</p>
                             </div>
                           </div>
@@ -1050,6 +1431,7 @@ const HighFuture = () => {
                                 <DropdownMenuItem onClick={() => {
                                   setNotesStudent(student);
                                   setNotesText(student.notes || "");
+                                  setFollowUpDate(student.next_follow_up_date ? new Date(student.next_follow_up_date) : undefined);
                                 }}>
                                   <FileText className="h-4 w-4 mr-2" />
                                   Edit Notes
@@ -1093,8 +1475,8 @@ const HighFuture = () => {
                             <p className="font-medium text-orange-600">₹{student.due_amount.toLocaleString('en-IN')}</p>
                           </div>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-2 truncate">
-                          {student.email} {student.phone && `• ${student.phone}`}
+                        <div className="text-xs text-muted-foreground mt-2">
+                          Closer: {student.closer_name || "Added Manually"}
                         </div>
                       </div>
                       
@@ -1189,26 +1571,58 @@ const HighFuture = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Notes Dialog */}
+      {/* Notes Dialog with Follow-up Date */}
       <Dialog open={!!notesStudent} onOpenChange={(open) => !open && setNotesStudent(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Notes</DialogTitle>
-            <DialogDescription>Update notes for {notesStudent?.contact_name}</DialogDescription>
+            <DialogDescription>Update notes and follow-up date for {notesStudent?.contact_name}</DialogDescription>
           </DialogHeader>
-          <Textarea
-            placeholder="Enter notes..."
-            value={notesText}
-            onChange={(e) => setNotesText(e.target.value)}
-            rows={4}
-          />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Enter notes..."
+                value={notesText}
+                onChange={(e) => setNotesText(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Next EMI Reminder Date</Label>
+              <Popover open={isFollowUpDateOpen} onOpenChange={setIsFollowUpDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start", !followUpDate && "text-muted-foreground")}>
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {followUpDate ? format(followUpDate, "dd MMM yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <CalendarComponent
+                    mode="single"
+                    selected={followUpDate}
+                    onSelect={(d) => { setFollowUpDate(d); setIsFollowUpDateOpen(false); }}
+                  />
+                </PopoverContent>
+              </Popover>
+              {followUpDate && (
+                <Button variant="ghost" size="sm" onClick={() => setFollowUpDate(undefined)}>
+                  Clear date
+                </Button>
+              )}
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNotesStudent(null)}>Cancel</Button>
             <Button 
-              onClick={() => notesStudent && notesMutation.mutate({ id: notesStudent.id, notes: notesText })}
+              onClick={() => notesStudent && notesMutation.mutate({ 
+                id: notesStudent.id, 
+                notes: notesText,
+                nextFollowUpDate: followUpDate ? format(followUpDate, "yyyy-MM-dd") : null
+              })}
               disabled={notesMutation.isPending}
             >
-              Save Notes
+              Save
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1240,18 +1654,16 @@ const HighFuture = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Student</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {deletingStudent?.contact_name}? 
-              This will permanently remove the student and all their EMI payment records. 
-              This action cannot be undone.
+              Are you sure you want to permanently delete {deletingStudent?.contact_name}? This will also delete all EMI payments and offer history. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={() => deletingStudent && deleteStudentMutation.mutate(deletingStudent.id)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive hover:bg-destructive/90"
             >
-              {deleteStudentMutation.isPending ? "Deleting..." : "Delete"}
+              Delete Permanently
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
