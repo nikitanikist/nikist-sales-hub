@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ROUTE_TO_PERMISSION, PermissionKey } from "@/lib/permissions";
 
 // Menu item type with optional children for submenus
 interface MenuItem {
@@ -16,9 +17,11 @@ interface MenuItem {
   icon: typeof LayoutDashboard;
   path?: string;
   isBeta?: boolean;
+  permissionKey?: PermissionKey;
   children?: {
     title: string;
     path: string;
+    permissionKey?: PermissionKey;
   }[];
 }
 
@@ -130,7 +133,7 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail }
 
 const AppLayout = () => {
   const { user, signOut, loading } = useAuth();
-  const { isAdmin, isCloser, isManager, isLoading: roleLoading } = useUserRole();
+  const { isAdmin, isCloser, isManager, isLoading: roleLoading, hasPermission } = useUserRole();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -140,31 +143,31 @@ const AppLayout = () => {
     }
   }, [user, loading, navigate]);
 
-  // Redirect closers away from admin-only pages
+  // Check route access based on permissions
   useEffect(() => {
-    if (!roleLoading && isCloser && !isAdmin && !isManager) {
-      const adminOnlyPaths = ['/', '/leads', '/onboarding', '/workshops', '/sales', '/funnels', '/products', '/users'];
-      if (adminOnlyPaths.includes(location.pathname)) {
-        navigate("/calls");
+    if (roleLoading || loading || !user) return;
+    
+    const currentPath = location.pathname;
+    const permissionKey = ROUTE_TO_PERMISSION[currentPath];
+    
+    // Skip permission check for paths without a permission mapping
+    if (!permissionKey) return;
+    
+    // Check if user has permission for current route
+    if (!hasPermission(permissionKey)) {
+      // Find first accessible route
+      const accessibleRoute = Object.entries(ROUTE_TO_PERMISSION).find(
+        ([path, key]) => hasPermission(key)
+      );
+      
+      if (accessibleRoute) {
+        navigate(accessibleRoute[0]);
+      } else {
+        // No accessible routes - this shouldn't happen for valid users
+        console.warn("User has no accessible routes");
       }
     }
-  }, [isCloser, isAdmin, isManager, roleLoading, location.pathname, navigate]);
-
-  // Redirect managers away from admin-only pages (more restricted than closers)
-  useEffect(() => {
-    if (!roleLoading && isManager && !isAdmin) {
-      const managerRestrictedPaths = ['/', '/onboarding', '/sales', '/funnels', '/products', '/users', '/calls'];
-      if (managerRestrictedPaths.includes(location.pathname)) {
-        navigate("/sales-closers");
-      }
-    }
-    // Redirect closers away from futures-mentorship
-    if (!roleLoading && isCloser && !isAdmin && !isManager) {
-      if (location.pathname === '/futures-mentorship') {
-        navigate("/calls");
-      }
-    }
-  }, [isManager, isAdmin, isCloser, roleLoading, location.pathname, navigate]);
+  }, [roleLoading, loading, user, location.pathname, hasPermission, navigate]);
 
   if (loading || roleLoading) {
     return (
@@ -178,62 +181,57 @@ const AppLayout = () => {
     return null;
   }
 
-  // All menu items for admin - with Cohort Batches submenu
-  const adminMenuItems: MenuItem[] = [
-    { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true },
-    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow" },
-    { title: "Customers", icon: Users, path: "/leads" },
-    { title: "Customer Insights", icon: ClipboardList, path: "/onboarding" },
-    { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
-    { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
+  // All menu items with permission keys
+  const allMenuItems: MenuItem[] = [
+    { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true, permissionKey: 'dashboard' },
+    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow", permissionKey: 'daily_money_flow' },
+    { title: "Customers", icon: Users, path: "/leads", permissionKey: 'customers' },
+    { title: "Customer Insights", icon: ClipboardList, path: "/onboarding", permissionKey: 'customer_insights' },
+    { title: "1:1 Call Schedule", icon: Phone, path: "/calls", permissionKey: 'call_schedule' },
+    { title: "Sales Closers", icon: UserCog, path: "/sales-closers", permissionKey: 'sales_closers' },
     { 
       title: "Cohort Batches", 
       icon: GraduationCap, 
       children: [
-        { title: "Insider Crypto Club", path: "/batches" },
-        { title: "Future Mentorship", path: "/futures-mentorship" },
-        { title: "High Future", path: "/high-future" },
+        { title: "Insider Crypto Club", path: "/batches", permissionKey: 'batch_icc' },
+        { title: "Future Mentorship", path: "/futures-mentorship", permissionKey: 'batch_futures' },
+        { title: "High Future", path: "/high-future", permissionKey: 'batch_high_future' },
       ]
     },
-    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true },
-    { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true },
-    { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true },
-    { title: "Products", icon: Package, path: "/products", isBeta: true },
-    { title: "Users", icon: UsersRound, path: "/users" },
+    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true, permissionKey: 'workshops' },
+    { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true, permissionKey: 'sales' },
+    { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true, permissionKey: 'funnels' },
+    { title: "Products", icon: Package, path: "/products", isBeta: true, permissionKey: 'products' },
+    { title: "Users", icon: UsersRound, path: "/users", permissionKey: 'users' },
   ];
 
-  // Limited menu items for closers - only Insider Crypto Club
-  const closerMenuItems: MenuItem[] = [
-    { title: "1:1 Call Schedule", icon: Phone, path: "/calls" },
-    { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
-    { 
-      title: "Cohort Batches", 
-      icon: GraduationCap, 
-      children: [
-        { title: "Insider Crypto Club", path: "/batches" },
-      ]
-    },
-  ];
+  // Filter menu items based on permissions
+  const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
+    return items
+      .map(item => {
+        if (item.children) {
+          // Filter children based on permissions
+          const filteredChildren = item.children.filter(child => 
+            !child.permissionKey || hasPermission(child.permissionKey)
+          );
+          
+          // Only include parent if it has visible children
+          if (filteredChildren.length === 0) return null;
+          
+          return { ...item, children: filteredChildren };
+        }
+        
+        // Check permission for regular items
+        if (item.permissionKey && !hasPermission(item.permissionKey)) {
+          return null;
+        }
+        
+        return item;
+      })
+      .filter((item): item is MenuItem => item !== null);
+  };
 
-  // Manager menu items - with Cohort Batches submenu
-  const managerMenuItems: MenuItem[] = [
-    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow" },
-    { title: "Customers", icon: Users, path: "/leads" },
-    { title: "Sales Closers", icon: UserCog, path: "/sales-closers" },
-    { 
-      title: "Cohort Batches", 
-      icon: GraduationCap, 
-      children: [
-        { title: "Insider Crypto Club", path: "/batches" },
-        { title: "Future Mentorship", path: "/futures-mentorship" },
-        { title: "High Future", path: "/high-future" },
-      ]
-    },
-    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true },
-  ];
-
-  // Choose menu items based on role
-  const menuItems = isAdmin ? adminMenuItems : isManager ? managerMenuItems : closerMenuItems;
+  const menuItems = filterMenuItems(allMenuItems);
 
   const notificationCount = 10; // Demo value
 

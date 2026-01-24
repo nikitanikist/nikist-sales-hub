@@ -6,6 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Default permissions by role
+const DEFAULT_PERMISSIONS: Record<string, string[]> = {
+  admin: [
+    'dashboard', 'daily_money_flow', 'customers', 'customer_insights',
+    'call_schedule', 'sales_closers', 'batch_icc', 'batch_futures',
+    'batch_high_future', 'workshops', 'sales', 'funnels', 'products', 'users'
+  ],
+  manager: [
+    'daily_money_flow', 'customers', 'sales_closers', 'batch_icc',
+    'batch_futures', 'batch_high_future', 'workshops'
+  ],
+  sales_rep: ['call_schedule', 'sales_closers', 'batch_icc'],
+  viewer: [],
+};
+
+const ALL_PERMISSIONS = [
+  'dashboard', 'daily_money_flow', 'customers', 'customer_insights',
+  'call_schedule', 'sales_closers', 'batch_icc', 'batch_futures',
+  'batch_high_future', 'workshops', 'sales', 'funnels', 'products', 'users'
+];
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -13,7 +34,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, user_id, email, full_name, phone, role, password } = await req.json();
+    const { action, user_id, email, full_name, phone, role, password, permissions } = await req.json();
 
     console.log(`manage-users called with action: ${action}`);
 
@@ -101,6 +122,25 @@ serve(async (req) => {
         }
       }
 
+      // Create default permissions based on role (or custom if provided)
+      const permissionsToSet = permissions || DEFAULT_PERMISSIONS[role] || [];
+      
+      // Insert permissions for all permission keys
+      const permissionRecords = ALL_PERMISSIONS.map(key => ({
+        user_id: authData.user.id,
+        permission_key: key,
+        is_enabled: permissionsToSet.includes(key),
+      }));
+
+      const { error: permError } = await supabaseAdmin
+        .from('user_permissions')
+        .insert(permissionRecords);
+
+      if (permError) {
+        console.error('Error creating permissions:', permError);
+        // Don't throw - permissions are non-critical for user creation
+      }
+
       console.log(`Successfully created user: ${full_name} (${email}) with role: ${role}`);
 
       return new Response(
@@ -186,6 +226,33 @@ serve(async (req) => {
         }
       }
 
+      // Update permissions if provided
+      if (permissions && Array.isArray(permissions)) {
+        console.log('Updating permissions:', permissions);
+        
+        // Delete existing permissions
+        await supabaseAdmin
+          .from('user_permissions')
+          .delete()
+          .eq('user_id', user_id);
+
+        // Insert new permissions
+        const permissionRecords = ALL_PERMISSIONS.map(key => ({
+          user_id,
+          permission_key: key,
+          is_enabled: permissions.includes(key),
+        }));
+
+        const { error: permError } = await supabaseAdmin
+          .from('user_permissions')
+          .insert(permissionRecords);
+
+        if (permError) {
+          console.error('Error updating permissions:', permError);
+          throw permError;
+        }
+      }
+
       console.log(`Successfully updated user: ${user_id}`);
 
       return new Response(
@@ -204,7 +271,13 @@ serve(async (req) => {
 
       console.log(`Deleting user: ${user_id}`);
 
-      // Delete user roles first
+      // Delete user permissions first
+      await supabaseAdmin
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', user_id);
+
+      // Delete user roles
       await supabaseAdmin
         .from('user_roles')
         .delete()
@@ -231,9 +304,39 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 
+    } else if (action === 'get_permissions') {
+      // Get permissions for a specific user
+      if (!user_id) {
+        return new Response(
+          JSON.stringify({ error: 'user_id is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: perms, error: permsError } = await supabaseAdmin
+        .from('user_permissions')
+        .select('permission_key, is_enabled')
+        .eq('user_id', user_id);
+
+      if (permsError) {
+        console.error('Error fetching permissions:', permsError);
+        throw permsError;
+      }
+
+      // Convert to object format
+      const permissionsMap: Record<string, boolean> = {};
+      perms?.forEach(p => {
+        permissionsMap[p.permission_key] = p.is_enabled;
+      });
+
+      return new Response(
+        JSON.stringify({ permissions: permissionsMap }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+
     } else {
       return new Response(
-        JSON.stringify({ error: 'Invalid action. Must be create, update, or delete' }),
+        JSON.stringify({ error: 'Invalid action. Must be create, update, delete, or get_permissions' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

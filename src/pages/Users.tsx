@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Users as UsersIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Plus, Pencil, Trash2, Users as UsersIcon, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_GROUPS, getDefaultPermissionsForRole, PermissionKey } from "@/lib/permissions";
 
 interface UserWithRole {
   id: string;
@@ -36,6 +39,8 @@ const Users = () => {
     password: "",
   });
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const [userPermissions, setUserPermissions] = useState<Record<PermissionKey, boolean>>({} as Record<PermissionKey, boolean>);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: users, isLoading } = useQuery({
@@ -73,6 +78,60 @@ const Users = () => {
       return usersWithRoles;
     },
   });
+
+  // Fetch permissions when editing a user
+  useEffect(() => {
+    const fetchUserPermissions = async () => {
+      if (!editingUser) {
+        setUserPermissions({} as Record<PermissionKey, boolean>);
+        return;
+      }
+
+      setIsLoadingPermissions(true);
+      try {
+        const { data: perms, error } = await supabase
+          .from("user_permissions")
+          .select("permission_key, is_enabled")
+          .eq("user_id", editingUser.id);
+
+        if (error) throw error;
+
+        // If user has stored permissions, use them
+        if (perms && perms.length > 0) {
+          const permMap: Record<PermissionKey, boolean> = {} as Record<PermissionKey, boolean>;
+          Object.values(PERMISSION_KEYS).forEach(key => {
+            const perm = perms.find(p => p.permission_key === key);
+            permMap[key] = perm ? perm.is_enabled : false;
+          });
+          setUserPermissions(permMap);
+        } else {
+          // Fall back to role defaults
+          setUserPermissions(getDefaultPermissionsForRole(editingUser.role));
+        }
+      } catch (error) {
+        console.error("Error fetching permissions:", error);
+        // Fall back to role defaults
+        setUserPermissions(getDefaultPermissionsForRole(editingUser.role));
+      } finally {
+        setIsLoadingPermissions(false);
+      }
+    };
+
+    fetchUserPermissions();
+  }, [editingUser]);
+
+  // Reset permissions to role defaults
+  const handleResetToDefaults = () => {
+    setUserPermissions(getDefaultPermissionsForRole(formData.role));
+    toast.info("Permissions reset to role defaults");
+  };
+
+  // Update permissions when role changes in edit mode
+  const handleRoleChange = (newRole: string) => {
+    setFormData({ ...formData, role: newRole });
+    // Also update permissions to new role defaults
+    setUserPermissions(getDefaultPermissionsForRole(newRole));
+  };
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,6 +185,11 @@ const Users = () => {
 
     setIsSubmitting(true);
     try {
+      // Get enabled permissions as array
+      const enabledPermissions = Object.entries(userPermissions)
+        .filter(([_, enabled]) => enabled)
+        .map(([key]) => key);
+
       const { data, error } = await supabase.functions.invoke("manage-users", {
         body: {
           action: "update",
@@ -135,6 +199,7 @@ const Users = () => {
           phone: formData.phone.trim() || null,
           role: formData.role,
           password: formData.password.trim() || undefined,
+          permissions: enabledPermissions,
         },
       });
 
@@ -145,6 +210,7 @@ const Users = () => {
       setFormData({ full_name: "", email: "", phone: "", role: "sales_rep", password: "" });
       setIsEditDialogOpen(false);
       setEditingUser(null);
+      setUserPermissions({} as Record<PermissionKey, boolean>);
       queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
     } catch (error: any) {
       toast.error(error.message || "Failed to update user");
@@ -213,6 +279,13 @@ const Users = () => {
       default:
         return role;
     }
+  };
+
+  const togglePermission = (key: PermissionKey) => {
+    setUserPermissions(prev => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
   };
 
   return (
@@ -422,8 +495,14 @@ const Users = () => {
       </Card>
 
       {/* Edit User Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) {
+          setEditingUser(null);
+          setUserPermissions({} as Record<PermissionKey, boolean>);
+        }
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
@@ -463,7 +542,7 @@ const Users = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit_role">Role *</Label>
-              <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
+              <Select value={formData.role} onValueChange={handleRoleChange}>
                 <SelectTrigger className="h-11 sm:h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -487,7 +566,70 @@ const Users = () => {
               />
               <p className="text-xs text-muted-foreground">Leave blank to keep the current password</p>
             </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+
+            <Separator className="my-4" />
+
+            {/* Menu Access Permissions */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-semibold">Menu Access</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Control which menu items this user can see
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetToDefaults}
+                  className="h-8"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Reset
+                </Button>
+              </div>
+
+              {formData.role === 'admin' ? (
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Admins have access to all menu items
+                  </p>
+                </div>
+              ) : isLoadingPermissions ? (
+                <div className="p-3 rounded-md bg-muted/50">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Loading permissions...
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {PERMISSION_GROUPS.map((group) => (
+                    <div key={group.label} className="space-y-2">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                        {group.label}
+                      </Label>
+                      <div className="space-y-1">
+                        {group.permissions.map((permKey) => (
+                          <div
+                            key={permKey}
+                            className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 transition-colors"
+                          >
+                            <span className="text-sm">{PERMISSION_LABELS[permKey]}</span>
+                            <Switch
+                              checked={userPermissions[permKey] ?? false}
+                              onCheckedChange={() => togglePermission(permKey)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex-col sm:flex-row gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">
                 Cancel
               </Button>
