@@ -113,6 +113,7 @@ const HighFuture = () => {
   const [addStudentOpen, setAddStudentOpen] = useState(false);
   const [discontinuingStudent, setDiscontinuingStudent] = useState<HighFutureStudent | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<HighFutureStudent | null>(null);
+  const [viewingNotesStudent, setViewingNotesStudent] = useState<HighFutureStudent | null>(null);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -1249,7 +1250,13 @@ const HighFuture = () => {
                               <div className="flex items-center gap-2">
                                 {student.contact_name}
                                 {(student.notes || student.next_follow_up_date) && (
-                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <FileText 
+                                    className="h-4 w-4 text-blue-500 cursor-pointer hover:text-blue-700 transition-colors" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingNotesStudent(student);
+                                    }}
+                                  />
                                 )}
                               </div>
                             </TableCell>
@@ -1409,7 +1416,13 @@ const HighFuture = () => {
                               <div className="flex items-center gap-2">
                                 <p className="font-medium truncate">{student.contact_name}</p>
                                 {(student.notes || student.next_follow_up_date) && (
-                                  <FileText className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                  <FileText 
+                                    className="h-4 w-4 text-blue-500 cursor-pointer hover:text-blue-700 transition-colors flex-shrink-0" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setViewingNotesStudent(student);
+                                    }}
+                                  />
                                 )}
                               </div>
                               <p className="text-xs text-muted-foreground">{format(new Date(student.conversion_date), "dd MMM yyyy")}</p>
@@ -1623,6 +1636,55 @@ const HighFuture = () => {
               disabled={notesMutation.isPending}
             >
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Notes Dialog (Read-only) */}
+      <Dialog open={!!viewingNotesStudent} onOpenChange={(open) => !open && setViewingNotesStudent(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Notes & Follow-up</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <p className="font-medium">{viewingNotesStudent?.contact_name}</p>
+              <p className="text-sm text-muted-foreground">{viewingNotesStudent?.email}</p>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-muted-foreground">Next Follow-up Date</Label>
+              <p className="font-medium">
+                {viewingNotesStudent?.next_follow_up_date 
+                  ? format(new Date(viewingNotesStudent.next_follow_up_date), "dd MMM yyyy")
+                  : "Not set"}
+              </p>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-muted-foreground">Notes</Label>
+              <p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md min-h-[60px]">
+                {viewingNotesStudent?.notes || "No notes added"}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setViewingNotesStudent(null)}>
+              Close
+            </Button>
+            <Button onClick={() => {
+              if (viewingNotesStudent) {
+                setNotesStudent(viewingNotesStudent);
+                setNotesText(viewingNotesStudent.notes || "");
+                setFollowUpDate(viewingNotesStudent.next_follow_up_date 
+                  ? new Date(viewingNotesStudent.next_follow_up_date) 
+                  : undefined);
+                setViewingNotesStudent(null);
+              }
+            }}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit
             </Button>
           </DialogFooter>
         </DialogContent>
