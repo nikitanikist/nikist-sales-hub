@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { PermissionKey, DEFAULT_PERMISSIONS, PERMISSION_KEYS } from "@/lib/permissions";
 
 type UserRole = 'admin' | 'sales_rep' | 'viewer' | 'manager' | null;
 
@@ -11,6 +12,8 @@ interface UseUserRoleReturn {
   isManager: boolean;
   isLoading: boolean;
   profileId: string | null;
+  permissions: Record<PermissionKey, boolean>;
+  hasPermission: (key: PermissionKey) => boolean;
 }
 
 export const useUserRole = (): UseUserRoleReturn => {
@@ -18,12 +21,14 @@ export const useUserRole = (): UseUserRoleReturn => {
   const [role, setRole] = useState<UserRole>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [permissions, setPermissions] = useState<Record<PermissionKey, boolean>>({} as Record<PermissionKey, boolean>);
 
   useEffect(() => {
     const fetchUserRole = async () => {
       if (!user?.email) {
         setRole(null);
         setProfileId(null);
+        setPermissions({} as Record<PermissionKey, boolean>);
         setIsLoading(false);
         return;
       }
@@ -63,7 +68,46 @@ export const useUserRole = (): UseUserRoleReturn => {
           return;
         }
 
-        setRole(userRole?.role || null);
+        const fetchedRole = userRole?.role || null;
+        setRole(fetchedRole);
+
+        // Fetch user permissions
+        const { data: userPermissions, error: permError } = await supabase
+          .from("user_permissions")
+          .select("permission_key, is_enabled")
+          .eq("user_id", profile.id);
+
+        if (permError) {
+          console.error("Error fetching permissions:", permError);
+        }
+
+        // Build permissions map
+        const allPermissionKeys = Object.values(PERMISSION_KEYS);
+        const permissionsMap: Record<PermissionKey, boolean> = {} as Record<PermissionKey, boolean>;
+        
+        // Check if user has any custom permissions stored
+        if (userPermissions && userPermissions.length > 0) {
+          // Use stored permissions
+          allPermissionKeys.forEach(key => {
+            const perm = userPermissions.find(p => p.permission_key === key);
+            permissionsMap[key] = perm ? perm.is_enabled : false;
+          });
+        } else {
+          // Fall back to role-based defaults
+          const defaultPerms = DEFAULT_PERMISSIONS[fetchedRole || 'viewer'] || [];
+          allPermissionKeys.forEach(key => {
+            permissionsMap[key] = defaultPerms.includes(key);
+          });
+        }
+
+        // Admins always have all permissions
+        if (fetchedRole === 'admin') {
+          allPermissionKeys.forEach(key => {
+            permissionsMap[key] = true;
+          });
+        }
+
+        setPermissions(permissionsMap);
       } catch (error) {
         console.error("Error in useUserRole:", error);
       } finally {
@@ -74,6 +118,12 @@ export const useUserRole = (): UseUserRoleReturn => {
     fetchUserRole();
   }, [user?.email]);
 
+  const hasPermission = (key: PermissionKey): boolean => {
+    // Admins always have all permissions
+    if (role === 'admin') return true;
+    return permissions[key] ?? false;
+  };
+
   return {
     role,
     isAdmin: role === 'admin',
@@ -81,5 +131,7 @@ export const useUserRole = (): UseUserRoleReturn => {
     isManager: role === 'manager',
     isLoading,
     profileId,
+    permissions,
+    hasPermission,
   };
 };
