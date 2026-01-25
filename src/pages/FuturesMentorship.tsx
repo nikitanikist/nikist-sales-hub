@@ -13,7 +13,8 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
-import { TrendingUp, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TrendingUp, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins, BarChart3, Eye } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { UpdateFuturesEmiDialog } from "@/components/UpdateFuturesEmiDialog";
 import { AddFuturesStudentDialog } from "@/components/AddFuturesStudentDialog";
@@ -23,6 +24,14 @@ import { useToast } from "@/hooks/use-toast";
 import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useBatchInsights } from "@/hooks/useBatchInsights";
+import { 
+  UpcomingPaymentsCalendar, 
+  ActionRequiredCards, 
+  WeekSummaryCard, 
+  ReceivablesAgingTable, 
+  StudentListDialog 
+} from "@/components/batch-insights";
 
 interface FuturesBatch {
   id: string;
@@ -118,6 +127,13 @@ const FuturesMentorship = () => {
   const [discontinuingStudent, setDiscontinuingStudent] = useState<FuturesStudent | null>(null);
   const [deletingStudent, setDeletingStudent] = useState<FuturesStudent | null>(null);
   const [viewingNotesStudent, setViewingNotesStudent] = useState<FuturesStudent | null>(null);
+  
+  // Business Insights tab state
+  const [activeTab, setActiveTab] = useState<string>("students");
+  const [showStudentListDialog, setShowStudentListDialog] = useState(false);
+  const [studentListTitle, setStudentListTitle] = useState("");
+  const [studentListSubtitle, setStudentListSubtitle] = useState("");
+  const [studentListData, setStudentListData] = useState<FuturesStudent[]>([]);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -367,6 +383,19 @@ const FuturesMentorship = () => {
       todayFollowUpCount
     };
   }, [batchStudents]);
+
+  // Business insights data
+  const insightsStudents = useMemo(() => {
+    if (!batchStudents) return [];
+    return batchStudents.map(s => ({
+      ...s,
+      offer_amount: s.offer_amount || 0,
+      cash_received: s.cash_received || 0,
+      due_amount: s.due_amount || 0,
+    }));
+  }, [batchStudents]);
+
+  const insights = useBatchInsights(insightsStudents);
 
   // Filter batches based on search
   const filteredBatches = useMemo(() => {
@@ -823,21 +852,106 @@ const FuturesMentorship = () => {
     );
   }
 
+  // Handler for opening student list dialog from insights
+  const handleOpenStudentList = (title: string, subtitle: string, students: FuturesStudent[]) => {
+    setStudentListTitle(title);
+    setStudentListSubtitle(subtitle);
+    setStudentListData(students);
+    setShowStudentListDialog(true);
+  };
+
   // Batch Detail View
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Responsive Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-        <Button variant="ghost" onClick={() => setSelectedBatch(null)} className="w-fit">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">{selectedBatch.name}</h1>
-          <p className="text-sm text-muted-foreground">Event Dates: {selectedBatch.event_dates || "TBD"}</p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" onClick={() => setSelectedBatch(null)} className="w-fit">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">{selectedBatch.name}</h1>
+            <p className="text-sm text-muted-foreground">Event Dates: {selectedBatch.event_dates || "TBD"}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {(isAdmin || isManager) && (
+            <Button onClick={() => setAddStudentOpen(true)} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Student
+            </Button>
+          )}
         </div>
       </div>
 
+      {/* Business Insights Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">
+            <Eye className="h-4 w-4 mr-1 sm:mr-2" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="insights" className="text-xs sm:text-sm py-2">
+            <BarChart3 className="h-4 w-4 mr-1 sm:mr-2" />
+            Insights
+          </TabsTrigger>
+          <TabsTrigger value="students" className="text-xs sm:text-sm py-2">
+            <Users className="h-4 w-4 mr-1 sm:mr-2" />
+            Students
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          <WeekSummaryCard
+            thisWeekTotal={insights.thisWeekTotal}
+            thisWeekStudentCount={insights.thisWeekStudentCount}
+            collectionRate={insights.collectionRate}
+            totalReceivables={insights.totalReceivables}
+          />
+          
+          <UpcomingPaymentsCalendar
+            upcomingPayments={insights.upcomingPayments}
+            onDateClick={(date, students) => handleOpenStudentList(
+              `Students Due on ${format(new Date(date), "dd MMM yyyy")}`,
+              `${students.length} students with follow-up scheduled`,
+              students as FuturesStudent[]
+            )}
+          />
+          
+          <ActionRequiredCards
+            studentsWithoutFollowUp={insights.studentsWithoutFollowUp}
+            studentsWithoutFollowUpAmount={insights.studentsWithoutFollowUpAmount}
+            overdueFollowUps={insights.overdueFollowUps}
+            overdueFollowUpsAmount={insights.overdueFollowUpsAmount}
+            onViewNoFollowUp={() => handleOpenStudentList(
+              "Students Without Follow-up Date",
+              "These students have pending dues but no follow-up date set",
+              insights.studentsWithoutFollowUp as FuturesStudent[]
+            )}
+            onViewOverdue={() => handleOpenStudentList(
+              "Overdue Follow-ups",
+              "Follow-up date has passed but student still has pending dues",
+              insights.overdueFollowUps as FuturesStudent[]
+            )}
+          />
+        </TabsContent>
+
+        {/* Insights Tab */}
+        <TabsContent value="insights" className="space-y-4">
+          <ReceivablesAgingTable
+            receivablesAging={insights.receivablesAging}
+            onBracketClick={(bracket, students) => handleOpenStudentList(
+              `Receivables: ${bracket}`,
+              `Students with dues in this aging bracket`,
+              students as FuturesStudent[]
+            )}
+          />
+        </TabsContent>
+
+        {/* Students Tab */}
+        <TabsContent value="students" className="space-y-4">
       {/* Row 1: Financial Cards with Closer Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Offered Card */}
@@ -1810,6 +1924,29 @@ const FuturesMentorship = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Student List Dialog for Insights */}
+      <StudentListDialog
+        open={showStudentListDialog}
+        onOpenChange={setShowStudentListDialog}
+        title={studentListTitle}
+        subtitle={studentListSubtitle}
+        students={studentListData}
+        totalAmount={studentListData.reduce((sum, s) => sum + (s.due_amount || 0), 0)}
+        onEditNotes={(student) => {
+          setShowStudentListDialog(false);
+          const futuresStudent = studentListData.find(s => s.id === student.id);
+          if (futuresStudent) {
+            setNotesStudent(futuresStudent);
+            setNotesText(futuresStudent.notes || "");
+            setFollowUpDate(futuresStudent.next_follow_up_date ? new Date(futuresStudent.next_follow_up_date) : undefined);
+            setPayAfterEarning(futuresStudent.pay_after_earning || false);
+          }
+        }}
+        showFollowUpDate
+      />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
