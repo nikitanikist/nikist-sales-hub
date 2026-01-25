@@ -14,9 +14,9 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins } from "lucide-react";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins, Eye, BarChart3 } from "lucide-react";
 import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
 import { AddBatchStudentDialog } from "@/components/AddBatchStudentDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,6 +26,14 @@ import { useToast } from "@/hooks/use-toast";
 import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useBatchInsights } from "@/hooks/useBatchInsights";
+import { 
+  UpcomingPaymentsCalendar, 
+  ActionRequiredCards, 
+  WeekSummaryCard, 
+  ReceivablesAgingTable, 
+  StudentListDialog 
+} from "@/components/batch-insights";
 
 interface Batch {
   id: string;
@@ -147,6 +155,13 @@ const Batches = () => {
   
   // Add student dialog state
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  
+  // Business Insights tab state
+  const [activeTab, setActiveTab] = useState<string>("students");
+  const [showStudentListDialog, setShowStudentListDialog] = useState(false);
+  const [studentListTitle, setStudentListTitle] = useState("");
+  const [studentListSubtitle, setStudentListSubtitle] = useState("");
+  const [studentListData, setStudentListData] = useState<BatchStudent[]>([]);
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
@@ -393,7 +408,8 @@ const Batches = () => {
     });
   }, [batchStudents, searchQuery, selectedClosers, selectedClasses, dateFrom, dateTo, paymentTypeFilter, batchEmiPayments, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining, filterPAE]);
 
-  // Calculate totals from ALL students (not filtered) for summary cards
+  // Business insights hook for overview and insights tabs
+  const insights = useBatchInsights(batchStudents || []);
   const allStudentsTotals = useMemo(() => {
     if (!batchStudents) return { 
       offered: 0, received: 0, due: 0, 
@@ -920,6 +936,13 @@ const Batches = () => {
     );
   };
 
+  // Handler for opening student list dialog from insights
+  const handleOpenStudentList = (title: string, subtitle: string, students: BatchStudent[]) => {
+    setStudentListTitle(title);
+    setStudentListSubtitle(subtitle);
+    setStudentListData(students);
+    setShowStudentListDialog(true);
+  };
 
   // Batch detail view
   if (selectedBatch) {
@@ -968,7 +991,73 @@ const Batches = () => {
           </div>
         </div>
 
-        {/* Summary Cards - Hidden for Managers */}
+        {/* Business Insights Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-3 h-auto">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">
+              <Eye className="h-4 w-4 mr-1 sm:mr-2" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="insights" className="text-xs sm:text-sm py-2">
+              <BarChart3 className="h-4 w-4 mr-1 sm:mr-2" />
+              Insights
+            </TabsTrigger>
+            <TabsTrigger value="students" className="text-xs sm:text-sm py-2">
+              <Users className="h-4 w-4 mr-1 sm:mr-2" />
+              Students
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-4">
+            <WeekSummaryCard
+              thisWeekTotal={insights.thisWeekTotal}
+              thisWeekStudentCount={insights.thisWeekStudentCount}
+              collectionRate={insights.collectionRate}
+              totalReceivables={insights.totalReceivables}
+            />
+            
+            <UpcomingPaymentsCalendar
+              upcomingPayments={insights.upcomingPayments}
+              onDateClick={(date, students) => handleOpenStudentList(
+                `Students Due on ${format(new Date(date), "dd MMM yyyy")}`,
+                `${students.length} students with follow-up scheduled`,
+                students as BatchStudent[]
+              )}
+            />
+            
+            <ActionRequiredCards
+              studentsWithoutFollowUp={insights.studentsWithoutFollowUp}
+              studentsWithoutFollowUpAmount={insights.studentsWithoutFollowUpAmount}
+              overdueFollowUps={insights.overdueFollowUps}
+              overdueFollowUpsAmount={insights.overdueFollowUpsAmount}
+              onViewNoFollowUp={() => handleOpenStudentList(
+                "Students Without Follow-up Date",
+                "These students have pending dues but no follow-up date set",
+                insights.studentsWithoutFollowUp as BatchStudent[]
+              )}
+              onViewOverdue={() => handleOpenStudentList(
+                "Overdue Follow-ups",
+                "Follow-up date has passed but student still has pending dues",
+                insights.overdueFollowUps as BatchStudent[]
+              )}
+            />
+          </TabsContent>
+
+          {/* Insights Tab */}
+          <TabsContent value="insights" className="space-y-4">
+            <ReceivablesAgingTable
+              receivablesAging={insights.receivablesAging}
+              onBracketClick={(bracket, students) => handleOpenStudentList(
+                `Receivables: ${bracket}`,
+                `Students with dues in this aging bracket`,
+                students as BatchStudent[]
+              )}
+            />
+          </TabsContent>
+
+          {/* Students Tab */}
+          <TabsContent value="students" className="space-y-4">
         {!isManager && (
           <>
             {paymentTypeFilter === "emi" ? (
@@ -2264,6 +2353,36 @@ const Batches = () => {
             }}
           />
         )}
+        
+        {/* Student List Dialog for Insights */}
+        <StudentListDialog
+          open={showStudentListDialog}
+          onOpenChange={setShowStudentListDialog}
+          title={studentListTitle}
+          subtitle={studentListSubtitle}
+          students={studentListData.map(s => ({
+            id: s.id,
+            contact_name: s.contact_name,
+            email: s.email,
+            phone: s.phone,
+            due_amount: s.due_amount || 0,
+            next_follow_up_date: s.next_follow_up_date,
+            closer_name: s.closer_name
+          }))}
+          totalAmount={studentListData.reduce((sum, s) => sum + (s.due_amount || 0), 0)}
+          onEditNotes={(student) => {
+            const batchStudent = studentListData.find(s => s.id === student.id);
+            if (batchStudent) {
+              setNotesStudent(batchStudent);
+              setNotesText(batchStudent.additional_comments || "");
+              setFollowUpDate(batchStudent.next_follow_up_date ? new Date(batchStudent.next_follow_up_date) : undefined);
+              setPayAfterEarning(batchStudent.pay_after_earning || false);
+              setShowStudentListDialog(false);
+            }
+          }}
+        />
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }
