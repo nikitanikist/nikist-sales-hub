@@ -1925,7 +1925,10 @@ const FuturesMentorship = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Student List Dialog for Insights */}
+        </TabsContent>
+      </Tabs>
+
+      {/* Student List Dialog for Insights - Outside Tabs so it renders on any tab */}
       <StudentListDialog
         open={showStudentListDialog}
         onOpenChange={setShowStudentListDialog}
@@ -1945,8 +1948,6 @@ const FuturesMentorship = () => {
         }}
         showFollowUpDate
       />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 };
