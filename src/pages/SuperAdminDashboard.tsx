@@ -11,9 +11,17 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Users, Settings, Plus, Edit, Trash2, Shield, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+
+const ROLE_OPTIONS = [
+  { value: "viewer", label: "Viewer" },
+  { value: "sales_rep", label: "Sales Rep" },
+  { value: "manager", label: "Manager" },
+  { value: "admin", label: "Admin" },
+];
 
 interface Organization {
   id: string;
@@ -73,6 +81,14 @@ const SuperAdminDashboard = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [newOrgSlug, setNewOrgSlug] = useState("");
+  
+  // Add Member state
+  const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<{id: string, full_name: string, email: string}[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState<string>("viewer");
+  const [newMemberIsOrgAdmin, setNewMemberIsOrgAdmin] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
 
   useEffect(() => {
     if (!orgLoading && !isSuperAdmin) {
@@ -302,6 +318,63 @@ const SuperAdminDashboard = () => {
     }
   };
 
+  const fetchAvailableUsers = async () => {
+    try {
+      // Get all profiles
+      const { data: allProfiles, error } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .order("full_name");
+
+      if (error) throw error;
+
+      // Filter out users already in the organization
+      const existingMemberIds = orgMembers.map((m) => m.user_id);
+      const available = (allProfiles || []).filter(
+        (p) => !existingMemberIds.includes(p.id)
+      );
+
+      setAvailableUsers(available);
+    } catch (error) {
+      console.error("Error fetching available users:", error);
+      toast.error("Failed to load available users");
+    }
+  };
+
+  const addMemberToOrg = async () => {
+    if (!selectedOrg || !selectedUserId) {
+      toast.error("Please select a user");
+      return;
+    }
+
+    setAddingMember(true);
+    try {
+      const { error } = await supabase
+        .from("organization_members")
+        .insert({
+          organization_id: selectedOrg.id,
+          user_id: selectedUserId,
+          role: newMemberRole as "admin" | "sales_rep" | "viewer" | "manager" | "super_admin",
+          is_org_admin: newMemberIsOrgAdmin,
+        });
+
+      if (error) throw error;
+
+      toast.success("Member added successfully");
+      setShowAddMemberDialog(false);
+      setSelectedUserId("");
+      setNewMemberRole("viewer");
+      setNewMemberIsOrgAdmin(false);
+      fetchOrgDetails(selectedOrg);
+      fetchOrganizations();
+    } catch (error: any) {
+      console.error("Error adding member:", error);
+      toast.error(error.message || "Failed to add member");
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
   if (orgLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -521,6 +594,95 @@ const SuperAdminDashboard = () => {
                 </TabsContent>
 
                 <TabsContent value="members">
+                  <div className="flex justify-end mb-4">
+                    <Dialog 
+                      open={showAddMemberDialog} 
+                      onOpenChange={(open) => {
+                        setShowAddMemberDialog(open);
+                        if (open) {
+                          fetchAvailableUsers();
+                          setSelectedUserId("");
+                          setNewMemberRole("viewer");
+                          setNewMemberIsOrgAdmin(false);
+                        }
+                      }}
+                    >
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Member
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add Member to {selectedOrg?.name}</DialogTitle>
+                          <DialogDescription>
+                            Select an existing user to add to this organization
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label>Select User</Label>
+                            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                              <SelectTrigger className="bg-background">
+                                <SelectValue placeholder="Select a user..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-background z-50">
+                                {availableUsers.length === 0 ? (
+                                  <SelectItem value="none" disabled>
+                                    No available users
+                                  </SelectItem>
+                                ) : (
+                                  availableUsers.map((user) => (
+                                    <SelectItem key={user.id} value={user.id}>
+                                      {user.full_name} ({user.email})
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Role</Label>
+                            <Select value={newMemberRole} onValueChange={setNewMemberRole}>
+                              <SelectTrigger className="bg-background">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-background z-50">
+                                {ROLE_OPTIONS.map((role) => (
+                                  <SelectItem key={role.value} value={role.value}>
+                                    {role.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="org-admin-switch">Make Organization Admin</Label>
+                            <Switch
+                              id="org-admin-switch"
+                              checked={newMemberIsOrgAdmin}
+                              onCheckedChange={setNewMemberIsOrgAdmin}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowAddMemberDialog(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={addMemberToOrg} 
+                            disabled={!selectedUserId || addingMember}
+                          >
+                            {addingMember ? "Adding..." : "Add Member"}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                   <Table>
                     <TableHeader>
                       <TableRow>
