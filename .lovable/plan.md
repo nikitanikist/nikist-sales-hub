@@ -1,57 +1,163 @@
 
-# Fix Features Enabled Display Bug
+# Add Admin/Member to Organization Feature
 
 ## Problem
-The Super Admin Dashboard shows "15 / 13" for Features Enabled, which is confusing. This happens because:
+When a Super Admin creates an organization, it starts empty with 0 members. The current dashboard has:
+- A view of existing members with org admin toggle
+- **No way to add new members/admins to an organization**
 
-1. **Database has 15 features** - The `organization_features` table has 15 records for Nikist (including `users` and `integrations`)
-2. **Code only defines 13 features** - The `AVAILABLE_FEATURES` array is missing 2 features
-
-The display formula is:
-- First number: Count of enabled features in DB (15)
-- Second number: Length of `AVAILABLE_FEATURES` array (13)
+The `manage-users` edge function creates users but doesn't assign them to organizations.
 
 ---
 
 ## Solution
-
-Add the 2 missing features to the `AVAILABLE_FEATURES` array so the display shows "15 / 15" instead of "15 / 13".
+Add an "Add Member" feature to the Super Admin Dashboard that allows:
+1. Selecting an existing user from a dropdown
+2. Setting their role within the organization
+3. Optionally making them an Org Admin
+4. Creating the `organization_members` record
 
 ---
 
 ## Implementation
 
-### File to Modify
-`src/pages/SuperAdminDashboard.tsx`
+### Changes to `src/pages/SuperAdminDashboard.tsx`
 
-### Change
-Update the `AVAILABLE_FEATURES` array (lines 46-60) to include the missing features:
-
+**1. Add new state variables:**
 ```typescript
-const AVAILABLE_FEATURES = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "daily_money_flow", label: "Daily Money Flow" },
-  { key: "customers", label: "Customers" },
-  { key: "customer_insights", label: "Customer Insights" },
-  { key: "call_schedule", label: "1:1 Call Schedule" },
-  { key: "sales_closers", label: "Sales Closers" },
-  { key: "batch_icc", label: "Insider Crypto Club" },
-  { key: "batch_futures", label: "Future Mentorship" },
-  { key: "batch_high_future", label: "High Future" },
-  { key: "workshops", label: "All Workshops" },
-  { key: "sales", label: "Sales" },
-  { key: "funnels", label: "Active Funnels" },
-  { key: "products", label: "Products" },
-  { key: "users", label: "Users" },           // <-- ADD
-  { key: "integrations", label: "Integrations" }, // <-- ADD
+const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
+const [availableUsers, setAvailableUsers] = useState<{id: string, full_name: string, email: string}[]>([]);
+const [selectedUserId, setSelectedUserId] = useState("");
+const [newMemberRole, setNewMemberRole] = useState<string>("viewer");
+const [newMemberIsOrgAdmin, setNewMemberIsOrgAdmin] = useState(false);
+```
+
+**2. Add function to fetch available users (those not already in the organization):**
+```typescript
+const fetchAvailableUsers = async () => {
+  // Get all profiles
+  const { data: allProfiles } = await supabase
+    .from("profiles")
+    .select("id, full_name, email");
+  
+  // Filter out users already in the organization
+  const existingMemberIds = orgMembers.map(m => m.user_id);
+  const available = (allProfiles || []).filter(
+    p => !existingMemberIds.includes(p.id)
+  );
+  
+  setAvailableUsers(available);
+};
+```
+
+**3. Add function to add member to organization:**
+```typescript
+const addMemberToOrg = async () => {
+  if (!selectedOrg || !selectedUserId) {
+    toast.error("Please select a user");
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("organization_members")
+      .insert({
+        organization_id: selectedOrg.id,
+        user_id: selectedUserId,
+        role: newMemberRole,
+        is_org_admin: newMemberIsOrgAdmin,
+      });
+
+    if (error) throw error;
+
+    toast.success("Member added successfully");
+    setShowAddMemberDialog(false);
+    setSelectedUserId("");
+    setNewMemberRole("viewer");
+    setNewMemberIsOrgAdmin(false);
+    fetchOrgDetails(selectedOrg); // Refresh members list
+    fetchOrganizations(); // Update member counts
+  } catch (error: any) {
+    console.error("Error adding member:", error);
+    toast.error(error.message || "Failed to add member");
+  }
+};
+```
+
+**4. Add "Add Member" button to the Members tab (above the table):**
+```typescript
+<TabsContent value="members">
+  <div className="flex justify-end mb-4">
+    <Dialog open={showAddMemberDialog} onOpenChange={(open) => {
+      setShowAddMemberDialog(open);
+      if (open) fetchAvailableUsers();
+    }}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <Plus className="mr-2 h-4 w-4" />
+          Add Member
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add Member to {selectedOrg?.name}</DialogTitle>
+          <DialogDescription>
+            Select an existing user to add to this organization
+          </DialogDescription>
+        </DialogHeader>
+        {/* Form with Select for user, role dropdown, org admin switch */}
+        <DialogFooter>
+          <Button onClick={addMemberToOrg}>Add Member</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
+  <Table>...</Table>
+</TabsContent>
+```
+
+**5. Add Select component import and role options:**
+```typescript
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } 
+  from "@/components/ui/select";
+
+const ROLE_OPTIONS = [
+  { value: "viewer", label: "Viewer" },
+  { value: "sales_rep", label: "Sales Rep" },
+  { value: "manager", label: "Manager" },
+  { value: "admin", label: "Admin" },
 ];
 ```
 
 ---
 
-## Expected Result
+## Technical Details
 
-After this change:
-- The "Features Enabled" will correctly show **15 / 15**
-- The Features tab will show all 15 toggle switches including Users and Integrations
-- The sidebar menu in AppLayout will be able to use these feature flags to show/hide menu items
+### Files to Modify
+| File | Changes |
+|------|---------|
+| `src/pages/SuperAdminDashboard.tsx` | Add member dialog, state, and functions |
+
+### RLS Verification
+The existing policy "Super admins can manage org members" with `USING (is_super_admin(auth.uid()))` should allow INSERT. However, we should add a `WITH CHECK` clause for better security:
+
+```sql
+DROP POLICY IF EXISTS "Super admins can manage org members" ON public.organization_members;
+CREATE POLICY "Super admins can manage org members" 
+ON public.organization_members 
+FOR ALL 
+USING (is_super_admin(auth.uid()))
+WITH CHECK (is_super_admin(auth.uid()));
+```
+
+---
+
+## Expected Result
+1. Super Admin can click "Add Member" button in the Members tab
+2. A dialog opens with:
+   - Dropdown of available users (not already in org)
+   - Role selection (viewer, sales_rep, manager, admin)
+   - Org Admin toggle switch
+3. Clicking "Add Member" creates the organization_members record
+4. Member appears in the table immediately
+5. Member count updates on the organization card
