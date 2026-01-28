@@ -238,10 +238,6 @@ const Funnels = () => {
       />
     );
   }
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
 
   const filteredFunnels = funnels.filter((funnel) =>
     funnel.funnel_name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -264,52 +260,6 @@ const Funnels = () => {
     );
     return uniqueLeads.size;
   };
-
-  // Real-time updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('funnels-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'lead_assignments'
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["funnels"] });
-          queryClient.invalidateQueries({ queryKey: ["workshops"] });
-          queryClient.invalidateQueries({ queryKey: ["lead_assignments"] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'workshops'
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["workshops"] });
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'products'
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["products"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   const resetForm = () => {
     setFormData({ funnel_name: "", amount: "", total_leads: "0", workshop_id: "", product_id: "" });
