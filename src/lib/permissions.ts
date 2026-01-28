@@ -6,9 +6,7 @@ export const PERMISSION_KEYS = {
   customer_insights: 'customer_insights',
   call_schedule: 'call_schedule',
   sales_closers: 'sales_closers',
-  batch_icc: 'batch_icc',
-  batch_futures: 'batch_futures',
-  batch_high_future: 'batch_high_future',
+  cohort_batches: 'cohort_batches', // Unified permission for all cohort types
   workshops: 'workshops',
   sales: 'sales',
   funnels: 'funnels',
@@ -26,9 +24,12 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/onboarding': PERMISSION_KEYS.customer_insights,
   '/calls': PERMISSION_KEYS.call_schedule,
   '/sales-closers': PERMISSION_KEYS.sales_closers,
-  '/batches': PERMISSION_KEYS.batch_icc,
-  '/futures-mentorship': PERMISSION_KEYS.batch_futures,
-  '/high-future': PERMISSION_KEYS.batch_high_future,
+  // Legacy routes map to unified cohort permission
+  '/batches': PERMISSION_KEYS.cohort_batches,
+  '/futures-mentorship': PERMISSION_KEYS.cohort_batches,
+  '/high-future': PERMISSION_KEYS.cohort_batches,
+  // Dynamic cohort routes handled separately
+  '/cohorts': PERMISSION_KEYS.cohort_batches,
   '/workshops': PERMISSION_KEYS.workshops,
   '/sales': PERMISSION_KEYS.sales,
   '/funnels': PERMISSION_KEYS.funnels,
@@ -44,9 +45,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   customer_insights: 'Customer Insights',
   call_schedule: '1:1 Call Schedule',
   sales_closers: 'Sales Closers',
-  batch_icc: 'Insider Crypto Club',
-  batch_futures: 'Future Mentorship',
-  batch_high_future: 'High Future',
+  cohort_batches: 'Cohort Batches',
   workshops: 'All Workshops',
   sales: 'Sales',
   funnels: 'Active Funnels',
@@ -70,9 +69,7 @@ export const PERMISSION_GROUPS = [
   {
     label: 'Cohort Batches',
     permissions: [
-      PERMISSION_KEYS.batch_icc,
-      PERMISSION_KEYS.batch_futures,
-      PERMISSION_KEYS.batch_high_future,
+      PERMISSION_KEYS.cohort_batches,
     ],
   },
   {
@@ -94,15 +91,13 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSION_KEYS.daily_money_flow,
     PERMISSION_KEYS.customers,
     PERMISSION_KEYS.sales_closers,
-    PERMISSION_KEYS.batch_icc,
-    PERMISSION_KEYS.batch_futures,
-    PERMISSION_KEYS.batch_high_future,
+    PERMISSION_KEYS.cohort_batches,
     PERMISSION_KEYS.workshops,
   ],
   sales_rep: [
     PERMISSION_KEYS.call_schedule,
     PERMISSION_KEYS.sales_closers,
-    PERMISSION_KEYS.batch_icc,
+    PERMISSION_KEYS.cohort_batches,
   ],
   viewer: [], // No permissions by default
 };
@@ -116,4 +111,27 @@ export function getDefaultPermissionsForRole(role: string): Record<PermissionKey
     acc[key] = enabledPermissions.includes(key);
     return acc;
   }, {} as Record<PermissionKey, boolean>);
+}
+
+// Check if a route is a cohort route
+export function isCohortRoute(path: string): boolean {
+  return path.startsWith('/cohorts/') || 
+         path === '/batches' || 
+         path === '/futures-mentorship' || 
+         path === '/high-future';
+}
+
+// Get permission key for a route (handles dynamic cohort routes)
+export function getPermissionForRoute(path: string): PermissionKey | undefined {
+  // Check exact match first
+  if (ROUTE_TO_PERMISSION[path]) {
+    return ROUTE_TO_PERMISSION[path];
+  }
+  
+  // Handle dynamic cohort routes
+  if (path.startsWith('/cohorts/')) {
+    return PERMISSION_KEYS.cohort_batches;
+  }
+  
+  return undefined;
 }

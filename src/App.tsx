@@ -49,12 +49,12 @@ const App = () => (
               <Route path="/sales-closers/all-calls" element={<AllCloserCalls />} />
               <Route path="/sales-closers/:closerId/calls" element={<CloserAssignedCalls />} />
               {/* Legacy routes - redirect to unified cohort pages */}
-              <Route path="/batches" element={<Batches />} />
-              <Route path="/futures-mentorship" element={<FuturesMentorship />} />
-              <Route path="/high-future" element={<HighFuture />} />
+              <Route path="/batches" element={<Navigate to="/cohorts/insider-crypto-club" replace />} />
+              <Route path="/futures-mentorship" element={<Navigate to="/cohorts/futures-mentorship" replace />} />
+              <Route path="/high-future" element={<Navigate to="/cohorts/high-future" replace />} />
               {/* New unified cohort routes */}
-              <Route path="/cohorts/manage" element={<ManageCohorts />} />
-              <Route path="/cohorts/:cohortSlug" element={<CohortPage />} />
+              <Route path="/cohorts/manage" element={<ProtectedRoute adminOnly><ManageCohorts /></ProtectedRoute>} />
+              <Route path="/cohorts/:cohortSlug" element={<ProtectedRoute><CohortPage /></ProtectedRoute>} />
               <Route path="/daily-money-flow" element={<DailyMoneyFlow />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
