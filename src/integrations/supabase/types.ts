@@ -1956,7 +1956,7 @@ export type Database = {
     }
     Functions: {
       get_closer_call_counts: {
-        Args: { target_date: string }
+        Args: { p_organization_id?: string; target_date: string }
         Returns: {
           call_count: number
           full_name: string
@@ -1964,7 +1964,7 @@ export type Database = {
         }[]
       }
       get_closer_call_metrics: {
-        Args: { target_date: string }
+        Args: { p_organization_id?: string; target_date: string }
         Returns: {
           cash_collected: number
           converted_count: number
@@ -1987,7 +1987,11 @@ export type Database = {
       get_user_organization_ids: { Args: never; Returns: string[] }
       get_user_organizations: { Args: { _user_id: string }; Returns: string[] }
       get_workshop_calls_by_category: {
-        Args: { p_category: string; p_workshop_title: string }
+        Args: {
+          p_category: string
+          p_organization_id?: string
+          p_workshop_title: string
+        }
         Returns: {
           cash_received: number
           closer_name: string
@@ -2006,7 +2010,7 @@ export type Database = {
         }[]
       }
       get_workshop_metrics: {
-        Args: never
+        Args: { p_organization_id?: string }
         Returns: {
           booking_amount_calls: number
           converted_calls: number
@@ -2047,7 +2051,7 @@ export type Database = {
         Returns: string
       }
       get_workshop_sales_leads: {
-        Args: { p_workshop_title: string }
+        Args: { p_organization_id?: string; p_workshop_title: string }
         Returns: {
           assignment_id: string
           call_appointment_id: string
@@ -2081,7 +2085,7 @@ export type Database = {
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       search_leads: {
-        Args: { search_query: string }
+        Args: { p_organization_id?: string; search_query: string }
         Returns: {
           assigned_to: string
           assigned_to_name: string
