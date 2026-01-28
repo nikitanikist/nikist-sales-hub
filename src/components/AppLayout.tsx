@@ -36,7 +36,16 @@ interface SidebarNavigationProps {
   userEmail: string | undefined;
 }
 
-const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail }: SidebarNavigationProps) => {
+interface SidebarNavigationProps {
+  menuItems: MenuItem[];
+  navigate: (path: string) => void;
+  location: { pathname: string };
+  signOut: () => void;
+  userEmail: string | undefined;
+  isSuperAdmin?: boolean;
+}
+
+const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, isSuperAdmin }: SidebarNavigationProps) => {
   const { setOpenMobile, isMobile } = useSidebar();
 
   const handleNavigation = (path: string) => {
@@ -53,14 +62,21 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail }
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-sidebar-primary rounded-lg">
-              <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
+              {isSuperAdmin ? (
+                <Shield className="h-5 w-5 text-sidebar-primary-foreground" />
+              ) : (
+                <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
+              )}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-sidebar-foreground">Nikist CRM</h2>
+              <h2 className="text-lg font-semibold text-sidebar-foreground">
+                {isSuperAdmin ? "Super Admin" : "Nikist CRM"}
+              </h2>
               <p className="text-xs text-sidebar-foreground/60">{userEmail}</p>
             </div>
           </div>
-          <OrganizationSwitcher />
+          {/* Hide OrganizationSwitcher for Super Admins */}
+          {!isSuperAdmin && <OrganizationSwitcher />}
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -240,7 +256,15 @@ const AppLayoutContent = () => {
       .filter((item): item is MenuItem => item !== null);
   };
 
-  const menuItems = filterMenuItems(allMenuItems);
+  // Super Admin specific menu - only show Super Admin Dashboard
+  const superAdminMenuItems: MenuItem[] = [
+    { title: "Super Admin Dashboard", icon: Shield, path: "/super-admin" },
+  ];
+
+  // Use super admin menu if user is super admin, otherwise filter regular menu
+  const menuItems = isSuperAdmin 
+    ? superAdminMenuItems 
+    : filterMenuItems(allMenuItems);
 
   const notificationCount = 10; // Demo value
 
@@ -253,6 +277,7 @@ const AppLayoutContent = () => {
           location={location}
           signOut={signOut}
           userEmail={user.email}
+          isSuperAdmin={isSuperAdmin}
         />
         <main className="flex-1 overflow-auto">
           <div className="sticky top-0 z-10 bg-background border-b border-border">

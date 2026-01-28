@@ -93,24 +93,45 @@ const SuperAdminDashboard = () => {
         .select("*")
         .order("name");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching organizations:", error);
+        toast.error("Failed to load organizations: " + error.message);
+        setOrganizations([]);
+        return;
+      }
+
+      if (!orgs || orgs.length === 0) {
+        setOrganizations([]);
+        return;
+      }
 
       // Get member counts for each org
       const orgsWithCounts = await Promise.all(
-        (orgs || []).map(async (org) => {
-          const { count } = await supabase
-            .from("organization_members")
-            .select("*", { count: "exact", head: true })
-            .eq("organization_id", org.id);
+        orgs.map(async (org) => {
+          try {
+            const { count, error: countError } = await supabase
+              .from("organization_members")
+              .select("*", { count: "exact", head: true })
+              .eq("organization_id", org.id);
 
-          return { ...org, member_count: count || 0 };
+            if (countError) {
+              console.warn(`Error fetching member count for ${org.name}:`, countError);
+              return { ...org, member_count: 0 };
+            }
+
+            return { ...org, member_count: count || 0 };
+          } catch (err) {
+            console.warn(`Error fetching member count for ${org.name}:`, err);
+            return { ...org, member_count: 0 };
+          }
         })
       );
 
       setOrganizations(orgsWithCounts);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching organizations:", error);
-      toast.error("Failed to load organizations");
+      toast.error("Failed to load organizations: " + (error?.message || "Unknown error"));
+      setOrganizations([]);
     } finally {
       setIsLoading(false);
     }
