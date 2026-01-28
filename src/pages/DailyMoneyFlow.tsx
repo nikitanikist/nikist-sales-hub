@@ -26,6 +26,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 interface MoneyFlowEntry {
   id: string;
@@ -56,15 +59,19 @@ const DailyMoneyFlow = () => {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
 
   // Fetch all money flow entries
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ["daily-money-flow"],
+    queryKey: ["daily-money-flow", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       // First fetch money flow entries
       const { data: moneyFlowData, error: moneyFlowError } = await supabase
         .from("daily_money_flow")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("date", { ascending: false });
 
       if (moneyFlowError) throw moneyFlowError;
@@ -91,10 +98,13 @@ const DailyMoneyFlow = () => {
         creator_name: entry.created_by ? profilesMap[entry.created_by] : null
       })) as MoneyFlowEntry[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Real-time subscription for live updates
   useEffect(() => {
+    if (!currentOrganization) return;
+    
     const channel = supabase
       .channel('daily-money-flow-changes')
       .on(
@@ -106,7 +116,7 @@ const DailyMoneyFlow = () => {
         },
         () => {
           // Invalidate and refetch when any change occurs
-          queryClient.invalidateQueries({ queryKey: ["daily-money-flow"] });
+          queryClient.invalidateQueries({ queryKey: ["daily-money-flow", currentOrganization.id] });
         }
       )
       .subscribe();
@@ -114,7 +124,7 @@ const DailyMoneyFlow = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, currentOrganization]);
 
   // Delete mutation
   const deleteMutation = useMutation({
@@ -126,7 +136,7 @@ const DailyMoneyFlow = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["daily-money-flow"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-money-flow", currentOrganization?.id] });
       toast({ title: "Entry deleted successfully" });
       setDeletingId(null);
     },
@@ -435,6 +445,22 @@ const DailyMoneyFlow = () => {
       case 'custom': return 'Custom Range';
     }
   };
+
+  // Show loading state while organization is loading
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  // Wait for organization to be available
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={IndianRupee}
+        title="No Organization Selected"
+        description="Please select an organization to view daily money flow."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">

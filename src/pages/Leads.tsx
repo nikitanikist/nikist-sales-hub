@@ -20,6 +20,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScheduleCallDialog } from "@/components/ScheduleCallDialog";
 import { LeadsFilterSheet, LeadsFilters } from "@/components/LeadsFilterSheet";
 import { ImportCustomersDialog } from "@/components/ImportCustomersDialog";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-500",
