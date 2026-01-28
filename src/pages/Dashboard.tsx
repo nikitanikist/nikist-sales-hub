@@ -2,14 +2,21 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Calendar, DollarSign, TrendingUp } from "lucide-react";
+import { Users, Calendar, DollarSign, TrendingUp, LayoutDashboard } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import AutomationStatusWidget from "@/components/AutomationStatusWidget";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 const Dashboard = () => {
   const queryClient = useQueryClient();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
+
   // Real-time subscription for leads table
   useEffect(() => {
+    if (!currentOrganization) return;
+
     const channel = supabase
       .channel('dashboard-leads-realtime')
       .on(
@@ -21,8 +28,8 @@ const Dashboard = () => {
         },
         () => {
           // Invalidate queries to refresh data
-          queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-          queryClient.invalidateQueries({ queryKey: ["leads-by-status"] });
+          queryClient.invalidateQueries({ queryKey: ["dashboard-stats", currentOrganization.id] });
+          queryClient.invalidateQueries({ queryKey: ["leads-by-status", currentOrganization.id] });
         }
       )
       .subscribe();
@@ -30,15 +37,17 @@ const Dashboard = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, currentOrganization]);
 
-  const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats"],
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["dashboard-stats", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return { totalLeads: 0, totalWorkshops: 0, totalSales: 0, totalRevenue: 0 };
+
       const [leadsResult, workshopsResult, salesResult] = await Promise.all([
-        supabase.from("leads").select("*", { count: "exact" }),
-        supabase.from("workshops").select("*", { count: "exact" }),
-        supabase.from("sales").select("amount"),
+        supabase.from("leads").select("*", { count: "exact" }).eq("organization_id", currentOrganization.id),
+        supabase.from("workshops").select("*", { count: "exact" }).eq("organization_id", currentOrganization.id),
+        supabase.from("sales").select("amount").eq("organization_id", currentOrganization.id),
       ]);
 
       const totalRevenue = salesResult.data?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
@@ -50,14 +59,18 @@ const Dashboard = () => {
         totalRevenue,
       };
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: leadsByStatus } = useQuery({
-    queryKey: ["leads-by-status"],
+    queryKey: ["leads-by-status", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+
       const { data } = await supabase
         .from("leads")
-        .select("status");
+        .select("status")
+        .eq("organization_id", currentOrganization.id);
 
       const statusCounts = data?.reduce((acc: any, lead) => {
         acc[lead.status] = (acc[lead.status] || 0) + 1;
@@ -69,7 +82,24 @@ const Dashboard = () => {
         count,
       }));
     },
+    enabled: !!currentOrganization,
   });
+
+  // Show loading state while organization is loading
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  // Wait for organization to be available
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={LayoutDashboard}
+        title="No Organization Selected"
+        description="Please select an organization to view the dashboard."
+      />
+    );
+  }
 
   const statCards = [
     {
@@ -132,22 +162,28 @@ const Dashboard = () => {
           <CardTitle className="text-base sm:text-lg">Leads by Status</CardTitle>
         </CardHeader>
         <CardContent className="px-2 sm:px-6 pb-4 sm:pb-6">
-          <ResponsiveContainer width="100%" height={window.innerWidth < 640 ? 200 : 300}>
-            <BarChart data={leadsByStatus}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="status" 
-                tick={{ fontSize: window.innerWidth < 640 ? 10 : 12 }}
-                interval={0}
-                angle={window.innerWidth < 640 ? -45 : 0}
-                textAnchor={window.innerWidth < 640 ? "end" : "middle"}
-                height={window.innerWidth < 640 ? 60 : 30}
-              />
-              <YAxis tick={{ fontSize: 10 }} width={30} />
-              <Tooltip />
-              <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {leadsByStatus && leadsByStatus.length > 0 ? (
+            <ResponsiveContainer width="100%" height={window.innerWidth < 640 ? 200 : 300}>
+              <BarChart data={leadsByStatus}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis 
+                  dataKey="status" 
+                  tick={{ fontSize: window.innerWidth < 640 ? 10 : 12 }}
+                  interval={0}
+                  angle={window.innerWidth < 640 ? -45 : 0}
+                  textAnchor={window.innerWidth < 640 ? "end" : "middle"}
+                  height={window.innerWidth < 640 ? 60 : 30}
+                />
+                <YAxis tick={{ fontSize: 10 }} width={30} />
+                <Tooltip />
+                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+              No leads data to display yet. Add your first lead to see stats here.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

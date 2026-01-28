@@ -8,10 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, RefreshCw, Filter, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, RefreshCw, Filter, Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 interface Funnel {
   id: string;
@@ -37,68 +40,87 @@ const Funnels = () => {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
 
   // Fetch lead assignments for counting leads per funnel
   const { data: leadAssignments = [] } = useQuery({
-    queryKey: ["lead_assignments"],
+    queryKey: ["lead_assignments", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("lead_assignments")
-        .select("funnel_id, product_id, workshop_id, lead_id");
+        .select("funnel_id, product_id, workshop_id, lead_id")
+        .eq("organization_id", currentOrganization.id);
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: funnels = [], refetch, isLoading } = useQuery({
-    queryKey: ["funnels"],
+    queryKey: ["funnels", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("funnels")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Funnel[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch workshops for linking
   const { data: workshops = [] } = useQuery({
-    queryKey: ["workshops"],
+    queryKey: ["workshops-funnels", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("workshops")
         .select("id, title, funnel_id")
+        .eq("organization_id", currentOrganization.id)
         .order("title");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch products for linking
   const { data: products = [] } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products-funnels", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("products")
         .select("id, product_name, funnel_id")
+        .eq("organization_id", currentOrganization.id)
         .eq("is_active", true)
         .order("product_name");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const createMutation = useMutation({
     mutationFn: async (newFunnel: { funnel_name: string; amount: number; total_leads: number }) => {
+      if (!currentOrganization) throw new Error("No organization selected");
+      
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("funnels")
-        .insert([{ ...newFunnel, created_by: user?.id }])
+        .insert([{ ...newFunnel, created_by: user?.id, organization_id: currentOrganization.id }])
         .select()
         .single();
 
@@ -106,7 +128,7 @@ const Funnels = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["funnels"] });
+      queryClient.invalidateQueries({ queryKey: ["funnels", currentOrganization?.id] });
       toast({ title: "Success", description: "Funnel created successfully" });
       setIsDialogOpen(false);
       resetForm();
@@ -129,7 +151,7 @@ const Funnels = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["funnels"] });
+      queryClient.invalidateQueries({ queryKey: ["funnels", currentOrganization?.id] });
       toast({ title: "Success", description: "Funnel updated successfully" });
       setIsDialogOpen(false);
       resetForm();
@@ -145,9 +167,77 @@ const Funnels = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["funnels"] });
+      queryClient.invalidateQueries({ queryKey: ["funnels", currentOrganization?.id] });
       toast({ title: "Success", description: "Funnel deleted successfully" });
     },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Real-time updates
+  useEffect(() => {
+    if (!currentOrganization) return;
+    
+    const channel = supabase
+      .channel('funnels-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lead_assignments'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["funnels", currentOrganization.id] });
+          queryClient.invalidateQueries({ queryKey: ["workshops-funnels", currentOrganization.id] });
+          queryClient.invalidateQueries({ queryKey: ["lead_assignments", currentOrganization.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workshops'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workshops-funnels", currentOrganization.id] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["products-funnels", currentOrganization.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, currentOrganization]);
+
+  // Show loading state while organization is loading
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  // Wait for organization to be available
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={TrendingUp}
+        title="No Organization Selected"
+        description="Please select an organization to view funnels."
+      />
+    );
+  }
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     },
