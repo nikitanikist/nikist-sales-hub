@@ -217,28 +217,32 @@ const AppLayoutContent = () => {
 
   // Build dynamic cohort children from database (must be before early returns)
   const dynamicCohortChildren = useMemo(() => {
+    // If no cohort types exist, show "Create Cohort" option for admins
     if (cohortTypes.length === 0) {
-      // Fallback to default cohorts if none configured
       return [
-        { title: "Insider Crypto Club", path: "/batches", permissionKey: 'batch_icc' as PermissionKey },
-        { title: "Future Mentorship", path: "/futures-mentorship", permissionKey: 'batch_futures' as PermissionKey },
-        { title: "High Future", path: "/high-future", permissionKey: 'batch_high_future' as PermissionKey },
+        { title: "+ Create Cohort", path: "/cohorts/manage", permissionKey: 'batch_icc' as PermissionKey },
       ];
     }
     
-    // Map slug to permission keys
-    const slugToPermission: Record<string, PermissionKey> = {
-      'batches': 'batch_icc',
-      'futures-mentorship': 'batch_futures',
-      'high-future': 'batch_high_future',
-    };
-    
-    return cohortTypes.map(cohort => ({
+    // Map cohort types to menu items with dynamic routes
+    const items = cohortTypes.map(cohort => ({
       title: cohort.name,
       path: cohort.route,
-      permissionKey: slugToPermission[cohort.slug] || ('batch_icc' as PermissionKey),
+      // Use a generic cohort permission - all cohorts share the same base permission
+      permissionKey: 'batch_icc' as PermissionKey,
     }));
-  }, [cohortTypes]);
+    
+    // Add "Manage" option at the end for admins
+    if (isAdmin) {
+      items.push({
+        title: "⚙ Manage Cohorts",
+        path: "/cohorts/manage",
+        permissionKey: 'batch_icc' as PermissionKey,
+      });
+    }
+    
+    return items;
+  }, [cohortTypes, isAdmin]);
 
   // All menu items with permission keys
   const allMenuItems: MenuItem[] = useMemo(() => [
