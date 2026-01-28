@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins, BarChart3, Eye, Settings, FolderOpen } from "lucide-react";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins, BarChart3, Eye, FolderOpen } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,6 +34,8 @@ import {
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { AddCohortStudentDialog } from "@/components/AddCohortStudentDialog";
+import { UpdateCohortEmiDialog } from "@/components/UpdateCohortEmiDialog";
 
 interface CohortBatch {
   id: string;
@@ -110,6 +112,8 @@ const CohortPage = () => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [isDateFromOpen, setIsDateFromOpen] = useState(false);
+  const [isDateToOpen, setIsDateToOpen] = useState(false);
   const [filterRefunded, setFilterRefunded] = useState(false);
   const [filterDiscontinued, setFilterDiscontinued] = useState(false);
   const [filterFullPayment, setFilterFullPayment] = useState(false);
@@ -123,13 +127,20 @@ const CohortPage = () => {
   const [followUpDate, setFollowUpDate] = useState<Date | undefined>(undefined);
   const [payAfterEarning, setPayAfterEarning] = useState(false);
   const [isFollowUpDateOpen, setIsFollowUpDateOpen] = useState(false);
+  const [emiStudent, setEmiStudent] = useState<CohortStudent | null>(null);
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [refundingStudent, setRefundingStudent] = useState<CohortStudent | null>(null);
+  const [refundNotes, setRefundNotes] = useState<string>("");
+  const [discontinuingStudent, setDiscontinuingStudent] = useState<CohortStudent | null>(null);
+  const [deletingStudent, setDeletingStudent] = useState<CohortStudent | null>(null);
+  const [viewingNotesStudent, setViewingNotesStudent] = useState<CohortStudent | null>(null);
   
   // Tab state
   const [activeTab, setActiveTab] = useState<string>("students");
   const [showStudentListDialog, setShowStudentListDialog] = useState(false);
   const [studentListTitle, setStudentListTitle] = useState("");
   const [studentListSubtitle, setStudentListSubtitle] = useState("");
-  const [studentListData, setStudentListData] = useState<any[]>([]);
+  const [studentListData, setStudentListData] = useState<CohortStudent[]>([]);
   const [studentListAmount, setStudentListAmount] = useState(0);
 
   // Fetch cohort type by slug
@@ -165,7 +176,6 @@ const CohortPage = () => {
       
       if (error) throw error;
       
-      // Get student counts for each batch
       const batchesWithCounts = await Promise.all(
         (batchesData || []).map(async (batch) => {
           const { count } = await supabase
@@ -241,12 +251,28 @@ const CohortPage = () => {
       
       const { data, error } = await supabase
         .from("cohort_emi_payments")
-        .select("*, created_by_profile:profiles!created_by(full_name)")
+        .select("*")
         .eq("student_id", expandedStudentId)
         .order("emi_number", { ascending: true });
       
       if (error) throw error;
-      return data as CohortEmiPayment[];
+      
+      const createdByIds = [...new Set((data || []).map(emi => emi.created_by).filter(Boolean))];
+      let profilesMap: Record<string, string> = {};
+      
+      if (createdByIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", createdByIds);
+        
+        profilesMap = (profiles || []).reduce((acc, p) => ({ ...acc, [p.id]: p.full_name }), {} as Record<string, string>);
+      }
+      
+      return (data || []).map(emi => ({
+        ...emi,
+        created_by_profile: emi.created_by ? { full_name: profilesMap[emi.created_by] || "Unknown" } : null
+      })) as CohortEmiPayment[];
     },
     enabled: !!expandedStudentId,
   });
@@ -306,9 +332,10 @@ const CohortPage = () => {
     return batches.filter(batch => batch.name.toLowerCase().includes(searchLower));
   }, [batches, batchSearchQuery]);
 
-  // Calculate totals
-  const { totals, allStudentsTotals, todayFollowUpCount } = useMemo(() => {
+  // Calculate totals and closer breakdown
+  const { closerBreakdown, totals, allStudentsTotals, todayFollowUpCount, activeFilterCount } = useMemo(() => {
     if (!batchStudents) return { 
+      closerBreakdown: [],
       totals: { offered: 0, received: 0, due: 0, count: 0 },
       allStudentsTotals: { 
         offered: 0, received: 0, due: 0, count: 0, 
@@ -317,7 +344,8 @@ const CohortPage = () => {
         discontinuedCount: 0, discontinuedReceived: 0,
         paeAmount: 0, paeCount: 0
       },
-      todayFollowUpCount: 0
+      todayFollowUpCount: 0,
+      activeFilterCount: 0
     };
     
     const activeStudents = batchStudents.filter(s => 
@@ -333,17 +361,64 @@ const CohortPage = () => {
       !s.pay_after_earning && (s.due_amount || 0) > 0
     );
     
+    // Calculate closer breakdown
+    const breakdown: Record<string, { 
+      closerId: string; 
+      closerName: string; 
+      offered: number; 
+      received: number; 
+      due: number;
+      count: number;
+    }> = {};
+    
+    activeStudents.forEach(student => {
+      const closerId = student.closer_id || 'manual';
+      const closerName = student.closer_name || 'Added Manually';
+      
+      if (!breakdown[closerId]) {
+        breakdown[closerId] = { 
+          closerId, 
+          closerName, 
+          offered: 0, 
+          received: 0, 
+          due: 0,
+          count: 0
+        };
+      }
+      
+      breakdown[closerId].offered += student.offer_amount || 0;
+      breakdown[closerId].received += student.cash_received || 0;
+      if (!student.pay_after_earning) {
+        breakdown[closerId].due += student.due_amount || 0;
+      }
+      breakdown[closerId].count += 1;
+    });
+    
+    const closerBreakdownArray = Object.values(breakdown).sort((a, b) => b.received - a.received);
+    
     const todayFormatted = format(new Date(), "yyyy-MM-dd");
     const todayFollowUpCount = batchStudents.filter(s => 
       s.next_follow_up_date === todayFormatted
     ).length;
     
+    let filterCount = 0;
+    if (statusFilter !== "all") filterCount++;
+    if (dateFrom) filterCount++;
+    if (dateTo) filterCount++;
+    if (filterTodayFollowUp) filterCount++;
+    if (filterRefunded) filterCount++;
+    if (filterDiscontinued) filterCount++;
+    if (filterFullPayment) filterCount++;
+    if (filterRemaining) filterCount++;
+    if (filterPAE) filterCount++;
+    
     return {
+      closerBreakdown: closerBreakdownArray,
       totals: {
-        offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
-        received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
-        due: nonPaeStudentsWithDue.reduce((sum, s) => sum + (s.due_amount || 0), 0),
-        count: activeStudents.length
+        offered: closerBreakdownArray.reduce((sum, c) => sum + c.offered, 0),
+        received: closerBreakdownArray.reduce((sum, c) => sum + c.received, 0),
+        due: closerBreakdownArray.reduce((sum, c) => sum + c.due, 0),
+        count: closerBreakdownArray.reduce((sum, c) => sum + c.count, 0)
       },
       allStudentsTotals: {
         offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
@@ -359,22 +434,13 @@ const CohortPage = () => {
         paeAmount: paeStudents.reduce((sum, s) => sum + (s.due_amount || 0), 0),
         paeCount: paeStudents.length
       },
-      todayFollowUpCount
+      todayFollowUpCount,
+      activeFilterCount: filterCount
     };
-  }, [batchStudents]);
+  }, [batchStudents, statusFilter, dateFrom, dateTo, filterTodayFollowUp, filterRefunded, filterDiscontinued, filterFullPayment, filterRemaining, filterPAE]);
 
   // Business insights
-  const insightsStudents = useMemo(() => {
-    if (!batchStudents) return [];
-    return batchStudents.map(s => ({
-      ...s,
-      offer_amount: s.offer_amount || 0,
-      cash_received: s.cash_received || 0,
-      due_amount: s.due_amount || 0,
-    }));
-  }, [batchStudents]);
-
-  const insights = useBatchInsights(insightsStudents);
+  const insights = useBatchInsights(batchStudents || []);
 
   // Mutations
   const createBatchMutation = useMutation({
@@ -447,35 +513,141 @@ const CohortPage = () => {
     },
   });
 
+  const refundMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { error } = await supabase
+        .from("cohort_students")
+        .update({ status: "refunded", refund_reason: reason })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cohort-students"] });
+      setRefundingStudent(null);
+      setRefundNotes("");
+      toast({ title: "Student marked as refunded" });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const discontinueMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("cohort_students")
+        .update({ status: "discontinued" })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cohort-students"] });
+      setDiscontinuingStudent(null);
+      toast({ title: "Student marked as discontinued" });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const notesMutation = useMutation({
+    mutationFn: async ({ id, notes, nextFollowUpDate, payAfterEarning }: { id: string; notes: string; nextFollowUpDate: string | null; payAfterEarning: boolean }) => {
+      const { error } = await supabase
+        .from("cohort_students")
+        .update({ notes, next_follow_up_date: nextFollowUpDate, pay_after_earning: payAfterEarning })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cohort-students"] });
+      setNotesStudent(null);
+      toast({ title: "Notes updated" });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteStudentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await supabase.from("cohort_emi_payments").delete().eq("student_id", id);
+      await supabase.from("cohort_offer_amount_history").delete().eq("student_id", id);
+      const { error } = await supabase.from("cohort_students").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cohort-students"] });
+      queryClient.invalidateQueries({ queryKey: ["cohort-batches"] });
+      setDeletingStudent(null);
+      toast({ title: "Student deleted permanently" });
+    },
+    onError: (error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const resetForm = () => {
     setFormName("");
     setFormEventDates("");
     setFormStatus("active");
   };
 
-  const handleCreateBatch = () => {
-    createBatchMutation.mutate({
-      name: formName,
-      event_dates: formEventDates,
-      status: formStatus,
-    });
+  const clearAllFilters = () => {
+    setStatusFilter("all");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setFilterTodayFollowUp(false);
+    setFilterRefunded(false);
+    setFilterDiscontinued(false);
+    setFilterFullPayment(false);
+    setFilterRemaining(false);
+    setFilterPAE(false);
   };
 
-  const handleUpdateBatch = () => {
-    if (!editingBatch) return;
-    updateBatchMutation.mutate({
-      id: editingBatch.id,
-      name: formName,
-      event_dates: formEventDates,
-      status: formStatus,
-    });
+  const exportStudentsCSV = () => {
+    if (!filteredStudents.length) return;
+    
+    const headers = ["Name", "Email", "Phone", "Conversion Date", "Offer Amount", "Cash Received", "Due Amount", "Status", "Closer"];
+    const rows = filteredStudents.map(s => [
+      s.contact_name,
+      s.email,
+      s.phone || "",
+      format(new Date(s.conversion_date), "yyyy-MM-dd"),
+      s.offer_amount,
+      s.cash_received,
+      s.due_amount,
+      s.status,
+      s.closer_name || "Added Manually"
+    ]);
+    
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selectedBatch?.name || "students"}-export.csv`;
+    a.click();
   };
 
-  const openEditBatch = (batch: CohortBatch) => {
-    setFormName(batch.name);
-    setFormEventDates(batch.event_dates || "");
-    setFormStatus(batch.status);
-    setEditingBatch(batch);
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Active</Badge>;
+      case "refunded":
+        return <Badge variant="destructive">Refunded</Badge>;
+      case "discontinued":
+        return <Badge variant="secondary">Discontinued</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const handleOpenStudentList = (title: string, subtitle: string, students: CohortStudent[]) => {
+    setStudentListTitle(title);
+    setStudentListSubtitle(subtitle);
+    setStudentListData(students);
+    setStudentListAmount(students.reduce((sum, s) => sum + (s.due_amount || 0), 0));
+    setShowStudentListDialog(true);
   };
 
   // Loading states
@@ -530,7 +702,6 @@ const CohortPage = () => {
           )}
         </div>
 
-        {/* Search */}
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -541,7 +712,6 @@ const CohortPage = () => {
           />
         </div>
 
-        {/* Batches Grid */}
         {batchesLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -625,7 +795,7 @@ const CohortPage = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
               <Button 
-                onClick={handleCreateBatch} 
+                onClick={() => createBatchMutation.mutate({ name: formName, event_dates: formEventDates, status: formStatus })} 
                 disabled={!formName.trim() || createBatchMutation.isPending}
               >
                 {createBatchMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -675,7 +845,7 @@ const CohortPage = () => {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingBatch(null)}>Cancel</Button>
               <Button 
-                onClick={handleUpdateBatch} 
+                onClick={() => editingBatch && updateBatchMutation.mutate({ id: editingBatch.id, name: formName, event_dates: formEventDates, status: formStatus })} 
                 disabled={!formName.trim() || updateBatchMutation.isPending}
               >
                 {updateBatchMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -713,261 +883,1053 @@ const CohortPage = () => {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setSelectedBatch(null)}>
-            <ArrowLeft className="h-5 w-5" />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" onClick={() => setSelectedBatch(null)} className="w-fit">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
           </Button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">{selectedBatch.name}</h1>
-            <p className="text-sm text-muted-foreground">{cohortType.name}</p>
+            <p className="text-sm text-muted-foreground">Event Dates: {selectedBatch.event_dates || "TBD"}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => openEditBatch(selectedBatch)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setDeletingBatch(selectedBatch)}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete
-              </Button>
-            </>
+          {(isAdmin || isManager) && (
+            <Button onClick={() => setAddStudentOpen(true)} size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Student
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totals.count}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Offered Amount</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center">
-              <IndianRupee className="h-5 w-5" />
-              {totals.offered.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Cash Received</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center text-success">
-              <IndianRupee className="h-5 w-5" />
-              {totals.received.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Due Amount</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center text-warning">
-              <IndianRupee className="h-5 w-5" />
-              {totals.due.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="students">Students</TabsTrigger>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="insights">Insights</TabsTrigger>
+      {/* Business Insights Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsTrigger value="overview" className="text-xs sm:text-sm py-2">
+            <Eye className="h-4 w-4 mr-1 sm:mr-2" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="insights" className="text-xs sm:text-sm py-2">
+            <BarChart3 className="h-4 w-4 mr-1 sm:mr-2" />
+            Insights
+          </TabsTrigger>
+          <TabsTrigger value="students" className="text-xs sm:text-sm py-2">
+            <Users className="h-4 w-4 mr-1 sm:mr-2" />
+            Students
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="students" className="space-y-4 mt-4">
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search students..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filters
-                </Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Filters</SheetTitle>
-                </SheetHeader>
-                <div className="space-y-4 mt-4">
-                  <div>
-                    <Label>Status</Label>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="refunded">Refunded</SelectItem>
-                        <SelectItem value="discontinued">Discontinued</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>Today's Follow-ups</Label>
-                    <Switch checked={filterTodayFollowUp} onCheckedChange={setFilterTodayFollowUp} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>Full Payment</Label>
-                    <Switch checked={filterFullPayment} onCheckedChange={setFilterFullPayment} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>Due Remaining</Label>
-                    <Switch checked={filterRemaining} onCheckedChange={setFilterRemaining} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>Pay After Earning</Label>
-                    <Switch checked={filterPAE} onCheckedChange={setFilterPAE} />
-                  </div>
-                </div>
-                <SheetFooter className="mt-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setStatusFilter("all");
-                      setFilterTodayFollowUp(false);
-                      setFilterFullPayment(false);
-                      setFilterRemaining(false);
-                      setFilterPAE(false);
-                      setFilterRefunded(false);
-                      setFilterDiscontinued(false);
-                    }}
-                  >
-                    Clear All
-                  </Button>
-                </SheetFooter>
-              </SheetContent>
-            </Sheet>
-          </div>
-
-          {/* Students Table */}
-          {studentsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredStudents.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title="No students found"
-              description={searchQuery ? "Try adjusting your search or filters." : "Add students to this batch to get started."}
-            />
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">Email</TableHead>
-                    <TableHead className="text-right">Offered</TableHead>
-                    <TableHead className="text-right">Received</TableHead>
-                    <TableHead className="text-right">Due</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => (
-                    <TableRow 
-                      key={student.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
-                    >
-                      <TableCell className="font-medium">{student.contact_name}</TableCell>
-                      <TableCell className="hidden sm:table-cell text-muted-foreground">{student.email}</TableCell>
-                      <TableCell className="text-right">₹{(student.offer_amount || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-success">₹{(student.cash_received || 0).toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-warning">₹{(student.due_amount || 0).toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant={student.status === 'active' ? 'default' : student.status === 'refunded' ? 'destructive' : 'secondary'}>
-                          {student.status}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="overview" className="space-y-4 mt-4">
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-4">
+          <WeekSummaryCard
+            thisWeekTotal={insights.thisWeekTotal}
+            thisWeekStudentCount={insights.thisWeekStudentCount}
+            collectionRate={insights.collectionRate}
+            totalReceivables={insights.totalReceivables}
+          />
+          
           <UpcomingPaymentsCalendar
             upcomingPayments={insights.upcomingPayments}
-            onDateClick={(date, students) => {
-              const dateObj = new Date(date);
-              setStudentListTitle(`Payments on ${format(dateObj, "MMM d, yyyy")}`);
-              setStudentListSubtitle(`${students.length} expected payment(s)`);
-              setStudentListData(students);
-              setStudentListAmount(students.reduce((sum, s) => sum + (s.due_amount || 0), 0));
-              setShowStudentListDialog(true);
-            }}
+            onDateClick={(date, students) => handleOpenStudentList(
+              `Students Due on ${format(new Date(date), "dd MMM yyyy")}`,
+              `${students.length} students with follow-up scheduled`,
+              students as CohortStudent[]
+            )}
           />
-        </TabsContent>
-
-        <TabsContent value="insights" className="space-y-4 mt-4">
+          
           <ActionRequiredCards
             studentsWithoutFollowUp={insights.studentsWithoutFollowUp}
             studentsWithoutFollowUpAmount={insights.studentsWithoutFollowUpAmount}
             overdueFollowUps={insights.overdueFollowUps}
             overdueFollowUpsAmount={insights.overdueFollowUpsAmount}
-            onViewNoFollowUp={() => {
-              setStudentListTitle("No Follow-up Date");
-              setStudentListSubtitle("Students without a next follow-up date");
-              setStudentListData(insights.studentsWithoutFollowUp);
-              setStudentListAmount(insights.studentsWithoutFollowUpAmount);
-              setShowStudentListDialog(true);
-            }}
-            onViewOverdue={() => {
-              setStudentListTitle("Overdue Follow-ups");
-              setStudentListSubtitle("Students with follow-up dates in the past");
-              setStudentListData(insights.overdueFollowUps);
-              setStudentListAmount(insights.overdueFollowUpsAmount);
-              setShowStudentListDialog(true);
-            }}
-          />
-          <ReceivablesAgingTable 
-            receivablesAging={insights.receivablesAging} 
-            onBracketClick={(bracket, students) => {
-              setStudentListTitle(`Receivables: ${bracket}`);
-              setStudentListSubtitle(`${students.length} student(s)`);
-              setStudentListData(students);
-              setStudentListAmount(students.reduce((sum, s) => sum + (s.due_amount || 0), 0));
-              setShowStudentListDialog(true);
-            }}
+            onViewNoFollowUp={() => handleOpenStudentList(
+              "Students Without Follow-up Date",
+              "These students have pending dues but no follow-up date set",
+              insights.studentsWithoutFollowUp as CohortStudent[]
+            )}
+            onViewOverdue={() => handleOpenStudentList(
+              "Overdue Follow-ups",
+              "Follow-up date has passed but student still has pending dues",
+              insights.overdueFollowUps as CohortStudent[]
+            )}
           />
         </TabsContent>
+
+        {/* Insights Tab */}
+        <TabsContent value="insights" className="space-y-4">
+          <ReceivablesAgingTable
+            receivablesAging={insights.receivablesAging}
+            onBracketClick={(bracket, students) => handleOpenStudentList(
+              `Receivables: ${bracket}`,
+              `Students with dues in this aging bracket`,
+              students as CohortStudent[]
+            )}
+          />
+        </TabsContent>
+
+        {/* Students Tab */}
+        <TabsContent value="students" className="space-y-4">
+          {/* Row 1: Financial Cards with Closer Breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Total Offered Card */}
+            <Card className="overflow-hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                <div className="p-4 flex flex-col justify-center bg-blue-50 dark:bg-blue-950">
+                  <p className="text-sm text-muted-foreground">Total Offered</p>
+                  <div className="text-base sm:text-lg font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                    ₹{allStudentsTotals.offered.toLocaleString('en-IN')}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {allStudentsTotals.count} students
+                  </p>
+                </div>
+                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                  {closerBreakdown.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data</p>
+                  ) : (
+                    closerBreakdown.map((closer, idx) => (
+                      <div key={closer.closerId} className={cn(
+                        "flex justify-between items-baseline text-sm gap-2",
+                        idx < closerBreakdown.length - 1 && "border-b pb-1"
+                      )}>
+                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                        <span className="font-medium whitespace-nowrap">
+                          ₹{closer.offered.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Cash Received Card */}
+            <Card className="overflow-hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                <div className="p-4 flex flex-col justify-center bg-green-50 dark:bg-green-950">
+                  <p className="text-sm text-muted-foreground">Cash Received</p>
+                  <div className="text-base sm:text-lg font-bold text-green-700 dark:text-green-300 whitespace-nowrap">
+                    ₹{allStudentsTotals.received.toLocaleString('en-IN')}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {allStudentsTotals.count} students
+                  </p>
+                </div>
+                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                  {closerBreakdown.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data</p>
+                  ) : (
+                    closerBreakdown.map((closer, idx) => (
+                      <div key={closer.closerId} className={cn(
+                        "flex justify-between items-baseline text-sm gap-2",
+                        idx < closerBreakdown.length - 1 && "border-b pb-1"
+                      )}>
+                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                        <span className="font-medium whitespace-nowrap">
+                          ₹{closer.received.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            {/* Remaining Amount Card - Clickable filter */}
+            <Card 
+              className={cn(
+                "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                filterRemaining && "ring-2 ring-orange-500"
+              )}
+              onClick={() => {
+                if (filterRemaining) {
+                  setFilterRemaining(false);
+                } else {
+                  setFilterRemaining(true);
+                  setFilterRefunded(false);
+                  setFilterDiscontinued(false);
+                  setFilterTodayFollowUp(false);
+                  setFilterFullPayment(false);
+                  setFilterPAE(false);
+                }
+              }}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+                <div className="p-4 flex flex-col justify-center bg-orange-50 dark:bg-orange-950">
+                  <p className="text-sm text-muted-foreground">Remaining Amount</p>
+                  <div className="text-base sm:text-lg font-bold text-orange-700 dark:text-orange-300 whitespace-nowrap">
+                    ₹{allStudentsTotals.due.toLocaleString('en-IN')}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {allStudentsTotals.duePaymentCount} students
+                  </p>
+                  {filterRemaining && (
+                    <Badge variant="secondary" className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 mt-2 w-fit">
+                      Filter Active
+                    </Badge>
+                  )}
+                </div>
+                <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
+                  <p className="text-xs text-muted-foreground font-medium">By Closer</p>
+                  {closerBreakdown.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No data</p>
+                  ) : (
+                    closerBreakdown.map((closer, idx) => (
+                      <div key={closer.closerId} className={cn(
+                        "flex justify-between items-baseline text-sm gap-2",
+                        idx < closerBreakdown.length - 1 && "border-b pb-1"
+                      )}>
+                        <span className="truncate min-w-0 flex-1" title={closer.closerName}>{closer.closerName}</span>
+                        <span className="font-medium whitespace-nowrap">
+                          ₹{closer.due.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Row 2: Status Filter Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {/* Refunded Card */}
+            <Card 
+              className={cn(
+                "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                filterRefunded && "ring-2 ring-amber-500"
+              )}
+              onClick={() => {
+                if (filterRefunded) {
+                  setFilterRefunded(false);
+                } else {
+                  setFilterRefunded(true);
+                  setFilterDiscontinued(false);
+                  setFilterTodayFollowUp(false);
+                  setFilterFullPayment(false);
+                  setFilterRemaining(false);
+                  setFilterPAE(false);
+                }
+              }}
+            >
+              <div className="p-4 bg-amber-50 dark:bg-amber-950 h-full">
+                <p className="text-sm text-muted-foreground">Refunded</p>
+                <div className="text-xl font-bold text-amber-700 dark:text-amber-300">
+                  ₹{allStudentsTotals.refundedReceived.toLocaleString('en-IN')}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {allStudentsTotals.refundedCount} students
+                </p>
+                {filterRefunded && (
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 mt-2 w-fit">
+                    Filter Active
+                  </Badge>
+                )}
+              </div>
+            </Card>
+
+            {/* Discontinued Card */}
+            <Card 
+              className={cn(
+                "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                filterDiscontinued && "ring-2 ring-red-500"
+              )}
+              onClick={() => {
+                if (filterDiscontinued) {
+                  setFilterDiscontinued(false);
+                } else {
+                  setFilterDiscontinued(true);
+                  setFilterRefunded(false);
+                  setFilterTodayFollowUp(false);
+                  setFilterFullPayment(false);
+                  setFilterRemaining(false);
+                  setFilterPAE(false);
+                }
+              }}
+            >
+              <div className="p-4 bg-red-50 dark:bg-red-950 h-full">
+                <p className="text-sm text-muted-foreground">Discontinued</p>
+                <div className="text-xl font-bold text-red-700 dark:text-red-300">
+                  ₹{allStudentsTotals.discontinuedReceived.toLocaleString('en-IN')}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {allStudentsTotals.discontinuedCount} students
+                </p>
+                {filterDiscontinued && (
+                  <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 mt-2 w-fit">
+                    Filter Active
+                  </Badge>
+                )}
+              </div>
+            </Card>
+
+            {/* Full Payment Card */}
+            <Card 
+              className={cn(
+                "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                filterFullPayment && "ring-2 ring-emerald-500"
+              )}
+              onClick={() => {
+                if (filterFullPayment) {
+                  setFilterFullPayment(false);
+                } else {
+                  setFilterFullPayment(true);
+                  setFilterRefunded(false);
+                  setFilterDiscontinued(false);
+                  setFilterTodayFollowUp(false);
+                  setFilterRemaining(false);
+                  setFilterPAE(false);
+                }
+              }}
+            >
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950 h-full">
+                <p className="text-sm text-muted-foreground">Full Payment</p>
+                <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">
+                  {allStudentsTotals.fullPaymentCount}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Students with no dues
+                </p>
+                {filterFullPayment && (
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 mt-2 w-fit">
+                    Filter Active
+                  </Badge>
+                )}
+              </div>
+            </Card>
+
+            {/* Today's Follow-up Card */}
+            <Card 
+              className={cn(
+                "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                filterTodayFollowUp && "ring-2 ring-purple-500"
+              )}
+              onClick={() => {
+                if (filterTodayFollowUp) {
+                  setFilterTodayFollowUp(false);
+                } else {
+                  setFilterTodayFollowUp(true);
+                  setFilterRefunded(false);
+                  setFilterDiscontinued(false);
+                  setFilterFullPayment(false);
+                  setFilterRemaining(false);
+                  setFilterPAE(false);
+                }
+              }}
+            >
+              <div className="p-4 bg-purple-50 dark:bg-purple-950 h-full">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Today's Follow-ups</p>
+                    <div className="text-xl font-bold text-purple-700 dark:text-purple-300">
+                      {todayFollowUpCount}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      To contact today
+                    </p>
+                  </div>
+                  <Calendar className="h-8 w-8 text-purple-300 dark:text-purple-700" />
+                </div>
+                {filterTodayFollowUp && (
+                  <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 mt-2 w-fit">
+                    Filter Active
+                  </Badge>
+                )}
+              </div>
+            </Card>
+
+            {/* Pay After Earning Card */}
+            <Card 
+              className={cn(
+                "overflow-hidden cursor-pointer transition-all hover:shadow-md",
+                filterPAE && "ring-2 ring-violet-500"
+              )}
+              onClick={() => {
+                if (filterPAE) {
+                  setFilterPAE(false);
+                } else {
+                  setFilterPAE(true);
+                  setFilterRefunded(false);
+                  setFilterDiscontinued(false);
+                  setFilterFullPayment(false);
+                  setFilterRemaining(false);
+                  setFilterTodayFollowUp(false);
+                }
+              }}
+            >
+              <div className="p-4 bg-violet-50 dark:bg-violet-950 h-full">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pay After Earning</p>
+                    <div className="text-xl font-bold text-violet-700 dark:text-violet-300">
+                      ₹{allStudentsTotals.paeAmount.toLocaleString('en-IN')}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {allStudentsTotals.paeCount} students
+                    </p>
+                  </div>
+                  <HandCoins className="h-8 w-8 text-violet-300 dark:text-violet-700" />
+                </div>
+                {filterPAE && (
+                  <Badge variant="secondary" className="bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300 mt-2 w-fit">
+                    Filter Active
+                  </Badge>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Students Section */}
+          <Card>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-3 sm:pb-6">
+              <div>
+                <CardTitle className="text-lg sm:text-xl">Students</CardTitle>
+                <CardDescription>{filteredStudents.length} of {batchStudents?.length || 0} students</CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {activeFilterCount > 0 && (
+                  <Button variant="outline" onClick={clearAllFilters} className="h-11 sm:h-10">
+                    <X className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Clear All</span>
+                  </Button>
+                )}
+                <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="outline" className="relative h-11 sm:h-10">
+                      <Filter className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Filters</span>
+                      {activeFilterCount > 0 && (
+                        <Badge className="ml-1 sm:ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                          {activeFilterCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent className="w-full sm:w-[400px] overflow-y-auto">
+                    <SheetHeader>
+                      <SheetTitle>Filters</SheetTitle>
+                    </SheetHeader>
+                    <div className="space-y-6 py-6">
+                      <div className="space-y-3">
+                        <Label>Status</Label>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="h-11 sm:h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="refunded">Refunded</SelectItem>
+                            <SelectItem value="discontinued">Discontinued</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-3">
+                        <Label>Date Range</Label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Popover open={isDateFromOpen} onOpenChange={setIsDateFromOpen}>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className={cn("flex-1 justify-start h-11 sm:h-10", !dateFrom && "text-muted-foreground")}>
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <CalendarComponent
+                                mode="single"
+                                selected={dateFrom}
+                                onSelect={(d) => { setDateFrom(d); setIsDateFromOpen(false); }}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <Popover open={isDateToOpen} onOpenChange={setIsDateToOpen}>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className={cn("flex-1 justify-start h-11 sm:h-10", !dateTo && "text-muted-foreground")}>
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {dateTo ? format(dateTo, "dd MMM yyyy") : "To"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <CalendarComponent
+                                mode="single"
+                                selected={dateTo}
+                                onSelect={(d) => { setDateTo(d); setIsDateToOpen(false); }}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                    </div>
+                    <SheetFooter className="flex-row gap-2">
+                      <Button variant="outline" onClick={clearAllFilters} className="flex-1 h-11 sm:h-10">Clear All</Button>
+                      <Button onClick={() => setIsFilterOpen(false)} className="flex-1 h-11 sm:h-10">Apply</Button>
+                    </SheetFooter>
+                  </SheetContent>
+                </Sheet>
+                <Button variant="outline" onClick={exportStudentsCSV} className="h-11 sm:h-10">
+                  <Download className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+                <Button onClick={() => setAddStudentOpen(true)} className="h-11 sm:h-10">
+                  <Plus className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Add Student</span>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-3 sm:px-6">
+              <div className="mb-4">
+                <div className="relative w-full">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search students..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 h-11 sm:h-10"
+                  />
+                </div>
+              </div>
+              
+              {studentsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden sm:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Conversion Date</TableHead>
+                          <TableHead>Student Name</TableHead>
+                          <TableHead>Amount Offered</TableHead>
+                          <TableHead>Cash Received</TableHead>
+                          <TableHead>Due Amount</TableHead>
+                          <TableHead>Closer</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredStudents.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                              No students found
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredStudents.map((student) => (
+                            <React.Fragment key={student.id}>
+                              <TableRow 
+                                className="cursor-pointer hover:bg-muted/50"
+                                onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
+                              >
+                                <TableCell>
+                                  {expandedStudentId === student.id ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </TableCell>
+                                <TableCell>{format(new Date(student.conversion_date), "dd MMM yyyy")}</TableCell>
+                                <TableCell className="font-medium">
+                                  <div className="flex items-center gap-2">
+                                    {student.contact_name}
+                                    {student.pay_after_earning && (student.due_amount || 0) > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800">
+                                        PAE
+                                      </Badge>
+                                    )}
+                                    {(student.notes || student.next_follow_up_date) && (
+                                      <FileText 
+                                        className="h-4 w-4 text-blue-500 cursor-pointer hover:text-blue-700 transition-colors" 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setViewingNotesStudent(student);
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>₹{student.offer_amount.toLocaleString('en-IN')}</TableCell>
+                                <TableCell className="text-green-600 dark:text-green-400">₹{student.cash_received.toLocaleString('en-IN')}</TableCell>
+                                <TableCell className="text-orange-600 dark:text-orange-400">₹{student.due_amount.toLocaleString('en-IN')}</TableCell>
+                                <TableCell>{student.closer_name || "Added Manually"}</TableCell>
+                                <TableCell>{getStatusBadge(student.status)}</TableCell>
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="bg-popover">
+                                      <DropdownMenuItem onClick={() => setEmiStudent(student)}>
+                                        <IndianRupee className="h-4 w-4 mr-2" />
+                                        Update EMI
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => {
+                                        setNotesStudent(student);
+                                        setNotesText(student.notes || "");
+                                        setFollowUpDate(student.next_follow_up_date ? new Date(student.next_follow_up_date) : undefined);
+                                        setPayAfterEarning(student.pay_after_earning || false);
+                                      }}>
+                                        <FileText className="h-4 w-4 mr-2" />
+                                        Edit Notes
+                                      </DropdownMenuItem>
+                                      {student.status === "active" && (
+                                        <>
+                                          <DropdownMenuItem onClick={() => setRefundingStudent(student)}>
+                                            <RefreshCcw className="h-4 w-4 mr-2" />
+                                            Mark as Refunded
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => setDiscontinuingStudent(student)}>
+                                            <X className="h-4 w-4 mr-2" />
+                                            Discontinued
+                                          </DropdownMenuItem>
+                                        </>
+                                      )}
+                                      {isAdmin && (
+                                        <DropdownMenuItem 
+                                          onClick={() => setDeletingStudent(student)}
+                                          className="text-destructive focus:text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete Student
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              </TableRow>
+                              {/* Expanded EMI Row */}
+                              {expandedStudentId === student.id && (
+                                <TableRow className="bg-muted/30 hover:bg-muted/30">
+                                  <TableCell colSpan={9} className="py-4">
+                                    <div className="pl-8">
+                                      <h4 className="font-medium mb-3">EMI Payment History</h4>
+                                      {emiLoading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : studentEmiPayments && studentEmiPayments.length > 0 ? (
+                                        <div className="rounded-md border overflow-x-auto">
+                                          <Table>
+                                            <TableHeader>
+                                              <TableRow>
+                                                <TableHead className="w-[80px]">EMI #</TableHead>
+                                                <TableHead>Cash Collected</TableHead>
+                                                <TableHead>No Cost EMI</TableHead>
+                                                <TableHead>GST</TableHead>
+                                                <TableHead>Platform Fees</TableHead>
+                                                <TableHead>Platform</TableHead>
+                                                <TableHead>Date</TableHead>
+                                                <TableHead>Remarks</TableHead>
+                                                <TableHead>Updated By</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {studentEmiPayments.map((emi) => (
+                                                <TableRow key={emi.id}>
+                                                  <TableCell className="font-medium">EMI {emi.emi_number}</TableCell>
+                                                  <TableCell className="text-green-600 dark:text-green-400">₹{Number(emi.amount).toLocaleString('en-IN')}</TableCell>
+                                                  <TableCell>₹{Number(emi.no_cost_emi || 0).toLocaleString('en-IN')}</TableCell>
+                                                  <TableCell>₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</TableCell>
+                                                  <TableCell>₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</TableCell>
+                                                  <TableCell>{emi.payment_platform || "-"}</TableCell>
+                                                  <TableCell>{format(new Date(emi.payment_date), "dd MMM yyyy")}</TableCell>
+                                                  <TableCell className="max-w-[150px] truncate" title={emi.remarks || ""}>
+                                                    {emi.remarks || "-"}
+                                                  </TableCell>
+                                                  <TableCell>{emi.created_by_profile?.full_name || "-"}</TableCell>
+                                                </TableRow>
+                                              ))}
+                                            </TableBody>
+                                          </Table>
+                                        </div>
+                                      ) : (
+                                        <p className="text-muted-foreground">No EMI payments recorded</p>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="sm:hidden space-y-3">
+                    {filteredStudents.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No students found</p>
+                    ) : (
+                      filteredStudents.map((student) => (
+                        <div key={student.id} className="rounded-lg border bg-card overflow-hidden">
+                          <div 
+                            className="p-4 cursor-pointer active:bg-muted/50"
+                            onClick={() => setExpandedStudentId(expandedStudentId === student.id ? null : student.id)}
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                {expandedStudentId === student.id ? (
+                                  <ChevronDown className="h-4 w-4 flex-shrink-0" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 flex-shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium truncate">{student.contact_name}</p>
+                                    {student.pay_after_earning && (student.due_amount || 0) > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-800">
+                                        PAE
+                                      </Badge>
+                                    )}
+                                    {(student.notes || student.next_follow_up_date) && (
+                                      <FileText 
+                                        className="h-4 w-4 text-blue-500 cursor-pointer hover:text-blue-700 transition-colors flex-shrink-0" 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setViewingNotesStudent(student);
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">{format(new Date(student.conversion_date), "dd MMM yyyy")}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                {getStatusBadge(student.status)}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="bg-popover">
+                                    <DropdownMenuItem onClick={() => setEmiStudent(student)}>
+                                      <IndianRupee className="h-4 w-4 mr-2" />
+                                      Update EMI
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => {
+                                      setNotesStudent(student);
+                                      setNotesText(student.notes || "");
+                                      setFollowUpDate(student.next_follow_up_date ? new Date(student.next_follow_up_date) : undefined);
+                                      setPayAfterEarning(student.pay_after_earning || false);
+                                    }}>
+                                      <FileText className="h-4 w-4 mr-2" />
+                                      Edit Notes
+                                    </DropdownMenuItem>
+                                    {student.status === "active" && (
+                                      <>
+                                        <DropdownMenuItem onClick={() => setRefundingStudent(student)}>
+                                          <RefreshCcw className="h-4 w-4 mr-2" />
+                                          Mark as Refunded
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setDiscontinuingStudent(student)}>
+                                          <X className="h-4 w-4 mr-2" />
+                                          Discontinued
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                    {isAdmin && (
+                                      <DropdownMenuItem 
+                                        onClick={() => setDeletingStudent(student)}
+                                        className="text-destructive focus:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete Student
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-sm mt-3">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Offered</p>
+                                <p className="font-medium">₹{student.offer_amount.toLocaleString('en-IN')}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Received</p>
+                                <p className="font-medium text-green-600 dark:text-green-400">₹{student.cash_received.toLocaleString('en-IN')}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Due</p>
+                                <p className="font-medium text-orange-600 dark:text-orange-400">₹{student.due_amount.toLocaleString('en-IN')}</p>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-2">
+                              Closer: {student.closer_name || "Added Manually"}
+                            </div>
+                          </div>
+                          
+                          {/* Mobile Expanded EMI Section */}
+                          {expandedStudentId === student.id && (
+                            <div className="border-t bg-muted/30 p-4">
+                              <h4 className="font-medium mb-3 text-sm">EMI Payment History</h4>
+                              {emiLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : studentEmiPayments && studentEmiPayments.length > 0 ? (
+                                <div className="space-y-2">
+                                  {studentEmiPayments.map((emi) => (
+                                    <div key={emi.id} className="p-3 rounded-md border bg-background text-sm">
+                                      <div className="flex justify-between items-start mb-2">
+                                        <span className="font-medium">EMI {emi.emi_number}</span>
+                                        <span className="text-green-600 dark:text-green-400 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</span>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                                        <span>Date: {format(new Date(emi.payment_date), "dd MMM yyyy")}</span>
+                                        <span>Platform: {emi.payment_platform || "-"}</span>
+                                        <span>GST: ₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</span>
+                                        <span>Fees: ₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</span>
+                                      </div>
+                                      {emi.remarks && (
+                                        <p className="text-xs text-muted-foreground mt-1 truncate">Remarks: {emi.remarks}</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground text-sm">No EMI payments recorded</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Update EMI Dialog */}
+      {emiStudent && (
+        <UpdateCohortEmiDialog
+          open={!!emiStudent}
+          onOpenChange={(open) => !open && setEmiStudent(null)}
+          studentId={emiStudent.id}
+          offerAmount={emiStudent.offer_amount}
+          cashReceived={emiStudent.cash_received}
+          dueAmount={emiStudent.due_amount}
+          customerName={emiStudent.contact_name}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["cohort-students"] })}
+        />
+      )}
+
+      {/* Add Student Dialog */}
+      {selectedBatch && (
+        <AddCohortStudentDialog
+          open={addStudentOpen}
+          onOpenChange={setAddStudentOpen}
+          batchId={selectedBatch.id}
+          batchName={selectedBatch.name}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["cohort-students"] })}
+        />
+      )}
+
+      {/* Refund Dialog */}
+      <AlertDialog open={!!refundingStudent} onOpenChange={(open) => !open && setRefundingStudent(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as Refunded</AlertDialogTitle>
+            <AlertDialogDescription>
+              Mark {refundingStudent?.contact_name} as refunded. Please provide a reason.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Refund reason..."
+              value={refundNotes}
+              onChange={(e) => setRefundNotes(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => refundingStudent && refundMutation.mutate({ id: refundingStudent.id, reason: refundNotes })}
+              disabled={!refundNotes.trim()}
+            >
+              Confirm Refund
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Notes Dialog with Follow-up Date */}
+      <Dialog open={!!notesStudent} onOpenChange={(open) => !open && setNotesStudent(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Notes</DialogTitle>
+            <DialogDescription>Update notes and follow-up date for {notesStudent?.contact_name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Enter notes..."
+                value={notesText}
+                onChange={(e) => setNotesText(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Next EMI Reminder Date</Label>
+              <Popover open={isFollowUpDateOpen} onOpenChange={setIsFollowUpDateOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start", !followUpDate && "text-muted-foreground")}>
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {followUpDate ? format(followUpDate, "dd MMM yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <CalendarComponent
+                    mode="single"
+                    selected={followUpDate}
+                    onSelect={(d) => { setFollowUpDate(d); setIsFollowUpDateOpen(false); }}
+                  />
+                </PopoverContent>
+              </Popover>
+              {followUpDate && (
+                <Button variant="ghost" size="sm" onClick={() => setFollowUpDate(undefined)}>
+                  Clear date
+                </Button>
+              )}
+            </div>
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="pae-toggle" className="flex items-center gap-2">
+                    <HandCoins className="h-4 w-4 text-violet-600" />
+                    Pay After Earning (PAE)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Student will pay remaining amount after earning from the course
+                  </p>
+                </div>
+                <Switch
+                  id="pae-toggle"
+                  checked={payAfterEarning}
+                  onCheckedChange={setPayAfterEarning}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNotesStudent(null)}>Cancel</Button>
+            <Button 
+              onClick={() => notesStudent && notesMutation.mutate({ 
+                id: notesStudent.id, 
+                notes: notesText,
+                nextFollowUpDate: followUpDate ? format(followUpDate, "yyyy-MM-dd") : null,
+                payAfterEarning
+              })}
+              disabled={notesMutation.isPending}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Notes Dialog (Read-only) */}
+      <Dialog open={!!viewingNotesStudent} onOpenChange={(open) => !open && setViewingNotesStudent(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Notes & Follow-up</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <p className="font-medium">{viewingNotesStudent?.contact_name}</p>
+              <p className="text-sm text-muted-foreground">{viewingNotesStudent?.email}</p>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-muted-foreground">Next Follow-up Date</Label>
+              <p className="font-medium">
+                {viewingNotesStudent?.next_follow_up_date 
+                  ? format(new Date(viewingNotesStudent.next_follow_up_date), "dd MMM yyyy")
+                  : "Not set"}
+              </p>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-muted-foreground">Notes</Label>
+              <p className="text-sm whitespace-pre-wrap bg-muted p-3 rounded-md min-h-[60px]">
+                {viewingNotesStudent?.notes || "No notes added"}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setViewingNotesStudent(null)}>
+              Close
+            </Button>
+            <Button onClick={() => {
+              if (viewingNotesStudent) {
+                setNotesStudent(viewingNotesStudent);
+                setNotesText(viewingNotesStudent.notes || "");
+                setFollowUpDate(viewingNotesStudent.next_follow_up_date 
+                  ? new Date(viewingNotesStudent.next_follow_up_date) 
+                  : undefined);
+                setPayAfterEarning(viewingNotesStudent.pay_after_earning || false);
+                setViewingNotesStudent(null);
+              }
+            }}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Discontinued Dialog */}
+      <AlertDialog open={!!discontinuingStudent} onOpenChange={(open) => !open && setDiscontinuingStudent(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as Discontinued</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark {discontinuingStudent?.contact_name} as discontinued? This indicates the student is no longer continuing with the program.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => discontinuingStudent && discontinueMutation.mutate(discontinuingStudent.id)}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Student Dialog (Admin Only) */}
+      <AlertDialog open={!!deletingStudent} onOpenChange={(open) => !open && setDeletingStudent(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Student</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete {deletingStudent?.contact_name}? This will also delete all EMI payments and offer history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingStudent && deleteStudentMutation.mutate(deletingStudent.id)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Student List Dialog */}
       <StudentListDialog
