@@ -34,9 +34,20 @@ serve(async (req) => {
   }
 
   try {
-    const { action, user_id, email, full_name, phone, role, password, permissions } = await req.json();
+    const { 
+      action, 
+      user_id, 
+      organization_id, 
+      membership_id,
+      email, 
+      full_name, 
+      phone, 
+      role, 
+      password, 
+      permissions 
+    } = await req.json();
 
-    console.log(`manage-users called with action: ${action}`);
+    console.log(`manage-users called with action: ${action}, org_id: ${organization_id}`);
 
     // Create Supabase admin client
     const supabaseAdmin = createClient(
@@ -59,6 +70,13 @@ serve(async (req) => {
         );
       }
 
+      if (!organization_id) {
+        return new Response(
+          JSON.stringify({ error: 'organization_id is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Validate role
       const validRoles = ['admin', 'sales_rep', 'viewer', 'manager'];
       if (!validRoles.includes(role)) {
@@ -68,85 +86,122 @@ serve(async (req) => {
         );
       }
 
-      console.log(`Creating user: ${full_name} (${email}) with role: ${role}`);
+      console.log(`Creating user: ${full_name} (${email}) with role: ${role} for org: ${organization_id}`);
 
-      // Check if user already exists
+      // Check if user already exists in auth
       const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
       const existingUser = existingUsers?.users?.find(u => u.email === email);
 
+      let userId: string;
+
       if (existingUser) {
-        return new Response(
-          JSON.stringify({ error: 'A user with this email already exists' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+        // User exists in auth - check if already a member of this org
+        userId = existingUser.id;
+        
+        const { data: existingMembership } = await supabaseAdmin
+          .from('organization_members')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('organization_id', organization_id)
+          .maybeSingle();
 
-      // Create new auth user with the specified password
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name }
-      });
-
-      if (authError) {
-        console.error('Error creating auth user:', authError);
-        throw authError;
-      }
-
-      console.log(`Created auth user: ${authData.user.id}`);
-
-      // Update profile with phone if provided
-      if (phone) {
-        const { error: profileError } = await supabaseAdmin
-          .from('profiles')
-          .update({ phone, full_name })
-          .eq('id', authData.user.id);
-
-        if (profileError) {
-          console.error('Error updating profile:', profileError);
+        if (existingMembership) {
+          return new Response(
+            JSON.stringify({ error: 'User is already a member of this organization' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
-      }
 
-      // The handle_new_user trigger creates 'viewer' role by default
-      // Update to the requested role if different
-      if (role !== 'viewer') {
-        const { error: updateRoleError } = await supabaseAdmin
+        console.log(`User ${email} already exists, adding to organization`);
+      } else {
+        // Create new auth user
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name }
+        });
+
+        if (authError) {
+          console.error('Error creating auth user:', authError);
+          throw authError;
+        }
+
+        userId = authData.user.id;
+        console.log(`Created auth user: ${userId}`);
+
+        // Update profile with phone if provided
+        if (phone) {
+          const { error: profileError } = await supabaseAdmin
+            .from('profiles')
+            .update({ phone, full_name })
+            .eq('id', userId);
+
+          if (profileError) {
+            console.error('Error updating profile:', profileError);
+          }
+        }
+
+        // Create a global viewer role (for backwards compatibility)
+        // The actual role for this org comes from organization_members
+        const { error: roleError } = await supabaseAdmin
           .from('user_roles')
-          .update({ role })
-          .eq('user_id', authData.user.id);
+          .upsert({ user_id: userId, role: 'viewer' }, { onConflict: 'user_id' });
 
-        if (updateRoleError) {
-          console.error('Error updating role:', updateRoleError);
-          throw updateRoleError;
+        if (roleError) {
+          console.error('Error creating global role:', roleError);
         }
       }
 
-      // Create default permissions based on role (or custom if provided)
+      // Add user to organization with the specified role
+      const { error: memberError } = await supabaseAdmin
+        .from('organization_members')
+        .insert({
+          organization_id,
+          user_id: userId,
+          role: role,
+          is_org_admin: role === 'admin',
+        });
+
+      if (memberError) {
+        console.error('Error creating org membership:', memberError);
+        throw memberError;
+      }
+
+      // Create permissions for this user
       const permissionsToSet = permissions || DEFAULT_PERMISSIONS[role] || [];
       
-      // Insert permissions for all permission keys
-      const permissionRecords = ALL_PERMISSIONS.map(key => ({
-        user_id: authData.user.id,
-        permission_key: key,
-        is_enabled: permissionsToSet.includes(key),
-      }));
-
-      const { error: permError } = await supabaseAdmin
+      // Check if user already has permissions (might be member of another org)
+      const { data: existingPerms } = await supabaseAdmin
         .from('user_permissions')
-        .insert(permissionRecords);
+        .select('id')
+        .eq('user_id', userId)
+        .limit(1);
 
-      if (permError) {
-        console.error('Error creating permissions:', permError);
-        // Don't throw - permissions are non-critical for user creation
+      if (!existingPerms || existingPerms.length === 0) {
+        // Insert permissions for all permission keys
+        const permissionRecords = ALL_PERMISSIONS.map(key => ({
+          user_id: userId,
+          permission_key: key,
+          is_enabled: permissionsToSet.includes(key),
+        }));
+
+        const { error: permError } = await supabaseAdmin
+          .from('user_permissions')
+          .insert(permissionRecords);
+
+        if (permError) {
+          console.error('Error creating permissions:', permError);
+          // Don't throw - permissions are non-critical for user creation
+        }
       }
 
-      console.log(`Successfully created user: ${full_name} (${email}) with role: ${role}`);
+      console.log(`Successfully created/added user: ${full_name} (${email}) to org: ${organization_id}`);
 
       return new Response(
         JSON.stringify({ 
-          message: 'User created successfully',
-          user_id: authData.user.id,
+          message: 'User added to organization successfully',
+          user_id: userId,
           email,
           full_name,
           role
@@ -200,8 +255,8 @@ serve(async (req) => {
         }
       }
 
-      // Update role if changed
-      if (role) {
+      // Update role in organization_members if organization_id provided
+      if (role && organization_id) {
         const validRoles = ['admin', 'sales_rep', 'viewer', 'manager'];
         if (!validRoles.includes(role)) {
           return new Response(
@@ -210,19 +265,18 @@ serve(async (req) => {
           );
         }
 
-        // Delete existing roles and add new one
-        await supabaseAdmin
-          .from('user_roles')
-          .delete()
-          .eq('user_id', user_id);
+        const { error: memberError } = await supabaseAdmin
+          .from('organization_members')
+          .update({ 
+            role, 
+            is_org_admin: role === 'admin' 
+          })
+          .eq('user_id', user_id)
+          .eq('organization_id', organization_id);
 
-        const { error: roleError } = await supabaseAdmin
-          .from('user_roles')
-          .insert({ user_id, role });
-
-        if (roleError) {
-          console.error('Error updating role:', roleError);
-          throw roleError;
+        if (memberError) {
+          console.error('Error updating org membership:', memberError);
+          throw memberError;
         }
       }
 
@@ -269,40 +323,106 @@ serve(async (req) => {
         );
       }
 
-      console.log(`Deleting user: ${user_id}`);
+      console.log(`Removing user ${user_id} from org ${organization_id}`);
 
-      // Delete user permissions first
-      await supabaseAdmin
-        .from('user_permissions')
-        .delete()
-        .eq('user_id', user_id);
+      if (organization_id && membership_id) {
+        // Remove from this organization only
+        const { error: memberError } = await supabaseAdmin
+          .from('organization_members')
+          .delete()
+          .eq('id', membership_id);
 
-      // Delete user roles
-      await supabaseAdmin
-        .from('user_roles')
-        .delete()
-        .eq('user_id', user_id);
+        if (memberError) {
+          console.error('Error removing org membership:', memberError);
+          throw memberError;
+        }
 
-      // Delete profile
-      await supabaseAdmin
-        .from('profiles')
-        .delete()
-        .eq('id', user_id);
+        // Check if user is still a member of any organization
+        const { data: remainingMemberships } = await supabaseAdmin
+          .from('organization_members')
+          .select('id')
+          .eq('user_id', user_id);
 
-      // Delete auth user
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
+        if (!remainingMemberships || remainingMemberships.length === 0) {
+          // User is not a member of any org, delete everything
+          console.log('User has no more org memberships, deleting account');
+          
+          // Delete user permissions
+          await supabaseAdmin
+            .from('user_permissions')
+            .delete()
+            .eq('user_id', user_id);
 
-      if (authError) {
-        console.error('Error deleting auth user:', authError);
-        throw authError;
+          // Delete user roles
+          await supabaseAdmin
+            .from('user_roles')
+            .delete()
+            .eq('user_id', user_id);
+
+          // Delete profile
+          await supabaseAdmin
+            .from('profiles')
+            .delete()
+            .eq('id', user_id);
+
+          // Delete auth user
+          const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
+
+          if (authError) {
+            console.error('Error deleting auth user:', authError);
+            throw authError;
+          }
+        }
+
+        console.log(`Successfully removed user ${user_id} from org ${organization_id}`);
+
+        return new Response(
+          JSON.stringify({ message: 'User removed from organization successfully', user_id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        // Legacy: delete user completely
+        console.log(`Deleting user completely: ${user_id}`);
+
+        // Delete organization memberships
+        await supabaseAdmin
+          .from('organization_members')
+          .delete()
+          .eq('user_id', user_id);
+
+        // Delete user permissions
+        await supabaseAdmin
+          .from('user_permissions')
+          .delete()
+          .eq('user_id', user_id);
+
+        // Delete user roles
+        await supabaseAdmin
+          .from('user_roles')
+          .delete()
+          .eq('user_id', user_id);
+
+        // Delete profile
+        await supabaseAdmin
+          .from('profiles')
+          .delete()
+          .eq('id', user_id);
+
+        // Delete auth user
+        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(user_id);
+
+        if (authError) {
+          console.error('Error deleting auth user:', authError);
+          throw authError;
+        }
+
+        console.log(`Successfully deleted user: ${user_id}`);
+
+        return new Response(
+          JSON.stringify({ message: 'User deleted successfully', user_id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
-
-      console.log(`Successfully deleted user: ${user_id}`);
-
-      return new Response(
-        JSON.stringify({ message: 'User deleted successfully', user_id }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
 
     } else if (action === 'get_permissions') {
       // Get permissions for a specific user

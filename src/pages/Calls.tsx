@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useOrganization } from "@/hooks/useOrganization";
 import { format, addDays, subDays, parse } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +62,7 @@ const Calls = () => {
   const [selectedCloserId, setSelectedCloserId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { isAdmin, isCloser, isManager, profileId, isLoading: roleLoading } = useUserRole();
+  const { currentOrganization } = useOrganization();
 
   const getSelectedDate = () => {
     const today = new Date();
@@ -82,8 +84,10 @@ const Calls = () => {
 
   // Fetch appointments
   const { data: appointments, isLoading } = useQuery<Appointment[]>({
-    queryKey: ["call-appointments", selectedDate, profileId, isCloser],
+    queryKey: ["call-appointments", selectedDate, profileId, isCloser, currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       let query = supabase
         .from("call_appointments")
         .select(`
@@ -109,6 +113,7 @@ const Calls = () => {
           )
         `)
         .eq("scheduled_date", selectedDate)
+        .eq("organization_id", currentOrganization.id)
         .order("scheduled_time", { ascending: true });
 
       // If user is a closer, filter to only their appointments
@@ -121,7 +126,7 @@ const Calls = () => {
       if (error) throw error;
       return data as unknown as Appointment[];
     },
-    enabled: !roleLoading,
+    enabled: !roleLoading && !!currentOrganization,
   });
 
   // Fetch closers with call metrics
