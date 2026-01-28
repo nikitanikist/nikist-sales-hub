@@ -3,13 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PermissionKey, DEFAULT_PERMISSIONS, PERMISSION_KEYS } from "@/lib/permissions";
 
-type UserRole = 'admin' | 'sales_rep' | 'viewer' | 'manager' | null;
+type UserRole = 'admin' | 'sales_rep' | 'viewer' | 'manager' | 'super_admin' | null;
 
 interface UseUserRoleReturn {
   role: UserRole;
   isAdmin: boolean;
   isCloser: boolean;
   isManager: boolean;
+  isSuperAdmin: boolean;
   isLoading: boolean;
   profileId: string | null;
   permissions: Record<PermissionKey, boolean>;
@@ -100,8 +101,8 @@ export const useUserRole = (): UseUserRoleReturn => {
           });
         }
 
-        // Admins always have all permissions
-        if (fetchedRole === 'admin') {
+        // Admins and super admins always have all permissions
+        if (fetchedRole === 'admin' || fetchedRole === 'super_admin') {
           allPermissionKeys.forEach(key => {
             permissionsMap[key] = true;
           });
@@ -119,8 +120,8 @@ export const useUserRole = (): UseUserRoleReturn => {
   }, [user?.email]);
 
   const hasPermission = (key: PermissionKey): boolean => {
-    // Admins always have all permissions
-    if (role === 'admin') return true;
+    // Admins and super admins always have all permissions
+    if (role === 'admin' || role === 'super_admin') return true;
     return permissions[key] ?? false;
   };
 
@@ -129,6 +130,7 @@ export const useUserRole = (): UseUserRoleReturn => {
     isAdmin: role === 'admin',
     isCloser: role === 'sales_rep',
     isManager: role === 'manager',
+    isSuperAdmin: role === 'super_admin',
     isLoading,
     profileId,
     permissions,

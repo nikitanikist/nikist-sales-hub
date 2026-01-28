@@ -4,12 +4,14 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useEffect, useState } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Zap, Wallet, ChevronDown } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Zap, Wallet, ChevronDown, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ROUTE_TO_PERMISSION, PermissionKey } from "@/lib/permissions";
+import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
+import { OrganizationProvider, useOrganization } from "@/hooks/useOrganization";
 
 // Menu item type with optional children for submenus
 interface MenuItem {
@@ -48,14 +50,17 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail }
   return (
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div className="flex items-center gap-2">
-          <div className="p-2 bg-sidebar-primary rounded-lg">
-            <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-sidebar-primary rounded-lg">
+              <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-sidebar-foreground">Nikist CRM</h2>
+              <p className="text-xs text-sidebar-foreground/60">{userEmail}</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-sidebar-foreground">Nikist CRM</h2>
-            <p className="text-xs text-sidebar-foreground/60">{userEmail}</p>
-          </div>
+          <OrganizationSwitcher />
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -131,9 +136,10 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail }
   );
 };
 
-const AppLayout = () => {
+const AppLayoutContent = () => {
   const { user, signOut, loading } = useAuth();
-  const { isAdmin, isCloser, isManager, isLoading: roleLoading, hasPermission } = useUserRole();
+  const { isAdmin, isCloser, isManager, isSuperAdmin, isLoading: roleLoading, hasPermission } = useUserRole();
+  const { currentOrganization, isSuperAdmin: orgIsSuperAdmin } = useOrganization();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -143,9 +149,12 @@ const AppLayout = () => {
     }
   }, [user, loading, navigate]);
 
-  // Check route access based on permissions
+  // Skip permission checks for super admin routes
+  const isSuperAdminRoute = location.pathname.startsWith("/super-admin");
+
+  // Check route access based on permissions (skip for super admin routes)
   useEffect(() => {
-    if (roleLoading || loading || !user) return;
+    if (roleLoading || loading || !user || isSuperAdminRoute) return;
     
     const currentPath = location.pathname;
     const permissionKey = ROUTE_TO_PERMISSION[currentPath];
@@ -167,7 +176,7 @@ const AppLayout = () => {
         console.warn("User has no accessible routes");
       }
     }
-  }, [roleLoading, loading, user, location.pathname, hasPermission, navigate]);
+  }, [roleLoading, loading, user, location.pathname, hasPermission, navigate, isSuperAdminRoute]);
 
   if (loading || roleLoading) {
     return (
@@ -307,6 +316,15 @@ const AppLayout = () => {
         </main>
       </div>
     </SidebarProvider>
+  );
+};
+
+// Wrap with OrganizationProvider
+const AppLayout = () => {
+  return (
+    <OrganizationProvider>
+      <AppLayoutContent />
+    </OrganizationProvider>
   );
 };
 

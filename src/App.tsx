@@ -21,6 +21,7 @@ import Batches from "./pages/Batches";
 import FuturesMentorship from "./pages/FuturesMentorship";
 import HighFuture from "./pages/HighFuture";
 import DailyMoneyFlow from "./pages/DailyMoneyFlow";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
@@ -54,6 +55,8 @@ const App = () => (
               <Route path="/funnels" element={<Funnels />} />
               <Route path="/products" element={<Products />} />
               <Route path="/users" element={<Users />} />
+              <Route path="/super-admin" element={<SuperAdminDashboard />} />
+              <Route path="/super-admin/create-org" element={<SuperAdminDashboard />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
