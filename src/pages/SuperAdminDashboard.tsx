@@ -82,12 +82,14 @@ const SuperAdminDashboard = () => {
   const [newOrgName, setNewOrgName] = useState("");
   const [newOrgSlug, setNewOrgSlug] = useState("");
   
-  // Add Member state
+  // Add Member state - Create new user flow
   const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
-  const [availableUsers, setAvailableUsers] = useState<{id: string, full_name: string, email: string}[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [newMemberRole, setNewMemberRole] = useState<string>("viewer");
-  const [newMemberIsOrgAdmin, setNewMemberIsOrgAdmin] = useState(false);
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPhone, setNewUserPhone] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState<string>("admin");
+  const [newMemberIsOrgAdmin, setNewMemberIsOrgAdmin] = useState(true);
   const [addingMember, setAddingMember] = useState(false);
 
   useEffect(() => {
@@ -318,58 +320,83 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const fetchAvailableUsers = async () => {
-    try {
-      // Get all profiles
-      const { data: allProfiles, error } = await supabase
-        .from("profiles")
-        .select("id, full_name, email")
-        .order("full_name");
-
-      if (error) throw error;
-
-      // Filter out users already in the organization
-      const existingMemberIds = orgMembers.map((m) => m.user_id);
-      const available = (allProfiles || []).filter(
-        (p) => !existingMemberIds.includes(p.id)
-      );
-
-      setAvailableUsers(available);
-    } catch (error) {
-      console.error("Error fetching available users:", error);
-      toast.error("Failed to load available users");
-    }
+  const resetAddMemberForm = () => {
+    setNewUserName("");
+    setNewUserEmail("");
+    setNewUserPhone("");
+    setNewUserPassword("");
+    // Default to admin for first member, otherwise viewer
+    const isFirstMember = orgMembers.length === 0;
+    setNewMemberRole(isFirstMember ? "admin" : "viewer");
+    setNewMemberIsOrgAdmin(isFirstMember);
   };
 
   const addMemberToOrg = async () => {
-    if (!selectedOrg || !selectedUserId) {
-      toast.error("Please select a user");
+    if (!selectedOrg) {
+      toast.error("No organization selected");
+      return;
+    }
+
+    if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
+      toast.error("Please fill in all required fields (Name, Email, Password)");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUserEmail.trim())) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    // Password validation
+    if (newUserPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
       return;
     }
 
     setAddingMember(true);
     try {
-      const { error } = await supabase
+      // Step 1: Create the user via edge function
+      const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+        body: {
+          action: 'create',
+          email: newUserEmail.trim(),
+          full_name: newUserName.trim(),
+          phone: newUserPhone.trim() || null,
+          password: newUserPassword,
+          role: newMemberRole,
+        }
+      });
+
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+
+      const userId = data?.user_id;
+      if (!userId) {
+        throw new Error("Failed to create user - no user ID returned");
+      }
+
+      // Step 2: Add to organization_members
+      const { error: memberError } = await supabase
         .from("organization_members")
         .insert({
           organization_id: selectedOrg.id,
-          user_id: selectedUserId,
+          user_id: userId,
           role: newMemberRole as "admin" | "sales_rep" | "viewer" | "manager" | "super_admin",
           is_org_admin: newMemberIsOrgAdmin,
         });
 
-      if (error) throw error;
+      if (memberError) throw memberError;
 
-      toast.success("Member added successfully");
+      toast.success("Client user created and added to organization successfully");
       setShowAddMemberDialog(false);
-      setSelectedUserId("");
-      setNewMemberRole("viewer");
-      setNewMemberIsOrgAdmin(false);
+      resetAddMemberForm();
       fetchOrgDetails(selectedOrg);
       fetchOrganizations();
     } catch (error: any) {
-      console.error("Error adding member:", error);
-      toast.error(error.message || "Failed to add member");
+      console.error("Error creating user:", error);
+      toast.error(error.message || "Failed to create user");
     } finally {
       setAddingMember(false);
     }
@@ -600,10 +627,7 @@ const SuperAdminDashboard = () => {
                       onOpenChange={(open) => {
                         setShowAddMemberDialog(open);
                         if (open) {
-                          fetchAvailableUsers();
-                          setSelectedUserId("");
-                          setNewMemberRole("viewer");
-                          setNewMemberIsOrgAdmin(false);
+                          resetAddMemberForm();
                         }
                       }}
                     >
@@ -617,30 +641,53 @@ const SuperAdminDashboard = () => {
                         <DialogHeader>
                           <DialogTitle>Add Member to {selectedOrg?.name}</DialogTitle>
                           <DialogDescription>
-                            Select an existing user to add to this organization
+                            Create a new user account for this organization
+                            {orgMembers.length === 0 && (
+                              <span className="block mt-1 text-primary font-medium">
+                                This will be the primary admin for this organization
+                              </span>
+                            )}
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
-                            <Label>Select User</Label>
-                            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                              <SelectTrigger className="bg-background">
-                                <SelectValue placeholder="Select a user..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
-                                {availableUsers.length === 0 ? (
-                                  <SelectItem value="none" disabled>
-                                    No available users
-                                  </SelectItem>
-                                ) : (
-                                  availableUsers.map((user) => (
-                                    <SelectItem key={user.id} value={user.id}>
-                                      {user.full_name} ({user.email})
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
+                            <Label htmlFor="new-user-name">Full Name *</Label>
+                            <Input
+                              id="new-user-name"
+                              value={newUserName}
+                              onChange={(e) => setNewUserName(e.target.value)}
+                              placeholder="John Doe"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="new-user-email">Email *</Label>
+                            <Input
+                              id="new-user-email"
+                              type="email"
+                              value={newUserEmail}
+                              onChange={(e) => setNewUserEmail(e.target.value)}
+                              placeholder="john@example.com"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="new-user-phone">Phone Number</Label>
+                            <Input
+                              id="new-user-phone"
+                              type="tel"
+                              value={newUserPhone}
+                              onChange={(e) => setNewUserPhone(e.target.value)}
+                              placeholder="+91 9876543210"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="new-user-password">Password *</Label>
+                            <Input
+                              id="new-user-password"
+                              type="password"
+                              value={newUserPassword}
+                              onChange={(e) => setNewUserPassword(e.target.value)}
+                              placeholder="Minimum 6 characters"
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>Role</Label>
@@ -675,9 +722,9 @@ const SuperAdminDashboard = () => {
                           </Button>
                           <Button 
                             onClick={addMemberToOrg} 
-                            disabled={!selectedUserId || addingMember}
+                            disabled={!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim() || addingMember}
                           >
-                            {addingMember ? "Adding..." : "Add Member"}
+                            {addingMember ? "Creating..." : "Create User"}
                           </Button>
                         </DialogFooter>
                       </DialogContent>
