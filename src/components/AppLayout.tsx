@@ -34,18 +34,11 @@ interface SidebarNavigationProps {
   location: { pathname: string };
   signOut: () => void;
   userEmail: string | undefined;
-}
-
-interface SidebarNavigationProps {
-  menuItems: MenuItem[];
-  navigate: (path: string) => void;
-  location: { pathname: string };
-  signOut: () => void;
-  userEmail: string | undefined;
   isSuperAdmin?: boolean;
+  organizationName?: string;
 }
 
-const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, isSuperAdmin }: SidebarNavigationProps) => {
+const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, isSuperAdmin, organizationName }: SidebarNavigationProps) => {
   const { setOpenMobile, isMobile } = useSidebar();
 
   const handleNavigation = (path: string) => {
@@ -69,9 +62,9 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
               )}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-sidebar-foreground">
-                {isSuperAdmin ? "Super Admin" : "Nikist CRM"}
-              </h2>
+            <h2 className="text-lg font-semibold text-sidebar-foreground">
+              {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
+            </h2>
               <p className="text-xs text-sidebar-foreground/60">{userEmail}</p>
             </div>
           </div>
@@ -278,6 +271,7 @@ const AppLayoutContent = () => {
           signOut={signOut}
           userEmail={user.email}
           isSuperAdmin={isSuperAdmin}
+          organizationName={currentOrganization?.name}
         />
         <main className="flex-1 overflow-auto">
           <div className="sticky top-0 z-10 bg-background border-b border-border">
@@ -285,7 +279,7 @@ const AppLayoutContent = () => {
               {/* Left Section: Toggle + Heading */}
               <div className="flex items-center gap-2 sm:gap-3">
                 <SidebarTrigger className="h-9 w-9 sm:h-10 sm:w-10" />
-                <h1 className="text-lg sm:text-xl font-semibold hidden sm:block">Nikist CRM</h1>
+                <h1 className="text-lg sm:text-xl font-semibold hidden sm:block">{currentOrganization?.name || "CRM"}</h1>
               </div>
               
               {/* Right Section: Notifications + Profile */}

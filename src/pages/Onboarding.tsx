@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/hooks/useOrganization";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { PersonalInfoStep } from "@/components/onboarding/PersonalInfoStep";
 import { LocationStep } from "@/components/onboarding/LocationStep";
@@ -95,6 +96,7 @@ const initialData: OnboardingData = {
 };
 
 export default function Onboarding() {
+  const { currentOrganization } = useOrganization();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -419,7 +421,7 @@ export default function Onboarding() {
             <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
               <Sparkles className="h-6 w-6 text-primary-foreground" />
             </div>
-            <span className="text-2xl font-bold text-foreground">Nikist</span>
+            <span className="text-2xl font-bold text-foreground">{currentOrganization?.name || "Welcome"}</span>
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Customer Insights</h1>
           <p className="text-muted-foreground">Help us understand you better to serve you best</p>
