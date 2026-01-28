@@ -4,7 +4,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useEffect, useState } from "react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, Bell, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Zap, Wallet, ChevronDown, Shield } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -259,7 +259,7 @@ const AppLayoutContent = () => {
     ? superAdminMenuItems 
     : filterMenuItems(allMenuItems);
 
-  const notificationCount = 10; // Demo value
+  // Notification system removed - will be implemented with real backend when needed
 
   return (
     <SidebarProvider>
@@ -284,18 +284,8 @@ const AppLayoutContent = () => {
               
               {/* Right Section: Notifications + Profile */}
               <div className="flex items-center gap-2 sm:gap-4">
-                {/* Notification Bell with Badge */}
-                <Button variant="ghost" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10">
-                  <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-                  {notificationCount > 0 && (
-                    <Badge 
-                      variant="destructive" 
-                      className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] sm:text-xs rounded-full"
-                    >
-                      {notificationCount}
-                    </Badge>
-                  )}
-                </Button>
+                {/* Notification Bell - Hidden until notification system is implemented */}
+                {/* TODO: Implement notification system with org-scoped notifications */}
                 
                 {/* Profile Dropdown */}
                 <DropdownMenu>
