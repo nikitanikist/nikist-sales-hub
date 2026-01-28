@@ -56,12 +56,11 @@ export const useUserRole = (): UseUserRoleReturn => {
 
         setProfileId(profile.id);
 
-        // Now get the user's role
-        const { data: userRole, error: roleError } = await supabase
+        // Now get all of the user's roles (user may have multiple)
+        const { data: userRoles, error: roleError } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", profile.id)
-          .maybeSingle();
+          .eq("user_id", profile.id);
 
         if (roleError) {
           console.error("Error fetching user role:", roleError);
@@ -69,7 +68,20 @@ export const useUserRole = (): UseUserRoleReturn => {
           return;
         }
 
-        const fetchedRole = userRole?.role || null;
+        // Priority: super_admin > admin > manager > sales_rep > viewer
+        const rolesList = userRoles?.map(r => r.role) || [];
+        let fetchedRole: UserRole = null;
+        if (rolesList.includes('super_admin')) {
+          fetchedRole = 'super_admin';
+        } else if (rolesList.includes('admin')) {
+          fetchedRole = 'admin';
+        } else if (rolesList.includes('manager')) {
+          fetchedRole = 'manager';
+        } else if (rolesList.includes('sales_rep')) {
+          fetchedRole = 'sales_rep';
+        } else if (rolesList.includes('viewer')) {
+          fetchedRole = 'viewer';
+        }
         setRole(fetchedRole);
 
         // Fetch user permissions

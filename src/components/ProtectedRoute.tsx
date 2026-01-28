@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
 
 interface ProtectedRouteProps {
@@ -7,7 +7,8 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) => {
-  const { isAdmin, isCloser, isLoading } = useUserRole();
+  const { isAdmin, isCloser, isSuperAdmin, isLoading } = useUserRole();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -17,8 +18,13 @@ const ProtectedRoute = ({ children, adminOnly = false }: ProtectedRouteProps) =>
     );
   }
 
+  // Super admins should be redirected to /super-admin if they're on regular routes
+  if (isSuperAdmin && location.pathname === "/") {
+    return <Navigate to="/super-admin" replace />;
+  }
+
   // If this is an admin-only route and user is a closer, redirect to calls
-  if (adminOnly && isCloser && !isAdmin) {
+  if (adminOnly && isCloser && !isAdmin && !isSuperAdmin) {
     return <Navigate to="/calls" replace />;
   }
 
