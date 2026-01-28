@@ -52,6 +52,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { isManager } = useUserRole();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
 
   const openCallsDialog = (workshopTitle: string, category: CallCategory) => {
     setSelectedWorkshopTitle(workshopTitle);
@@ -76,12 +77,14 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const PRODUCT_PRICE = 497;
 
   const { data: workshops, isLoading, error, refetch } = useQuery({
-    queryKey: ["workshops"],
+    queryKey: ["workshops", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       console.log("Fetching workshops...");
       const { data: workshopsData, error } = await supabase
         .from("workshops")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .is("product_id", null) // Hide workshops converted to products
         .order("start_date", { ascending: false });
       
@@ -271,53 +274,65 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
       console.log("Workshops with metrics:", workshopsWithMetrics);
       return workshopsWithMetrics;
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: leads } = useQuery({
-    queryKey: ["leads-list"],
+    queryKey: ["leads-list", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("leads")
         .select("id, company_name")
+        .eq("organization_id", currentOrganization.id)
         .order("company_name");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: funnels, isLoading: funnelsLoading } = useQuery({
-    queryKey: ["funnels-list"],
+    queryKey: ["funnels-list", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("funnels")
         .select("id, funnel_name")
+        .eq("organization_id", currentOrganization.id)
         .order("funnel_name");
       
       if (error) throw error;
       return data || [];
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: products, isLoading: productsLoading } = useQuery({
-    queryKey: ["products-list"],
+    queryKey: ["products-list", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("products")
         .select("id, product_name, funnel_id")
+        .eq("organization_id", currentOrganization.id)
         .eq("is_active", true)
         .order("product_name");
       
       if (error) throw error;
       return data || [];
     },
+    enabled: !!currentOrganization,
   });
 
   const createMutation = useMutation({
     mutationFn: async (newWorkshop: any) => {
+      if (!currentOrganization) throw new Error("No organization selected");
       const { error } = await supabase.from("workshops").insert([{
         ...newWorkshop,
         created_by: user?.id,
+        organization_id: currentOrganization.id,
       }]);
       if (error) throw error;
     },
@@ -372,6 +387,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const createFunnelMutation = useMutation({
     mutationFn: async (workshopData: any) => {
+      if (!currentOrganization) throw new Error("No organization selected");
       const { data, error } = await supabase
         .from("funnels")
         .insert([{
@@ -379,6 +395,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           amount: 0,
           is_free: workshopData.is_free || false,
           created_by: user?.id,
+          organization_id: currentOrganization.id,
         }])
         .select()
         .single();
@@ -403,6 +420,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const createProductMutation = useMutation({
     mutationFn: async (data: { workshopTitle: string; funnelId: string }) => {
+      if (!currentOrganization) throw new Error("No organization selected");
       const { data: newProduct, error } = await supabase
         .from("products")
         .insert([{
@@ -411,6 +429,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
           price: 0,
           is_active: true,
           created_by: user?.id,
+          organization_id: currentOrganization.id,
         }])
         .select()
         .single();
@@ -528,6 +547,21 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
+
+  // Organization loading and empty states
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={Calendar}
+        title="No Organization Selected"
+        description="Please select an organization to view workshops."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">

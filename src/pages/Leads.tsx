@@ -99,6 +99,7 @@ const Leads = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { isManager, isAdmin } = useUserRole();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
 
   // Schedule Call Dialog State
   const [scheduleCallOpen, setScheduleCallOpen] = useState(false);
@@ -140,14 +141,17 @@ const Leads = () => {
 
   // Query for exact total count (same as Dashboard)
   const { data: leadsCount } = useQuery({
-    queryKey: ["leads-count"],
+    queryKey: ["leads-count", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return 0;
       const { count, error } = await supabase
         .from("leads")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id);
       if (error) throw error;
       return count || 0;
     },
+    enabled: !!currentOrganization,
   });
 
   // Real-time subscription for leads and assignments
@@ -186,8 +190,9 @@ const Leads = () => {
   });
 
   const { data: leadAssignments, isLoading: isLoadingAssignments } = useQuery({
-    queryKey: ["lead-assignments", filters.productIds, filters.workshopIds],
+    queryKey: ["lead-assignments", currentOrganization?.id, filters.productIds, filters.workshopIds],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       let query = supabase
         .from("lead_assignments")
         .select(`
@@ -212,6 +217,7 @@ const Leads = () => {
           funnel:funnels(id, funnel_name),
           product:products(id, product_name, price)
         `)
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false });
 
       // Apply server-side filters when product or workshop filters are active
@@ -232,11 +238,13 @@ const Leads = () => {
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: allLeads, isLoading: isLoadingLeads } = useQuery({
-    queryKey: ["all-leads"],
+    queryKey: ["all-leads", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("leads")
         .select(`
@@ -244,11 +252,13 @@ const Leads = () => {
           assigned_profile:profiles!leads_assigned_to_fkey(id, full_name),
           previous_assigned_profile:profiles!leads_previous_assigned_to_fkey(id, full_name)
         `)
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const isLoading = isLoadingAssignments || isLoadingLeads || isLoadingSearch;
@@ -289,46 +299,55 @@ const Leads = () => {
   });
 
   const { data: workshops } = useQuery({
-    queryKey: ["workshops"],
+    queryKey: ["workshops", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("workshops")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("title");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: funnels } = useQuery({
-    queryKey: ["funnels"],
+    queryKey: ["funnels", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("funnels")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("funnel_name");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: products } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("products")
         .select(`
           *,
           funnel:funnels!products_funnel_id_fkey(id, funnel_name)
         `)
+        .eq("organization_id", currentOrganization.id)
         .eq("is_active", true)
         .order("product_name");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const saveMutation = useMutation({
@@ -985,6 +1004,21 @@ const Leads = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedAssignments = groupedAssignmentsArray.slice(startIndex, endIndex);
+
+  // Organization loading and empty states
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No Organization Selected"
+        description="Please select an organization to view customers."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
