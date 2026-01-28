@@ -273,6 +273,309 @@ export type Database = {
           },
         ]
       }
+      cohort_batches: {
+        Row: {
+          cohort_type_id: string
+          created_at: string
+          created_by: string | null
+          event_dates: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cohort_type_id: string
+          created_at?: string
+          created_by?: string | null
+          event_dates?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id: string
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cohort_type_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_dates?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_batches_cohort_type_id_fkey"
+            columns: ["cohort_type_id"]
+            isOneToOne: false
+            referencedRelation: "cohort_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_batches_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_batches_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohort_emi_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          created_by: string | null
+          emi_number: number
+          gst_fees: number | null
+          id: string
+          no_cost_emi: number | null
+          organization_id: string
+          payment_date: string
+          payment_platform: string | null
+          platform_fees: number | null
+          previous_cash_received: number | null
+          remarks: string | null
+          student_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          created_by?: string | null
+          emi_number: number
+          gst_fees?: number | null
+          id?: string
+          no_cost_emi?: number | null
+          organization_id: string
+          payment_date: string
+          payment_platform?: string | null
+          platform_fees?: number | null
+          previous_cash_received?: number | null
+          remarks?: string | null
+          student_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          created_by?: string | null
+          emi_number?: number
+          gst_fees?: number | null
+          id?: string
+          no_cost_emi?: number | null
+          organization_id?: string
+          payment_date?: string
+          payment_platform?: string | null
+          platform_fees?: number | null
+          previous_cash_received?: number | null
+          remarks?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_emi_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_emi_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_emi_payments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "cohort_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohort_offer_amount_history: {
+        Row: {
+          changed_at: string | null
+          changed_by: string | null
+          id: string
+          new_amount: number
+          organization_id: string
+          previous_amount: number
+          reason: string | null
+          student_id: string
+        }
+        Insert: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_amount: number
+          organization_id: string
+          previous_amount: number
+          reason?: string | null
+          student_id: string
+        }
+        Update: {
+          changed_at?: string | null
+          changed_by?: string | null
+          id?: string
+          new_amount?: number
+          organization_id?: string
+          previous_amount?: number
+          reason?: string | null
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_offer_amount_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_offer_amount_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_offer_amount_history_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "cohort_students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cohort_students: {
+        Row: {
+          cash_received: number | null
+          classes_access: number | null
+          closer_id: string | null
+          cohort_batch_id: string
+          conversion_date: string
+          created_at: string
+          created_by: string | null
+          due_amount: number | null
+          gst_fees: number | null
+          id: string
+          lead_id: string | null
+          next_follow_up_date: string | null
+          no_cost_emi: number | null
+          notes: string | null
+          offer_amount: number | null
+          organization_id: string
+          pay_after_earning: boolean | null
+          payment_platform: string | null
+          payment_remarks: string | null
+          platform_fees: number | null
+          refund_reason: string | null
+          status: string
+        }
+        Insert: {
+          cash_received?: number | null
+          classes_access?: number | null
+          closer_id?: string | null
+          cohort_batch_id: string
+          conversion_date?: string
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          gst_fees?: number | null
+          id?: string
+          lead_id?: string | null
+          next_follow_up_date?: string | null
+          no_cost_emi?: number | null
+          notes?: string | null
+          offer_amount?: number | null
+          organization_id: string
+          pay_after_earning?: boolean | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
+          refund_reason?: string | null
+          status?: string
+        }
+        Update: {
+          cash_received?: number | null
+          classes_access?: number | null
+          closer_id?: string | null
+          cohort_batch_id?: string
+          conversion_date?: string
+          created_at?: string
+          created_by?: string | null
+          due_amount?: number | null
+          gst_fees?: number | null
+          id?: string
+          lead_id?: string | null
+          next_follow_up_date?: string | null
+          no_cost_emi?: number | null
+          notes?: string | null
+          offer_amount?: number | null
+          organization_id?: string
+          pay_after_earning?: boolean | null
+          payment_platform?: string | null
+          payment_remarks?: string | null
+          platform_fees?: number | null
+          refund_reason?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_students_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_students_cohort_batch_id_fkey"
+            columns: ["cohort_batch_id"]
+            isOneToOne: false
+            referencedRelation: "cohort_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_students_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_students_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_students_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cohort_types: {
         Row: {
           created_at: string | null
