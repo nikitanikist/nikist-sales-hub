@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useOrganization } from "@/hooks/useOrganization";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,25 +32,31 @@ const SalesClosers = () => {
   const [formData, setFormData] = useState({ full_name: "", email: "", phone: "" });
   const { toast } = useToast();
   const { isAdmin, isCloser, isManager, profileId, isLoading: roleLoading } = useUserRole();
+  const { currentOrganization } = useOrganization();
   const navigate = useNavigate();
 
   const { data: closers, isLoading, refetch } = useQuery({
-    queryKey: ["sales-closers", profileId, isCloser],
+    queryKey: ["sales-closers", profileId, isCloser, currentOrganization?.id],
     queryFn: async () => {
-      // Get only users with sales_rep role (exclude admins from closers list)
-      const { data: userRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
+      if (!currentOrganization) return [];
+
+      // Get only users with sales_rep role in current organization
+      const { data: orgMembers, error: membersError } = await supabase
+        .from("organization_members")
+        .select("user_id, role")
+        .eq("organization_id", currentOrganization.id)
         .eq("role", "sales_rep");
 
-      if (rolesError) throw rolesError;
+      if (membersError) throw membersError;
 
-      let userIds = userRoles.map(ur => ur.user_id);
+      let userIds = orgMembers.map(m => m.user_id);
 
       // If user is a closer (not admin), filter to only their ID
       if (isCloser && !isAdmin && profileId) {
         userIds = userIds.filter(id => id === profileId);
       }
+
+      if (userIds.length === 0) return [];
 
       // Get profiles for these users
       const { data: profiles, error: profilesError } = await supabase
@@ -59,14 +66,15 @@ const SalesClosers = () => {
 
       if (profilesError) throw profilesError;
 
-      // Get metrics for each closer from call_appointments
+      // Get metrics for each closer from call_appointments (filtered by org)
       const closersWithMetrics: CloserMetrics[] = await Promise.all(
         profiles.map(async (profile) => {
-          // Get all call appointments for this closer
+          // Get all call appointments for this closer in current org
           const { data: appointments, error: apptError } = await supabase
             .from("call_appointments")
             .select("status, cash_received")
-            .eq("closer_id", profile.id);
+            .eq("closer_id", profile.id)
+            .eq("organization_id", currentOrganization.id);
 
           if (apptError) throw apptError;
 
@@ -111,7 +119,7 @@ const SalesClosers = () => {
 
       return closersWithMetrics;
     },
-    enabled: !roleLoading,
+    enabled: !roleLoading && !!currentOrganization,
   });
 
   // Calculate totals for summary cards

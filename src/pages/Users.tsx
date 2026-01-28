@@ -16,17 +16,21 @@ import { Separator } from "@/components/ui/separator";
 import { Plus, Pencil, Trash2, Users as UsersIcon, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_GROUPS, getDefaultPermissionsForRole, PermissionKey } from "@/lib/permissions";
+import { useOrganization } from "@/hooks/useOrganization";
 
 interface UserWithRole {
   id: string;
+  membership_id: string;
   full_name: string;
   email: string;
   phone: string | null;
   role: string;
+  is_org_admin: boolean;
   role_created_at: string;
 }
 
 const Users = () => {
+  const { currentOrganization } = useOrganization();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
@@ -43,40 +47,53 @@ const Users = () => {
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
   const queryClient = useQueryClient();
 
+  // Query organization members for current org only
   const { data: users, isLoading } = useQuery({
-    queryKey: ["users-with-roles"],
+    queryKey: ["org-users", currentOrganization?.id],
     queryFn: async () => {
-      // Get all user roles
-      const { data: userRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role, created_at");
+      if (!currentOrganization) return [];
 
-      if (rolesError) throw rolesError;
+      // Fetch organization members for current org only
+      const { data: members, error } = await supabase
+        .from("organization_members")
+        .select(`
+          id,
+          user_id,
+          role,
+          is_org_admin,
+          created_at
+        `)
+        .eq("organization_id", currentOrganization.id);
 
-      // Get profiles for these users
-      const userIds = userRoles.map((ur) => ur.user_id);
+      if (error) throw error;
+
+      // Get profile details for these members
+      const userIds = members?.map(m => m.user_id) || [];
+      if (userIds.length === 0) return [];
+
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, full_name, email, phone")
         .in("id", userIds);
 
       if (profilesError) throw profilesError;
 
-      // Combine data
-      const usersWithRoles: UserWithRole[] = profiles.map((profile) => {
-        const userRole = userRoles.find((ur) => ur.user_id === profile.id);
+      // Map to expected format
+      return (members || []).map(m => {
+        const profile = profiles?.find(p => p.id === m.user_id);
         return {
-          id: profile.id,
-          full_name: profile.full_name,
-          email: profile.email,
-          phone: profile.phone,
-          role: userRole?.role || "viewer",
-          role_created_at: userRole?.created_at || profile.created_at,
+          id: m.user_id,
+          membership_id: m.id,
+          full_name: profile?.full_name || "",
+          email: profile?.email || "",
+          phone: profile?.phone || null,
+          role: m.role,
+          is_org_admin: m.is_org_admin || false,
+          role_created_at: m.created_at,
         };
       });
-
-      return usersWithRoles;
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch permissions when editing a user
@@ -146,11 +163,17 @@ const Users = () => {
       return;
     }
 
+    if (!currentOrganization) {
+      toast.error("No organization selected");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { data, error } = await supabase.functions.invoke("manage-users", {
         body: {
           action: "create",
+          organization_id: currentOrganization.id,
           email: formData.email.trim(),
           full_name: formData.full_name.trim(),
           phone: formData.phone.trim() || null,
@@ -165,7 +188,7 @@ const Users = () => {
       toast.success(`${formData.full_name} has been added successfully`);
       setFormData({ full_name: "", email: "", phone: "", role: "sales_rep", password: "" });
       setIsAddDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["org-users", currentOrganization.id] });
     } catch (error: any) {
       toast.error(error.message || "Failed to add user");
     } finally {
@@ -176,7 +199,7 @@ const Users = () => {
   const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!editingUser) return;
+    if (!editingUser || !currentOrganization) return;
 
     if (!formData.full_name.trim() || !formData.email.trim()) {
       toast.error("Name and email are required");
@@ -194,6 +217,8 @@ const Users = () => {
         body: {
           action: "update",
           user_id: editingUser.id,
+          organization_id: currentOrganization.id,
+          membership_id: editingUser.membership_id,
           email: formData.email.trim(),
           full_name: formData.full_name.trim(),
           phone: formData.phone.trim() || null,
@@ -211,7 +236,7 @@ const Users = () => {
       setIsEditDialogOpen(false);
       setEditingUser(null);
       setUserPermissions({} as Record<PermissionKey, boolean>);
-      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["org-users", currentOrganization.id] });
     } catch (error: any) {
       toast.error(error.message || "Failed to update user");
     } finally {
@@ -220,24 +245,30 @@ const Users = () => {
   };
 
   const handleDeleteUser = async () => {
-    if (!deleteUserId) return;
+    if (!deleteUserId || !currentOrganization) return;
+
+    // Find the user to get their membership_id
+    const userToDelete = users?.find(u => u.id === deleteUserId);
+    if (!userToDelete) return;
 
     try {
       const { data, error } = await supabase.functions.invoke("manage-users", {
         body: {
           action: "delete",
           user_id: deleteUserId,
+          organization_id: currentOrganization.id,
+          membership_id: userToDelete.membership_id,
         },
       });
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success("User deleted successfully");
+      toast.success("User removed from organization successfully");
       setDeleteUserId(null);
-      queryClient.invalidateQueries({ queryKey: ["users-with-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["org-users", currentOrganization.id] });
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete user");
+      toast.error(error.message || "Failed to remove user");
     }
   };
 
@@ -293,7 +324,9 @@ const Users = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage CRM users and their roles</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage users in {currentOrganization?.name || "your organization"}
+          </p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
@@ -384,8 +417,10 @@ const Users = () => {
           <div className="flex items-center gap-2">
             <UsersIcon className="h-5 w-5" />
             <div>
-              <CardTitle className="text-lg sm:text-xl">All Users</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">View and manage all CRM users</CardDescription>
+              <CardTitle className="text-lg sm:text-xl">Organization Users</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Users with access to {currentOrganization?.name || "this organization"}
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -402,7 +437,7 @@ const Users = () => {
                     <TableHead>Name</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Date Assigned</TableHead>
+                    <TableHead>Date Added</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -441,7 +476,7 @@ const Users = () => {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No users found
+                        No users found in this organization
                       </TableCell>
                     </TableRow>
                   )}
@@ -486,7 +521,7 @@ const Users = () => {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-8 text-muted-foreground">No users found</div>
+                <div className="text-center py-8 text-muted-foreground">No users found in this organization</div>
               )}
             </div>
             </>
@@ -645,15 +680,15 @@ const Users = () => {
       <AlertDialog open={!!deleteUserId} onOpenChange={(open) => !open && setDeleteUserId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Remove user from organization?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the user and remove them from the system.
+              This will remove the user's access to {currentOrganization?.name || "this organization"}. The user account will still exist and may have access to other organizations.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+              Remove
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

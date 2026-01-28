@@ -38,7 +38,6 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/install" element={<Install />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -56,6 +55,7 @@ const App = () => (
               <Route path="/funnels" element={<Funnels />} />
               <Route path="/products" element={<Products />} />
               <Route path="/users" element={<Users />} />
+              <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/super-admin" element={<SuperAdminDashboard />} />
               <Route path="/super-admin/create-org" element={<SuperAdminDashboard />} />
             </Route>

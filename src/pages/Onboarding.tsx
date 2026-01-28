@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, ArrowRight, Loader2, CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/hooks/useOrganization";
 
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { PersonalInfoStep } from "@/components/onboarding/PersonalInfoStep";
@@ -96,6 +97,7 @@ const initialData: OnboardingData = {
 };
 
 export default function Onboarding() {
+  const { currentOrganization } = useOrganization();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -205,9 +207,18 @@ export default function Onboarding() {
   const handleSubmit = async () => {
     if (!validateStep(currentStep)) return;
 
+    if (!currentOrganization) {
+      toast({
+        title: "Error",
+        description: "No organization selected. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Step 1: Create lead in leads table
+      // Step 1: Create lead in leads table with organization_id
       const { data: leadData, error: leadError } = await supabase
         .from("leads")
         .insert({
@@ -218,13 +229,14 @@ export default function Onboarding() {
           company_name: data.occupation || "Individual",
           source: "customer_insights_form",
           status: "new",
+          organization_id: currentOrganization.id,
         })
         .select("id")
         .single();
 
       if (leadError) throw leadError;
 
-      // Step 2: Store detailed responses in customer_onboarding
+      // Step 2: Store detailed responses in customer_onboarding with organization_id
       const { error: onboardingError } = await supabase.from("customer_onboarding").insert({
         lead_id: leadData.id,
         full_name: data.full_name,
@@ -263,15 +275,17 @@ export default function Onboarding() {
         terms_accepted: data.terms_accepted,
         current_step: TOTAL_STEPS,
         completed_at: new Date().toISOString(),
+        organization_id: currentOrganization.id,
       });
 
       if (onboardingError) throw onboardingError;
 
-      // Step 3: Get Customer Insights product and create lead_assignment
+      // Step 3: Get Customer Insights product and create lead_assignment with organization_id
       const { data: productData } = await supabase
         .from("products")
         .select("id, funnel_id")
         .eq("product_name", "Customer Insights")
+        .eq("organization_id", currentOrganization.id)
         .maybeSingle();
 
       if (productData) {
@@ -279,6 +293,7 @@ export default function Onboarding() {
           lead_id: leadData.id,
           product_id: productData.id,
           funnel_id: productData.funnel_id,
+          organization_id: currentOrganization.id,
         });
       }
 
@@ -387,7 +402,7 @@ export default function Onboarding() {
   // Thank you screen
   if (isComplete) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10 flex items-center justify-center p-4">
+      <div className="min-h-[80vh] flex items-center justify-center p-4">
         <Card className="max-w-lg w-full shadow-2xl border-0">
           <CardContent className="p-8 md:p-12 text-center">
             <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
@@ -412,7 +427,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10 py-8 px-4">
+    <div className="py-8 px-4">
       <div className="max-w-3xl mx-auto">
         {/* Branding Header */}
         <div className="text-center mb-8">

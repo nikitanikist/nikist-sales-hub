@@ -56,32 +56,70 @@ export const useUserRole = (): UseUserRoleReturn => {
 
         setProfileId(profile.id);
 
-        // Now get all of the user's roles (user may have multiple)
-        const { data: userRoles, error: roleError } = await supabase
+        // Check if super admin first (global role)
+        const { data: superAdminRole } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", profile.id);
+          .eq("user_id", profile.id)
+          .eq("role", "super_admin")
+          .maybeSingle();
 
-        if (roleError) {
-          console.error("Error fetching user role:", roleError);
+        if (superAdminRole) {
+          setRole('super_admin');
+          // Super admin has all permissions
+          const allPermissionKeys = Object.values(PERMISSION_KEYS);
+          const permissionsMap: Record<PermissionKey, boolean> = {} as Record<PermissionKey, boolean>;
+          allPermissionKeys.forEach(key => {
+            permissionsMap[key] = true;
+          });
+          setPermissions(permissionsMap);
           setIsLoading(false);
           return;
         }
 
-        // Priority: super_admin > admin > manager > sales_rep > viewer
-        const rolesList = userRoles?.map(r => r.role) || [];
+        // Get the current organization from localStorage
+        const currentOrgId = localStorage.getItem("lovable_current_org_id");
+
         let fetchedRole: UserRole = null;
-        if (rolesList.includes('super_admin')) {
-          fetchedRole = 'super_admin';
-        } else if (rolesList.includes('admin')) {
-          fetchedRole = 'admin';
-        } else if (rolesList.includes('manager')) {
-          fetchedRole = 'manager';
-        } else if (rolesList.includes('sales_rep')) {
-          fetchedRole = 'sales_rep';
-        } else if (rolesList.includes('viewer')) {
-          fetchedRole = 'viewer';
+
+        if (currentOrgId) {
+          // Get org-specific role from organization_members
+          const { data: membership } = await supabase
+            .from("organization_members")
+            .select("role, is_org_admin")
+            .eq("user_id", profile.id)
+            .eq("organization_id", currentOrgId)
+            .maybeSingle();
+
+          if (membership) {
+            fetchedRole = membership.role as UserRole;
+          }
         }
+
+        // Fallback to global role if no org-specific role found
+        if (!fetchedRole) {
+          const { data: userRoles, error: roleError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", profile.id);
+
+          if (roleError) {
+            console.error("Error fetching user role:", roleError);
+          } else {
+            // Priority: admin > manager > sales_rep > viewer
+            const rolesList = userRoles?.map(r => r.role) || [];
+            if (rolesList.includes('admin')) {
+              fetchedRole = 'admin';
+            } else if (rolesList.includes('manager')) {
+              fetchedRole = 'manager';
+            } else if (rolesList.includes('sales_rep')) {
+              fetchedRole = 'sales_rep';
+            } else if (rolesList.includes('viewer')) {
+              fetchedRole = 'viewer';
+            }
+          }
+        }
+
         setRole(fetchedRole);
 
         // Fetch user permissions
@@ -113,8 +151,8 @@ export const useUserRole = (): UseUserRoleReturn => {
           });
         }
 
-        // Admins and super admins always have all permissions
-        if (fetchedRole === 'admin' || fetchedRole === 'super_admin') {
+        // Admins always have all permissions
+        if (fetchedRole === 'admin') {
           allPermissionKeys.forEach(key => {
             permissionsMap[key] = true;
           });

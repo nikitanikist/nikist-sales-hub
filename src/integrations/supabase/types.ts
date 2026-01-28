@@ -1677,6 +1677,7 @@ export type Database = {
           created_at: string | null
           id: string
           is_enabled: boolean | null
+          organization_id: string | null
           permission_key: string
           user_id: string
         }
@@ -1684,6 +1685,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_enabled?: boolean | null
+          organization_id?: string | null
           permission_key: string
           user_id: string
         }
@@ -1691,10 +1693,19 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_enabled?: boolean | null
+          organization_id?: string | null
           permission_key?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
