@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -22,6 +22,8 @@ import FuturesMentorship from "./pages/FuturesMentorship";
 import HighFuture from "./pages/HighFuture";
 import DailyMoneyFlow from "./pages/DailyMoneyFlow";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import CohortPage from "./pages/CohortPage";
+import ManageCohorts from "./pages/ManageCohorts";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
@@ -46,9 +48,13 @@ const App = () => (
               <Route path="/sales-closers" element={<SalesClosers />} />
               <Route path="/sales-closers/all-calls" element={<AllCloserCalls />} />
               <Route path="/sales-closers/:closerId/calls" element={<CloserAssignedCalls />} />
+              {/* Legacy routes - redirect to unified cohort pages */}
               <Route path="/batches" element={<Batches />} />
               <Route path="/futures-mentorship" element={<FuturesMentorship />} />
               <Route path="/high-future" element={<HighFuture />} />
+              {/* New unified cohort routes */}
+              <Route path="/cohorts/manage" element={<ManageCohorts />} />
+              <Route path="/cohorts/:cohortSlug" element={<CohortPage />} />
               <Route path="/daily-money-flow" element={<DailyMoneyFlow />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/sales" element={<Sales />} />
