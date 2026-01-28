@@ -25,7 +25,8 @@ export function OrganizationSwitcher() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  if (!currentOrganization) {
+  // Only show switcher for super admins or users with multiple organizations
+  if (!currentOrganization || (!isSuperAdmin && organizations.length <= 1)) {
     return null;
   }
 
