@@ -1,10 +1,11 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -12,6 +13,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { ROUTE_TO_PERMISSION, PermissionKey } from "@/lib/permissions";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { OrganizationProvider, useOrganization } from "@/hooks/useOrganization";
+import { supabase } from "@/integrations/supabase/client";
+
+// Icon mapping for dynamic cohort types
+const iconMap: Record<string, typeof LayoutDashboard> = {
+  Users: Users,
+  TrendingUp: TrendingUp,
+  Rocket: Rocket,
+  GraduationCap: GraduationCap,
+};
 
 // Menu item type with optional children for submenus
 interface MenuItem {
@@ -152,6 +162,24 @@ const AppLayoutContent = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Fetch dynamic cohort types for the current organization
+  const { data: cohortTypes = [] } = useQuery({
+    queryKey: ["cohort-types", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization) return [];
+      const { data, error } = await supabase
+        .from("cohort_types")
+        .select("*")
+        .eq("organization_id", currentOrganization.id)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization && !isSuperAdmin,
+  });
+
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth");
@@ -187,41 +215,50 @@ const AppLayoutContent = () => {
     }
   }, [roleLoading, loading, user, location.pathname, hasPermission, navigate, isSuperAdminRoute]);
 
-  if (loading || roleLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
+  // Build dynamic cohort children from database (must be before early returns)
+  const dynamicCohortChildren = useMemo(() => {
+    if (cohortTypes.length === 0) {
+      // Fallback to default cohorts if none configured
+      return [
+        { title: "Insider Crypto Club", path: "/batches", permissionKey: 'batch_icc' as PermissionKey },
+        { title: "Future Mentorship", path: "/futures-mentorship", permissionKey: 'batch_futures' as PermissionKey },
+        { title: "High Future", path: "/high-future", permissionKey: 'batch_high_future' as PermissionKey },
+      ];
+    }
+    
+    // Map slug to permission keys
+    const slugToPermission: Record<string, PermissionKey> = {
+      'batches': 'batch_icc',
+      'futures-mentorship': 'batch_futures',
+      'high-future': 'batch_high_future',
+    };
+    
+    return cohortTypes.map(cohort => ({
+      title: cohort.name,
+      path: cohort.route,
+      permissionKey: slugToPermission[cohort.slug] || ('batch_icc' as PermissionKey),
+    }));
+  }, [cohortTypes]);
 
   // All menu items with permission keys
-  const allMenuItems: MenuItem[] = [
-    { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true, permissionKey: 'dashboard' },
-    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow", permissionKey: 'daily_money_flow' },
-    { title: "Customers", icon: Users, path: "/leads", permissionKey: 'customers' },
-    { title: "Customer Insights", icon: ClipboardList, path: "/onboarding", permissionKey: 'customer_insights' },
-    { title: "1:1 Call Schedule", icon: Phone, path: "/calls", permissionKey: 'call_schedule' },
-    { title: "Sales Closers", icon: UserCog, path: "/sales-closers", permissionKey: 'sales_closers' },
+  const allMenuItems: MenuItem[] = useMemo(() => [
+    { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true, permissionKey: 'dashboard' as PermissionKey },
+    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow", permissionKey: 'daily_money_flow' as PermissionKey },
+    { title: "Customers", icon: Users, path: "/leads", permissionKey: 'customers' as PermissionKey },
+    { title: "Customer Insights", icon: ClipboardList, path: "/onboarding", permissionKey: 'customer_insights' as PermissionKey },
+    { title: "1:1 Call Schedule", icon: Phone, path: "/calls", permissionKey: 'call_schedule' as PermissionKey },
+    { title: "Sales Closers", icon: UserCog, path: "/sales-closers", permissionKey: 'sales_closers' as PermissionKey },
     { 
       title: "Cohort Batches", 
       icon: GraduationCap, 
-      children: [
-        { title: "Insider Crypto Club", path: "/batches", permissionKey: 'batch_icc' },
-        { title: "Future Mentorship", path: "/futures-mentorship", permissionKey: 'batch_futures' },
-        { title: "High Future", path: "/high-future", permissionKey: 'batch_high_future' },
-      ]
+      children: dynamicCohortChildren
     },
-    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true, permissionKey: 'workshops' },
-    { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true, permissionKey: 'sales' },
-    { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true, permissionKey: 'funnels' },
-    { title: "Products", icon: Package, path: "/products", isBeta: true, permissionKey: 'products' },
-    { title: "Users", icon: UsersRound, path: "/users", permissionKey: 'users' },
-  ];
+    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true, permissionKey: 'workshops' as PermissionKey },
+    { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true, permissionKey: 'sales' as PermissionKey },
+    { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true, permissionKey: 'funnels' as PermissionKey },
+    { title: "Products", icon: Package, path: "/products", isBeta: true, permissionKey: 'products' as PermissionKey },
+    { title: "Users", icon: UsersRound, path: "/users", permissionKey: 'users' as PermissionKey },
+  ], [dynamicCohortChildren]);
 
   // Filter menu items based on permissions
   const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
@@ -258,6 +295,19 @@ const AppLayoutContent = () => {
   const menuItems = isSuperAdmin 
     ? superAdminMenuItems 
     : filterMenuItems(allMenuItems);
+
+  // Early returns after all hooks
+  if (loading || roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   // Notification system removed - will be implemented with real backend when needed
 
