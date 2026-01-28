@@ -57,6 +57,8 @@ const AVAILABLE_FEATURES = [
   { key: "sales", label: "Sales" },
   { key: "funnels", label: "Active Funnels" },
   { key: "products", label: "Products" },
+  { key: "users", label: "Users" },
+  { key: "integrations", label: "Integrations" },
 ];
 
 const SuperAdminDashboard = () => {
