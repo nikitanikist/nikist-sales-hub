@@ -256,7 +256,7 @@ const AllCloserCalls = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
   // Read initial status filter from URL
   const initialStatus = searchParams.get("status") || "all";
   
@@ -285,16 +285,19 @@ const AllCloserCalls = () => {
 
   // Fetch active batches for dropdown
   const { data: batches } = useQuery({
-    queryKey: ["batches-dropdown"],
+    queryKey: ["batches-dropdown", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("batches")
         .select("id, name, start_date")
+        .eq("organization_id", currentOrganization.id)
         .eq("is_active", true)
         .order("start_date", { ascending: true });
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch all closers for filter dropdown
@@ -329,8 +332,10 @@ const AllCloserCalls = () => {
 
   // Fetch all appointments
   const { data: appointments, isLoading, refetch } = useQuery({
-    queryKey: ["all-closer-appointments"],
+    queryKey: ["all-closer-appointments", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("call_appointments")
         .select(`
@@ -355,7 +360,8 @@ const AllCloserCalls = () => {
           closer:profiles!call_appointments_closer_id_fkey(id, full_name),
           batch:batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
-        `);
+        `)
+        .eq("organization_id", currentOrganization.id);
 
       if (error) throw error;
 
@@ -385,6 +391,7 @@ const AllCloserCalls = () => {
 
       return appointmentsWithReminders as Appointment[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Filter and sort appointments
@@ -594,6 +601,21 @@ const AllCloserCalls = () => {
       default: return "All Assigned Calls";
     }
   };
+
+  // Organization loading/empty state
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={Phone}
+        title="No Organization Selected"
+        description="Please select an organization to view calls data."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
