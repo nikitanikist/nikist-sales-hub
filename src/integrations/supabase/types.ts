@@ -1926,6 +1926,7 @@ export type Database = {
           user_count: number
         }[]
       }
+      get_user_organization_ids: { Args: never; Returns: string[] }
       get_user_organizations: { Args: { _user_id: string }; Returns: string[] }
       get_workshop_calls_by_category: {
         Args: { p_category: string; p_workshop_title: string }
