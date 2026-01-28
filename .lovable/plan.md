@@ -8,11 +8,11 @@
 3. `src/pages/Products.tsx` - ✅ Complete
 4. `src/pages/Funnels.tsx` - ✅ Complete (syntax error fixed)
 5. `src/pages/DailyMoneyFlow.tsx` - ✅ Complete
+6. `src/pages/Leads.tsx` - ✅ Complete (all queries + mutations + loading states)
+7. `src/pages/Workshops.tsx` - ✅ Complete (all queries + mutations + loading states)
+8. `src/pages/Batches.tsx` - ✅ Complete (all queries + mutations + loading states)
 
 ### Files with Imports Added (Need Query Updates):
-6. `src/pages/Leads.tsx` - Imports added, needs query updates
-7. `src/pages/Workshops.tsx` - Imports added, needs query updates
-8. `src/pages/Batches.tsx` - Imports added, needs query updates
 9. `src/pages/FuturesMentorship.tsx` - Imports added, needs query updates
 10. `src/pages/HighFuture.tsx` - Imports added, needs query updates
 11. `src/pages/AllCloserCalls.tsx` - Imports added, needs query updates

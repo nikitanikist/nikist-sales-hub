@@ -101,6 +101,7 @@ const Batches = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin, isManager, isCloser, profileId } = useUserRole();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
@@ -168,11 +169,13 @@ const Batches = () => {
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
-    queryKey: ["batches"],
+    queryKey: ["batches", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data: batchesData, error } = await supabase
         .from("batches")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("start_date", { ascending: false });
       
       if (error) throw error;
@@ -191,6 +194,7 @@ const Batches = () => {
       
       return batchesWithCounts as Batch[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch students for selected batch (with closer info)
@@ -591,7 +595,11 @@ const Batches = () => {
   // Create batch mutation
   const createMutation = useMutation({
     mutationFn: async (data: { name: string; start_date: string; is_active: boolean }) => {
-      const { error } = await supabase.from("batches").insert(data);
+      if (!currentOrganization) throw new Error("No organization selected");
+      const { error } = await supabase.from("batches").insert({
+        ...data,
+        organization_id: currentOrganization.id,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -946,6 +954,21 @@ const Batches = () => {
     setStudentListData(students);
     setShowStudentListDialog(true);
   };
+
+  // Organization loading and empty states
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={GraduationCap}
+        title="No Organization Selected"
+        description="Please select an organization to view batches."
+      />
+    );
+  }
 
   // Batch detail view
   if (selectedBatch) {
