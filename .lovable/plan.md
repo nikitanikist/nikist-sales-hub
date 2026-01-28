@@ -1,170 +1,270 @@
 
-# Create New Client User for Organization
+# Multi-Tenant Data Isolation - Critical Fix
 
-## Problem Identified
+## Problem Summary
+When a client admin (e.g., `test@nikist.in` from "Test org") logs in, they see Nikist's data instead of their own organization's data. This is a **critical multi-tenancy isolation failure**.
 
-The current "Add Member" dialog has a fundamental design flaw:
+## Root Cause Analysis
 
-1. **Shows users from ALL organizations** - When you click "Add Member", it fetches all profiles from the database (including Nikist users) and filters only those already in the current org
-2. **No way to create NEW users** - A new client doesn't exist in the system yet, so they can't be selected from a dropdown
-3. **Wrong for client onboarding** - The Super Admin needs to CREATE the client's account, not select from existing users
+**Current State:**
+- Every data table (leads, workshops, sales, etc.) has an `organization_id` column
+- RLS policies only check user **role** (admin, sales_rep, etc.)
+- Frontend queries don't filter by organization
+- Result: Any authenticated user can see ALL data from ALL organizations
 
-## Solution
-
-Redesign the "Add Member" dialog to support **creating a brand new user** specifically for the organization:
-
-### New Workflow
-1. Super Admin clicks "Add Member" on a new organization
-2. Dialog shows form fields to CREATE a new user:
-   - Full Name
-   - Email
-   - Phone Number
-   - Password (Super Admin sets this)
-3. Role defaults to "Admin" for the first member
-4. The "Org Admin" toggle is automatically ON for the first member
-5. On submit:
-   - Call the `manage-users` edge function to create the auth user + profile
-   - Insert into `organization_members` linking them to the organization
-   - The new client can now log in and manage their own team
+**Example - Current `leads` RLS:**
+```sql
+-- CURRENT (INSECURE)
+Policy: "Users can view all leads"
+USING: (auth.uid() IS NOT NULL)  -- Anyone logged in sees everything!
+```
 
 ---
 
-## Implementation
+## Solution Overview
 
-### 1. Update State Variables in SuperAdminDashboard.tsx
+### Phase 1: Database RLS Policies (Security Layer)
 
-Replace the "select existing user" state with "create new user" state:
+Create a helper function and update RLS policies for ALL data tables to enforce organization isolation.
+
+**1. Create Helper Function:**
+```sql
+CREATE OR REPLACE FUNCTION public.get_user_organization_ids()
+RETURNS uuid[]
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    ARRAY_AGG(organization_id),
+    '{}'::uuid[]
+  )
+  FROM organization_members
+  WHERE user_id = auth.uid()
+$$;
+```
+
+**2. Update RLS Policies (Example for `leads` table):**
+```sql
+-- DROP existing permissive policy
+DROP POLICY IF EXISTS "Users can view all leads" ON leads;
+
+-- CREATE organization-scoped policy
+CREATE POLICY "Users can view leads in their organization"
+ON leads FOR SELECT
+USING (
+  organization_id = ANY(get_user_organization_ids())
+  OR is_super_admin(auth.uid())
+);
+
+-- UPDATE write policies to enforce organization
+DROP POLICY IF EXISTS "Sales reps and admins can create leads" ON leads;
+CREATE POLICY "Users can create leads in their organization"
+ON leads FOR INSERT
+WITH CHECK (
+  organization_id = ANY(get_user_organization_ids())
+  OR is_super_admin(auth.uid())
+);
+```
+
+**Tables Requiring RLS Updates:**
+| Table | Organization Column |
+|-------|-------------------|
+| leads | organization_id |
+| lead_assignments | organization_id |
+| workshops | organization_id |
+| products | organization_id |
+| funnels | organization_id |
+| sales | organization_id |
+| call_appointments | organization_id |
+| batches | organization_id |
+| daily_money_flow | organization_id |
+| emi_payments | organization_id |
+| futures_mentorship_batches | organization_id |
+| futures_mentorship_students | organization_id |
+| high_future_batches | organization_id |
+| high_future_students | organization_id |
+| And more... |
+
+### Phase 2: Frontend Query Updates (Application Layer)
+
+Even with RLS, we should explicitly filter by organization for clarity and performance.
+
+**1. Update `useOrganization` hook to expose organization ID:**
+Already done - `currentOrganization.id` is available.
+
+**2. Update all data queries to filter by organization:**
+
+Example for Dashboard.tsx:
+```typescript
+// BEFORE (shows all data)
+const { data } = await supabase.from("leads").select("*", { count: "exact" });
+
+// AFTER (shows only current org's data)
+const { currentOrganization } = useOrganization();
+const { data } = await supabase
+  .from("leads")
+  .select("*", { count: "exact" })
+  .eq("organization_id", currentOrganization?.id);
+```
+
+**Files Requiring Query Updates:**
+| File | Tables Queried |
+|------|---------------|
+| src/pages/Dashboard.tsx | leads, workshops, sales |
+| src/pages/Leads.tsx | leads, lead_assignments, workshops, products, funnels |
+| src/pages/Workshops.tsx | workshops |
+| src/pages/Calls.tsx | call_appointments |
+| src/pages/Batches.tsx | batches |
+| src/pages/Sales.tsx | sales |
+| src/pages/DailyMoneyFlow.tsx | daily_money_flow |
+| src/pages/FuturesMentorship.tsx | futures_mentorship_batches, futures_mentorship_students |
+| src/pages/HighFuture.tsx | high_future_batches, high_future_students |
+| src/pages/Users.tsx | profiles, user_roles |
+| + many more components... |
+
+### Phase 3: Insert Operations - Set Organization ID
+
+When creating new records, automatically set `organization_id` to current organization.
 
 ```typescript
-// Remove these:
-const [availableUsers, setAvailableUsers] = useState<...>([]);
-const [selectedUserId, setSelectedUserId] = useState("");
+// Example: Creating a new lead
+const { currentOrganization } = useOrganization();
 
-// Add these:
-const [newUserName, setNewUserName] = useState("");
-const [newUserEmail, setNewUserEmail] = useState("");
-const [newUserPhone, setNewUserPhone] = useState("");
-const [newUserPassword, setNewUserPassword] = useState("");
+await supabase.from("leads").insert({
+  ...leadData,
+  organization_id: currentOrganization?.id,
+});
 ```
 
-### 2. Update the addMemberToOrg Function
+---
 
-New logic to:
-1. Call `manage-users` edge function with `action: 'create'` to create the user
-2. Insert into `organization_members` with the returned `user_id`
+## Implementation Priority
 
-```typescript
-const addMemberToOrg = async () => {
-  if (!selectedOrg || !newUserName || !newUserEmail || !newUserPassword) {
-    toast.error("Please fill in all required fields");
-    return;
-  }
+### High Priority (Security Critical)
+1. Create `get_user_organization_ids()` helper function
+2. Update RLS policies for all data tables
+3. Update main page queries (Dashboard, Leads, Workshops, Calls)
 
-  setAddingMember(true);
-  try {
-    // Step 1: Create the user via edge function
-    const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
-      body: {
-        action: 'create',
-        email: newUserEmail,
-        full_name: newUserName,
-        phone: newUserPhone,
-        password: newUserPassword,
-        role: newMemberRole, // admin by default for first member
-      }
-    });
+### Medium Priority
+4. Update remaining page queries
+5. Update insert operations to set organization_id
+6. Update edge functions for organization context
 
-    if (fnError) throw fnError;
-    if (data.error) throw new Error(data.error);
-
-    // Step 2: Add to organization_members
-    const { error: memberError } = await supabase
-      .from("organization_members")
-      .insert({
-        organization_id: selectedOrg.id,
-        user_id: data.user_id,
-        role: newMemberRole,
-        is_org_admin: true, // First member is always org admin
-      });
-
-    if (memberError) throw memberError;
-
-    toast.success("Client admin created successfully");
-    // Reset form and refresh
-    ...
-  } catch (error) {
-    ...
-  }
-};
-```
-
-### 3. Redesign the Dialog UI
-
-Replace the "Select User" dropdown with input fields:
-
-```
-+------------------------------------------+
-|    Add Member to Test Organization        |
-+------------------------------------------+
-|  Create a new user account for this org   |
-+------------------------------------------+
-|                                          |
-|  Full Name *                             |
-|  [____________________________]          |
-|                                          |
-|  Email *                                 |
-|  [____________________________]          |
-|                                          |
-|  Phone Number                            |
-|  [____________________________]          |
-|                                          |
-|  Password *                              |
-|  [____________________________]          |
-|                                          |
-|  Role                                    |
-|  [ Admin ▼ ]                             |
-|                                          |
-|  [x] Make Organization Admin             |
-|                                          |
-+------------------------------------------+
-|           [Cancel]  [Create User]        |
-+------------------------------------------+
-```
-
-### 4. Smart Defaults for First Member
-
-When the organization has 0 members:
-- Default role to "Admin"
-- Default "Org Admin" toggle to ON
-- Show helper text: "This will be the primary admin for this organization"
+### Lower Priority
+7. Add organization context to realtime subscriptions
+8. Update database functions (like `get_workshop_metrics`)
 
 ---
 
 ## Technical Details
 
-### Files to Modify
-| File | Changes |
-|------|---------|
-| `src/pages/SuperAdminDashboard.tsx` | Replace "select user" flow with "create user" form |
+### Migration SQL (Partial - First 5 Tables)
 
-### No Edge Function Changes Needed
-The existing `manage-users` edge function already supports `action: 'create'` with all required fields (email, full_name, phone, password, role).
+```sql
+-- Helper function
+CREATE OR REPLACE FUNCTION public.get_user_organization_ids()
+RETURNS uuid[]
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    ARRAY_AGG(organization_id),
+    '{}'::uuid[]
+  )
+  FROM organization_members
+  WHERE user_id = auth.uid()
+$$;
 
-### Security Consideration
-Only Super Admins can access this page (protected by `isSuperAdmin` check), so only they can create new client accounts.
+-- LEADS table
+DROP POLICY IF EXISTS "Users can view all leads" ON leads;
+CREATE POLICY "Users can view leads in their organization"
+ON leads FOR SELECT
+USING (
+  organization_id = ANY(get_user_organization_ids())
+  OR is_super_admin(auth.uid())
+);
+
+DROP POLICY IF EXISTS "Sales reps and admins can create leads" ON leads;
+CREATE POLICY "Users can create leads in their organization"
+ON leads FOR INSERT
+WITH CHECK (
+  (organization_id = ANY(get_user_organization_ids()) 
+   AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'sales_rep')))
+  OR is_super_admin(auth.uid())
+  OR auth.uid() IS NULL  -- Allow webhook inserts
+);
+
+DROP POLICY IF EXISTS "Sales reps and admins can update leads" ON leads;
+CREATE POLICY "Users can update leads in their organization"
+ON leads FOR UPDATE
+USING (
+  (organization_id = ANY(get_user_organization_ids()) 
+   AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'sales_rep')))
+  OR is_super_admin(auth.uid())
+);
+
+DROP POLICY IF EXISTS "Only admins can delete leads" ON leads;
+CREATE POLICY "Admins can delete leads in their organization"
+ON leads FOR DELETE
+USING (
+  (organization_id = ANY(get_user_organization_ids()) 
+   AND has_role(auth.uid(), 'admin'))
+  OR is_super_admin(auth.uid())
+);
+
+-- Similar patterns for workshops, sales, call_appointments, etc.
+```
+
+### Frontend Changes Pattern
+
+```typescript
+// Create a custom hook for organization-scoped queries
+function useOrgQuery<T>(
+  queryKey: string[],
+  tableName: string,
+  selectQuery: string = "*"
+) {
+  const { currentOrganization } = useOrganization();
+  
+  return useQuery({
+    queryKey: [...queryKey, currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization) return null;
+      
+      const { data, error } = await supabase
+        .from(tableName)
+        .select(selectQuery)
+        .eq("organization_id", currentOrganization.id);
+        
+      if (error) throw error;
+      return data as T;
+    },
+    enabled: !!currentOrganization,
+  });
+}
+```
 
 ---
 
 ## Expected Result
 
-1. Super Admin creates organization "Test Organization"
-2. Clicks "Add Member"
-3. Enters client details: Name, Email, Phone, Password
-4. Role defaults to "Admin", Org Admin is ON
-5. Clicks "Create User"
-6. System creates:
-   - Auth user in Supabase
-   - Profile record
-   - User role record (admin)
-   - Organization member record (linked to Test Organization)
-7. Client can now log in with their email/password and manage their organization
+After implementation:
+1. `test@nikist.in` logs in and sees only "Test org" data
+2. Nikist users see only Nikist data
+3. Super Admin can see all organizations (with switcher)
+4. Data isolation is enforced at both RLS and application level
+5. New records automatically get correct organization_id
+
+---
+
+## Risk Considerations
+
+1. **Existing Data**: All existing data has `organization_id = 00000000-0000-0000-0000-000000000001` (Nikist). New orgs start empty.
+
+2. **Edge Functions**: Need to pass organization context to edge functions for proper filtering.
+
+3. **Webhooks**: External webhooks (Calendly, TagMango) need to determine organization from context.
+
+4. **Migration Complexity**: This is a large change affecting 15+ tables and 20+ pages.
