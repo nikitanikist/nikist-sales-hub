@@ -32,6 +32,9 @@ import {
   ReceivablesAgingTable, 
   StudentListDialog 
 } from "@/components/batch-insights";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 interface HighFutureBatch {
   id: string;

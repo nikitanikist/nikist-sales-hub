@@ -1,61 +1,45 @@
+# Multi-Tenant Architecture Fix - Phase 1 Progress
 
+## Completed ✅
 
-# Fix Syntax Error in Funnels.tsx
+### Files Fully Fixed with Organization Filtering:
+1. `src/pages/Dashboard.tsx` - ✅ Complete
+2. `src/pages/Sales.tsx` - ✅ Complete  
+3. `src/pages/Products.tsx` - ✅ Complete
+4. `src/pages/Funnels.tsx` - ✅ Complete (syntax error fixed)
+5. `src/pages/DailyMoneyFlow.tsx` - ✅ Complete
 
-## Problem Identified
+### Files with Imports Added (Need Query Updates):
+6. `src/pages/Leads.tsx` - Imports added, needs query updates
+7. `src/pages/Workshops.tsx` - Imports added, needs query updates
+8. `src/pages/Batches.tsx` - Imports added, needs query updates
+9. `src/pages/FuturesMentorship.tsx` - Imports added, needs query updates
+10. `src/pages/HighFuture.tsx` - Imports added, needs query updates
+11. `src/pages/AllCloserCalls.tsx` - Imports added, needs query updates
+12. `src/pages/CloserAssignedCalls.tsx` - Imports added, needs query updates
 
-The build is failing due to a syntax error at line 244 in `src/pages/Funnels.tsx`. The error is "Unexpected `}`".
+## Remaining Work
 
-## Root Cause
-
-During the previous code edit, orphaned code was accidentally left in the file. Specifically, lines 241-244 contain a fragment that doesn't belong:
-
+### For Each Remaining File:
+1. Add `const { currentOrganization, isLoading: orgLoading } = useOrganization();` after other hooks
+2. Update all `useQuery` with:
+   - Add `currentOrganization?.id` to `queryKey`
+   - Add `.eq("organization_id", currentOrganization.id)` to queries
+   - Add `enabled: !!currentOrganization`
+3. Update all `useMutation` to include `organization_id: currentOrganization.id` on inserts
+4. Add early returns AFTER all hooks, BEFORE the JSX return:
 ```typescript
-// Lines 241-244 - ORPHANED CODE (needs to be removed)
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
+if (orgLoading) return <OrganizationLoadingState />;
+if (!currentOrganization) return <EmptyState icon={...} title="No Organization Selected" description="..." />;
 ```
 
-This fragment appears to be a duplicate from a mutation definition that was already properly closed at line 139 (the `createMutation`'s `onError` handler).
+## Phase 2: Dynamic Cohort Menu (Pending)
+- Create `cohort_types` table
+- Update `AppLayout.tsx` for dynamic menu
 
-## Current Structure (Broken)
+## Phase 3: Empty States (Partially Done)
+- `EmptyState` component created ✅
+- `OrganizationLoadingState` component created ✅
 
-```text
-Line 225-229: orgLoading check
-Line 231-240: !currentOrganization check with EmptyState return
-Line 241-244: ORPHANED CODE ← This breaks the syntax
-Line 246+: filteredFunnels and rest of component
-```
-
-## Fix Required
-
-Remove lines 241-244 entirely. The file structure will then be:
-
-```text
-Line 225-229: orgLoading check
-Line 231-240: !currentOrganization check with EmptyState return
-Line 242+: filteredFunnels and rest of component (renumbered)
-```
-
-## Technical Details
-
-### File: `src/pages/Funnels.tsx`
-
-**Delete lines 241-244:**
-```typescript
-    onError: (error: Error) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    },
-  });
-```
-
-This will fix the syntax error and allow the build to succeed.
-
-## Impact
-
-- Fixes the build error immediately
-- No functionality is lost (this was duplicate/orphaned code)
-- The mutations are already properly defined with their onError handlers earlier in the file
-
+## Phase 4: Database Functions (Pending)
+- Update RPC functions to accept organization_id parameter

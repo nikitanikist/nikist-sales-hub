@@ -17,6 +17,9 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { format } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 type CallCategory = 
   | "converted" 
