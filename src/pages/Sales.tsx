@@ -13,38 +13,50 @@ import { Plus, Pencil, Trash2, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 const Sales = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [editingSale, setEditingSale] = useState<any>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
 
   const { data: sales, isLoading } = useQuery({
-    queryKey: ["sales"],
+    queryKey: ["sales", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("sales")
         .select("*, lead:leads(company_name), sales_rep:profiles(full_name)")
+        .eq("organization_id", currentOrganization.id)
         .order("closed_date", { ascending: false });
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const { data: leads } = useQuery({
-    queryKey: ["won-leads"],
+    queryKey: ["won-leads", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("leads")
         .select("id, company_name")
+        .eq("organization_id", currentOrganization.id)
         .eq("status", "won")
         .order("company_name");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const createMutation = useMutation({
@@ -56,7 +68,7 @@ const Sales = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales", currentOrganization?.id] });
       toast.success("Sale recorded successfully");
       setIsOpen(false);
     },
@@ -71,7 +83,7 @@ const Sales = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales", currentOrganization?.id] });
       toast.success("Sale updated successfully");
       setIsOpen(false);
       setEditingSale(null);
@@ -87,7 +99,7 @@ const Sales = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["sales", currentOrganization?.id] });
       toast.success("Sale deleted successfully");
     },
     onError: (error: any) => {
@@ -113,6 +125,22 @@ const Sales = () => {
   };
 
   const totalRevenue = sales?.reduce((sum, sale) => sum + Number(sale.amount), 0) || 0;
+
+  // Show loading state while organization is loading
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  // Wait for organization to be available
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={DollarSign}
+        title="No Organization Selected"
+        description="Please select an organization to view sales."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">

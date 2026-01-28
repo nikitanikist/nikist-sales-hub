@@ -13,6 +13,9 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, RefreshCw, Pencil, Trash2, Package } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useOrganization } from "@/hooks/useOrganization";
+import OrganizationLoadingState from "@/components/OrganizationLoadingState";
+import EmptyState from "@/components/EmptyState";
 
 interface Product {
   id: string;
@@ -36,6 +39,7 @@ interface Funnel {
 
 const Products = () => {
   const queryClient = useQueryClient();
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -52,47 +56,59 @@ const Products = () => {
 
   // Fetch products with funnel details
   const { data: products = [], isLoading, refetch } = useQuery({
-    queryKey: ["products"],
+    queryKey: ["products", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await (supabase as any)
         .from("products")
         .select(`
           *,
           funnel:funnels!products_funnel_id_fkey(funnel_name)
         `)
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as Product[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch funnels for dropdown
   const { data: funnels = [] } = useQuery({
-    queryKey: ["funnels"],
+    queryKey: ["funnels", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await (supabase as any)
         .from("funnels")
         .select("id, funnel_name")
+        .eq("organization_id", currentOrganization.id)
         .order("funnel_name");
 
       if (error) throw error;
       return data as Funnel[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch workshops for linking
   const { data: workshops = [] } = useQuery({
-    queryKey: ["workshops"],
+    queryKey: ["workshops", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await (supabase as any)
         .from("workshops")
         .select("id, title")
+        .eq("organization_id", currentOrganization.id)
         .order("title");
 
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch user counts per product using database aggregation
@@ -108,17 +124,19 @@ const Products = () => {
   // Create product mutation
   const createMutation = useMutation({
     mutationFn: async (newProduct: typeof formData) => {
+      if (!currentOrganization) throw new Error("No organization selected");
+      
       const { data: { user } } = await supabase.auth.getUser();
       const { data, error } = await (supabase as any)
         .from("products")
-        .insert([{ ...newProduct, created_by: user?.id }])
+        .insert([{ ...newProduct, created_by: user?.id, organization_id: currentOrganization.id }])
         .select();
 
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products", currentOrganization?.id] });
       toast({ title: "Success", description: "Product created successfully" });
       setIsDialogOpen(false);
       resetForm();
@@ -145,7 +163,7 @@ const Products = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products", currentOrganization?.id] });
       toast({ title: "Success", description: "Product updated successfully" });
       setIsDialogOpen(false);
       setEditingProduct(null);
@@ -171,7 +189,7 @@ const Products = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["products", currentOrganization?.id] });
       toast({ title: "Success", description: "Product deleted successfully" });
     },
     onError: (error: any) => {
@@ -196,6 +214,8 @@ const Products = () => {
 
   // Real-time updates
   useEffect(() => {
+    if (!currentOrganization) return;
+    
     const channel = supabase
       .channel('products-realtime')
       .on(
@@ -207,7 +227,7 @@ const Products = () => {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["product-user-counts"] });
-          queryClient.invalidateQueries({ queryKey: ["products"] });
+          queryClient.invalidateQueries({ queryKey: ["products", currentOrganization.id] });
         }
       )
       .subscribe();
@@ -215,7 +235,23 @@ const Products = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, currentOrganization]);
+
+  // Show loading state while organization is loading
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  // Wait for organization to be available
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={Package}
+        title="No Organization Selected"
+        description="Please select an organization to view products."
+      />
+    );
+  }
 
   const resetForm = () => {
     setFormData({
