@@ -355,7 +355,7 @@ const CloserAssignedCalls = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
   // Read initial status filter from URL
   const initialStatus = searchParams.get("status") || "all";
   
@@ -383,16 +383,19 @@ const CloserAssignedCalls = () => {
 
   // Fetch active batches for dropdown
   const { data: batches } = useQuery({
-    queryKey: ["batches-dropdown"],
+    queryKey: ["batches-dropdown", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
       const { data, error } = await supabase
         .from("batches")
         .select("id, name, start_date")
+        .eq("organization_id", currentOrganization.id)
         .eq("is_active", true)
         .order("start_date", { ascending: true });
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization,
   });
 
   const { isAdmin, isManager } = useUserRole();
@@ -419,8 +422,10 @@ const CloserAssignedCalls = () => {
 
   // Fetch appointments
   const { data: appointments, isLoading, refetch } = useQuery({
-    queryKey: ["closer-appointments", closerId],
+    queryKey: ["closer-appointments", closerId, currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data, error } = await supabase
         .from("call_appointments")
         .select(`
@@ -445,7 +450,8 @@ const CloserAssignedCalls = () => {
           batch:batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
-        .eq("closer_id", closerId!);
+        .eq("closer_id", closerId!)
+        .eq("organization_id", currentOrganization.id);
 
       if (error) throw error;
 
@@ -476,7 +482,7 @@ const CloserAssignedCalls = () => {
 
       return appointmentsWithReminders as Appointment[];
     },
-    enabled: !!closerId,
+    enabled: !!closerId && !!currentOrganization,
   });
 
   // Filter and sort appointments
@@ -781,6 +787,21 @@ const CloserAssignedCalls = () => {
         return <Clock className="h-4 w-4 text-blue-600" />;
     }
   };
+
+  // Organization loading/empty state
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={Phone}
+        title="No Organization Selected"
+        description="Please select an organization to view calls data."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">

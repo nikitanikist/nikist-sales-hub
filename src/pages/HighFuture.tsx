@@ -85,7 +85,7 @@ const HighFuture = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin, isManager } = useUserRole();
-  
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<HighFutureBatch | null>(null);
   const [deletingBatch, setDeletingBatch] = useState<HighFutureBatch | null>(null);
@@ -140,11 +140,14 @@ const HighFuture = () => {
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
-    queryKey: ["high-future-batches"],
+    queryKey: ["high-future-batches", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data: batchesData, error } = await supabase
         .from("high_future_batches")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -163,6 +166,7 @@ const HighFuture = () => {
       
       return batchesWithCounts as HighFutureBatch[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch students for selected batch with closer info
@@ -650,6 +654,21 @@ const HighFuture = () => {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
+  // Organization loading/empty state
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={Zap}
+        title="No Organization Selected"
+        description="Please select an organization to view High Future data."
+      />
+    );
+  }
 
   // Batch List View
   if (!selectedBatch) {

@@ -85,7 +85,7 @@ const FuturesMentorship = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin, isManager } = useUserRole();
-  
+  const { currentOrganization, isLoading: orgLoading } = useOrganization();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<FuturesBatch | null>(null);
   const [deletingBatch, setDeletingBatch] = useState<FuturesBatch | null>(null);
@@ -140,11 +140,14 @@ const FuturesMentorship = () => {
 
   // Fetch batches with student counts
   const { data: batches, isLoading: batchesLoading } = useQuery({
-    queryKey: ["futures-batches"],
+    queryKey: ["futures-batches", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return [];
+      
       const { data: batchesData, error } = await supabase
         .from("futures_mentorship_batches")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -163,6 +166,7 @@ const FuturesMentorship = () => {
       
       return batchesWithCounts as FuturesBatch[];
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch students for selected batch with closer info
@@ -646,6 +650,21 @@ const FuturesMentorship = () => {
         return <Badge variant="outline">{status}</Badge>;
     }
   };
+
+  // Organization loading/empty state
+  if (orgLoading) {
+    return <OrganizationLoadingState />;
+  }
+
+  if (!currentOrganization) {
+    return (
+      <EmptyState
+        icon={TrendingUp}
+        title="No Organization Selected"
+        description="Please select an organization to view futures mentorship data."
+      />
+    );
+  }
 
   // Batch List View
   if (!selectedBatch) {
