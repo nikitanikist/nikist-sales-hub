@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { getCountryInfo } from "@/lib/countryUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -1645,9 +1646,9 @@ const Leads = () => {
                     ) : (
                       <div className="col-span-2 py-4 text-center text-muted-foreground">
                         <p className="text-sm">No workshops created yet</p>
-                        <a href="/workshops" className="text-sm text-primary hover:underline mt-1 inline-block">
+                        <Link to="/workshops" onClick={() => setIsOpen(false)} className="text-sm text-primary hover:underline mt-1 inline-block">
                           Go to Workshops to create one →
-                        </a>
+                        </Link>
                       </div>
                     )}
                   </div>
@@ -1694,9 +1695,9 @@ const Leads = () => {
                       <div className="py-4 text-center text-muted-foreground">
                         <p className="text-sm">No products created yet</p>
                         <p className="text-xs mt-1">Create a funnel first, then add products.</p>
-                        <a href="/funnels" className="text-sm text-primary hover:underline mt-1 inline-block">
+                        <Link to="/funnels" onClick={() => setIsOpen(false)} className="text-sm text-primary hover:underline mt-1 inline-block">
                           Go to Funnels to get started →
-                        </a>
+                        </Link>
                       </div>
                     )}
                   </div>
