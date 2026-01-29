@@ -29,6 +29,7 @@ import {
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { PageIntro } from "@/components/PageIntro";
 import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 interface MoneyFlowEntry {
@@ -465,6 +466,13 @@ const DailyMoneyFlow = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <PageIntro
+        icon={IndianRupee}
+        tagline="Track Your Revenue"
+        description="Monitor daily cash collections and revenue trends."
+        variant="emerald"
+      />
+
       {/* Action Buttons */}
       <div className="flex gap-2 justify-end">
         <Button variant="outline" size="sm" className="sm:size-default h-10" onClick={() => setIsImportDialogOpen(true)}>

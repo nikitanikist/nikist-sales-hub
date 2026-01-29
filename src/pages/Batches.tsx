@@ -37,6 +37,7 @@ import {
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { PageIntro } from "@/components/PageIntro";
 
 interface Batch {
   id: string;
@@ -2417,6 +2418,13 @@ const Batches = () => {
   // Batches list view
   return (
     <div className="space-y-4 sm:space-y-6">
+      <PageIntro
+        icon={GraduationCap}
+        tagline="Batch Overview"
+        description="Track student progress and EMI collections."
+        variant="violet"
+      />
+
       {!isManager && !isCloser && (
         <div className="flex justify-end">
           <Dialog open={isCreateOpen || !!editingBatch} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>

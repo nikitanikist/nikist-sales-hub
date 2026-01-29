@@ -17,6 +17,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
+import { PageIntro } from "@/components/PageIntro";
 
 const Sales = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -145,6 +146,13 @@ const Sales = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
+      <PageIntro
+        icon={DollarSign}
+        tagline="Revenue Tracker"
+        description="Monitor sales transactions and performance."
+        variant="emerald"
+      />
+
       <div className="flex justify-end">
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>

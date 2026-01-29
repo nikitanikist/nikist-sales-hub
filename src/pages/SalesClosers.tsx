@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { Search, RefreshCw, Filter, Plus, Users, CheckCircle, XCircle, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PageIntro } from "@/components/PageIntro";
 
 interface CloserMetrics {
   id: string;
@@ -196,6 +197,13 @@ const SalesClosers = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <PageIntro
+        icon={Users}
+        tagline="Your Sales Team"
+        description="Monitor performance and manage your closers."
+        variant="violet"
+      />
+
       {/* Only show Add Closer button for admins */}
       {isAdmin && (
         <div className="flex justify-end">

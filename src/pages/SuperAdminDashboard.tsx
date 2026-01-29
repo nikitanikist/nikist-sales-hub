@@ -16,6 +16,7 @@ import { Building2, Users, Settings, Plus, Edit, Trash2, Shield, Check, X } from
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { StatsCardsSkeleton, TableSkeleton } from "@/components/skeletons";
+import { PageIntro } from "@/components/PageIntro";
 
 const ROLE_OPTIONS = [
   { value: "viewer", label: "Viewer" },
@@ -434,6 +435,13 @@ const SuperAdminDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <PageIntro
+        icon={Shield}
+        tagline="System Overview"
+        description="Monitor all organizations and platform health."
+        variant="rose"
+      />
+
       {/* Action Buttons */}
       <div className="flex justify-end">
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
