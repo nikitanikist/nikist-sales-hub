@@ -369,8 +369,8 @@ const AppLayoutContent = () => {
           isSuperAdmin={isSuperAdmin}
           organizationName={currentOrganization?.name}
         />
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="sticky top-0 shrink-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
+        <main className="flex-1 overflow-auto">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
             <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3">
               {/* Left Section: Toggle + Heading */}
               <div className="flex items-center gap-2 sm:gap-3">
@@ -415,10 +415,8 @@ const AppLayoutContent = () => {
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-auto">
-            <div className="p-4 sm:p-6">
-              <Outlet />
-            </div>
+          <div className="p-4 sm:p-6">
+            <Outlet />
           </div>
         </main>
       </div>
