@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarIcon, Phone, Mail, User, Video, ExternalLink, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -158,7 +158,15 @@ export const ScheduleCallDialog = ({
       setSelectedTime("");
     },
     onError: (error: any) => {
-      toast.error("Failed to schedule call: " + error.message);
+      const message = error.message || "An unexpected error occurred";
+      const userFriendlyMessage = message.includes("network") 
+        ? "Network error. Please check your connection and try again."
+        : message.includes("timeout")
+        ? "Request timed out. Please try again."
+        : message.includes("unauthorized") || message.includes("401")
+        ? "You're not authorized to perform this action. Please log in again."
+        : `Failed to schedule call: ${message}`;
+      toast.error(userFriendlyMessage);
     },
   });
 
@@ -172,6 +180,9 @@ export const ScheduleCallDialog = ({
       <DialogContent className="max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Schedule Call</DialogTitle>
+          <DialogDescription>
+            Schedule a call with {lead?.contact_name} assigned to {closer?.full_name}.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">

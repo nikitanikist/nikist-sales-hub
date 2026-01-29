@@ -22,27 +22,41 @@ export function useOrgClosers() {
       if (!currentOrganization?.id) return [];
 
       // Query organization_members to get users in this org with sales_rep or admin roles
-      const { data, error } = await supabase
+      // Use separate queries to avoid FK relationship issues
+      const { data: members, error: membersError } = await supabase
         .from("organization_members")
-        .select(`
-          user_id,
-          role,
-          profiles!inner(id, full_name, email)
-        `)
+        .select("user_id, role")
         .eq("organization_id", currentOrganization.id)
         .in("role", ["sales_rep", "admin"]);
 
-      if (error) {
-        console.error("Error fetching org closers:", error);
-        throw error;
+      if (membersError) {
+        console.error("Error fetching org members:", membersError);
+        throw membersError;
       }
 
+      if (!members || members.length === 0) return [];
+
+      // Fetch profiles for these users
+      const userIds = members.map((m) => m.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", userIds);
+
+      if (profilesError) {
+        console.error("Error fetching profiles:", profilesError);
+        throw profilesError;
+      }
+
+      // Create a map of user_id to role
+      const roleMap = new Map(members.map((m) => [m.user_id, m.role]));
+
       // Transform to a cleaner format
-      return (data || []).map((member: any) => ({
-        id: member.profiles.id,
-        full_name: member.profiles.full_name,
-        email: member.profiles.email,
-        role: member.role,
+      return (profiles || []).map((profile) => ({
+        id: profile.id,
+        full_name: profile.full_name,
+        email: profile.email,
+        role: roleMap.get(profile.id) || "viewer",
       }));
     },
     enabled: !!currentOrganization?.id,

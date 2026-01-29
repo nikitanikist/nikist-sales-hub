@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Search, Loader2, Check } from "lucide-react";
+import { Calendar, Search, Loader2, Check, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -312,10 +312,37 @@ export function AddBatchStudentDialog({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 />
-                <Button onClick={handleSearch} disabled={isSearching}>
-                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button onClick={handleSearch} disabled={isSearching} className="h-10">
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      <span className="hidden sm:inline">Searching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-4 w-4" />
+                      <span className="hidden sm:inline ml-1">Search</span>
+                    </>
+                  )}
                 </Button>
               </div>
+              
+              {/* Search Results */}
+              {searchQuery.trim() && !isSearching && searchResults.length === 0 && (
+                <div className="py-6 text-center border rounded-md bg-muted/30">
+                  <p className="text-muted-foreground">No customers found for "{searchQuery}"</p>
+                  <p className="text-sm text-muted-foreground mt-1">Try a different email or phone, or add a new customer.</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={() => setActiveTab("new")}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add New Customer
+                  </Button>
+                </div>
+              )}
               
               {searchResults.length > 0 && (
                 <div className="border rounded-md max-h-48 overflow-y-auto">
@@ -350,7 +377,7 @@ export function AddBatchStudentDialog({
             <TabsContent value="new" className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Customer Name *</Label>
+                  <Label>Customer Name <span className="text-destructive">*</span></Label>
                   <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Full name" />
                 </div>
                 <div className="space-y-2">
@@ -359,7 +386,7 @@ export function AddBatchStudentDialog({
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Email *</Label>
+                <Label>Email <span className="text-destructive">*</span></Label>
                 <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email address" />
               </div>
               <div className="space-y-2">

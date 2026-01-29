@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -312,6 +312,13 @@ export const ImportCustomersDialog = ({
           <DialogTitle>
             {step === "complete" ? "Import Complete" : "Add customers"}
           </DialogTitle>
+          <DialogDescription>
+            {step === "complete" 
+              ? "Your customer import has been processed." 
+              : step === "importing" 
+              ? "Please wait while we import your customers."
+              : "Upload a CSV file to import customers in bulk."}
+          </DialogDescription>
         </DialogHeader>
 
         {step === "complete" ? (
@@ -391,12 +398,37 @@ export const ImportCustomersDialog = ({
                         <Label>Select a workshop</Label>
                         <Select value={selectedWorkshop} onValueChange={setSelectedWorkshop}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select workshop" />
+                            <SelectValue placeholder="Select a workshop" />
                           </SelectTrigger>
                           <SelectContent>
-                            {workshops?.map(w => (
-                              <SelectItem key={w.id} value={w.id}>{w.title}</SelectItem>
-                            ))}
+                            {workshops?.length === 0 ? (
+                              <div className="py-3 px-2 text-center text-sm text-muted-foreground">
+                                No workshops available. Create one in the Workshops page first.
+                              </div>
+                            ) : (
+                              workshops?.map(w => (
+                                <SelectItem key={w.id} value={w.id}>{w.title}</SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Select a product</Label>
+                        <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a product" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {products?.length === 0 ? (
+                              <div className="py-3 px-2 text-center text-sm text-muted-foreground">
+                                No products available. Create one in the Products page first.
+                              </div>
+                            ) : (
+                              products?.map(p => (
+                                <SelectItem key={p.id} value={p.id}>{p.product_name}</SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
