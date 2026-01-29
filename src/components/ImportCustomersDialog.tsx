@@ -433,19 +433,6 @@ export const ImportCustomersDialog = ({
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Select a product</Label>
-                        <Select value={selectedProduct} onValueChange={setSelectedProduct}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a product" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products?.map(p => (
-                              <SelectItem key={p.id} value={p.id}>{p.product_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
                         <Label>Assign to</Label>
                         <Select value={selectedAssignTo} onValueChange={setSelectedAssignTo}>
                           <SelectTrigger>

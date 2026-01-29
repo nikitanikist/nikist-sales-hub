@@ -24,6 +24,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { useOrgClosers, useOrgIntegrations, hasIntegrationForCloser } from "@/hooks/useOrgClosers";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-500",
@@ -130,6 +131,10 @@ const Leads = () => {
   const [refundMode, setRefundMode] = useState<'appointment' | 'assignment'>('appointment');
   const [leadAssignmentsForRefund, setLeadAssignmentsForRefund] = useState<any[]>([]);
   const [selectedAssignmentForRefund, setSelectedAssignmentForRefund] = useState<any>(null);
+
+  // Delete Dialog State
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<any>(null);
 
   // Check if any filters are active
   const hasActiveFilters = 
@@ -479,11 +484,24 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
       queryClient.invalidateQueries({ queryKey: ["all-leads"] });
       toast.success("Customer deleted successfully");
+      setDeleteDialogOpen(false);
+      setLeadToDelete(null);
     },
     onError: (error: any) => {
       toast.error(error.message);
     },
   });
+
+  const handleDeleteClick = (lead: any) => {
+    setLeadToDelete(lead);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (leadToDelete) {
+      deleteMutation.mutate(leadToDelete.id);
+    }
+  };
 
   const assignMutation = useMutation({
     mutationFn: async ({ leadId, assignedTo, currentAssignedTo }: { leadId: string; assignedTo: string; currentAssignedTo: string | null }) => {
@@ -1229,7 +1247,7 @@ const Leads = () => {
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="text-red-600 cursor-pointer"
-                                  onClick={() => deleteMutation.mutate(lead.id)}
+                                  onClick={() => handleDeleteClick(lead)}
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Delete customer
@@ -1395,7 +1413,7 @@ const Leads = () => {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 cursor-pointer"
-                                onClick={() => deleteMutation.mutate(lead.id)}
+                                onClick={() => handleDeleteClick(lead)}
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete customer
@@ -1558,7 +1576,7 @@ const Leads = () => {
             <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="contact_name">Customer Name</Label>
+                  <Label htmlFor="contact_name">Customer Name <span className="text-destructive">*</span></Label>
                   <Input
                     id="contact_name"
                     name="contact_name"
@@ -1578,7 +1596,7 @@ const Leads = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
                   <Input
                     id="email"
                     name="email"
@@ -1602,66 +1620,85 @@ const Leads = () => {
                 <div className="space-y-2">
                   <Label className="text-sm text-muted-foreground">Select Workshops</Label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-md">
-                    {workshops?.map((workshop) => (
-                      <div key={workshop.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`workshop-${workshop.id}`}
-                          checked={selectedWorkshops.includes(workshop.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedWorkshops([...selectedWorkshops, workshop.id]);
-                            } else {
-                              setSelectedWorkshops(selectedWorkshops.filter(id => id !== workshop.id));
-                            }
-                          }}
-                        />
-                        <label
-                          htmlFor={`workshop-${workshop.id}`}
-                          className="text-sm cursor-pointer"
-                        >
-                          {workshop.title}
-                        </label>
+                    {workshops && workshops.length > 0 ? (
+                      workshops.map((workshop) => (
+                        <div key={workshop.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`workshop-${workshop.id}`}
+                            checked={selectedWorkshops.includes(workshop.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedWorkshops([...selectedWorkshops, workshop.id]);
+                              } else {
+                                setSelectedWorkshops(selectedWorkshops.filter(id => id !== workshop.id));
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`workshop-${workshop.id}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {workshop.title}
+                          </label>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-2 py-4 text-center text-muted-foreground">
+                        <p className="text-sm">No workshops created yet</p>
+                        <a href="/workshops" className="text-sm text-primary hover:underline mt-1 inline-block">
+                          Go to Workshops to create one →
+                        </a>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm text-muted-foreground">Select Products</Label>
                   <div className="space-y-3 max-h-64 overflow-y-auto p-2 border rounded-md">
-                    {funnels?.map((funnel) => {
-                      const funnelProducts = products?.filter(p => p.funnel_id === funnel.id);
-                      if (!funnelProducts || funnelProducts.length === 0) return null;
-                      return (
-                        <div key={funnel.id} className="space-y-2">
-                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                            {funnel.funnel_name}
+                    {products && products.length > 0 ? (
+                      funnels?.map((funnel) => {
+                        const funnelProducts = products?.filter(p => p.funnel_id === funnel.id);
+                        if (!funnelProducts || funnelProducts.length === 0) return null;
+                        return (
+                          <div key={funnel.id} className="space-y-2">
+                            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                              {funnel.funnel_name}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 pl-2">
+                              {funnelProducts.map((product) => (
+                                <div key={product.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`product-${product.id}`}
+                                    checked={selectedProducts.includes(product.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedProducts([...selectedProducts, product.id]);
+                                      } else {
+                                        setSelectedProducts(selectedProducts.filter(id => id !== product.id));
+                                      }
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor={`product-${product.id}`}
+                                    className="text-sm cursor-pointer"
+                                  >
+                                    {product.product_name} <span className="text-xs text-muted-foreground">(₹{product.price?.toLocaleString('en-IN')})</span>
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-2 pl-2">
-                            {funnelProducts.map((product) => (
-                              <div key={product.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={`product-${product.id}`}
-                                  checked={selectedProducts.includes(product.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedProducts([...selectedProducts, product.id]);
-                                    } else {
-                                      setSelectedProducts(selectedProducts.filter(id => id !== product.id));
-                                    }
-                                  }}
-                                />
-                                <label
-                                  htmlFor={`product-${product.id}`}
-                                  className="text-sm cursor-pointer"
-                                >
-                                  {product.product_name} <span className="text-xs text-muted-foreground">(₹{product.price?.toLocaleString('en-IN')})</span>
-                                </label>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    ) : (
+                      <div className="py-4 text-center text-muted-foreground">
+                        <p className="text-sm">No products created yet</p>
+                        <p className="text-xs mt-1">Create a funnel first, then add products.</p>
+                        <a href="/funnels" className="text-sm text-primary hover:underline mt-1 inline-block">
+                          Go to Funnels to get started →
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 pt-2">
@@ -1916,6 +1953,16 @@ const Leads = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Customer"
+        itemName={leadToDelete?.contact_name}
+        isDeleting={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 };
