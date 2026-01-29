@@ -1758,6 +1758,39 @@ export type Database = {
           },
         ]
       }
+      modules: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          icon: string | null
+          id: string
+          is_premium: boolean | null
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_premium?: boolean | null
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          icon?: string | null
+          id?: string
+          is_premium?: boolean | null
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       offer_amount_history: {
         Row: {
           appointment_id: string
@@ -1917,6 +1950,114 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_modules: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          enabled_at: string | null
+          enabled_by: string | null
+          id: string
+          is_enabled: boolean | null
+          module_id: string
+          organization_id: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          enabled_at?: string | null
+          enabled_by?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          module_id: string
+          organization_id: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          enabled_at?: string | null
+          enabled_by?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          module_id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_modules_enabled_by_fkey"
+            columns: ["enabled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_modules_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_modules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_webhooks: {
+        Row: {
+          created_at: string | null
+          direction: string
+          field_mappings: Json | null
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          payload_template: Json | null
+          secret: string | null
+          trigger_event: string | null
+          updated_at: string | null
+          url: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          direction: string
+          field_mappings?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id: string
+          payload_template?: Json | null
+          secret?: string | null
+          trigger_event?: string | null
+          updated_at?: string | null
+          url?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          direction?: string
+          field_mappings?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string
+          payload_template?: Json | null
+          secret?: string | null
+          trigger_event?: string | null
+          updated_at?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_webhooks_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

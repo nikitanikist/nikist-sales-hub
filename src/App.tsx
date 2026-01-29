@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ModuleGuard } from "@/components/ModuleGuard";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
@@ -45,19 +46,19 @@ const App = () => (
             <Route element={<AppLayout />}>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/leads" element={<Leads />} />
-              <Route path="/calls" element={<Calls />} />
-              <Route path="/sales-closers" element={<SalesClosers />} />
-              <Route path="/sales-closers/all-calls" element={<AllCloserCalls />} />
-              <Route path="/sales-closers/:closerId/calls" element={<CloserAssignedCalls />} />
+              <Route path="/calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><Calls /></ModuleGuard>} />
+              <Route path="/sales-closers" element={<ModuleGuard moduleSlug="one-to-one-funnel"><SalesClosers /></ModuleGuard>} />
+              <Route path="/sales-closers/all-calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><AllCloserCalls /></ModuleGuard>} />
+              <Route path="/sales-closers/:closerId/calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><CloserAssignedCalls /></ModuleGuard>} />
               {/* Legacy routes - redirect to unified cohort pages */}
               <Route path="/batches" element={<Navigate to="/cohorts/insider-crypto-club" replace />} />
               <Route path="/futures-mentorship" element={<Navigate to="/cohorts/futures-mentorship" replace />} />
               <Route path="/high-future" element={<Navigate to="/cohorts/high-future" replace />} />
               {/* New unified cohort routes */}
-              <Route path="/cohorts/manage" element={<ProtectedRoute adminOnly><ManageCohorts /></ProtectedRoute>} />
-              <Route path="/cohorts/:cohortSlug" element={<ProtectedRoute><CohortPage /></ProtectedRoute>} />
-              <Route path="/daily-money-flow" element={<DailyMoneyFlow />} />
-              <Route path="/workshops" element={<Workshops />} />
+              <Route path="/cohorts/manage" element={<ProtectedRoute adminOnly><ModuleGuard moduleSlug="cohort-management"><ManageCohorts /></ModuleGuard></ProtectedRoute>} />
+              <Route path="/cohorts/:cohortSlug" element={<ProtectedRoute><ModuleGuard moduleSlug="cohort-management"><CohortPage /></ModuleGuard></ProtectedRoute>} />
+              <Route path="/daily-money-flow" element={<ModuleGuard moduleSlug="daily-money-flow"><DailyMoneyFlow /></ModuleGuard>} />
+              <Route path="/workshops" element={<ModuleGuard moduleSlug="workshops"><Workshops /></ModuleGuard>} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />
               <Route path="/products" element={<Products />} />

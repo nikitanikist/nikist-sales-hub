@@ -2,10 +2,15 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Video, Calendar, MessageCircle, Settings } from "lucide-react";
+import { Settings, Building2, Blocks, Puzzle, Users, Video, Calendar, MessageCircle, Webhook } from "lucide-react";
 import { IntegrationSection } from "@/components/settings/IntegrationSection";
+import { GeneralSettings } from "@/pages/settings/GeneralSettings";
+import { ModulesSettings } from "@/pages/settings/ModulesSettings";
+import { PabblyIntegration } from "@/pages/settings/PabblyIntegration";
+import { CloserAssignments } from "@/components/settings/CloserAssignments";
 
 interface IntegrationConfig {
   [key: string]: string | boolean | undefined;
@@ -21,6 +26,7 @@ interface Integration {
 
 const OrganizationSettings = () => {
   const { currentOrganization } = useOrganization();
+  const { isSuperAdmin } = useUserRole();
   const queryClient = useQueryClient();
 
   // Fetch ALL integrations for the organization
@@ -174,69 +180,122 @@ const OrganizationSettings = () => {
           Organization Settings
         </h1>
         <p className="text-muted-foreground">
-          Configure integrations for {currentOrganization.name}
+          Configure {currentOrganization.name}
         </p>
       </div>
 
-      <Tabs defaultValue="zoom" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
-          <TabsTrigger value="zoom" className="gap-2">
-            <Video className="h-4 w-4" />
-            Zoom
-            {groupedIntegrations.zoom.length > 0 && (
-              <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                {groupedIntegrations.zoom.length}
-              </span>
-            )}
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="general" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            General
           </TabsTrigger>
-          <TabsTrigger value="calendly" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            Calendly
-            {groupedIntegrations.calendly.length > 0 && (
-              <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                {groupedIntegrations.calendly.length}
-              </span>
-            )}
+          {/* Only show Modules tab for Super Admins */}
+          {isSuperAdmin && (
+            <TabsTrigger value="modules" className="gap-2">
+              <Blocks className="h-4 w-4" />
+              Modules
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="integrations" className="gap-2">
+            <Puzzle className="h-4 w-4" />
+            Integrations
           </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="gap-2">
-            <MessageCircle className="h-4 w-4" />
-            WhatsApp
-            {groupedIntegrations.whatsapp.length > 0 && (
-              <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                {groupedIntegrations.whatsapp.length}
-              </span>
-            )}
+          <TabsTrigger value="team" className="gap-2">
+            <Users className="h-4 w-4" />
+            Team
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="zoom">
-          <IntegrationSection
-            type="zoom"
-            integrations={groupedIntegrations.zoom}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            isSaving={saveMutation.isPending}
-          />
+        {/* General Settings Tab */}
+        <TabsContent value="general">
+          <GeneralSettings />
         </TabsContent>
 
-        <TabsContent value="calendly">
-          <IntegrationSection
-            type="calendly"
-            integrations={groupedIntegrations.calendly}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            isSaving={saveMutation.isPending}
-          />
+        {/* Modules Tab (Super Admin Only) */}
+        {isSuperAdmin && (
+          <TabsContent value="modules">
+            <ModulesSettings />
+          </TabsContent>
+        )}
+
+        {/* Integrations Tab */}
+        <TabsContent value="integrations" className="space-y-6">
+          {/* Nested Tabs for Integration Types */}
+          <Tabs defaultValue="zoom" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4 max-w-lg">
+              <TabsTrigger value="zoom" className="gap-2">
+                <Video className="h-4 w-4" />
+                Zoom
+                {groupedIntegrations.zoom.length > 0 && (
+                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                    {groupedIntegrations.zoom.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="calendly" className="gap-2">
+                <Calendar className="h-4 w-4" />
+                Calendly
+                {groupedIntegrations.calendly.length > 0 && (
+                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                    {groupedIntegrations.calendly.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="whatsapp" className="gap-2">
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+                {groupedIntegrations.whatsapp.length > 0 && (
+                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                    {groupedIntegrations.whatsapp.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="webhooks" className="gap-2">
+                <Webhook className="h-4 w-4" />
+                Pabbly
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="zoom">
+              <IntegrationSection
+                type="zoom"
+                integrations={groupedIntegrations.zoom}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                isSaving={saveMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="calendly">
+              <IntegrationSection
+                type="calendly"
+                integrations={groupedIntegrations.calendly}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                isSaving={saveMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="whatsapp">
+              <IntegrationSection
+                type="whatsapp"
+                integrations={groupedIntegrations.whatsapp}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                isSaving={saveMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="webhooks">
+              <PabblyIntegration />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        <TabsContent value="whatsapp">
-          <IntegrationSection
-            type="whatsapp"
-            integrations={groupedIntegrations.whatsapp}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            isSaving={saveMutation.isPending}
-          />
+        {/* Team Tab */}
+        <TabsContent value="team">
+          <CloserAssignments />
         </TabsContent>
       </Tabs>
     </div>
