@@ -51,7 +51,7 @@ export function FinancialStep({ data, onChange }: FinancialStepProps) {
           <Label htmlFor="monthly_income">Monthly Income</Label>
           <Select value={data.monthly_income} onValueChange={(value) => onChange("monthly_income", value)}>
             <SelectTrigger>
-              <SelectValue placeholder="Select income range" />
+              <SelectValue placeholder="Select an income range" />
             </SelectTrigger>
             <SelectContent>
               {incomeRanges.map((range) => (
@@ -67,7 +67,7 @@ export function FinancialStep({ data, onChange }: FinancialStepProps) {
           <Label htmlFor="income_source">Primary Income Source</Label>
           <Select value={data.income_source} onValueChange={(value) => onChange("income_source", value)}>
             <SelectTrigger>
-              <SelectValue placeholder="Select income source" />
+              <SelectValue placeholder="Select an income source" />
             </SelectTrigger>
             <SelectContent>
               {incomeSources.map((source) => (
@@ -83,7 +83,7 @@ export function FinancialStep({ data, onChange }: FinancialStepProps) {
           <Label htmlFor="dependents">Number of Dependents</Label>
           <Select value={data.dependents} onValueChange={(value) => onChange("dependents", value)}>
             <SelectTrigger>
-              <SelectValue placeholder="Select dependents" />
+              <SelectValue placeholder="Select a number" />
             </SelectTrigger>
             <SelectContent>
               {dependentsOptions.map((option) => (

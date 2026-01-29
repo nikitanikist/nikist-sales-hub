@@ -47,7 +47,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         </Label>
         <Select value={data.industry} onValueChange={(value) => onChange("industry", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select industry" />
+            <SelectValue placeholder="Select an industry" />
           </SelectTrigger>
           <SelectContent>
             {industries.map((industry) => (
@@ -75,7 +75,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         <Label htmlFor="years_experience">Years of Experience</Label>
         <Select value={data.years_experience} onValueChange={(value) => onChange("years_experience", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select experience" />
+            <SelectValue placeholder="Select an experience range" />
           </SelectTrigger>
           <SelectContent>
             {experienceRanges.map((range) => (
@@ -91,7 +91,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         <Label htmlFor="company_size">Company Size</Label>
         <Select value={data.company_size} onValueChange={(value) => onChange("company_size", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select company size" />
+            <SelectValue placeholder="Select a company size" />
           </SelectTrigger>
           <SelectContent>
             {companySizes.map((size) => (
@@ -113,7 +113,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         </Label>
         <Select value={data.business_type} onValueChange={(value) => onChange("business_type", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select business type" />
+            <SelectValue placeholder="Select a business type" />
           </SelectTrigger>
           <SelectContent>
             {businessTypes.map((type) => (
@@ -129,7 +129,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         <Label htmlFor="business_years">Years in Business</Label>
         <Select value={data.business_years} onValueChange={(value) => onChange("business_years", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select years" />
+            <SelectValue placeholder="Select a range" />
           </SelectTrigger>
           <SelectContent>
             {businessYearsRanges.map((range) => (
@@ -145,7 +145,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         <Label htmlFor="team_size">Team Size</Label>
         <Select value={data.team_size} onValueChange={(value) => onChange("team_size", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select team size" />
+            <SelectValue placeholder="Select a team size" />
           </SelectTrigger>
           <SelectContent>
             {teamSizes.map((size) => (
@@ -161,7 +161,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         <Label htmlFor="annual_revenue">Annual Revenue</Label>
         <Select value={data.annual_revenue} onValueChange={(value) => onChange("annual_revenue", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select revenue range" />
+            <SelectValue placeholder="Select a revenue range" />
           </SelectTrigger>
           <SelectContent>
             {revenueRanges.map((range) => (
@@ -183,7 +183,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         </Label>
         <Select value={data.education_level} onValueChange={(value) => onChange("education_level", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select education level" />
+            <SelectValue placeholder="Select an education level" />
           </SelectTrigger>
           <SelectContent>
             {educationLevels.map((level) => (
@@ -201,7 +201,7 @@ export function OccupationStep({ data, onChange }: OccupationStepProps) {
         </Label>
         <Select value={data.field_of_study} onValueChange={(value) => onChange("field_of_study", value)}>
           <SelectTrigger>
-            <SelectValue placeholder="Select field" />
+            <SelectValue placeholder="Select a field" />
           </SelectTrigger>
           <SelectContent>
             {fieldsOfStudy.map((field) => (
