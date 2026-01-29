@@ -137,19 +137,8 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
-        <div>
-          <p className="text-sm text-muted-foreground mb-1">Good morning!</p>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            <span className="gradient-text">Welcome</span> back
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Here's what's happening with your sales today.
-          </p>
-        </div>
-        <div className="w-full sm:w-auto">
-          <AutomationStatusWidget />
-        </div>
+      <div className="flex justify-end">
+        <AutomationStatusWidget />
       </div>
       
       {/* Stats Cards - Enhanced with colored icon backgrounds */}

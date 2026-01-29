@@ -806,20 +806,13 @@ const CloserAssignedCalls = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/sales-closers")} className="w-fit">
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">
-            {statusFilter === 'converted' ? 'Converted Calls' : 
-             statusFilter === 'not_converted' ? 'Not Converted Calls' : 
-             statusFilter === 'reschedule' ? 'Rescheduled Calls' : 'Assigned Calls'}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {closer?.full_name || <span className="inline-block h-4 w-24 bg-muted animate-pulse rounded" />}
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {closer?.full_name || <span className="inline-block h-4 w-24 bg-muted animate-pulse rounded" />}
+        </p>
       </div>
 
       <Card>

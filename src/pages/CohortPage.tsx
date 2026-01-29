@@ -689,18 +689,14 @@ const CohortPage = () => {
   if (!selectedBatch) {
     return (
       <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">{cohortType.name}</h1>
-            <p className="text-sm text-muted-foreground">Manage batches and students</p>
-          </div>
-          {isAdmin && (
+        {isAdmin && (
+          <div className="flex justify-end">
             <Button onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Batch
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

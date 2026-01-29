@@ -145,11 +145,7 @@ const Sales = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Sales</h1>
-          <p className="text-sm text-muted-foreground">Track your closed deals and revenue</p>
-        </div>
+      <div className="flex justify-end">
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => setEditingSale(null)} className="w-full sm:w-auto h-11 sm:h-10">

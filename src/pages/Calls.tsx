@@ -257,8 +257,6 @@ const Calls = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <h1 className="text-xl sm:text-3xl font-bold">1:1 Call Schedule</h1>
-
       {/* Date Filters */}
       <Card>
         <CardContent className="pt-4 sm:pt-6">

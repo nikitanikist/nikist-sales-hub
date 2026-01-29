@@ -2417,17 +2417,8 @@ const Batches = () => {
   // Batches list view
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <GraduationCap className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Batches</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">Manage course batches and student access</p>
-          </div>
-        </div>
-        {!isManager && !isCloser && (
+      {!isManager && !isCloser && (
+        <div className="flex justify-end">
           <Dialog open={isCreateOpen || !!editingBatch} onOpenChange={(open) => { if (!open) handleCloseForm(); }}>
             <DialogTrigger asChild>
               <Button onClick={() => setIsCreateOpen(true)} size="sm" className="sm:h-10 w-fit">
@@ -2487,8 +2478,8 @@ const Batches = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
-      </div>
+        </div>
+      )}
 
       <Card>
         <CardContent className="pt-6">
