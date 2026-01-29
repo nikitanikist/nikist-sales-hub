@@ -88,11 +88,18 @@ export const PERMISSION_GROUPS = [
 export const DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
   admin: Object.values(PERMISSION_KEYS), // All permissions
   manager: [
-    PERMISSION_KEYS.daily_money_flow,
+    PERMISSION_KEYS.dashboard,
+    // daily_money_flow - NOT included
     PERMISSION_KEYS.customers,
+    PERMISSION_KEYS.customer_insights,
+    PERMISSION_KEYS.call_schedule,
     PERMISSION_KEYS.sales_closers,
     PERMISSION_KEYS.cohort_batches,
     PERMISSION_KEYS.workshops,
+    PERMISSION_KEYS.sales,
+    PERMISSION_KEYS.funnels,
+    PERMISSION_KEYS.products,
+    // users - NOT included
   ],
   sales_rep: [
     PERMISSION_KEYS.call_schedule,

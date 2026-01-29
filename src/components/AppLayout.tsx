@@ -220,7 +220,7 @@ const AppLayoutContent = () => {
     // If no cohort types exist, show "Create Cohort" option for admins
     if (cohortTypes.length === 0) {
       return [
-        { title: "+ Create Cohort", path: "/cohorts/manage", permissionKey: 'batch_icc' as PermissionKey },
+        { title: "+ Create Cohort", path: "/cohorts/manage", permissionKey: 'cohort_batches' as PermissionKey },
       ];
     }
     
@@ -228,8 +228,8 @@ const AppLayoutContent = () => {
     const items = cohortTypes.map(cohort => ({
       title: cohort.name,
       path: cohort.route,
-      // Use a generic cohort permission - all cohorts share the same base permission
-      permissionKey: 'batch_icc' as PermissionKey,
+      // Use unified cohort permission for all cohort types
+      permissionKey: 'cohort_batches' as PermissionKey,
     }));
     
     // Add "Manage" option at the end for admins
@@ -237,7 +237,7 @@ const AppLayoutContent = () => {
       items.push({
         title: "⚙ Manage Cohorts",
         path: "/cohorts/manage",
-        permissionKey: 'batch_icc' as PermissionKey,
+        permissionKey: 'cohort_batches' as PermissionKey,
       });
     }
     
