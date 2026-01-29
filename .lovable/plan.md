@@ -1,433 +1,308 @@
 
-# UI Polish Phase - Final Improvements Implementation Plan
+
+# Final UI Polish - Comprehensive Implementation Plan
 
 ## Overview
 
-This plan addresses the remaining polish items to complete the premium SaaS redesign:
-1. Sidebar improvements (icon mode, tooltips, enhanced styling)
-2. Replace all "Loading..." text with shimmer skeleton loaders
-3. Add real-time Supabase subscriptions for key data pages
+This plan addresses all remaining UI polish items to make the application feel premium and production-ready. The changes are organized by priority and cover:
+1. Critical fixes (NotFound page, remaining Loading... text)
+2. Consistency improvements (hardcoded colors, EmptyState components)
+3. Visual polish (hover effects, animations)
 
 ---
 
-## Phase 1: Sidebar Enhancements
+## Phase 1: Critical Fixes
 
-### 1.1 Change Sidebar Collapsible Mode to "icon"
+### 1.1 NotFound.tsx - Complete Redesign
 
-**File:** `src/components/AppLayout.tsx`
+**Current State:** Uses hardcoded `bg-gray-100`, `text-gray-600`, `text-blue-500` colors that don't match the design system.
 
-Update the `<Sidebar>` component to use `collapsible="icon"` instead of the default "offcanvas":
+**Changes:**
+- Add imports for `FileQuestion` icon, `Button` component
+- Replace hardcoded gray background with design system colors
+- Add gradient icon container with violet theme
+- Use `Button` with `variant="gradient"` for the call-to-action
+- Add `animate-fade-in` animation
 
-```tsx
-// Line ~65, in SidebarNavigation component
-<Sidebar collapsible="icon">
-```
+### 1.2 Replace "Loading..." Text with Skeletons
 
-This will make the sidebar collapse to a narrow icon rail (48px) on desktop instead of completely hiding.
-
-### 1.2 Update Sidebar Header for Collapsed State
-
-**File:** `src/components/AppLayout.tsx`
-
-Import `useSidebar` in the SidebarNavigation component and conditionally render header content:
-
-```tsx
-const { setOpenMobile, isMobile, state } = useSidebar();
-
-<SidebarHeader className="border-b border-sidebar-border p-4">
-  {state === "expanded" ? (
-    // Full header - existing content
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
-          {isSuperAdmin ? <Shield className="h-5 w-5 text-white" /> : <Building2 className="h-5 w-5 text-white" />}
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-sidebar-foreground">
-            {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
-          </h2>
-          <p className="text-xs text-sidebar-foreground/60 truncate max-w-[140px]">{userEmail}</p>
-        </div>
-      </div>
-      {!isSuperAdmin && <OrganizationSwitcher />}
-    </div>
-  ) : (
-    // Collapsed - just icon centered
-    <div className="flex justify-center">
-      <div className="p-2 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-lg">
-        {isSuperAdmin ? <Shield className="h-4 w-4 text-white" /> : <Building2 className="h-4 w-4 text-white" />}
-      </div>
-    </div>
-  )}
-</SidebarHeader>
-```
-
-### 1.3 Add Tooltips to Sidebar Menu Buttons
-
-**File:** `src/components/AppLayout.tsx`
-
-Add the `tooltip` prop to each `SidebarMenuButton` to show labels when sidebar is collapsed:
-
-```tsx
-// For regular menu items (line ~127-142)
-<SidebarMenuButton
-  onClick={() => handleNavigation(item.path!)}
-  isActive={location.pathname === item.path}
-  tooltip={item.title}  // ADD THIS
->
-  <item.icon className="h-5 w-5" />
-  <span>{item.title}</span>
-  {/* ... beta badge ... */}
-</SidebarMenuButton>
-
-// For collapsible menu items (line ~100-107)
-<SidebarMenuButton
-  isActive={item.children.some(child => location.pathname === child.path)}
-  tooltip={item.title}  // ADD THIS
->
-  <item.icon className="h-5 w-5" />
-  <span>{item.title}</span>
-  <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-</SidebarMenuButton>
-```
-
-### 1.4 Enhance Sidebar Footer for Collapsed State
-
-**File:** `src/components/AppLayout.tsx`
-
-Update the SidebarFooter to handle collapsed state:
-
-```tsx
-<SidebarFooter className="border-t border-sidebar-border p-4">
-  {state === "expanded" ? (
-    <Button
-      variant="ghost"
-      onClick={signOut}
-      className="w-full justify-start text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
-    >
-      <LogOut className="h-5 w-5 mr-2" />
-      Sign Out
-    </Button>
-  ) : (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={signOut}
-          className="w-full text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          <LogOut className="h-5 w-5" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="right">Sign Out</TooltipContent>
-    </Tooltip>
-  )}
-</SidebarFooter>
-```
-
-### 1.5 Enhanced Menu Button Active State
-
-**File:** `src/components/ui/sidebar.tsx`
-
-Update `sidebarMenuButtonVariants` to include a gradient left border for active state:
-
-```tsx
-// Line ~415, update the cva definition
-const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-all duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-l-2 data-[active=true]:border-l-sidebar-primary data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
-  // ... variants ...
-);
-```
+| File | Location | Fix |
+|------|----------|-----|
+| `AllCloserCalls.tsx` | Lines 191-201 (EmiHistorySection) | Replace with 3 Skeleton rows |
+| `CloserAssignedCalls.tsx` | Lines 289-299 (EmiHistorySection) | Replace with 3 Skeleton rows |
+| `CloserAssignedCalls.tsx` | Line 819 | Replace `"Loading..."` with inline Skeleton |
+| `AutomationStatusWidget.tsx` | Line 91 | Replace with Skeleton |
 
 ---
 
-## Phase 2: Replace "Loading..." with Skeleton Loaders
+## Phase 2: Color System Fixes
 
-### Files to Update
+Replace hardcoded `bg-gray-*` colors with design system equivalents.
 
-| File | Current Loading | Replacement |
-|------|-----------------|-------------|
-| `src/pages/Calls.tsx` (line 434) | `<div>Loading...</div>` | `<TableSkeleton columns={8} />` |
-| `src/pages/Leads.tsx` (line 1119) | `<div>Loading...</div>` | Desktop: `<TableSkeleton columns={8} />`, Mobile: `<MobileCardSkeleton />` |
-| `src/pages/Sales.tsx` (line 242) | `<div>Loading...</div>` | `<TableSkeleton columns={6} />` |
-| `src/pages/DailyMoneyFlow.tsx` (line 1111) | `<div>Loading...</div>` | `<TableSkeleton columns={6} />` |
-| `src/pages/SuperAdminDashboard.tsx` (line 420) | `<div>Loading...</div>` | `<StatsCardsSkeleton count={4} />` + `<TableSkeleton columns={5} />` |
-| `src/components/AppLayout.tsx` (line 318) | `<div>Loading...</div>` | Full page skeleton with shimmer |
-| `src/components/ProtectedRoute.tsx` (line 18) | `<div>Loading...</div>` | Spinner or skeleton |
-| `src/components/WorkshopCallsDialog.tsx` (line 297) | `<div>Loading...</div>` | `<TableSkeleton columns={6} rows={3} />` |
+### 2.1 StatusColors Updates
 
-### 2.1 Calls.tsx
+**Files:** `AllCloserCalls.tsx`, `CloserAssignedCalls.tsx`, `Calls.tsx`
 
+Update the `pending` status color from:
 ```tsx
-// Add import at top
-import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
-
-// Replace line 434
-{isLoading || roleLoading ? (
-  <>
-    <div className="hidden sm:block">
-      <TableSkeleton columns={8} rows={5} />
-    </div>
-    <div className="sm:hidden">
-      <MobileCardSkeleton count={3} />
-    </div>
-  </>
-) : !appointments || appointments.length === 0 ? (
-  // ... existing empty state
+pending: "bg-gray-100 text-gray-700 border-gray-200"
+```
+To:
+```tsx
+pending: "bg-slate-100 text-slate-700 border-slate-200"
 ```
 
-### 2.2 Leads.tsx
+### 2.2 Products.tsx - Inactive Badge
 
+Update inactive product badge from `bg-gray-100` to `bg-slate-100`:
 ```tsx
-// Add import at top
-import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
-
-// Replace line 1119
-{isLoading ? (
-  <>
-    <div className="hidden sm:block p-4">
-      <TableSkeleton columns={8} rows={5} />
-    </div>
-    <div className="sm:hidden p-4">
-      <MobileCardSkeleton count={4} />
-    </div>
-  </>
-) : (
-  // ... existing content
+: "bg-slate-100 text-slate-700 border-slate-200"
 ```
 
-### 2.3 Sales.tsx
+### 2.3 HighFuture.tsx & FuturesMentorship.tsx - Discontinued Badge
 
+Update discontinued status badge from:
 ```tsx
-// Add import at top
-import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
-
-// Replace line 242
-{isLoading ? (
-  <>
-    <div className="hidden sm:block">
-      <TableSkeleton columns={6} rows={5} />
-    </div>
-    <div className="sm:hidden">
-      <MobileCardSkeleton count={3} />
-    </div>
-  </>
-) : (
-  // ... existing content
+return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Discontinued</Badge>;
+```
+To:
+```tsx
+return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 border border-slate-200">Discontinued</Badge>;
 ```
 
-### 2.4 DailyMoneyFlow.tsx
+### 2.4 Workshops.tsx - Completed Status
 
-```tsx
-// Add import at top
-import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
+Update completed workshop status from `bg-gray-100` to `bg-slate-100`.
 
-// Replace line 1111
-{isLoading ? (
-  <>
-    <div className="hidden sm:block">
-      <TableSkeleton columns={6} rows={5} />
-    </div>
-    <div className="sm:hidden">
-      <MobileCardSkeleton count={3} />
-    </div>
-  </>
-) : entries.length === 0 ? (
-  // ... existing empty state
-```
+### 2.5 WorkshopCallsDialog.tsx
 
-### 2.5 SuperAdminDashboard.tsx
-
-```tsx
-// Add import at top
-import { StatsCardsSkeleton, TableSkeleton } from "@/components/skeletons";
-
-// Replace lines 418-422
-if (orgLoading || isLoading) {
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center gap-2">
-        <div className="skeleton-shimmer h-8 w-8 rounded-lg" />
-        <div className="skeleton-shimmer h-8 w-48 rounded" />
-      </div>
-      <StatsCardsSkeleton count={4} />
-      <TableSkeleton columns={5} rows={5} />
-    </div>
-  );
-}
-```
-
-### 2.6 AppLayout.tsx
-
-```tsx
-// Replace lines 316-320
-if (loading || roleLoading || modulesLoading) {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="flex flex-col items-center gap-4">
-        <div className="p-3 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-lg animate-pulse">
-          <Building2 className="h-8 w-8 text-white" />
-        </div>
-        <div className="skeleton-shimmer h-4 w-24 rounded" />
-      </div>
-    </div>
-  );
-}
-```
-
-### 2.7 WorkshopCallsDialog.tsx
-
-```tsx
-// Add import at top
-import { TableSkeleton } from "@/components/skeletons";
-
-// Replace line 297
-{isLoading ? (
-  <TableSkeleton columns={6} rows={4} showHeader={false} />
-) : calls && calls.length > 0 ? (
-  // ... existing table
-```
+Update cross_workshop dot color from `bg-gray-500` to `bg-slate-500`.
+Update cross_workshop badge from `bg-gray-50` to `bg-slate-50`.
 
 ---
 
-## Phase 3: Real-time Subscriptions
+## Phase 3: EmptyState Component Replacements
 
-### 3.1 Leads.tsx - Add Real-time for Lead Updates
+Replace plain "No X found" text with the beautiful `EmptyState` component for better UX.
+
+### 3.1 Users.tsx (2 locations)
+
+**Lines 479-484 (Desktop Table):**
+Replace plain TableCell text with `TableEmptyState`:
+```tsx
+<TableEmptyState
+  colSpan={5}
+  icon={Users}
+  title="No users found"
+  description="Add team members to get started with your organization."
+  actionLabel="Add User"
+  onAction={() => setIsDialogOpen(true)}
+/>
+```
+
+**Lines 526-528 (Mobile View):**
+Replace with `EmptyState` component.
+
+### 3.2 SalesClosers.tsx (2 locations)
+
+**Lines 459-464 (Desktop Table):**
+```tsx
+<TableEmptyState
+  colSpan={isManager ? 6 : 7}
+  icon={UserCheck}
+  title="No sales closers found"
+  description="Sales closers with assigned calls will appear here."
+/>
+```
+
+**Lines 509-512 (Mobile View):**
+Replace with `EmptyState` component.
+
+### 3.3 Products.tsx (2 locations)
+
+**Lines 566-571 (Desktop Table):**
+```tsx
+<TableEmptyState
+  colSpan={7}
+  icon={Package}
+  title="No products found"
+  description="Create your first product to get started."
+  actionLabel="Add Product"
+  onAction={() => setIsProductDialogOpen(true)}
+/>
+```
+
+**Lines 646-647 (Mobile View):**
+Replace with `EmptyState` component.
+
+### 3.4 Sales.tsx (Line 304)
+
+Replace mobile empty state with:
+```tsx
+<EmptyState
+  icon={DollarSign}
+  title="No sales found"
+  description="Sales records will appear here once created."
+/>
+```
+
+### 3.5 AllCloserCalls.tsx (Lines 1051-1054)
+
+Replace with:
+```tsx
+<EmptyState
+  icon={Phone}
+  title="No calls found"
+  description="No calls match your current filter criteria. Try adjusting your filters."
+/>
+```
+
+### 3.6 CloserAssignedCalls.tsx (Lines 1384-1387)
+
+Replace with:
+```tsx
+<EmptyState
+  icon={Phone}
+  title="No assigned calls"
+  description="This closer has no calls matching your current filters."
+/>
+```
+
+### 3.7 Dashboard.tsx (Lines 223-226)
+
+Replace with:
+```tsx
+<EmptyState
+  icon={BarChart2}
+  title="No data yet"
+  description="Lead activity will appear here once you start adding leads."
+/>
+```
+
+### 3.8 WorkshopCallsDialog.tsx 
+
+Add empty state for when no calls are found in a category.
+
+---
+
+## Phase 4: Visual Polish
+
+### 4.1 Add `animate-fade-in` to Page Root Containers
+
+Ensure all pages have smooth entrance animations. Pages to check/update:
+- `NotFound.tsx` ✅ (will add in redesign)
+- `AllCloserCalls.tsx` - verify root has animation
+- `CloserAssignedCalls.tsx` - verify root has animation
+
+### 4.2 Table Row Hover Effects
+
+Add subtle hover background to table rows for better interactivity:
+```tsx
+<TableRow className="hover:bg-muted/50 transition-colors">
+```
+
+Apply to tables in:
+- `Users.tsx`
+- `SalesClosers.tsx`
+- `Products.tsx`
+- `AllCloserCalls.tsx`
+- `CloserAssignedCalls.tsx`
+
+---
+
+## Files to Modify
+
+| File | Priority | Changes |
+|------|----------|---------|
+| `src/pages/NotFound.tsx` | **Critical** | Complete redesign with design system |
+| `src/pages/AllCloserCalls.tsx` | **Critical** | Skeleton loader, EmptyState, color fix |
+| `src/pages/CloserAssignedCalls.tsx` | **Critical** | Skeleton loaders (2), EmptyState, color fix |
+| `src/components/AutomationStatusWidget.tsx` | **Critical** | Skeleton loader |
+| `src/pages/Users.tsx` | High | EmptyState (2 locations), hover effects |
+| `src/pages/SalesClosers.tsx` | High | EmptyState (2 locations), hover effects |
+| `src/pages/Products.tsx` | High | EmptyState (2 locations), color fix |
+| `src/pages/Sales.tsx` | High | EmptyState for mobile |
+| `src/pages/Dashboard.tsx` | High | EmptyState for chart |
+| `src/pages/Calls.tsx` | Medium | Color fix for pending/no_show |
+| `src/pages/Workshops.tsx` | Medium | Color fix for completed status |
+| `src/pages/HighFuture.tsx` | Medium | Color fix for discontinued badge |
+| `src/pages/FuturesMentorship.tsx` | Medium | Color fix for discontinued badge |
+| `src/components/WorkshopCallsDialog.tsx` | Medium | Color fixes, empty state |
+
+---
+
+## Technical Details
+
+### NotFound.tsx New Implementation
 
 ```tsx
-// Add after existing useEffect hooks (around line 150)
+import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
+import { FileQuestion } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-useEffect(() => {
-  if (!currentOrganization) return;
+const NotFound = () => {
+  const location = useLocation();
 
-  const channel = supabase
-    .channel('leads-realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'leads',
-        filter: `organization_id=eq.${currentOrganization.id}`
-      },
-      () => {
-        queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-        queryClient.invalidateQueries({ queryKey: ["all-leads"] });
-      }
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'lead_assignments',
-        filter: `organization_id=eq.${currentOrganization.id}`
-      },
-      () => {
-        queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-      }
-    )
-    .subscribe();
+  useEffect(() => {
+    console.error("404 Error:", location.pathname);
+  }, [location.pathname]);
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [queryClient, currentOrganization]);
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="text-center animate-fade-in">
+        <div className="relative mb-6 inline-block">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-[hsl(280,83%,58%)]/20 rounded-full blur-xl" />
+          <div className="relative p-5 bg-gradient-to-br from-violet-100 to-violet-50 rounded-2xl border border-violet-200">
+            <FileQuestion className="h-12 w-12 text-violet-600" />
+          </div>
+        </div>
+        <h1 className="mb-2 text-6xl font-bold gradient-text">404</h1>
+        <p className="mb-2 text-xl font-semibold">Page Not Found</p>
+        <p className="mb-6 text-muted-foreground max-w-md">
+          The page you're looking for doesn't exist or has been moved.
+        </p>
+        <Button asChild variant="gradient">
+          <Link to="/">Return to Dashboard</Link>
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export default NotFound;
 ```
 
-### 3.2 Calls.tsx - Add Real-time for Appointments
+### Skeleton Loader Pattern for EMI Section
 
 ```tsx
-// Add useEffect for real-time subscription
-useEffect(() => {
-  if (!currentOrganization) return;
-
-  const channel = supabase
-    .channel('calls-realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'call_appointments',
-        filter: `organization_id=eq.${currentOrganization.id}`
-      },
-      () => {
-        queryClient.invalidateQueries({ queryKey: ["call-appointments"] });
-        queryClient.invalidateQueries({ queryKey: ["closer-metrics"] });
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [queryClient, currentOrganization]);
-```
-
-### 3.3 Workshops.tsx - Add Real-time for Workshops
-
-```tsx
-// Add useEffect for real-time subscription
-useEffect(() => {
-  if (!currentOrganization) return;
-
-  const channel = supabase
-    .channel('workshops-realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'workshops',
-        filter: `organization_id=eq.${currentOrganization.id}`
-      },
-      () => {
-        queryClient.invalidateQueries({ queryKey: ["workshops"] });
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [queryClient, currentOrganization]);
+if (isLoading) {
+  return (
+    <div className="space-y-2">
+      <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+        EMI Payment History
+      </h4>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    </div>
+  );
+}
 ```
 
 ---
 
-## Implementation Summary
-
-### Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/AppLayout.tsx` | Sidebar collapsible="icon", header/footer for collapsed state, tooltips, loading skeleton |
-| `src/components/ui/sidebar.tsx` | Enhanced active state styling with border |
-| `src/pages/Calls.tsx` | TableSkeleton + MobileCardSkeleton + real-time subscription |
-| `src/pages/Leads.tsx` | TableSkeleton + MobileCardSkeleton + real-time subscription |
-| `src/pages/Sales.tsx` | TableSkeleton + MobileCardSkeleton |
-| `src/pages/DailyMoneyFlow.tsx` | TableSkeleton + MobileCardSkeleton |
-| `src/pages/SuperAdminDashboard.tsx` | StatsCardsSkeleton + TableSkeleton |
-| `src/pages/Workshops.tsx` | Real-time subscription |
-| `src/components/ProtectedRoute.tsx` | Shimmer loading state |
-| `src/components/WorkshopCallsDialog.tsx` | TableSkeleton |
-
-### Priority Order
-
-1. **High Priority**: Sidebar collapsible="icon" + header/footer collapsed states
-2. **High Priority**: Replace all "Loading..." text with skeleton loaders (10 locations)
-3. **Medium Priority**: Add tooltips to sidebar menu buttons
-4. **Medium Priority**: Real-time subscriptions for Leads, Calls, Workshops
-5. **Nice to Have**: Enhanced menu button active state styling
-
-### Expected Outcome
+## Expected Outcome
 
 After these changes:
-- Sidebar collapses to icons instead of disappearing completely
-- Tooltips show menu item names when hovering icons in collapsed mode
-- All loading states display smooth shimmer skeleton animations
-- Data updates in real-time without manual page refresh
-- The entire application feels polished and production-ready
+1. ✅ No hardcoded gray colors - everything uses the design system
+2. ✅ No "Loading..." text - all loading states use proper skeleton shimmer
+3. ✅ Beautiful, actionable empty states with icons and CTAs
+4. ✅ Consistent violet-based color palette throughout
+5. ✅ Smooth animations and hover effects
+6. ✅ The 404 page matches the premium design aesthetic
+
+The app will be fully polished and match the quality of ClickUp, Notion, and Linear!
+
