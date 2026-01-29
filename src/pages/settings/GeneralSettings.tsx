@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -15,6 +15,14 @@ export function GeneralSettings() {
   
   const [name, setName] = useState(currentOrganization?.name || "");
   const [logoUrl, setLogoUrl] = useState(currentOrganization?.logo_url || "");
+
+  // Sync state when organization changes
+  useEffect(() => {
+    if (currentOrganization) {
+      setName(currentOrganization.name);
+      setLogoUrl(currentOrganization.logo_url || "");
+    }
+  }, [currentOrganization?.id]);
 
   // Update organization mutation
   const updateMutation = useMutation({

@@ -55,6 +55,7 @@ const getFieldsForType = (type: string) => {
         { key: "api_key", label: "AiSensy API Key", placeholder: "Enter AiSensy API Key", secret: true },
         { key: "source", label: "Source Number", placeholder: "919266395637", secret: false },
         { key: "support_number", label: "Support Number", placeholder: "+919266395637", secret: false },
+        { key: "video_url", label: "Video URL for Call Booking", placeholder: "https://...video.mp4", secret: false },
       ];
     default:
       return [];

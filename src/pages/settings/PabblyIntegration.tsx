@@ -149,7 +149,8 @@ export function PabblyIntegration() {
 
   const getIncomingWebhookUrl = (webhookId: string) => {
     const baseUrl = import.meta.env.VITE_SUPABASE_URL || window.location.origin;
-    return `${baseUrl}/functions/v1/pabbly-webhook/${webhookId}`;
+    // Use existing ingest-tagmango endpoint with source and webhook_id params
+    return `${baseUrl}/functions/v1/ingest-tagmango?source=pabbly&webhook_id=${webhookId}`;
   };
 
   const copyToClipboard = async (text: string, id: string) => {
