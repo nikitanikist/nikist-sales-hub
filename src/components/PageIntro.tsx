@@ -7,6 +7,7 @@ interface PageIntroProps {
   description: string;
   variant?: "violet" | "emerald" | "amber" | "sky" | "rose";
   className?: string;
+  actions?: React.ReactNode;
 }
 
 const variantStyles = {
@@ -43,6 +44,7 @@ export const PageIntro = ({
   description,
   variant = "violet",
   className,
+  actions,
 }: PageIntroProps) => {
   const styles = variantStyles[variant];
 
@@ -55,23 +57,30 @@ export const PageIntro = ({
         className
       )}
     >
-      <div className="flex items-center gap-3 sm:gap-4">
-        <div
-          className={cn(
-            "p-2.5 sm:p-3 bg-gradient-to-br rounded-xl shadow-lg shrink-0",
-            styles.iconBg
-          )}
-        >
-          <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div
+            className={cn(
+              "p-2.5 sm:p-3 bg-gradient-to-br rounded-xl shadow-lg shrink-0",
+              styles.iconBg
+            )}
+          >
+            <Icon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
+              {tagline}
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
+              {description}
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">
-            {tagline}
-          </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-            {description}
-          </p>
-        </div>
+        {actions && (
+          <div className="flex items-center gap-2 shrink-0">
+            {actions}
+          </div>
+        )}
       </div>
     </div>
   );

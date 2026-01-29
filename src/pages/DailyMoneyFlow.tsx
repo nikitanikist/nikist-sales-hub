@@ -471,6 +471,20 @@ const DailyMoneyFlow = () => {
         tagline="Track Your Revenue"
         description="Monitor daily cash collections and revenue trends."
         variant="emerald"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Bulk Import</span>
+              <span className="sm:hidden">Import</span>
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Add Data</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          </>
+        }
       />
 
       {/* Action Buttons */}
