@@ -104,7 +104,7 @@ const statusColors: Record<CallStatus, string> = {
   not_decided: "bg-orange-100 text-orange-700 border-orange-200",
   so_so: "bg-amber-100 text-amber-700 border-amber-200",
   reschedule: "bg-violet-100 text-violet-700 border-violet-200",
-  pending: "bg-gray-100 text-gray-700 border-gray-200",
+  pending: "bg-slate-100 text-slate-700 border-slate-200",
   refunded: "bg-pink-100 text-pink-700 border-pink-200",
   discontinued: "bg-red-100 text-red-700 border-red-200",
 };
@@ -292,9 +292,10 @@ const EmiHistorySection = ({ appointmentId }: { appointmentId: string }) => {
         <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
           EMI Payment History
         </h4>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading...
+        <div className="space-y-2">
+          <div className="h-4 w-full bg-muted animate-pulse rounded" />
+          <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+          <div className="h-4 w-1/2 bg-muted animate-pulse rounded" />
         </div>
       </div>
     );
@@ -816,7 +817,7 @@ const CloserAssignedCalls = () => {
              statusFilter === 'reschedule' ? 'Rescheduled Calls' : 'Assigned Calls'}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {closer?.full_name || "Loading..."}
+            {closer?.full_name || <span className="inline-block h-4 w-24 bg-muted animate-pulse rounded" />}
           </p>
         </div>
       </div>
@@ -1382,9 +1383,11 @@ const CloserAssignedCalls = () => {
               )}
             </>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              No assigned calls found
-            </div>
+            <EmptyState
+              icon={Phone}
+              title="No assigned calls"
+              description="This closer has no calls matching your current filters."
+            />
           )}
         </CardContent>
       </Card>

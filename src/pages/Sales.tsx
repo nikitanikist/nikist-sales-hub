@@ -301,7 +301,11 @@ const Sales = () => {
             {/* Mobile Card View */}
             <div className="sm:hidden space-y-3">
               {sales?.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No sales found</div>
+                <EmptyState
+                  icon={DollarSign}
+                  title="No sales found"
+                  description="Sales records will appear here once created."
+                />
               ) : (
                 sales?.map((sale) => (
                   <div key={sale.id} className="rounded-lg border bg-card p-4">

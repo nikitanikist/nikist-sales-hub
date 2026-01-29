@@ -458,8 +458,16 @@ const SalesClosers = () => {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={isManager ? 6 : 7} className="text-center py-8 text-muted-foreground">
-                          No sales closers found
+                        <TableCell colSpan={isManager ? 6 : 7}>
+                          <div className="flex flex-col items-center justify-center text-center py-8">
+                            <div className="rounded-full bg-muted p-4 mb-4">
+                              <Users className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                            <h3 className="font-semibold text-lg mb-1">No sales closers found</h3>
+                            <p className="text-sm text-muted-foreground max-w-sm">
+                              Sales closers with assigned calls will appear here.
+                            </p>
+                          </div>
                         </TableCell>
                       </TableRow>
                     )}
@@ -507,8 +515,14 @@ const SalesClosers = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No sales closers found
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <div className="rounded-full bg-muted p-3 mb-3">
+                      <Users className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <p className="font-medium mb-1">No sales closers found</p>
+                    <p className="text-sm text-muted-foreground">
+                      Sales closers with assigned calls will appear here.
+                    </p>
                   </div>
                 )}
               </div>

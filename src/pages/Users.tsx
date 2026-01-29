@@ -294,7 +294,7 @@ const Users = () => {
       case "manager":
         return "bg-amber-100 text-amber-700 border-amber-200";
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200";
+        return "bg-slate-100 text-slate-700 border-slate-200";
     }
   };
 
@@ -478,8 +478,20 @@ const Users = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No users found in this organization
+                      <TableCell colSpan={5}>
+                        <div className="flex flex-col items-center justify-center text-center py-8">
+                          <div className="rounded-full bg-muted p-4 mb-4">
+                            <UsersIcon className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                          <h3 className="font-semibold text-lg mb-1">No users found</h3>
+                          <p className="text-sm text-muted-foreground max-w-sm mb-4">
+                            Add team members to get started with your organization.
+                          </p>
+                          <Button onClick={() => setIsAddDialogOpen(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add User
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )}
@@ -524,7 +536,19 @@ const Users = () => {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-8 text-muted-foreground">No users found in this organization</div>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="rounded-full bg-muted p-3 mb-3">
+                    <UsersIcon className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <p className="font-medium mb-1">No users found</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Add team members to get started.
+                  </p>
+                  <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add User
+                  </Button>
+                </div>
               )}
             </div>
             </>

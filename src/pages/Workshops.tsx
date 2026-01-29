@@ -38,7 +38,7 @@ type CallCategory =
 const statusColors: Record<string, string> = {
   planned: "bg-sky-100 text-sky-700 border-sky-200",
   confirmed: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  completed: "bg-gray-100 text-gray-700 border-gray-200",
+  completed: "bg-slate-100 text-slate-700 border-slate-200",
   cancelled: "bg-red-100 text-red-700 border-red-200",
 };
 

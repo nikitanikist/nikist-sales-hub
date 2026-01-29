@@ -68,7 +68,7 @@ const categoryColors: Record<CallCategory, string> = {
   all_booked: "bg-slate-500",
   refunded: "bg-amber-500",
   rejoin: "bg-amber-600",
-  cross_workshop: "bg-gray-500",
+  cross_workshop: "bg-slate-500",
 };
 
 const statusLabels: Record<string, string> = {
@@ -439,7 +439,7 @@ export function WorkshopCallsDialog({
                       )}
                       {category === 'cross_workshop' && regularCall && (
                         <TableCell>
-                          <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-300">
+                          <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-300">
                             {regularCall.original_workshop_title || "Unknown"}
                           </Badge>
                         </TableCell>
@@ -498,8 +498,14 @@ export function WorkshopCallsDialog({
               </TableBody>
             </Table>
           ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              No calls found in this category for this workshop.
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="p-3 bg-muted rounded-full mb-3">
+                <Phone className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="font-medium mb-1">No calls found</p>
+              <p className="text-sm text-muted-foreground">
+                No calls in this category for this workshop.
+              </p>
             </div>
           )}
         </DialogContent>
