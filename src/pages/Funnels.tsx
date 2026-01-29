@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Search, RefreshCw, Filter, Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
+import { TableEmptyState } from "@/components/TableEmptyState";
 
 interface Funnel {
   id: string;
@@ -30,6 +32,8 @@ const Funnels = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingFunnel, setEditingFunnel] = useState<Funnel | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [funnelToDelete, setFunnelToDelete] = useState<Funnel | null>(null);
   const [formData, setFormData] = useState({
     funnel_name: "",
     amount: "",
@@ -295,9 +299,16 @@ const Funnels = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this funnel?")) {
-      deleteMutation.mutate(id);
+  const handleDeleteClick = (funnel: Funnel) => {
+    setFunnelToDelete(funnel);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (funnelToDelete) {
+      deleteMutation.mutate(funnelToDelete.id);
+      setDeleteDialogOpen(false);
+      setFunnelToDelete(null);
     }
   };
 
@@ -338,10 +349,13 @@ const Funnels = () => {
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{editingFunnel ? "Edit Funnel" : "Add New Funnel"}</DialogTitle>
+                    <DialogDescription>
+                      {editingFunnel ? "Update the funnel details below." : "Create a new funnel to organize your products and workshops."}
+                    </DialogDescription>
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="funnel_name">Funnel Name</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="funnel_name">Funnel Name <span className="text-destructive">*</span></Label>
                       <Input
                         id="funnel_name"
                         value={formData.funnel_name}
@@ -350,8 +364,8 @@ const Funnels = () => {
                         className="h-11 sm:h-10"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="amount">Amount (₹)</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="amount">Amount (₹) <span className="text-destructive">*</span></Label>
                       <Input
                         id="amount"
                         type="number"
@@ -416,7 +430,7 @@ const Funnels = () => {
 
                     <div className="flex flex-col sm:flex-row gap-2">
                       <Button type="submit" className="flex-1 h-11 sm:h-10">
-                        {editingFunnel ? "Update" : "Create"}
+                        {editingFunnel ? "Update Funnel" : "Create Funnel"}
                       </Button>
                       <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-11 sm:h-10">
                         Cancel
@@ -477,8 +491,8 @@ const Funnels = () => {
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(funnel)}>
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(funnel.id)}>
-                              <Trash2 className="h-4 w-4" />
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(funnel)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
                         </TableCell>
@@ -533,8 +547,8 @@ const Funnels = () => {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEdit(funnel)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(funnel.id)}>
-                        <Trash2 className="h-4 w-4" />
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteClick(funnel)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </div>
@@ -545,6 +559,16 @@ const Funnels = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Funnel"
+        itemName={funnelToDelete?.funnel_name}
+        isDeleting={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 };

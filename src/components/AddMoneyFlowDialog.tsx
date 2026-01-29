@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,6 +149,9 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
       <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
         <DialogHeader>
           <DialogTitle className="text-lg sm:text-xl">{editingEntry ? "Edit Entry" : "Add Daily Data"}</DialogTitle>
+          <DialogDescription>
+            {editingEntry ? "Update the revenue and cash collected for this date." : "Record the daily revenue and cash collection data."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
           {/* Date Selection */}

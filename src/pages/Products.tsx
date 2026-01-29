@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,6 +16,10 @@ import { toast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
+import { QuickCreateFunnelDialog } from "@/components/QuickCreateFunnelDialog";
+import { TableEmptyState } from "@/components/TableEmptyState";
+import { EmptySelectContent } from "@/components/EmptySelectContent";
 
 interface Product {
   id: string;
@@ -44,6 +48,10 @@ const Products = () => {
   const [selectedFunnel, setSelectedFunnel] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [quickCreateFunnelOpen, setQuickCreateFunnelOpen] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   
   const [formData, setFormData] = useState({
     funnel_id: "",
@@ -278,14 +286,31 @@ const Products = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this product?")) {
-      deleteMutation.mutate(id);
+  const handleDeleteClick = (product: Product) => {
+    setProductToDelete(product);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (productToDelete) {
+      deleteMutation.mutate(productToDelete.id);
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
     }
   };
 
   const handleSubmit = () => {
-    if (!formData.funnel_id || !formData.product_name) {
+    const errors: Record<string, string> = {};
+    
+    if (!formData.funnel_id) {
+      errors.funnel_id = "Please select a funnel";
+    }
+    if (!formData.product_name.trim()) {
+      errors.product_name = "Product name is required";
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
       toast({ 
         title: "Validation Error", 
         description: "Please fill in all required fields",
@@ -294,11 +319,17 @@ const Products = () => {
       return;
     }
 
+    setFormErrors({});
     if (editingProduct) {
       updateMutation.mutate({ id: editingProduct.id, ...formData });
     } else {
       createMutation.mutate(formData);
     }
+  };
+
+  const handleFunnelCreated = (funnelId: string) => {
+    setFormData({ ...formData, funnel_id: funnelId });
+    setFormErrors({ ...formErrors, funnel_id: "" });
   };
 
   return (
@@ -362,33 +393,74 @@ const Products = () => {
                 <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{editingProduct ? "Edit Product" : "Add New Product"}</DialogTitle>
+                    <DialogDescription>
+                      {editingProduct ? "Update the product details below." : "Fill in the details to create a new product."}
+                    </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="funnel">Funnel *</Label>
-                      <Select value={formData.funnel_id} onValueChange={(value) => setFormData({ ...formData, funnel_id: value })}>
-                        <SelectTrigger className="h-11 sm:h-10">
+                    <div className="space-y-2">
+                      <Label htmlFor="funnel">Funnel <span className="text-destructive">*</span></Label>
+                      <Select 
+                        value={formData.funnel_id} 
+                        onValueChange={(value) => {
+                          setFormData({ ...formData, funnel_id: value });
+                          if (formErrors.funnel_id) setFormErrors({ ...formErrors, funnel_id: "" });
+                        }}
+                      >
+                        <SelectTrigger className={`h-11 sm:h-10 ${formErrors.funnel_id ? "border-destructive" : ""}`}>
                           <SelectValue placeholder="Select a funnel" />
                         </SelectTrigger>
                         <SelectContent>
-                          {funnels.map((funnel) => (
-                            <SelectItem key={funnel.id} value={funnel.id}>
-                              {funnel.funnel_name}
-                            </SelectItem>
-                          ))}
+                          {funnels.length === 0 ? (
+                            <EmptySelectContent 
+                              entityName="Funnel" 
+                              onCreateClick={() => setQuickCreateFunnelOpen(true)}
+                            />
+                          ) : (
+                            <>
+                              {funnels.map((funnel) => (
+                                <SelectItem key={funnel.id} value={funnel.id}>
+                                  {funnel.funnel_name}
+                                </SelectItem>
+                              ))}
+                              <div className="border-t mt-1 pt-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="w-full justify-start text-primary"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setQuickCreateFunnelOpen(true);
+                                  }}
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Create New Funnel
+                                </Button>
+                              </div>
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
+                      {formErrors.funnel_id && (
+                        <p className="text-sm text-destructive">{formErrors.funnel_id}</p>
+                      )}
                     </div>
 
-                    <div>
-                      <Label htmlFor="product_name">Product Name *</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="product_name">Product Name <span className="text-destructive">*</span></Label>
                       <Input
                         id="product_name"
                         value={formData.product_name}
-                        onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                        placeholder="e.g., Insider Crypto Club"
-                        className="h-11 sm:h-10"
+                        onChange={(e) => {
+                          setFormData({ ...formData, product_name: e.target.value });
+                          if (formErrors.product_name) setFormErrors({ ...formErrors, product_name: "" });
+                        }}
+                        placeholder="e.g., Premium Membership"
+                        className={`h-11 sm:h-10 ${formErrors.product_name ? "border-destructive" : ""}`}
                       />
+                      {formErrors.product_name && (
+                        <p className="text-sm text-destructive">{formErrors.product_name}</p>
+                      )}
                     </div>
 
                     <div>
@@ -536,7 +608,7 @@ const Products = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => handleDelete(product.id)}
+                              onClick={() => handleDeleteClick(product)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -598,7 +670,7 @@ const Products = () => {
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEdit(product)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(product.id)}>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteClick(product)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -610,6 +682,23 @@ const Products = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Product"
+        itemName={productToDelete?.product_name}
+        isDeleting={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Quick Create Funnel Dialog */}
+      <QuickCreateFunnelDialog
+        open={quickCreateFunnelOpen}
+        onOpenChange={setQuickCreateFunnelOpen}
+        onSuccess={handleFunnelCreated}
+      />
     </div>
   );
 };
