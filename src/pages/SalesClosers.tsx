@@ -196,18 +196,9 @@ const SalesClosers = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Sales Closers</h1>
-          <p className="text-sm text-muted-foreground mt-1 sm:mt-2">
-            {isCloser && !isAdmin 
-              ? "View your performance metrics" 
-              : "View and manage sales team performance metrics"
-            }
-          </p>
-        </div>
-        {/* Only show Add Closer button for admins */}
-        {isAdmin && (
+      {/* Only show Add Closer button for admins */}
+      {isAdmin && (
+        <div className="flex justify-end">
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
@@ -261,8 +252,8 @@ const SalesClosers = () => {
               </form>
             </DialogContent>
           </Dialog>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Summary Cards - Only for admins and managers */}
       {(isAdmin || isManager) && (

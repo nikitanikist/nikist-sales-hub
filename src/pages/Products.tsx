@@ -336,12 +336,6 @@ const Products = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-        <div className="flex items-center gap-2">
-          <Package className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-          <h1 className="text-2xl sm:text-3xl font-bold">Products</h1>
-        </div>
-      </div>
 
       <Card>
         <CardHeader className="px-4 sm:px-6">

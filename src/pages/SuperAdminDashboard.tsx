@@ -434,15 +434,8 @@ const SuperAdminDashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            Super Admin Dashboard
-          </h1>
-          <p className="text-muted-foreground">Manage all organizations and their settings</p>
-        </div>
+      {/* Action Buttons */}
+      <div className="flex justify-end">
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
             <Button>

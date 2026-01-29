@@ -174,15 +174,6 @@ const OrganizationSettings = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Settings className="h-6 w-6" />
-          Organization Settings
-        </h1>
-        <p className="text-muted-foreground">
-          Configure {currentOrganization.name}
-        </p>
-      </div>
 
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">

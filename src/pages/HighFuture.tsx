@@ -674,19 +674,14 @@ const HighFuture = () => {
   if (!selectedBatch) {
     return (
       <div className="space-y-4 sm:space-y-6">
-        {/* Responsive Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 sm:h-6 sm:w-6" />
-            <h1 className="text-xl sm:text-2xl font-bold">High Future</h1>
-          </div>
-          {isAdmin && (
+        {isAdmin && (
+          <div className="flex justify-end">
             <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto h-11 sm:h-10">
               <Plus className="h-4 w-4 mr-2" />
               Add Batch
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         <Card>
           <CardHeader className="pb-3 sm:pb-6">

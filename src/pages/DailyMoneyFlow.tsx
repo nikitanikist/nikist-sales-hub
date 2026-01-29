@@ -465,22 +465,16 @@ const DailyMoneyFlow = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Daily Money Flow</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Track daily revenue and cash collection</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="sm:size-default h-10" onClick={() => setIsImportDialogOpen(true)}>
-            <Upload className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Bulk Import</span>
-          </Button>
-          <Button size="sm" className="sm:size-default h-10" onClick={() => setIsAddDialogOpen(true)}>
-            <Plus className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Add Data</span>
-          </Button>
-        </div>
+      {/* Action Buttons */}
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" size="sm" className="sm:size-default h-10" onClick={() => setIsImportDialogOpen(true)}>
+          <Upload className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Bulk Import</span>
+        </Button>
+        <Button size="sm" className="sm:size-default h-10" onClick={() => setIsAddDialogOpen(true)}>
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Add Data</span>
+        </Button>
       </div>
 
       {/* Summary Cards */}

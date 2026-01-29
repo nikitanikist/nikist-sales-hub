@@ -232,11 +232,7 @@ const ManageCohorts = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Manage Cohort Types</h1>
-          <p className="text-sm text-muted-foreground">Create and customize cohort categories for your organization</p>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Create Cohort Type

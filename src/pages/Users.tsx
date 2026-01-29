@@ -322,13 +322,7 @@ const Users = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage users in {currentOrganization?.name || "your organization"}
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto h-11 sm:h-10">
