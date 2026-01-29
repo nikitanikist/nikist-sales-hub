@@ -129,3 +129,59 @@ All colors MUST be HSL.
 .animate-overdue-pulse {
   animation: overdue-pulse 1.5s ease-in-out infinite;
 }
+
+/* Dialog enter animation */
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-dialog-enter {
+  animation: dialog-enter 0.2s ease-out;
+}
+
+/* List item stagger animation */
+@keyframes list-item-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-list-item {
+  animation: list-item-enter 0.2s ease-out;
+}
+
+/* Card hover effect */
+.card-hover-effect {
+  transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
+}
+
+.card-hover-effect:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.1);
+}
+
+/* Skeleton pulse override for smoother animation */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}

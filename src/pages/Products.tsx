@@ -20,6 +20,7 @@ import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { QuickCreateFunnelDialog } from "@/components/QuickCreateFunnelDialog";
 import { TableEmptyState } from "@/components/TableEmptyState";
 import { EmptySelectContent } from "@/components/EmptySelectContent";
+import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 interface Product {
   id: string;
@@ -536,7 +537,14 @@ const Products = () => {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-8">Loading products...</div>
+            <>
+              <div className="hidden sm:block">
+                <TableSkeleton columns={7} rows={5} />
+              </div>
+              <div className="sm:hidden">
+                <MobileCardSkeleton count={3} />
+              </div>
+            </>
           ) : (
             <>
             {/* Desktop Table View */}
@@ -561,8 +569,8 @@ const Products = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredProducts.map((product) => (
-                      <TableRow key={product.id}>
+                    filteredProducts.map((product, index) => (
+                      <TableRow key={product.id} className="animate-list-item" style={{ animationDelay: `${index * 30}ms` }}>
                         <TableCell>
                           <div>
                             <div className="font-medium">{product.product_name}</div>

@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentPlatformSelect, getPlatformFeeRate, getPlatformFeesHint } from "@/components/PaymentPlatformSelect";
+import { LabelWithTooltip } from "@/components/ui/label-with-tooltip";
 
 interface Lead {
   id: string;
@@ -426,11 +427,17 @@ export function AddBatchStudentDialog({
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Offer Amount (₹)</Label>
+                <LabelWithTooltip
+                  label="Offer Amount"
+                  tooltip="Total amount offered to the customer, including any discounts or special pricing."
+                />
                 <Input type="number" value={offerAmount} onChange={(e) => setOfferAmount(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Cash Collected (₹)</Label>
+                <LabelWithTooltip
+                  label="Cash Collected"
+                  tooltip="Actual amount received from the customer. Due amount = Offer Amount - Cash Collected."
+                />
                 <Input type="number" value={cashReceived} onChange={(e) => handleCashReceivedChange(e.target.value)} placeholder="0" />
               </div>
             </div>
@@ -438,18 +445,27 @@ export function AddBatchStudentDialog({
             {/* Payment Detail Fields */}
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>No Cost EMI (₹)</Label>
+                <LabelWithTooltip
+                  label="No Cost EMI"
+                  tooltip="Interest amount absorbed by you for EMI purchases. This is not included in cash received."
+                />
                 <Input type="number" value={noCostEmi} onChange={(e) => setNoCostEmi(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Platform Fees (₹)</Label>
+                <LabelWithTooltip
+                  label="Platform Fees"
+                  tooltip="Transaction fees charged by payment platforms (Razorpay, PayU, etc.). Auto-calculated based on platform selected."
+                />
                 <Input type="number" value={platformFees} onChange={(e) => handlePlatformFeesChange(e.target.value)} placeholder="0" />
                 {getPlatformFeesHint(paymentPlatform) && (
                   <p className="text-xs text-muted-foreground">{getPlatformFeesHint(paymentPlatform)}</p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label>GST Fees (₹)</Label>
+                <LabelWithTooltip
+                  label="GST Fees"
+                  tooltip="18% GST on the transaction. Calculated as: Cash ÷ 1.18 × 0.18"
+                />
                 <Input type="number" value={gstFees} onChange={(e) => setGstFees(e.target.value)} placeholder="0" />
                 <p className="text-xs text-muted-foreground">Cash ÷ 1.18 × 0.18</p>
               </div>

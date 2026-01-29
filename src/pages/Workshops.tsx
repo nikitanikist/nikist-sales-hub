@@ -20,6 +20,7 @@ import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 type CallCategory = 
   | "converted" 
@@ -823,7 +824,14 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
             </div>
           )}
           {isLoading ? (
-            <div className="text-center py-8">Loading...</div>
+            <>
+              <div className="hidden sm:block">
+                <TableSkeleton columns={8} rows={5} />
+              </div>
+              <div className="sm:hidden">
+                <MobileCardSkeleton count={3} />
+              </div>
+            </>
           ) : (
             <>
             {/* Desktop Table View */}
