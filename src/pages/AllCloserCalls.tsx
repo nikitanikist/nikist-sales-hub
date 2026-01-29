@@ -95,19 +95,19 @@ const CLASSES_ACCESS_OPTIONS = [
 ];
 
 const statusColors: Record<CallStatus, string> = {
-  scheduled: "bg-blue-100 text-blue-800 border-blue-200",
-  converted_beginner: "bg-green-100 text-green-800 border-green-200",
-  converted_intermediate: "bg-green-200 text-green-900 border-green-300",
-  converted_advance: "bg-emerald-200 text-emerald-900 border-emerald-300",
-  converted: "bg-green-100 text-green-800 border-green-200",
-  booking_amount: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  not_converted: "bg-red-100 text-red-800 border-red-200",
-  not_decided: "bg-orange-100 text-orange-800 border-orange-200",
-  so_so: "bg-amber-100 text-amber-800 border-amber-200",
-  reschedule: "bg-purple-100 text-purple-800 border-purple-200",
-  pending: "bg-gray-100 text-gray-800 border-gray-200",
-  refunded: "bg-rose-100 text-rose-800 border-rose-200",
-  discontinued: "bg-red-100 text-red-800 border-red-200",
+  scheduled: "bg-sky-100 text-sky-700 border-sky-200",
+  converted_beginner: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  converted_intermediate: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  converted_advance: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  converted: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  booking_amount: "bg-amber-100 text-amber-700 border-amber-200",
+  not_converted: "bg-red-100 text-red-700 border-red-200",
+  not_decided: "bg-orange-100 text-orange-700 border-orange-200",
+  so_so: "bg-amber-100 text-amber-700 border-amber-200",
+  reschedule: "bg-violet-100 text-violet-700 border-violet-200",
+  pending: "bg-gray-100 text-gray-700 border-gray-200",
+  refunded: "bg-pink-100 text-pink-700 border-pink-200",
+  discontinued: "bg-red-100 text-red-700 border-red-200",
 };
 
 const statusLabels: Record<CallStatus, string> = {
