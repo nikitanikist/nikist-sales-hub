@@ -24,6 +24,7 @@ import DailyMoneyFlow from "./pages/DailyMoneyFlow";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import CohortPage from "./pages/CohortPage";
 import ManageCohorts from "./pages/ManageCohorts";
+import OrganizationSettings from "./pages/OrganizationSettings";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
@@ -62,6 +63,7 @@ const App = () => (
               <Route path="/products" element={<Products />} />
               <Route path="/users" element={<Users />} />
               <Route path="/onboarding" element={<Onboarding />} />
+              <Route path="/settings" element={<ProtectedRoute adminOnly><OrganizationSettings /></ProtectedRoute>} />
               <Route path="/super-admin" element={<SuperAdminDashboard />} />
               <Route path="/super-admin/create-org" element={<SuperAdminDashboard />} />
             </Route>

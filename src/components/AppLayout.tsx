@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield, Rocket } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield, Rocket, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -262,6 +262,7 @@ const AppLayoutContent = () => {
     { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true, permissionKey: 'funnels' as PermissionKey },
     { title: "Products", icon: Package, path: "/products", isBeta: true, permissionKey: 'products' as PermissionKey },
     { title: "Users", icon: UsersRound, path: "/users", permissionKey: 'users' as PermissionKey },
+    { title: "Settings", icon: Settings, path: "/settings", permissionKey: 'settings' as PermissionKey },
   ], [dynamicCohortChildren]);
 
   // Filter menu items based on permissions

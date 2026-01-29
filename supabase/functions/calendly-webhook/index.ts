@@ -6,9 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Dipanshu's configuration (hardcoded - this webhook is only for Dipanshu)
-const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -18,8 +15,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const aisensyApiKey = Deno.env.get('AISENSY_API_KEY');
-    const aisensySource = Deno.env.get('AISENSY_SOURCE');
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error('Missing Supabase configuration');
@@ -61,10 +56,11 @@ serve(async (req) => {
     // Event details
     const startTime = scheduledEvent.start_time || eventPayload.event_start_time;
     const zoomLink = scheduledEvent.location?.join_url || 
-                     eventPayload.tracking?.utm_content || // Sometimes Zoom link is here
+                     eventPayload.tracking?.utm_content || 
                      null;
     const calendlyEventUri = scheduledEvent.uri || eventPayload.uri;
     const calendlyInviteeUri = invitee.uri;
+    const eventTypeUri = scheduledEvent.event_type?.uri || eventPayload.event_type;
 
     console.log('Extracted data:', {
       customerName,
@@ -74,6 +70,7 @@ serve(async (req) => {
       zoomLink,
       calendlyEventUri,
       calendlyInviteeUri,
+      eventTypeUri,
     });
 
     if (!customerEmail) {
@@ -84,29 +81,68 @@ serve(async (req) => {
       );
     }
 
-    // Step 1: Find Dipanshu's profile ID
-    const { data: dipanshuProfile, error: dipanshuError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', DIPANSHU_EMAIL)
-      .single();
+    // STEP 1: Find organization and closer by Calendly event type URI
+    let organizationId: string | null = null;
+    let closerId: string | null = null;
 
-    if (dipanshuError || !dipanshuProfile) {
-      console.error('Dipanshu profile not found:', dipanshuError);
+    if (eventTypeUri) {
+      // Try to find organization that has this Calendly event type configured
+      const { data: calendlyIntegrations } = await supabase
+        .from('organization_integrations')
+        .select('organization_id, config')
+        .eq('integration_type', 'calendly')
+        .eq('is_active', true);
+
+      if (calendlyIntegrations) {
+        for (const integration of calendlyIntegrations) {
+          const config = integration.config as { event_type_uri?: string; default_closer_id?: string };
+          if (config.event_type_uri === eventTypeUri) {
+            organizationId = integration.organization_id;
+            closerId = config.default_closer_id || null;
+            console.log('Found organization by event type URI:', organizationId);
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback: Use default organization if not found
+    if (!organizationId) {
+      organizationId = '00000000-0000-0000-0000-000000000001';
+      console.log('Using default organization:', organizationId);
+    }
+
+    // If no closer found from integration, try to find one
+    if (!closerId) {
+      // Get first available closer for this organization
+      const { data: orgClosers } = await supabase
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', organizationId)
+        .eq('role', 'sales_rep')
+        .limit(1);
+
+      if (orgClosers && orgClosers.length > 0) {
+        closerId = orgClosers[0].user_id;
+      }
+    }
+
+    if (!closerId) {
+      console.error('No closer found for organization:', organizationId);
       return new Response(
-        JSON.stringify({ error: 'Closer profile not found' }),
+        JSON.stringify({ error: 'No closer configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const closerId = dipanshuProfile.id;
-    console.log('Dipanshu closer ID:', closerId);
+    console.log('Using closer ID:', closerId);
 
-    // Step 2: Find or create lead by email (handle duplicates - pick most recent)
+    // STEP 2: Find or create lead by email
     let { data: leads, error: leadError } = await supabase
       .from('leads')
       .select('*')
       .eq('email', customerEmail)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -116,35 +152,21 @@ serve(async (req) => {
     }
 
     let lead = leads?.[0] || null;
-    console.log('Lead lookup result:', lead ? `Found lead ${lead.id} (${lead.workshop_name || 'no workshop'})` : 'No existing lead');
+    console.log('Lead lookup result:', lead ? `Found lead ${lead.id}` : 'No existing lead');
 
-    // Parse phone number to extract country code and clean digits
+    // Parse phone number
     const rawPhone = customerPhone || '';
-    const cleanPhone = rawPhone.replace(/\D/g, ''); // Remove all non-digits
+    const cleanPhone = rawPhone.replace(/\D/g, '');
     
     let countryCode: string | null = null;
     let phoneDigits: string | null = cleanPhone || null;
     
-    // Handle common patterns for Indian numbers
     if (cleanPhone.startsWith('91') && cleanPhone.length > 10) {
       countryCode = '91';
       phoneDigits = cleanPhone.slice(2);
     } else if (cleanPhone.length === 10) {
-      countryCode = '91'; // Default to India for 10-digit numbers
+      countryCode = '91';
       phoneDigits = cleanPhone;
-    } else if (cleanPhone.length > 10) {
-      // Try to extract country code (first 1-3 digits)
-      // Common codes: 1 (US/CA), 44 (UK), 91 (IN), 61 (AU)
-      if (cleanPhone.startsWith('1') && cleanPhone.length === 11) {
-        countryCode = '1';
-        phoneDigits = cleanPhone.slice(1);
-      } else if (cleanPhone.startsWith('44') && cleanPhone.length >= 12) {
-        countryCode = '44';
-        phoneDigits = cleanPhone.slice(2);
-      } else if (cleanPhone.startsWith('61') && cleanPhone.length >= 11) {
-        countryCode = '61';
-        phoneDigits = cleanPhone.slice(2);
-      }
     }
     
     console.log('Parsed phone:', { rawPhone, countryCode, phoneDigits });
@@ -159,10 +181,11 @@ serve(async (req) => {
           email: customerEmail,
           phone: phoneDigits,
           country: countryCode,
-          company_name: customerName, // Use name as company for new leads
+          company_name: customerName,
           status: 'new',
           assigned_to: closerId,
           source: 'calendly',
+          organization_id: organizationId,
         })
         .select()
         .single();
@@ -174,17 +197,10 @@ serve(async (req) => {
       lead = newLead;
       console.log('New lead created:', lead.id);
     } else {
-      // Update existing lead - always overwrite phone/country with properly parsed values
-      console.log('Existing lead found:', lead.id);
+      // Update existing lead
       const updateData: Record<string, any> = { assigned_to: closerId };
-      
-      // Always update phone/country with parsed values from Calendly
-      if (countryCode) {
-        updateData.country = countryCode;
-      }
-      if (phoneDigits) {
-        updateData.phone = phoneDigits;
-      }
+      if (countryCode) updateData.country = countryCode;
+      if (phoneDigits) updateData.phone = phoneDigits;
       
       await supabase
         .from('leads')
@@ -192,18 +208,18 @@ serve(async (req) => {
         .eq('id', lead.id);
     }
 
-    // Step 3: Parse scheduled date and time
+    // STEP 3: Parse scheduled date and time
     const scheduledDateTime = new Date(startTime);
-    const scheduledDate = scheduledDateTime.toISOString().split('T')[0]; // YYYY-MM-DD
+    const scheduledDate = scheduledDateTime.toISOString().split('T')[0];
     
-    // Convert to IST for time storage
-    const istOffset = 5.5 * 60 * 60 * 1000; // IST is UTC+5:30
+    // Convert to IST
+    const istOffset = 5.5 * 60 * 60 * 1000;
     const istDateTime = new Date(scheduledDateTime.getTime() + istOffset);
-    const scheduledTime = istDateTime.toISOString().split('T')[1].substring(0, 5); // HH:MM
+    const scheduledTime = istDateTime.toISOString().split('T')[1].substring(0, 5);
 
     console.log('Parsed schedule:', { scheduledDate, scheduledTime });
 
-    // Step 4: Check if appointment already exists (avoid duplicates)
+    // STEP 4: Check if appointment already exists
     const { data: existingAppointment } = await supabase
       .from('call_appointments')
       .select('id')
@@ -211,14 +227,14 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existingAppointment) {
-      console.log('Appointment already exists for this Calendly event:', existingAppointment.id);
+      console.log('Appointment already exists:', existingAppointment.id);
       return new Response(
         JSON.stringify({ message: 'Appointment already exists', appointment_id: existingAppointment.id }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Step 5: Create call appointment
+    // STEP 5: Create call appointment
     const { data: appointment, error: appointmentError } = await supabase
       .from('call_appointments')
       .insert({
@@ -230,6 +246,7 @@ serve(async (req) => {
         zoom_link: zoomLink,
         calendly_event_uri: calendlyEventUri,
         calendly_invitee_uri: calendlyInviteeUri,
+        organization_id: organizationId,
       })
       .select()
       .single();
@@ -241,55 +258,64 @@ serve(async (req) => {
 
     console.log('Appointment created:', appointment.id);
 
-    // Step 6: Send "Call Booked" WhatsApp message
+    // STEP 6: Send WhatsApp notification using org's integration
     let whatsappSent = false;
     const phoneForWhatsApp = (lead.phone || customerPhone || '').replace(/\D/g, '');
+    
+    // Get WhatsApp config for this organization
+    const { data: whatsappIntegration } = await supabase
+      .from('organization_integrations')
+      .select('config')
+      .eq('organization_id', organizationId)
+      .eq('integration_type', 'whatsapp')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    const whatsappConfig = whatsappIntegration?.config as { api_key?: string; source?: string; video_url?: string } | null;
+    const aisensyApiKey = whatsappConfig?.api_key || Deno.env.get('AISENSY_API_KEY');
+    const aisensySource = whatsappConfig?.source || Deno.env.get('AISENSY_SOURCE');
     
     if (phoneForWhatsApp && aisensyApiKey && aisensySource) {
       const phoneWithCountry = phoneForWhatsApp.startsWith('91') ? phoneForWhatsApp : `91${phoneForWhatsApp}`;
 
-      // Format date and time for WhatsApp message
       const callDate = new Date(scheduledDate);
       const formattedDate = callDate.toLocaleDateString('en-IN', { 
         day: 'numeric', 
         month: 'long' 
-      }); // e.g., "12 December"
+      });
       
       const [hours, minutes] = scheduledTime.split(':');
       const hour = parseInt(hours);
       const ampm = hour >= 12 ? 'PM' : 'AM';
       const hour12 = hour % 12 || 12;
-      const formattedTime = `${hour12}:${minutes} ${ampm} IST`; // e.g., "7:00 PM IST"
+      const formattedTime = `${hour12}:${minutes} ${ampm} IST`;
 
       console.log('Sending WhatsApp call booking notification to:', phoneWithCountry);
 
       const whatsappPayload = {
         apiKey: aisensyApiKey,
-        campaignName: '1_to_1_call_booking_crypto_dipanshu',
+        campaignName: '1_to_1_call_booking_crypto_nikist_video',
         destination: phoneWithCountry,
         userName: 'Crypto Call',
         source: aisensySource,
         media: {
-          url: 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/227807_Updated 11.mp4',
+          url: whatsappConfig?.video_url || 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4',
           filename: 'booking_confirmation.mp4',
         },
         templateParams: [
-          lead.contact_name || customerName, // {{1}} - Name
-          formattedDate, // {{2}} - Date
-          formattedTime, // {{3}} - Time
-          'Zoom link will be shared 10 minutes before the call', // {{4}} - Always static message
-          '+919266395637', // {{5}} - Contact number
+          lead.contact_name || customerName,
+          'Our Crypto Expert',
+          formattedDate,
+          formattedTime,
+          'you will get zoom link 30 minutes before the zoom call',
+          '+919266395637',
         ],
       };
-
-      console.log('WhatsApp payload:', JSON.stringify(whatsappPayload, null, 2));
 
       try {
         const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(whatsappPayload),
         });
 
@@ -297,7 +323,6 @@ serve(async (req) => {
         console.log('WhatsApp API response:', whatsappResult);
         whatsappSent = whatsappResponse.ok;
 
-        // Update the call_booked reminder status to 'sent'
         if (whatsappSent) {
           await supabase
             .from('call_reminders')
@@ -308,14 +333,11 @@ serve(async (req) => {
       } catch (whatsappError) {
         console.error('WhatsApp send error:', whatsappError);
       }
-    } else {
-      console.log('Skipping WhatsApp: missing phone or AiSensy config');
     }
 
-    // Send notification to closer (Dipanshu)
+    // Send notification to closer
     let closerNotificationSent = false;
     try {
-      console.log('Sending notification to closer for appointment:', appointment.id);
       const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-closer-notification`, {
         method: 'POST',
         headers: {
@@ -324,8 +346,6 @@ serve(async (req) => {
         },
         body: JSON.stringify({ appointment_id: appointment.id }),
       });
-      const notificationResult = await notificationResponse.json();
-      console.log('Closer notification result:', notificationResult);
       closerNotificationSent = notificationResponse.ok;
     } catch (notificationError) {
       console.error('Error sending closer notification:', notificationError);
@@ -338,6 +358,7 @@ serve(async (req) => {
         success: true,
         appointment_id: appointment.id,
         lead_id: lead.id,
+        organization_id: organizationId,
         whatsapp_sent: whatsappSent,
         closer_notification_sent: closerNotificationSent,
       }),

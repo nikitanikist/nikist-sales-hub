@@ -12,6 +12,7 @@ export const PERMISSION_KEYS = {
   funnels: 'funnels',
   products: 'products',
   users: 'users',
+  settings: 'settings',
 } as const;
 
 export type PermissionKey = typeof PERMISSION_KEYS[keyof typeof PERMISSION_KEYS];
@@ -35,6 +36,7 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/funnels': PERMISSION_KEYS.funnels,
   '/products': PERMISSION_KEYS.products,
   '/users': PERMISSION_KEYS.users,
+  '/settings': PERMISSION_KEYS.settings,
 };
 
 // Permission labels for UI display
@@ -51,6 +53,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   funnels: 'Active Funnels',
   products: 'Products',
   users: 'Users',
+  settings: 'Organization Settings',
 };
 
 // Permission groups for organized display
@@ -80,6 +83,7 @@ export const PERMISSION_GROUPS = [
       PERMISSION_KEYS.funnels,
       PERMISSION_KEYS.products,
       PERMISSION_KEYS.users,
+      PERMISSION_KEYS.settings,
     ],
   },
 ];
