@@ -45,29 +45,22 @@ interface OrganizationMember {
   };
 }
 
-interface OrganizationFeature {
+interface Module {
   id: string;
-  feature_key: string;
-  is_enabled: boolean;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  is_premium: boolean;
+  display_order: number;
 }
 
-const AVAILABLE_FEATURES = [
-  { key: "dashboard", label: "Dashboard" },
-  { key: "daily_money_flow", label: "Daily Money Flow" },
-  { key: "customers", label: "Customers" },
-  { key: "customer_insights", label: "Customer Insights" },
-  { key: "call_schedule", label: "1:1 Call Schedule" },
-  { key: "sales_closers", label: "Sales Closers" },
-  { key: "batch_icc", label: "Insider Crypto Club" },
-  { key: "batch_futures", label: "Future Mentorship" },
-  { key: "batch_high_future", label: "High Future" },
-  { key: "workshops", label: "All Workshops" },
-  { key: "sales", label: "Sales" },
-  { key: "funnels", label: "Active Funnels" },
-  { key: "products", label: "Products" },
-  { key: "users", label: "Users" },
-  { key: "integrations", label: "Integrations" },
-];
+interface OrganizationModule {
+  id: string;
+  module_id: string;
+  is_enabled: boolean;
+  modules: Module;
+}
 
 const SuperAdminDashboard = () => {
   const { isSuperAdmin, isLoading: orgLoading, refreshOrganizations } = useOrganization();
@@ -75,7 +68,8 @@ const SuperAdminDashboard = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [orgMembers, setOrgMembers] = useState<OrganizationMember[]>([]);
-  const [orgFeatures, setOrgFeatures] = useState<OrganizationFeature[]>([]);
+  const [allModules, setAllModules] = useState<Module[]>([]);
+  const [orgModules, setOrgModules] = useState<OrganizationModule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -102,8 +96,20 @@ const SuperAdminDashboard = () => {
   useEffect(() => {
     if (isSuperAdmin) {
       fetchOrganizations();
+      fetchAllModules();
     }
   }, [isSuperAdmin]);
+
+  const fetchAllModules = async () => {
+    const { data, error } = await supabase
+      .from("modules")
+      .select("*")
+      .order("display_order");
+    
+    if (!error && data) {
+      setAllModules(data as Module[]);
+    }
+  };
 
   const fetchOrganizations = async () => {
     setIsLoading(true);
@@ -189,14 +195,19 @@ const SuperAdminDashboard = () => {
 
       setOrgMembers(membersWithProfiles);
 
-      // Fetch features
-      const { data: features, error: featuresError } = await supabase
-        .from("organization_features")
-        .select("*")
+      // Fetch organization modules
+      const { data: modules, error: modulesError } = await supabase
+        .from("organization_modules")
+        .select(`
+          id,
+          module_id,
+          is_enabled,
+          modules (*)
+        `)
         .eq("organization_id", org.id);
 
-      if (featuresError) throw featuresError;
-      setOrgFeatures(features || []);
+      if (modulesError) throw modulesError;
+      setOrgModules((modules || []) as OrganizationModule[]);
     } catch (error) {
       console.error("Error fetching org details:", error);
       toast.error("Failed to load organization details");
@@ -221,14 +232,17 @@ const SuperAdminDashboard = () => {
 
       if (error) throw error;
 
-      // Add default features
-      const defaultFeatures = AVAILABLE_FEATURES.map((f) => ({
-        organization_id: data.id,
-        feature_key: f.key,
-        is_enabled: true,
-      }));
+      // Enable all modules for the new organization
+      if (allModules.length > 0) {
+        const defaultModules = allModules.map((m) => ({
+          organization_id: data.id,
+          module_id: m.id,
+          is_enabled: true,
+          enabled_at: new Date().toISOString(),
+        }));
 
-      await supabase.from("organization_features").insert(defaultFeatures);
+        await supabase.from("organization_modules").insert(defaultModules);
+      }
 
       toast.success("Organization created successfully");
       setShowCreateDialog(false);
@@ -262,40 +276,53 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const toggleFeature = async (featureKey: string) => {
+  const toggleModule = async (moduleId: string) => {
     if (!selectedOrg) return;
 
-    const existingFeature = orgFeatures.find((f) => f.feature_key === featureKey);
+    const existingOrgModule = orgModules.find((om) => om.module_id === moduleId);
 
     try {
-      if (existingFeature) {
+      if (existingOrgModule) {
+        // Update existing record
         const { error } = await supabase
-          .from("organization_features")
-          .update({ is_enabled: !existingFeature.is_enabled })
-          .eq("id", existingFeature.id);
+          .from("organization_modules")
+          .update({ 
+            is_enabled: !existingOrgModule.is_enabled,
+            enabled_at: !existingOrgModule.is_enabled ? new Date().toISOString() : null
+          })
+          .eq("id", existingOrgModule.id);
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("organization_features").insert({
-          organization_id: selectedOrg.id,
-          feature_key: featureKey,
-          is_enabled: true,
-        });
+        // Insert new record for this org + module
+        const { error } = await supabase
+          .from("organization_modules")
+          .insert({
+            organization_id: selectedOrg.id,
+            module_id: moduleId,
+            is_enabled: true,
+            enabled_at: new Date().toISOString(),
+          });
 
         if (error) throw error;
       }
 
-      // Refresh features
-      const { data: features } = await supabase
-        .from("organization_features")
-        .select("*")
+      // Refresh modules for the selected org
+      const { data: modules } = await supabase
+        .from("organization_modules")
+        .select(`
+          id,
+          module_id,
+          is_enabled,
+          modules (*)
+        `)
         .eq("organization_id", selectedOrg.id);
 
-      setOrgFeatures(features || []);
-      toast.success("Feature updated");
+      setOrgModules((modules || []) as OrganizationModule[]);
+      toast.success("Module updated");
     } catch (error) {
-      console.error("Error toggling feature:", error);
-      toast.error("Failed to update feature");
+      console.error("Error toggling module:", error);
+      toast.error("Failed to update module");
     }
   };
 
@@ -596,10 +623,9 @@ const SuperAdminDashboard = () => {
                       </p>
                     </div>
                     <div>
-                      <Label className="text-muted-foreground">Features Enabled</Label>
+                      <Label className="text-muted-foreground">Modules Enabled</Label>
                       <p className="font-medium">
-                        {orgFeatures.filter((f) => f.is_enabled).length} /{" "}
-                        {AVAILABLE_FEATURES.length}
+                        {orgModules.filter((m) => m.is_enabled).length} / {allModules.length}
                       </p>
                     </div>
                   </div>
@@ -754,26 +780,38 @@ const SuperAdminDashboard = () => {
                 </TabsContent>
 
                 <TabsContent value="features">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {AVAILABLE_FEATURES.map((feature) => {
-                      const orgFeature = orgFeatures.find(
-                        (f) => f.feature_key === feature.key
-                      );
-                      const isEnabled = orgFeature?.is_enabled ?? false;
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Enable or disable modules for this organization
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {allModules.map((module) => {
+                        const orgModule = orgModules.find(
+                          (om) => om.module_id === module.id
+                        );
+                        const isEnabled = orgModule?.is_enabled ?? false;
 
-                      return (
-                        <div
-                          key={feature.key}
-                          className="flex items-center justify-between p-3 border rounded-lg"
-                        >
-                          <span className="text-sm font-medium">{feature.label}</span>
-                          <Switch
-                            checked={isEnabled}
-                            onCheckedChange={() => toggleFeature(feature.key)}
-                          />
-                        </div>
-                      );
-                    })}
+                        return (
+                          <div
+                            key={module.id}
+                            className="flex items-center justify-between p-4 border rounded-lg"
+                          >
+                            <div className="space-y-1">
+                              <span className="text-sm font-medium">{module.name}</span>
+                              {module.description && (
+                                <p className="text-xs text-muted-foreground">
+                                  {module.description}
+                                </p>
+                              )}
+                            </div>
+                            <Switch
+                              checked={isEnabled}
+                              onCheckedChange={() => toggleModule(module.id)}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </TabsContent>
               </CardContent>
