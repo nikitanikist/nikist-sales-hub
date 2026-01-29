@@ -24,6 +24,7 @@ import { format } from "date-fns";
 import { Phone, Mail, Calendar, Clock, User, RotateCcw } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
+import { TableSkeleton } from "@/components/skeletons";
 
 type CallCategory = 
   | "converted" 
@@ -294,7 +295,7 @@ export function WorkshopCallsDialog({
           </DialogHeader>
 
           {isLoading ? (
-            <div className="text-center py-8">Loading...</div>
+            <TableSkeleton columns={6} rows={4} showHeader={false} />
           ) : calls && calls.length > 0 ? (
             <Table>
               <TableHeader>

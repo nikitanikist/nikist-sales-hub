@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Building2, Users, Settings, Plus, Edit, Trash2, Shield, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { StatsCardsSkeleton, TableSkeleton } from "@/components/skeletons";
 
 const ROLE_OPTIONS = [
   { value: "viewer", label: "Viewer" },
@@ -416,8 +417,13 @@ const SuperAdminDashboard = () => {
 
   if (orgLoading || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-lg">Loading...</div>
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center gap-2">
+          <div className="skeleton-shimmer h-8 w-8 rounded-lg" />
+          <div className="skeleton-shimmer h-8 w-48 rounded" />
+        </div>
+        <StatsCardsSkeleton count={4} />
+        <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
