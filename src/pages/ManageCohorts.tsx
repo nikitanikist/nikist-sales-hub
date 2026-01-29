@@ -15,6 +15,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { useUserRole } from "@/hooks/useUserRole";
+import { PageIntro } from "@/components/PageIntro";
 
 interface CohortType {
   id: string;
@@ -232,6 +233,13 @@ const ManageCohorts = () => {
 
   return (
     <div className="space-y-6">
+      <PageIntro
+        icon={GraduationCap}
+        tagline="Cohort Management"
+        description="Organize and track your learning cohorts."
+        variant="violet"
+      />
+
       <div className="flex justify-end">
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />

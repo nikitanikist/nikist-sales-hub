@@ -27,6 +27,7 @@ import EmptyState from "@/components/EmptyState";
 import { useOrgClosers, useOrgIntegrations, hasIntegrationForCloser } from "@/hooks/useOrgClosers";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
+import { PageIntro } from "@/components/PageIntro";
 
 const statusColors: Record<string, string> = {
   new: "bg-sky-100 text-sky-700 border-sky-200",
@@ -1027,6 +1028,13 @@ const Leads = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <PageIntro
+        icon={Users}
+        tagline="Customer Hub"
+        description="Manage leads, track conversions, and grow relationships."
+        variant="violet"
+      />
+
       {/* Customer Count Card */}
       <Card className="w-fit">
         <CardContent className="py-2 sm:py-3 px-3 sm:px-4 flex items-center gap-2 sm:gap-3">

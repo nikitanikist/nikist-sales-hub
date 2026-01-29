@@ -27,6 +27,7 @@ import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { PageIntro } from "@/components/PageIntro";
 
 type CallStatus = Database["public"]["Enums"]["call_status"];
 type ReminderStatus = Database["public"]["Enums"]["reminder_status"];
@@ -806,6 +807,13 @@ const CloserAssignedCalls = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <PageIntro
+        icon={Phone}
+        tagline="Your Assigned Calls"
+        description="Manage and track your personal call queue."
+        variant="sky"
+      />
+
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/sales-closers")} className="w-fit">
           <ArrowLeft className="h-5 w-5" />

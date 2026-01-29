@@ -35,6 +35,7 @@ import {
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { PageIntro } from "@/components/PageIntro";
 
 interface FuturesBatch {
   id: string;
@@ -670,6 +671,13 @@ const FuturesMentorship = () => {
   if (!selectedBatch) {
     return (
       <div className="space-y-4 sm:space-y-6">
+        <PageIntro
+          icon={TrendingUp}
+          tagline="Futures Program"
+          description="Manage mentorship students and payments."
+          variant="emerald"
+        />
+
         {isAdmin && (
           <div className="flex justify-end">
             <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto h-11 sm:h-10">

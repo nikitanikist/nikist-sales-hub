@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
+import { PageIntro } from "@/components/PageIntro";
 
 type DateFilter = 'yesterday' | 'today' | 'tomorrow' | 'custom';
 
@@ -257,6 +258,13 @@ const Calls = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
+      <PageIntro
+        icon={CalendarIcon}
+        tagline="Call Management"
+        description="Schedule and track your one-on-one calls."
+        variant="sky"
+      />
+
       {/* Date Filters */}
       <Card>
         <CardContent className="pt-4 sm:pt-6">

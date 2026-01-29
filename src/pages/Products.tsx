@@ -21,6 +21,7 @@ import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { QuickCreateFunnelDialog } from "@/components/QuickCreateFunnelDialog";
 import { TableEmptyState } from "@/components/TableEmptyState";
 import { EmptySelectContent } from "@/components/EmptySelectContent";
+import { PageIntro } from "@/components/PageIntro";
 import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 interface Product {
@@ -336,6 +337,12 @@ const Products = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-6">
+      <PageIntro
+        icon={Package}
+        tagline="Product Catalog"
+        description="Manage your offerings and pricing."
+        variant="amber"
+      />
 
       <Card>
         <CardHeader className="px-4 sm:px-6">

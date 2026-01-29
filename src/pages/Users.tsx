@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_GROUPS, getDefaultPermissionsForRole, PermissionKey } from "@/lib/permissions";
 import { useOrganization } from "@/hooks/useOrganization";
 import { cn } from "@/lib/utils";
+import { PageIntro } from "@/components/PageIntro";
 
 interface UserWithRole {
   id: string;
@@ -322,6 +323,13 @@ const Users = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
+      <PageIntro
+        icon={UsersIcon}
+        tagline="Team Members"
+        description="Manage access and roles for your organization."
+        variant="violet"
+      />
+
       <div className="flex justify-end">
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>

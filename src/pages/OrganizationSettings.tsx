@@ -10,6 +10,7 @@ import { IntegrationSection } from "@/components/settings/IntegrationSection";
 import { GeneralSettings } from "@/pages/settings/GeneralSettings";
 import { ModulesSettings } from "@/pages/settings/ModulesSettings";
 import { PabblyIntegration } from "@/pages/settings/PabblyIntegration";
+import { PageIntro } from "@/components/PageIntro";
 import { CloserAssignments } from "@/components/settings/CloserAssignments";
 
 interface IntegrationConfig {
@@ -174,6 +175,12 @@ const OrganizationSettings = () => {
 
   return (
     <div className="space-y-6">
+      <PageIntro
+        icon={Settings}
+        tagline="Configure Your Workspace"
+        description="Customize integrations and preferences."
+        variant="violet"
+      />
 
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">

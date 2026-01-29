@@ -2,14 +2,14 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Calendar, DollarSign, TrendingUp, LayoutDashboard } from "lucide-react";
+import { Users, Calendar, DollarSign, TrendingUp, LayoutDashboard, Sparkles } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import AutomationStatusWidget from "@/components/AutomationStatusWidget";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { StatsCardsSkeleton, ChartCardSkeleton } from "@/components/skeletons";
-import { PageHeader } from "@/components/PageHeader";
+import { PageIntro } from "@/components/PageIntro";
 import { cn } from "@/lib/utils";
 
 const Dashboard = () => {
@@ -137,6 +137,13 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <PageIntro
+        icon={Sparkles}
+        tagline="Welcome back!"
+        description="Here's an overview of your business performance today."
+        variant="violet"
+      />
+      
       <div className="flex justify-end">
         <AutomationStatusWidget />
       </div>
