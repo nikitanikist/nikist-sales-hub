@@ -1,78 +1,53 @@
 
 
-# Typography Upgrade: Switching to Inter
+# Premium Sticky Header Enhancement
 
 ## Overview
 
-This plan upgrades the project's typography from **Plus Jakarta Sans** to **Inter**, the industry-standard font for modern SaaS dashboards. Inter was specifically designed for screen interfaces and is used by leading products like Figma, Linear, Notion, and Discord.
+This enhancement adds a subtle drop shadow and backdrop blur to the sticky header, creating a modern "floating glass" effect that's common in premium SaaS applications like Linear, Notion, and Vercel.
 
-## Why Inter?
+---
 
-| Feature | Plus Jakarta Sans (Current) | Inter (Proposed) |
-|---------|---------------------------|------------------|
-| **X-height** | 69% | 73% (more legible) |
-| **Screen optimization** | General purpose | UI-first design |
-| **Number rendering** | Standard | Tabular numerals available |
-| **Weights** | 8 weights | 9 weights |
-| **Used by** | Various startups | Figma, Linear, Notion, Discord |
-| **Cost** | Free | Free |
+## Current Implementation
 
-## Implementation
+**File:** `src/components/AppLayout.tsx` (Line 373)
 
-### Phase 1: Update Font Import
-
-**File: `src/index.css`**
-
-Replace the Google Fonts import at line 1:
-
-```css
-/* From */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-
-/* To */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+```tsx
+<div className="sticky top-0 z-10 bg-background border-b border-border">
 ```
 
-### Phase 2: Update Body Font Stack
+---
 
-**File: `src/index.css`** (line 139)
+## Proposed Changes
 
-Update the body font-family declaration:
+### Update Header Styling
 
-```css
-/* From */
-font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+**File:** `src/components/AppLayout.tsx` (Line 373)
 
-/* To */
-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+```tsx
+// From:
+<div className="sticky top-0 z-10 bg-background border-b border-border">
+
+// To:
+<div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
 ```
 
-### Phase 3: Add Typographic Enhancements (Optional)
+### What Each Class Does
 
-Add CSS features to enable Inter's special OpenType features for better number rendering in dashboards:
+| Class | Effect |
+|-------|--------|
+| `bg-background/95` | 95% opacity background - allows subtle content peek-through |
+| `backdrop-blur-sm` | Applies a light blur to content scrolling behind the header |
+| `shadow-sm` | Adds a subtle drop shadow for depth and separation |
 
-**File: `src/index.css`** (add to base layer)
+---
 
-```css
-/* Enable tabular numbers for data tables */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
+## Visual Impact
 
-/* Enable slashed zero for better data clarity */
-.slashed-zero {
-  font-variant-numeric: slashed-zero;
-}
-
-/* Combine for financial data */
-.data-text {
-  font-variant-numeric: tabular-nums slashed-zero;
-}
-```
-
-### Phase 4: Update Memory/Style Documentation
-
-Update the project memory to reflect the new font choice for consistency in future development.
+- **Floating effect**: The semi-transparent background with blur creates a modern glass-like appearance
+- **Depth perception**: The subtle shadow provides visual separation from page content
+- **Premium feel**: This technique is used by Linear, Notion, Vercel, and other top-tier SaaS products
+- **Subtle refinement**: The changes are intentionally subtle - just enough to add polish without being distracting
 
 ---
 
@@ -80,27 +55,15 @@ Update the project memory to reflect the new font choice for consistency in futu
 
 | File | Change |
 |------|--------|
-| `src/index.css` | Replace font import and font-family declaration |
+| `src/components/AppLayout.tsx` | Add backdrop blur and shadow to sticky header (line 373) |
 
 ---
 
-## Visual Impact
+## Expected Result
 
-After this change:
-- **Tables with numbers** will be more readable with properly aligned digits
-- **Data-heavy pages** (Dashboard, Batches, Money Flow) will feel more professional
-- **Overall polish** will match industry-leading SaaS products like Linear and Notion
-- **Character distinction** - numbers like 0 vs O, 1 vs l vs I will be clearer
-
----
-
-## Alternative Options
-
-If you'd prefer a different aesthetic, here are runner-up options:
-
-1. **Geist Sans** (Vercel) - More modern/geometric, slightly more technical feel
-2. **DM Sans** - Softer, friendlier, excellent for smaller text
-3. **Satoshi** - Trendy geometric look popular with modern startups
-
-Inter remains my top recommendation for a sales CRM dashboard due to its proven track record in data-intensive applications.
+When you scroll the page:
+1. The header stays fixed at the top (existing behavior)
+2. Content scrolling beneath shows a subtle blur effect through the semi-transparent header
+3. A soft shadow creates visual separation between the header and content
+4. The overall effect feels more polished and premium
 
