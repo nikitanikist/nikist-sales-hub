@@ -1854,7 +1854,7 @@ const Batches = () => {
                                       ? "bg-red-100 text-red-800 border-red-200"
                                       : student.status === "converted" || student.status.startsWith("converted_")
                                         ? "bg-green-100 text-green-800" 
-                                        : "bg-gray-100 text-gray-800"
+                                        : "bg-slate-100 text-slate-800"
                                 }>
                                   {student.status.charAt(0).toUpperCase() + student.status.slice(1).replace(/_/g, " ")}
                                 </Badge>

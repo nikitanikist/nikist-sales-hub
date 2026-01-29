@@ -420,7 +420,7 @@ export const ReassignCallDialog = ({
                 Date/time changed - WhatsApp confirmation will be sent
               </Badge>
             ) : selectedCloserId ? (
-              <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+              <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
                 Same date/time - No WhatsApp will be sent (only Zoom link changes)
               </Badge>
             ) : null}

@@ -805,7 +805,7 @@ const CloserAssignedCalls = () => {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/sales-closers")} className="w-fit">
           <ArrowLeft className="h-5 w-5" />
