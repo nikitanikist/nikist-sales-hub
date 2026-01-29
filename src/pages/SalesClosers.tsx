@@ -402,7 +402,7 @@ const SalesClosers = () => {
                   <TableBody>
                     {filteredClosers && filteredClosers.length > 0 ? (
                       filteredClosers.map((closer) => (
-                        <TableRow key={closer.id}>
+                        <TableRow key={closer.id} className="hover:bg-muted/50 transition-colors">
                           <TableCell className="font-medium">{closer.full_name}</TableCell>
                           <TableCell>
                             <div className="space-y-1">
