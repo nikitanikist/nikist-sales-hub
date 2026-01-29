@@ -26,6 +26,7 @@ import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { useOrgClosers, useOrgIntegrations, hasIntegrationForCloser } from "@/hooks/useOrgClosers";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
+import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 const statusColors: Record<string, string> = {
   new: "bg-sky-100 text-sky-700 border-sky-200",
@@ -1116,7 +1117,14 @@ const Leads = () => {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="text-center py-8">Loading...</div>
+            <>
+              <div className="hidden sm:block p-4">
+                <TableSkeleton columns={8} rows={5} />
+              </div>
+              <div className="sm:hidden p-4">
+                <MobileCardSkeleton count={4} />
+              </div>
+            </>
           ) : (
             <>
               {/* Desktop Table View */}
