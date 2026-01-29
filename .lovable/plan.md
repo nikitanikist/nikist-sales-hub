@@ -1,138 +1,106 @@
 
-# Final UI Polish - Remaining Changes
+
+# Typography Upgrade: Switching to Inter
 
 ## Overview
 
-This plan completes the remaining items from the Final UI Polish implementation. The following changes are needed to finalize the premium SaaS experience.
+This plan upgrades the project's typography from **Plus Jakarta Sans** to **Inter**, the industry-standard font for modern SaaS dashboards. Inter was specifically designed for screen interfaces and is used by leading products like Figma, Linear, Notion, and Discord.
 
----
+## Why Inter?
 
-## Phase 1: Page Animation Classes
+| Feature | Plus Jakarta Sans (Current) | Inter (Proposed) |
+|---------|---------------------------|------------------|
+| **X-height** | 69% | 73% (more legible) |
+| **Screen optimization** | General purpose | UI-first design |
+| **Number rendering** | Standard | Tabular numerals available |
+| **Weights** | 8 weights | 9 weights |
+| **Used by** | Various startups | Figma, Linear, Notion, Discord |
+| **Cost** | Free | Free |
 
-### 1.1 Add `animate-fade-in` to Page Root Containers
+## Implementation
 
-| File | Line | Current | Updated |
-|------|------|---------|---------|
-| `AllCloserCalls.tsx` | 622 | `<div className="space-y-6">` | `<div className="space-y-6 animate-fade-in">` |
-| `CloserAssignedCalls.tsx` | 808 | `<div className="space-y-4 sm:space-y-6">` | `<div className="space-y-4 sm:space-y-6 animate-fade-in">` |
+### Phase 1: Update Font Import
 
----
+**File: `src/index.css`**
 
-## Phase 2: Color System Fixes
+Replace the Google Fonts import at line 1:
 
-### 2.1 Products.tsx - Mobile Inactive Badge (Line 673)
+```css
+/* From */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
-Replace hardcoded gray with slate:
-```tsx
-// From:
-: "bg-gray-100 text-gray-700 border-gray-200"
-
-// To:
-: "bg-slate-100 text-slate-700 border-slate-200"
+/* To */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 ```
 
-### 2.2 Workshops.tsx - Cross-Workshop Section (Lines 1100, 1103-1105)
+### Phase 2: Update Body Font Stack
 
-Replace gray colors with slate for the cross-workshop card:
-```tsx
-// From:
-className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all"
-...
-<div className="text-2xl font-bold text-gray-700 dark:text-gray-300">
-<div className="text-xs text-gray-500 font-medium">
-<div className="text-xs text-gray-400 mt-1">
+**File: `src/index.css`** (line 139)
 
-// To:
-className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-slate-400 hover:shadow-sm transition-all"
-...
-<div className="text-2xl font-bold text-slate-700 dark:text-slate-300">
-<div className="text-xs text-slate-500 font-medium">
-<div className="text-xs text-slate-400 mt-1">
+Update the body font-family declaration:
+
+```css
+/* From */
+font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+/* To */
+font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 ```
 
-### 2.3 Batches.tsx - Student Status Badge (Line 1857)
+### Phase 3: Add Typographic Enhancements (Optional)
 
-Replace gray fallback with slate:
-```tsx
-// From:
-: "bg-gray-100 text-gray-800"
+Add CSS features to enable Inter's special OpenType features for better number rendering in dashboards:
 
-// To:
-: "bg-slate-100 text-slate-800"
+**File: `src/index.css`** (add to base layer)
+
+```css
+/* Enable tabular numbers for data tables */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Enable slashed zero for better data clarity */
+.slashed-zero {
+  font-variant-numeric: slashed-zero;
+}
+
+/* Combine for financial data */
+.data-text {
+  font-variant-numeric: tabular-nums slashed-zero;
+}
 ```
 
-### 2.4 ReassignCallDialog.tsx - Info Badge (Line 423)
+### Phase 4: Update Memory/Style Documentation
 
-Replace gray with slate:
-```tsx
-// From:
-<Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-
-// To:
-<Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
-```
-
-### 2.5 StatusBadge Component (status-badge.tsx)
-
-Update the design system component to use slate instead of gray for neutral statuses:
-
-| Line | Status | Current | Updated |
-|------|--------|---------|---------|
-| 17 | cancelled | `bg-gray-100 text-gray-700 border-gray-200` | `bg-slate-100 text-slate-700 border-slate-200` |
-| 23 | inactive | `bg-gray-100 text-gray-700 border-gray-200` | `bg-slate-100 text-slate-700 border-slate-200` |
-| 30 | past | `bg-gray-100 text-gray-700 border-gray-200` | `bg-slate-100 text-slate-700 border-slate-200` |
-| 38 | default | `bg-gray-100 text-gray-700 border-gray-200` | `bg-slate-100 text-slate-700 border-slate-200` |
-
----
-
-## Phase 3: Loading State Fix
-
-### 3.1 Users.tsx - Replace Loading Text with Skeleton (Line 430)
-
-Replace plain text loading state with shimmer skeletons:
-
-```tsx
-// From:
-<div className="text-center py-8 text-muted-foreground">Loading users...</div>
-
-// To:
-<div className="space-y-3">
-  {[...Array(5)].map((_, i) => (
-    <div key={i} className="flex items-center gap-4 p-4 border rounded-lg">
-      <div className="h-10 w-10 rounded-full bg-muted animate-pulse" />
-      <div className="flex-1 space-y-2">
-        <div className="h-4 w-32 bg-muted animate-pulse rounded" />
-        <div className="h-3 w-48 bg-muted animate-pulse rounded" />
-      </div>
-      <div className="h-6 w-16 bg-muted animate-pulse rounded-full" />
-    </div>
-  ))}
-</div>
-```
+Update the project memory to reflect the new font choice for consistency in future development.
 
 ---
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/pages/AllCloserCalls.tsx` | Add `animate-fade-in` to root container |
-| `src/pages/CloserAssignedCalls.tsx` | Add `animate-fade-in` to root container |
-| `src/pages/Products.tsx` | Fix mobile inactive badge color |
-| `src/pages/Workshops.tsx` | Fix cross-workshop section colors |
-| `src/pages/Batches.tsx` | Fix student status badge fallback color |
-| `src/pages/Users.tsx` | Replace loading text with skeleton |
-| `src/components/ReassignCallDialog.tsx` | Fix info badge color |
-| `src/components/ui/status-badge.tsx` | Update neutral status colors |
+| File | Change |
+|------|--------|
+| `src/index.css` | Replace font import and font-family declaration |
 
 ---
 
-## Expected Outcome
+## Visual Impact
 
-After these changes:
-- All main pages will have smooth fade-in entrance animations
-- No remaining `bg-gray-*` colors in the codebase (all replaced with `bg-slate-*`)
-- All loading states use proper skeleton shimmer effects
-- The StatusBadge component will use the design system's slate color palette
+After this change:
+- **Tables with numbers** will be more readable with properly aligned digits
+- **Data-heavy pages** (Dashboard, Batches, Money Flow) will feel more professional
+- **Overall polish** will match industry-leading SaaS products like Linear and Notion
+- **Character distinction** - numbers like 0 vs O, 1 vs l vs I will be clearer
 
-This completes the Final UI Polish implementation!
+---
+
+## Alternative Options
+
+If you'd prefer a different aesthetic, here are runner-up options:
+
+1. **Geist Sans** (Vercel) - More modern/geometric, slightly more technical feel
+2. **DM Sans** - Softer, friendlier, excellent for smaller text
+3. **Satoshi** - Trendy geometric look popular with modern startups
+
+Inter remains my top recommendation for a sales CRM dashboard due to its proven track record in data-intensive applications.
+
