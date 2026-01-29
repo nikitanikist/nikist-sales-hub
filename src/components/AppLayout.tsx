@@ -359,7 +359,7 @@ const AppLayoutContent = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex h-screen w-full overflow-hidden">
         <SidebarNavigation 
           menuItems={menuItems}
           navigate={navigate}
