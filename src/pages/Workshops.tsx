@@ -36,10 +36,10 @@ type CallCategory =
   | "cross_workshop";
 
 const statusColors: Record<string, string> = {
-  planned: "bg-blue-500",
-  confirmed: "bg-green-500",
-  completed: "bg-gray-500",
-  cancelled: "bg-red-500",
+  planned: "bg-sky-100 text-sky-700 border-sky-200",
+  confirmed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  completed: "bg-gray-100 text-gray-700 border-gray-200",
+  cancelled: "bg-red-100 text-red-700 border-red-200",
 };
 
 const Workshops = () => {

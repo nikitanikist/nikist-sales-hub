@@ -215,17 +215,17 @@ const Calls = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-500';
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'scheduled':
-        return 'bg-blue-500';
+        return 'bg-sky-100 text-sky-700 border-sky-200';
       case 'rescheduled':
-        return 'bg-yellow-500';
+        return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'cancelled':
-        return 'bg-red-500';
+        return 'bg-red-100 text-red-700 border-red-200';
       case 'no_show':
-        return 'bg-gray-500';
+        return 'bg-gray-100 text-gray-700 border-gray-200';
       default:
-        return 'bg-gray-500';
+        return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
