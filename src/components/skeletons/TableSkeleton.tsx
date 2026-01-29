@@ -1,4 +1,3 @@
-import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface TableSkeletonProps {
@@ -9,14 +8,14 @@ interface TableSkeletonProps {
 
 export const TableSkeleton = ({ columns, rows = 5, showHeader = true }: TableSkeletonProps) => {
   return (
-    <div className="rounded-md border">
+    <div className="rounded-xl border overflow-hidden">
       <Table>
         {showHeader && (
           <TableHeader>
             <TableRow>
               {Array.from({ length: columns }).map((_, i) => (
                 <TableHead key={i}>
-                  <Skeleton className="h-4 w-20" />
+                  <div className="skeleton-shimmer rounded h-4 w-20" />
                 </TableHead>
               ))}
             </TableRow>
@@ -27,7 +26,7 @@ export const TableSkeleton = ({ columns, rows = 5, showHeader = true }: TableSke
             <TableRow key={rowIndex}>
               {Array.from({ length: columns }).map((_, colIndex) => (
                 <TableCell key={colIndex}>
-                  <Skeleton className="h-4 w-full max-w-[120px]" />
+                  <div className="skeleton-shimmer rounded h-4 w-full max-w-[120px]" />
                 </TableCell>
               ))}
             </TableRow>

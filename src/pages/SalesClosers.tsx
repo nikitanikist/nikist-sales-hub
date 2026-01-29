@@ -268,44 +268,50 @@ const SalesClosers = () => {
       {(isAdmin || isManager) && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card 
-            className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500"
+            className="cursor-pointer card-lift overflow-hidden"
             onClick={() => navigate("/sales-closers/all-calls")}
           >
             <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
-                <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                <div className="p-2 bg-violet-100 rounded-lg">
+                  <Users className="h-3 w-3 sm:h-4 sm:w-4 text-violet-600" />
+                </div>
                 <span className="hidden sm:inline">All Assigned Calls</span>
                 <span className="sm:hidden">Assigned</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              <div className="text-xl sm:text-2xl font-bold text-blue-600">{totals.assigned}</div>
+              <div className="text-xl sm:text-2xl font-bold">{totals.assigned}</div>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-green-500"
+            className="cursor-pointer card-lift overflow-hidden"
             onClick={() => navigate("/sales-closers/all-calls?status=converted")}
           >
             <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
-                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-600" />
+                </div>
                 <span className="hidden sm:inline">All Converted Calls</span>
                 <span className="sm:hidden">Converted</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              <div className="text-xl sm:text-2xl font-bold text-green-600">{totals.converted}</div>
+              <div className="text-xl sm:text-2xl font-bold text-emerald-600">{totals.converted}</div>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-red-500"
+            className="cursor-pointer card-lift overflow-hidden"
             onClick={() => navigate("/sales-closers/all-calls?status=not_converted")}
           >
             <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
-                <XCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <XCircle className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
+                </div>
                 <span className="hidden sm:inline">Not Converted</span>
                 <span className="sm:hidden">Not Conv.</span>
               </CardTitle>
@@ -316,18 +322,20 @@ const SalesClosers = () => {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-purple-500"
+            className="cursor-pointer card-lift overflow-hidden"
             onClick={() => navigate("/sales-closers/all-calls?status=reschedule")}
           >
             <CardHeader className="pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
               <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
-                <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" />
+                <div className="p-2 bg-violet-100 rounded-lg">
+                  <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4 text-violet-600" />
+                </div>
                 <span className="hidden sm:inline">All Rescheduled</span>
                 <span className="sm:hidden">Resch.</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-              <div className="text-xl sm:text-2xl font-bold text-purple-600">{totals.rescheduled}</div>
+              <div className="text-xl sm:text-2xl font-bold text-violet-600">{totals.rescheduled}</div>
             </CardContent>
           </Card>
         </div>

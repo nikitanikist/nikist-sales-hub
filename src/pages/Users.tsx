@@ -17,6 +17,7 @@ import { Plus, Pencil, Trash2, Users as UsersIcon, RotateCcw } from "lucide-reac
 import { toast } from "sonner";
 import { PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_GROUPS, getDefaultPermissionsForRole, PermissionKey } from "@/lib/permissions";
 import { useOrganization } from "@/hooks/useOrganization";
+import { cn } from "@/lib/utils";
 
 interface UserWithRole {
   id: string;
@@ -284,16 +285,16 @@ const Users = () => {
     setIsEditDialogOpen(true);
   };
 
-  const getRoleBadgeVariant = (role: string) => {
+  const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
-        return "default";
+        return "bg-violet-100 text-violet-700 border-violet-200";
       case "sales_rep":
-        return "secondary";
+        return "bg-sky-100 text-sky-700 border-sky-200";
       case "manager":
-        return "secondary";
+        return "bg-amber-100 text-amber-700 border-amber-200";
       default:
-        return "outline";
+        return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
@@ -453,7 +454,9 @@ const Users = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={getRoleBadgeVariant(user.role)}>{getRoleLabel(user.role)}</Badge>
+                          <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", getRoleBadgeColor(user.role))}>
+                            {getRoleLabel(user.role)}
+                          </span>
                         </TableCell>
                         <TableCell>{format(new Date(user.role_created_at), "dd MMM yyyy")}</TableCell>
                         <TableCell className="text-right">
@@ -495,9 +498,9 @@ const Users = () => {
                         <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                         {user.phone && <p className="text-xs text-muted-foreground">{user.phone}</p>}
                       </div>
-                      <Badge variant={getRoleBadgeVariant(user.role)} className="text-xs">
+                      <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", getRoleBadgeColor(user.role))}>
                         {getRoleLabel(user.role)}
-                      </Badge>
+                      </span>
                     </div>
                     
                     <div className="flex items-center justify-between pt-2 border-t mt-2">

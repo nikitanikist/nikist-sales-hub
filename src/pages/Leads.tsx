@@ -28,13 +28,13 @@ import { useOrgClosers, useOrgIntegrations, hasIntegrationForCloser } from "@/ho
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 
 const statusColors: Record<string, string> = {
-  new: "bg-blue-500",
-  contacted: "bg-yellow-500",
-  qualified: "bg-purple-500",
-  proposal: "bg-indigo-500",
-  negotiation: "bg-orange-500",
-  won: "bg-green-500",
-  lost: "bg-red-500",
+  new: "bg-sky-100 text-sky-700 border-sky-200",
+  contacted: "bg-violet-100 text-violet-700 border-violet-200",
+  qualified: "bg-amber-100 text-amber-700 border-amber-200",
+  proposal: "bg-pink-100 text-pink-700 border-pink-200",
+  negotiation: "bg-orange-100 text-orange-700 border-orange-200",
+  won: "bg-emerald-100 text-emerald-700 border-emerald-200",
+  lost: "bg-red-100 text-red-700 border-red-200",
 };
 
 // Helper function to format phone display and extract country info
