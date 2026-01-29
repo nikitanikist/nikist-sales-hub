@@ -6,21 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Template mapping for Dipanshu's reminders
-const DIPANSHU_TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> = {
-  'call_booked': { name: '1_to_1_call_booking_crypto_dipanshu', isVideo: true },
-  'two_days': { name: 'cryptoreminder2days', isVideo: false },
-  'one_day': { name: 'cryptoreminder1days', isVideo: false },
-  'three_hours': { name: 'cryptoreminder3hrs', isVideo: false },
-  'one_hour': { name: 'cryptoreminder1hr', isVideo: false },
-  'thirty_minutes': { name: 'cryptoreminder30min', isVideo: false },
-  'ten_minutes': { name: 'cryptoreminder10min', isVideo: false },
-  'we_are_live': { name: '1_1_live', isVideo: false },
-};
-
-// Template mapping for Akansha's reminders
-// Booking confirmation uses different template, but reminders are same as Dipanshu
-const AKANSHA_TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> = {
+// Default template mapping (fallback if not in org config)
+const DEFAULT_TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> = {
   'call_booked': { name: '1_to_1_call_booking_crypto_nikist_video', isVideo: true },
   'two_days': { name: 'cryptoreminder2days', isVideo: false },
   'one_day': { name: 'cryptoreminder1days', isVideo: false },
@@ -31,8 +18,15 @@ const AKANSHA_TEMPLATE_MAP: Record<string, { name: string; isVideo: boolean }> =
   'we_are_live': { name: '1_1_live', isVideo: false },
 };
 
-const DIPANSHU_VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/227807_Updated 11.mp4';
-const AKANSHA_VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
+const DEFAULT_VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
+
+interface WhatsAppConfig {
+  api_key: string;
+  source: string;
+  templates?: Record<string, { name: string; isVideo: boolean }>;
+  video_url?: string;
+  support_number?: string;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -40,25 +34,19 @@ serve(async (req) => {
   }
 
   try {
-    const aisensyApiKey = Deno.env.get('AISENSY_API_KEY');
-    const aisensySource = Deno.env.get('AISENSY_SOURCE');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!aisensyApiKey || !aisensySource) {
-      console.error('Missing AiSensy configuration');
-      return new Response(
-        JSON.stringify({ error: 'Missing AiSensy configuration' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Missing Supabase configuration');
     }
 
-    const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { reminder_id } = await req.json();
 
     console.log('Processing reminder:', reminder_id);
 
-    // Fetch reminder with appointment and lead details
+    // Fetch reminder with appointment, lead, and organization details
     const { data: reminder, error: reminderError } = await supabase
       .from('call_reminders')
       .select(`
@@ -92,32 +80,72 @@ serve(async (req) => {
       );
     }
 
-    // Check who is the closer
-    const isDipanshu = closer?.email?.toLowerCase() === 'nikistofficial@gmail.com';
-    const isAkansha = closer?.email?.toLowerCase() === 'akanshanikist@gmail.com';
-    const isAdesh = closer?.email?.toLowerCase() === 'aadeshnikist@gmail.com';
-    
-    // Only process reminders for Dipanshu, Akansha, or Adesh
-    if (!isDipanshu && !isAkansha && !isAdesh) {
-      console.log('Not Dipanshu, Akansha, or Adesh closer, skipping WhatsApp');
-      // Mark as sent anyway to prevent re-processing
-      await supabase
-        .from('call_reminders')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .eq('id', reminder_id);
-      
-      return new Response(
-        JSON.stringify({ success: true, skipped: true, reason: 'Not Dipanshu, Akansha, or Adesh closer' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Get WhatsApp integration for this organization
+    const { data: whatsappIntegration, error: integrationError } = await supabase
+      .from('organization_integrations')
+      .select('config')
+      .eq('organization_id', appointment.organization_id)
+      .eq('integration_type', 'whatsapp')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (integrationError) {
+      console.error('Error fetching WhatsApp integration:', integrationError);
     }
 
-    // Select appropriate template map and video URL based on closer
-    // Adesh uses same templates as Akansha
-    const templateMap = isDipanshu ? DIPANSHU_TEMPLATE_MAP : AKANSHA_TEMPLATE_MAP;
-    const videoUrl = isDipanshu ? DIPANSHU_VIDEO_URL : AKANSHA_VIDEO_URL;
+    // Use org integration config or fallback to env variables
+    let whatsappConfig: WhatsAppConfig;
+    
+    if (whatsappIntegration?.config) {
+      whatsappConfig = whatsappIntegration.config as WhatsAppConfig;
+    } else {
+      // Fallback to environment variables for backwards compatibility
+      const aisensyApiKey = Deno.env.get('AISENSY_API_KEY');
+      const aisensySource = Deno.env.get('AISENSY_SOURCE');
+      
+      if (!aisensyApiKey || !aisensySource) {
+        console.log('No WhatsApp integration configured, skipping reminder');
+        // Mark as sent to prevent re-processing
+        await supabase
+          .from('call_reminders')
+          .update({ status: 'sent', sent_at: new Date().toISOString() })
+          .eq('id', reminder_id);
+        
+        return new Response(
+          JSON.stringify({ success: true, skipped: true, reason: 'No WhatsApp integration configured' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      whatsappConfig = {
+        api_key: aisensyApiKey,
+        source: aisensySource,
+      };
+    }
 
+    // Check if closer has WhatsApp integration mapped
+    const { data: closerIntegration } = await supabase
+      .from('closer_integrations')
+      .select('integration_id, organization_integrations!inner(config)')
+      .eq('closer_id', appointment.closer_id)
+      .eq('organization_id', appointment.organization_id)
+      .maybeSingle();
+
+    // If closer has specific integration, use those templates
+    if (closerIntegration?.organization_integrations) {
+      const closerConfig = (closerIntegration.organization_integrations as any).config as WhatsAppConfig;
+      if (closerConfig?.templates) {
+        whatsappConfig.templates = closerConfig.templates;
+      }
+      if (closerConfig?.video_url) {
+        whatsappConfig.video_url = closerConfig.video_url;
+      }
+    }
+
+    // Get template for this reminder type
+    const templateMap = whatsappConfig.templates || DEFAULT_TEMPLATE_MAP;
     const template = templateMap[reminder.reminder_type];
+    
     if (!template) {
       console.error('Unknown reminder type:', reminder.reminder_type);
       return new Response(
@@ -144,31 +172,21 @@ serve(async (req) => {
     const formattedTime = `${hour12}:${minutes} ${ampm} IST`;
     const dateTimeCombo = `${formattedDate}, ${formattedTime}`;
 
-    // Build template params based on reminder type and closer
+    const supportNumber = whatsappConfig.support_number || '+919266395637';
+
+    // Build template params based on reminder type
     let templateParams: string[] = [];
     
     switch (reminder.reminder_type) {
       case 'call_booked':
-        if (isDipanshu) {
-          // Dipanshu: 5 params
-          templateParams = [
-            lead.contact_name,
-            formattedDate,
-            formattedTime,
-            'Zoom link will be shared 10 minutes before the call',
-            '+919266395637',
-          ];
-        } else {
-          // Akansha: 6 params
-          templateParams = [
-            lead.contact_name,
-            'Our Crypto Expert',
-            formattedDate,
-            formattedTime,
-            'you will get zoom link 30 minutes before the zoom call',
-            '+919266395637',
-          ];
-        }
+        templateParams = [
+          lead.contact_name,
+          'Our Crypto Expert',
+          formattedDate,
+          formattedTime,
+          'you will get zoom link 30 minutes before the zoom call',
+          supportNumber,
+        ];
         break;
       case 'two_days':
       case 'one_day':
@@ -211,7 +229,7 @@ serve(async (req) => {
     }
 
     console.log('Sending WhatsApp:', {
-      closer: isDipanshu ? 'Dipanshu' : 'Akansha',
+      closer: closer?.full_name,
       template: template.name,
       phone: phoneWithCountry,
       params: templateParams,
@@ -219,18 +237,18 @@ serve(async (req) => {
 
     // Build WhatsApp payload
     const whatsappPayload: any = {
-      apiKey: aisensyApiKey,
+      apiKey: whatsappConfig.api_key,
       campaignName: template.name,
       destination: phoneWithCountry,
       userName: 'Crypto Call',
-      source: aisensySource,
+      source: whatsappConfig.source,
       templateParams,
     };
 
     // Add media for video templates
     if (template.isVideo) {
       whatsappPayload.media = {
-        url: videoUrl,
+        url: whatsappConfig.video_url || DEFAULT_VIDEO_URL,
         filename: 'reminder.mp4',
       };
     }
@@ -261,7 +279,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: whatsappResponse.ok, 
         status: newStatus,
-        closer: isDipanshu ? 'Dipanshu' : (isAdesh ? 'Adesh' : 'Akansha'),
+        closer: closer?.full_name,
         whatsapp_response: whatsappResult,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

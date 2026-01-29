@@ -5,19 +5,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const ADESH_EMAIL = "aadeshnikist@gmail.com";
+// Get Zoom access token using Server-to-Server OAuth from org integration config
+async function getZoomAccessToken(zoomConfig: { account_id: string; client_id: string; client_secret: string }): Promise<string> {
+  const { account_id, client_id, client_secret } = zoomConfig;
 
-// Get Zoom access token using Server-to-Server OAuth for Adesh
-async function getZoomAccessToken(): Promise<string> {
-  const accountId = Deno.env.get('ZOOM_ADESH_ACCOUNT_ID');
-  const clientId = Deno.env.get('ZOOM_ADESH_CLIENT_ID');
-  const clientSecret = Deno.env.get('ZOOM_ADESH_CLIENT_SECRET');
-
-  if (!accountId || !clientId || !clientSecret) {
-    throw new Error('Missing Zoom credentials for Adesh');
+  if (!account_id || !client_id || !client_secret) {
+    throw new Error('Missing Zoom credentials in integration config');
   }
 
-  const credentials = btoa(`${clientId}:${clientSecret}`);
+  const credentials = btoa(`${client_id}:${client_secret}`);
   
   const response = await fetch('https://zoom.us/oauth/token', {
     method: 'POST',
@@ -25,7 +21,7 @@ async function getZoomAccessToken(): Promise<string> {
       'Authorization': `Basic ${credentials}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: `grant_type=account_credentials&account_id=${accountId}`,
+    body: `grant_type=account_credentials&account_id=${account_id}`,
   });
 
   if (!response.ok) {
@@ -38,7 +34,7 @@ async function getZoomAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-// Create Zoom meeting for Adesh
+// Create Zoom meeting
 async function createZoomMeeting(
   accessToken: string, 
   topic: string, 
@@ -51,7 +47,6 @@ async function createZoomMeeting(
   const minutes = parseInt(timeParts[1], 10);
   
   // Send time directly as IST format without UTC conversion
-  // The timezone parameter in the Zoom API request will handle the interpretation
   const startTime = `${scheduledDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
 
   console.log(`Creating Zoom meeting - IST Date: ${scheduledDate}, IST Time: ${scheduledTime}, Start Time for Zoom: ${startTime}`);
@@ -66,7 +61,7 @@ async function createZoomMeeting(
       topic: topic,
       type: 2, // Scheduled meeting
       start_time: startTime,
-      duration: 90, // 90 minutes - same as initial Adesh calls
+      duration: 90, // 90 minutes
       timezone: 'Asia/Kolkata',
       settings: {
         host_video: true,
@@ -117,7 +112,7 @@ Deno.serve(async (req) => {
 
     console.log(`Creating Zoom link for appointment: ${appointment_id}`);
 
-    // Fetch appointment with lead and closer details
+    // Fetch appointment with lead, closer, and organization details
     const { data: appointment, error: appointmentError } = await supabase
       .from('call_appointments')
       .select(`
@@ -127,6 +122,7 @@ Deno.serve(async (req) => {
         scheduled_date,
         scheduled_time,
         zoom_link,
+        organization_id,
         leads:lead_id (
           contact_name,
           email,
@@ -161,14 +157,52 @@ Deno.serve(async (req) => {
 
     console.log(`Appointment details: Lead=${lead.contact_name}, Closer=${closer.full_name}, Date=${appointment.scheduled_date}, Time=${appointment.scheduled_time}`);
 
-    // Verify this is an Adesh appointment
-    if (closer.email?.toLowerCase() !== ADESH_EMAIL.toLowerCase()) {
-      throw new Error(`This function only supports Adesh's appointments. Closer email: ${closer.email}`);
+    // Get Zoom integration for this organization
+    const { data: zoomIntegration, error: integrationError } = await supabase
+      .from('organization_integrations')
+      .select('config')
+      .eq('organization_id', appointment.organization_id)
+      .eq('integration_type', 'zoom')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (integrationError) {
+      console.error('Error fetching Zoom integration:', integrationError);
+      throw new Error(`Failed to fetch Zoom integration: ${integrationError.message}`);
     }
 
+    if (!zoomIntegration) {
+      throw new Error('Zoom integration not configured for this organization');
+    }
+
+    // Check if this closer has Zoom integration mapped
+    const { data: closerIntegration } = await supabase
+      .from('closer_integrations')
+      .select('integration_id')
+      .eq('closer_id', appointment.closer_id)
+      .eq('organization_id', appointment.organization_id)
+      .maybeSingle();
+
+    // If closer has specific integration, verify it's a Zoom one
+    if (closerIntegration) {
+      const { data: specificIntegration } = await supabase
+        .from('organization_integrations')
+        .select('config, integration_type')
+        .eq('id', closerIntegration.integration_id)
+        .eq('integration_type', 'zoom')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!specificIntegration) {
+        throw new Error(`This closer does not have Zoom integration configured`);
+      }
+    }
+
+    const zoomConfig = zoomIntegration.config as { account_id: string; client_id: string; client_secret: string };
+
     // Get Zoom access token
-    console.log('Getting Zoom access token for Adesh...');
-    const accessToken = await getZoomAccessToken();
+    console.log('Getting Zoom access token...');
+    const accessToken = await getZoomAccessToken(zoomConfig);
 
     // Create Zoom meeting
     const meetingTopic = `1:1 Call with ${lead.contact_name}`;
