@@ -10,9 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Save } from "lucide-react";
+import { WhatsAppTemplateConfig } from "./WhatsAppTemplateConfig";
+import { TestConnectionButton } from "./TestConnectionButton";
 
 interface IntegrationConfig {
-  [key: string]: string | boolean | undefined;
+  [key: string]: string | boolean | undefined | Record<string, unknown>;
+  templates?: Record<string, unknown>;
 }
 
 interface Integration {
@@ -28,7 +31,7 @@ interface AddIntegrationDialogProps {
   onOpenChange: (open: boolean) => void;
   integrationType: "zoom" | "calendly" | "whatsapp";
   existingIntegration?: Integration | null;
-  onSave: (data: { name: string; config: Record<string, string>; integrationId?: string }) => Promise<void>;
+  onSave: (data: { name: string; config: Record<string, unknown>; integrationId?: string }) => Promise<void>;
   isSaving: boolean;
 }
 
@@ -51,7 +54,6 @@ const getFieldsForType = (type: string) => {
       return [
         { key: "api_key", label: "AiSensy API Key", placeholder: "Enter AiSensy API Key", secret: true },
         { key: "source", label: "Source Number", placeholder: "919266395637", secret: false },
-        { key: "video_url", label: "Video URL (optional)", placeholder: "https://...video.mp4", secret: false },
         { key: "support_number", label: "Support Number", placeholder: "+919266395637", secret: false },
       ];
     default:
@@ -97,15 +99,28 @@ export function AddIntegrationDialog({
     }
     return {};
   });
+  
+  // WhatsApp template configuration
+  const [templates, setTemplates] = useState<Record<string, unknown>>(() => {
+    if (existingIntegration?.config?.templates) {
+      return existingIntegration.config.templates as Record<string, unknown>;
+    }
+    return {};
+  });
 
   const handleSave = async () => {
     // Filter out empty values and env references that weren't changed
-    const cleanConfig: Record<string, string> = {};
+    const cleanConfig: Record<string, unknown> = {};
     Object.entries(config).forEach(([key, value]) => {
       if (value && !value.startsWith("[Env:")) {
         cleanConfig[key] = value;
       }
     });
+    
+    // Add templates for WhatsApp
+    if (integrationType === "whatsapp" && Object.keys(templates).length > 0) {
+      cleanConfig.templates = templates;
+    }
 
     await onSave({
       name: name || `${getTypeLabel(integrationType)} Integration`,
@@ -116,12 +131,13 @@ export function AddIntegrationDialog({
     // Reset form
     setName("");
     setConfig({});
+    setTemplates({});
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Edit" : "Add"} {getTypeLabel(integrationType)} Integration
@@ -158,12 +174,28 @@ export function AddIntegrationDialog({
                 onChange={(e) => setConfig((prev) => ({ ...prev, [field.key]: e.target.value }))}
               />
               {isEditing && config[field.key]?.startsWith("[Env:") && (
-                <p className="text-xs text-warning">
+                <p className="text-xs text-muted-foreground">
                   Currently using environment secret. Enter a new value to override.
                 </p>
               )}
             </div>
           ))}
+          
+          {/* Test Connection Button */}
+          <div className="pt-2">
+            <TestConnectionButton 
+              integrationType={integrationType} 
+              config={config} 
+            />
+          </div>
+          
+          {/* WhatsApp Template Configuration */}
+          {integrationType === "whatsapp" && (
+            <WhatsAppTemplateConfig 
+              templates={templates} 
+              onChange={setTemplates} 
+            />
+          )}
         </div>
 
         <div className="flex justify-end gap-2">
