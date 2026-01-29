@@ -564,14 +564,17 @@ const Products = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredProducts.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No products found
-                      </TableCell>
-                    </TableRow>
+                    <TableEmptyState
+                      colSpan={7}
+                      icon={Package}
+                      title="No products found"
+                      description="Create your first product to get started."
+                      actionLabel="Add Product"
+                      onAction={() => setIsDialogOpen(true)}
+                    />
                   ) : (
                     filteredProducts.map((product, index) => (
-                      <TableRow key={product.id} className="animate-list-item" style={{ animationDelay: `${index * 30}ms` }}>
+                      <TableRow key={product.id} className="animate-list-item hover:bg-muted/50 transition-colors" style={{ animationDelay: `${index * 30}ms` }}>
                         <TableCell>
                           <div>
                             <div className="font-medium">{product.product_name}</div>
@@ -644,7 +647,13 @@ const Products = () => {
             {/* Mobile Card View */}
             <div className="sm:hidden space-y-3">
               {filteredProducts.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No products found</div>
+                <EmptyState
+                  icon={Package}
+                  title="No products found"
+                  description="Create your first product to get started."
+                  actionLabel="Add Product"
+                  onAction={() => setIsDialogOpen(true)}
+                />
               ) : (
                 filteredProducts.map((product) => (
                   <div key={product.id} className="rounded-lg border bg-card p-4">
