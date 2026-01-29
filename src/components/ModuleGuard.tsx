@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useModules } from "@/hooks/useModules";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 
 interface ModuleGuardProps {
   moduleSlug: string;
@@ -53,7 +53,7 @@ export function DisabledModuleFallback({ moduleName }: { moduleName: string }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-8">
       <div className="bg-muted rounded-full p-4 mb-4">
-        <Loader2 className="h-8 w-8 text-muted-foreground" />
+        <Lock className="h-8 w-8 text-muted-foreground" />
       </div>
       <h2 className="text-xl font-semibold mb-2">Module Not Available</h2>
       <p className="text-muted-foreground max-w-md">
