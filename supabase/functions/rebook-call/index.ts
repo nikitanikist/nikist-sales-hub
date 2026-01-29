@@ -10,27 +10,34 @@ const corsHeaders = {
 const BOOKING_TEMPLATE = '1_to_1_call_booking_crypto_nikist_video';
 const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
 
-// Closer email constants for Calendly/Zoom integration
-const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
-const AKANSHA_EMAIL = "akanshanikist@gmail.com";
-const ADESH_EMAIL = "aadeshnikist@gmail.com";
-
 // Kamal's configuration (call booker notification)
 const KAMAL_NAME = "Kamal";
 const KAMAL_PHONE = "918285632307";
 
-// Get Zoom access token using Server-to-Server OAuth (for Adesh)
-async function getZoomAccessToken(): Promise<string> {
-  const accountId = Deno.env.get('ZOOM_ADESH_ACCOUNT_ID');
-  const clientId = Deno.env.get('ZOOM_ADESH_CLIENT_ID');
-  const clientSecret = Deno.env.get('ZOOM_ADESH_CLIENT_SECRET');
+// Integration config types
+interface ZoomConfig {
+  account_id: string;
+  client_id: string;
+  client_secret: string;
+  host_email?: string;
+}
 
-  if (!accountId || !clientId || !clientSecret) {
-    throw new Error('Missing Zoom credentials for Adesh');
+interface CalendlyConfig {
+  api_token: string;
+  calendly_url?: string;
+  event_type_uri?: string;
+}
+
+// Get Zoom access token using Server-to-Server OAuth from integration config
+async function getZoomAccessToken(config: ZoomConfig): Promise<string> {
+  const { account_id, client_id, client_secret } = config;
+
+  if (!account_id || !client_id || !client_secret) {
+    throw new Error('Missing Zoom credentials in integration config');
   }
 
-  console.log('Getting Zoom access token for Adesh rebook...');
-  const authHeader = btoa(`${clientId}:${clientSecret}`);
+  console.log('Getting Zoom access token from integration config...');
+  const authHeader = btoa(`${client_id}:${client_secret}`);
   
   const tokenResponse = await fetch('https://zoom.us/oauth/token', {
     method: 'POST',
@@ -38,7 +45,7 @@ async function getZoomAccessToken(): Promise<string> {
       'Authorization': `Basic ${authHeader}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: `grant_type=account_credentials&account_id=${accountId}`,
+    body: `grant_type=account_credentials&account_id=${account_id}`,
   });
 
   if (!tokenResponse.ok) {
@@ -52,21 +59,19 @@ async function getZoomAccessToken(): Promise<string> {
   return tokenData.access_token;
 }
 
-// Create Zoom meeting for Adesh rebook
-async function createZoomMeetingForAdesh(
+// Create Zoom meeting
+async function createZoomMeeting(
   accessToken: string,
   customerName: string,
   scheduledDate: string,
   scheduledTime: string
 ): Promise<{ join_url: string; id: string }> {
-  // Parse time and send directly as IST format
-  // The timezone parameter in the Zoom API request will handle the interpretation
   const timeParts = scheduledTime.split(':');
   const hours = parseInt(timeParts[0], 10);
   const minutes = parseInt(timeParts[1], 10);
   const startTime = `${scheduledDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
 
-  console.log('Creating Zoom meeting for Adesh rebook:', {
+  console.log('Creating Zoom meeting:', {
     topic: `1:1 Call with ${customerName}`,
     start_time_ist: startTime,
     duration: 90,
@@ -105,7 +110,7 @@ async function createZoomMeetingForAdesh(
   }
 
   const meetingData = await meetingResponse.json();
-  console.log('Zoom meeting created for Adesh rebook:', {
+  console.log('Zoom meeting created:', {
     id: meetingData.id,
     join_url: meetingData.join_url,
   });
@@ -170,7 +175,6 @@ async function getCalendlyEventTypeUri(token: string, userUri: string, closerNam
     
     const closerNameEventType = eventTypes.find((e: { name: string }) => {
       const nameLower = e.name.toLowerCase();
-      // Match full name or last name
       return nameLower.includes(closerNameLower) || 
              (closerLastName && nameLower.includes(closerLastName));
     });
@@ -229,17 +233,12 @@ function buildQuestionsAndAnswers(
     const questionLower = q.name.toLowerCase();
     let answer = '';
     
-    // Check if it's a phone number question
     if (questionLower.includes('phone') || questionLower.includes('mobile') || questionLower.includes('number')) {
       answer = phoneNumber;
-    }
-    // Check if it's a level/experience dropdown - pick first option
-    else if (q.type === 'single_select' && q.answer_choices && q.answer_choices.length > 0) {
-      answer = q.answer_choices[0]; // Pick first option (e.g., "Beginner")
-    }
-    // Free text questions
-    else {
-      answer = 'null'; // Placeholder for free-text questions
+    } else if (q.type === 'single_select' && q.answer_choices && q.answer_choices.length > 0) {
+      answer = q.answer_choices[0];
+    } else {
+      answer = 'null';
     }
     
     answers.push({
@@ -256,7 +255,6 @@ function buildQuestionsAndAnswers(
 // Helper function to cancel existing Calendly event
 async function cancelCalendlyEvent(token: string, eventUri: string): Promise<boolean> {
   try {
-    // Extract event UUID from URI (format: https://api.calendly.com/scheduled_events/{uuid})
     const eventUuid = eventUri.split('/').pop();
     if (!eventUuid) return false;
     
@@ -345,6 +343,45 @@ async function createCalendlyInvitee(
   }
 }
 
+// Helper function to get closer's integration from database
+// deno-lint-ignore no-explicit-any
+async function getCloserIntegration(
+  supabaseClient: any,
+  closerId: string,
+  organizationId: string
+): Promise<{ integrationType: string | null; config: ZoomConfig | CalendlyConfig | null }> {
+  const { data, error } = await supabaseClient
+    .from('closer_integrations')
+    .select(`
+      integration_id,
+      organization_integrations!inner(integration_type, config, is_active)
+    `)
+    .eq('closer_id', closerId)
+    .eq('organization_id', organizationId)
+    .eq('organization_integrations.is_active', true)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.log('No integration found for closer:', closerId);
+    return { integrationType: null, config: null };
+  }
+
+  // Type assertion with proper handling
+  const orgIntegration = (data as Record<string, unknown>).organization_integrations as { 
+    integration_type: string; 
+    config: Record<string, unknown> 
+  } | undefined;
+
+  if (!orgIntegration) {
+    return { integrationType: null, config: null };
+  }
+
+  return {
+    integrationType: orgIntegration.integration_type,
+    config: orgIntegration.config as unknown as ZoomConfig | CalendlyConfig
+  };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -402,24 +439,32 @@ serve(async (req) => {
 
     console.log('Rebooking call for:', lead.contact_name, '| Closer:', closer?.full_name);
 
-    // Check if closer is Deepanshu or Akansha (Calendly integration)
-    const closerEmail = closer?.email?.toLowerCase() || '';
-    const isDipanshu = closerEmail === DIPANSHU_EMAIL.toLowerCase();
-    const isAkansha = closerEmail === AKANSHA_EMAIL.toLowerCase();
-    const useCalendly = isDipanshu || isAkansha;
+    // Get closer's integration from database
+    const closerIntegration = appointment.closer_id 
+      ? await getCloserIntegration(supabase, appointment.closer_id, appointment.organization_id)
+      : { integrationType: null, config: null };
+    
+    const useCalendly = closerIntegration.integrationType === 'calendly';
+    const useZoom = closerIntegration.integrationType === 'zoom';
+
+    console.log('Closer integration:', {
+      closerName: closer?.full_name,
+      integrationType: closerIntegration.integrationType,
+      useCalendly,
+      useZoom
+    });
 
     let calendlySynced = false;
     let calendlyError: string | null = null;
     let newZoomLink: string | null = null;
     let newCalendlyEventUri: string | null = null;
 
-    // Calendly integration for Deepanshu and Akansha
-    if (useCalendly) {
+    // Calendly integration
+    if (useCalendly && closerIntegration.config) {
       console.log(`Closer ${closer?.full_name} uses Calendly - initiating API integration`);
       
-      const calendlyToken = isDipanshu 
-        ? Deno.env.get('CALENDLY_DIPANSHU_TOKEN')
-        : Deno.env.get('CALENDLY_AKANSHA_TOKEN');
+      const calendlyConfig = closerIntegration.config as CalendlyConfig;
+      const calendlyToken = calendlyConfig.api_token;
       
       if (!calendlyToken) {
         console.error('Missing Calendly token for closer:', closer?.full_name);
@@ -448,8 +493,6 @@ serve(async (req) => {
             }
             
             // Step 4: Convert IST date/time to UTC ISO format
-            // new_date is "YYYY-MM-DD", new_time can be "HH:MM" or "HH:MM:SS"
-            // Normalize time to HH:MM format for consistent handling
             const timeNormalized = new_time.split(':').slice(0, 2).join(':');
             const istDateTime = new Date(`${new_date}T${timeNormalized}:00+05:30`);
             const startTimeUtc = istDateTime.toISOString();
@@ -460,7 +503,6 @@ serve(async (req) => {
             const countryCode = lead.country?.replace(/\D/g, '') || '91';
             const phoneWithCountry = customerPhone.startsWith(countryCode) ? customerPhone : `${countryCode}${customerPhone}`;
             
-            // Fetch custom questions from Calendly event type
             const customQuestions = await getCalendlyEventTypeQuestions(calendlyToken, eventTypeUri);
             const questionsAndAnswers = buildQuestionsAndAnswers(customQuestions, phoneWithCountry);
             
@@ -488,13 +530,14 @@ serve(async (req) => {
           }
         }
       }
-    } else if (closerEmail === ADESH_EMAIL.toLowerCase()) {
-      // Adesh uses Zoom directly (not Calendly)
-      console.log('Adesh closer - creating new Zoom meeting for rebooked call');
+    } else if (useZoom && closerIntegration.config) {
+      // Zoom integration (not Calendly)
+      console.log('Closer uses Zoom - creating new Zoom meeting for rebooked call');
       
       try {
-        const accessToken = await getZoomAccessToken();
-        const meeting = await createZoomMeetingForAdesh(
+        const zoomConfig = closerIntegration.config as ZoomConfig;
+        const accessToken = await getZoomAccessToken(zoomConfig);
+        const meeting = await createZoomMeeting(
           accessToken,
           lead.contact_name,
           new_date,
@@ -503,14 +546,13 @@ serve(async (req) => {
         
         if (meeting.join_url) {
           newZoomLink = meeting.join_url;
-          console.log('New Zoom link created for Adesh rebook:', newZoomLink);
+          console.log('New Zoom link created:', newZoomLink);
         }
       } catch (zoomError) {
-        console.error('Error creating Zoom meeting for Adesh rebook:', zoomError);
-        // Continue without new Zoom link - will use existing one as fallback
+        console.error('Error creating Zoom meeting:', zoomError);
       }
     } else {
-      console.log('Closer does not use Calendly or Zoom integration, skipping');
+      console.log('Closer does not have any integration configured, skipping meeting creation');
     }
 
     // CRITICAL: If Calendly was required but failed, return error - don't update appointment
@@ -548,7 +590,7 @@ serve(async (req) => {
       if (newCalendlyEventUri) updateData.calendly_event_uri = newCalendlyEventUri;
     }
     
-    // Add Zoom link for Adesh (even without Calendly)
+    // Add Zoom link for Zoom-only closers (not Calendly)
     if (!calendlySynced && newZoomLink) {
       updateData.zoom_link = newZoomLink;
     }
@@ -575,11 +617,9 @@ serve(async (req) => {
 
     if (aisensyApiKey && aisensySource && lead.phone) {
       try {
-        // Format customer phone
         const customerPhone = lead.phone.replace(/\D/g, '');
         const phoneWithCountry = customerPhone.startsWith('91') ? customerPhone : `91${customerPhone}`;
 
-        // Format date and time
         const callDate = new Date(new_date);
         const formattedDate = callDate.toLocaleDateString('en-IN', { 
           day: 'numeric', 
@@ -592,7 +632,6 @@ serve(async (req) => {
         const hour12 = hour % 12 || 12;
         const formattedTime = `${hour12}:${minutes} ${ampm} IST`;
 
-        // Build template params (using Akansha's format - 6 params)
         const templateParams = [
           lead.contact_name,
           'Our Crypto Expert',
@@ -608,7 +647,6 @@ serve(async (req) => {
           params: templateParams,
         });
 
-        // Build WhatsApp payload
         const whatsappPayload = {
           apiKey: aisensyApiKey,
           campaignName: BOOKING_TEMPLATE,
@@ -622,7 +660,6 @@ serve(async (req) => {
           },
         };
 
-        // Send WhatsApp message
         const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
           method: 'POST',
           headers: {
@@ -756,6 +793,7 @@ serve(async (req) => {
           zoom_link: newZoomLink,
           error: calendlyError,
         },
+        integrationType: closerIntegration.integrationType,
         kamal_notification_sent: kamalNotificationSent,
         closer_notification_sent: closerNotificationSent,
       }),

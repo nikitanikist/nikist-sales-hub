@@ -23,7 +23,7 @@ import { ImportCustomersDialog } from "@/components/ImportCustomersDialog";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
-import { useOrgClosers } from "@/hooks/useOrgClosers";
+import { useOrgClosers, useOrgIntegrations, hasIntegrationForCloser } from "@/hooks/useOrgClosers";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-500",
@@ -279,6 +279,9 @@ const Leads = () => {
 
   // Fetch sales closers scoped to current organization
   const { data: salesClosers } = useOrgClosers();
+  
+  // Fetch integrations for the organization
+  const { data: integrations = [] } = useOrgIntegrations();
 
   const { data: workshops } = useQuery({
     queryKey: ["workshops", currentOrganization?.id],
@@ -1189,16 +1192,18 @@ const Leads = () => {
                                     <Calendar className="mr-2 h-4 w-4" />
                                     Schedule Call
                                   </DropdownMenuSubTrigger>
-                                  <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
+                                <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
                                     {salesClosers?.map((closer: any) => {
-                                      const isAdesh = closer.email?.toLowerCase() === "aadeshnikist@gmail.com";
+                                      const hasSchedulingIntegration = 
+                                        hasIntegrationForCloser(integrations, closer.email, 'zoom') ||
+                                        hasIntegrationForCloser(integrations, closer.email, 'calendly');
                                       return (
                                         <DropdownMenuItem
                                           key={closer.id}
-                                          className={isAdesh ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
-                                          disabled={!isAdesh}
+                                          className={hasSchedulingIntegration ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
+                                          disabled={!hasSchedulingIntegration}
                                           onClick={() => {
-                                            if (!isAdesh) return;
+                                            if (!hasSchedulingIntegration) return;
                                             setSelectedLeadForCall(lead);
                                             setSelectedCloser(closer);
                                             setScheduleCallOpen(true);
@@ -1206,7 +1211,7 @@ const Leads = () => {
                                         >
                                           <span className="flex items-center gap-2">
                                             {closer.full_name}
-                                            {!isAdesh && <span className="text-xs text-muted-foreground">(Calendly)</span>}
+                                            {!hasSchedulingIntegration && <span className="text-xs text-muted-foreground">(No integration)</span>}
                                           </span>
                                         </DropdownMenuItem>
                                       );
@@ -1344,14 +1349,16 @@ const Leads = () => {
                                 </DropdownMenuSubTrigger>
                                 <DropdownMenuSubContent className="bg-background border shadow-lg z-50">
                                   {salesClosers?.map((closer: any) => {
-                                    const isAdesh = closer.email?.toLowerCase() === "aadeshnikist@gmail.com";
+                                    const hasSchedulingIntegration = 
+                                      hasIntegrationForCloser(integrations, closer.email, 'zoom') ||
+                                      hasIntegrationForCloser(integrations, closer.email, 'calendly');
                                     return (
                                       <DropdownMenuItem
                                         key={closer.id}
-                                        className={isAdesh ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
-                                        disabled={!isAdesh}
+                                        className={hasSchedulingIntegration ? "cursor-pointer" : "cursor-not-allowed opacity-50"}
+                                        disabled={!hasSchedulingIntegration}
                                         onClick={() => {
-                                          if (!isAdesh) return;
+                                          if (!hasSchedulingIntegration) return;
                                           setSelectedLeadForCall(lead);
                                           setSelectedCloser(closer);
                                           setScheduleCallOpen(true);
@@ -1359,7 +1366,7 @@ const Leads = () => {
                                       >
                                         <span className="flex items-center gap-2">
                                           {closer.full_name}
-                                          {!isAdesh && <span className="text-xs text-muted-foreground">(Calendly)</span>}
+                                          {!hasSchedulingIntegration && <span className="text-xs text-muted-foreground">(No integration)</span>}
                                         </span>
                                       </DropdownMenuItem>
                                     );
