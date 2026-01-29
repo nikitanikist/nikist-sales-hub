@@ -1,137 +1,95 @@
 
-# Restore Missing Features in Unified Cohort Batch Detail View
+# Fix Manager Access to Cohort Batches Sidebar
 
 ## Problem Summary
-The new unified `CohortPage.tsx` that was created for the cohort system is missing most of the rich functionality that existed in the legacy `HighFuture.tsx` and `FuturesMentorship.tsx` pages. Specifically:
+Managers cannot see the "Cohort Batches" option in the sidebar because of a **permission key mismatch** between the frontend permission system and the sidebar filtering logic.
 
-**Missing UI Features:**
-1. Action menu (three-dot dropdown) for each student row with:
-   - Update EMI
-   - Edit Notes
-   - Mark as Refunded
-   - Mark as Discontinued
-   - Delete Student (Admin only)
-2. Interactive summary filter cards (Refunded, Discontinued, Full Payment, Due Remaining, Today's Follow-up, Pay After Earning)
-3. Closer breakdown in financial cards showing revenue by salesperson
-4. Add Student button and dialog
-5. Notes indicator icon on student rows
-6. PAE (Pay After Earning) badge on student names
-7. Expandable EMI payment history with Edit/Delete actions
-8. Export to CSV functionality
-9. Many dialogs (Update EMI, Add Student, Refund, Discontinued, Notes, View Notes)
+## Root Cause Analysis
+There are two permission systems in conflict:
 
-**Current CohortPage has:**
-- Basic summary cards (Total Students, Offered, Received, Due)
-- Simple student table with no actions
-- Tabs for Students/Overview/Insights
-- Basic filtering in a Sheet
+| Component | Permission Keys Used |
+|-----------|---------------------|
+| `permissions.ts` | `cohort_batches` (unified) |
+| `AppLayout.tsx` cohort children | `batch_icc` (not defined in PERMISSION_KEYS) |
+| Edge function `manage-users` | `batch_icc`, `batch_futures`, `batch_high_future` (granular) |
 
-## Solution Overview
-Port all the missing features from `HighFuture.tsx` to `CohortPage.tsx` while adapting them to work with the unified `cohort_students`, `cohort_emi_payments`, and `cohort_offer_amount_history` tables.
+When the sidebar filters menu items:
+1. It checks if each child has a valid permission via `hasPermission(child.permissionKey)`
+2. For cohort children, it passes `batch_icc` which doesn't exist in `PERMISSION_KEYS`
+3. The `hasPermission` function returns `false` for non-admins (only admins bypass the check)
+4. All cohort children get filtered out → the entire "Cohort Batches" menu disappears
 
-## Implementation Plan
+## Solution
+Update `AppLayout.tsx` to use the correct unified permission key `cohort_batches` for all cohort menu children instead of the non-existent `batch_icc`.
 
-### Phase 1: Add Missing State and Imports
-- Import additional dialog components and create new unified ones if needed
-- Add all missing state variables for:
-  - EMI student dialog state
-  - Add student dialog state  
-  - Refund dialog state
-  - Discontinued dialog state
-  - Notes dialog state
-  - View notes dialog state
-  - Delete student dialog state
-
-### Phase 2: Create Unified Dialog Components
-Since the existing dialogs (`UpdateHighFutureEmiDialog`, `AddHighFutureStudentDialog`) are tied to the legacy `high_future_*` tables, we need to either:
-- **Option A**: Create new unified versions that work with `cohort_*` tables
-- **Option B**: Make the existing dialogs configurable to work with different table schemas
-
-**Recommended: Option A** - Create new components:
-- `AddCohortStudentDialog.tsx` - For adding students to any cohort batch
-- `UpdateCohortEmiDialog.tsx` - For managing EMI payments on cohort_emi_payments table
-
-### Phase 3: Add Interactive Summary Filter Cards
-Restore the clickable filter cards that were in HighFuture.tsx:
-- Row 1: Financial cards with closer breakdown (Total Offered, Cash Received, Due Amount)
-- Row 2: Status filter cards:
-  - Refunded count
-  - Discontinued count  
-  - Full Payment count
-  - Due Remaining amount (with student count)
-  - Today's Follow-ups
-  - Pay After Earning amount
-
-### Phase 4: Enhance Students Table
-Update the student table to include:
-- Expand/collapse chevron column
-- Conversion date column
-- PAE badge on student name
-- Notes/follow-up indicator icon
-- Closer name column
-- Actions dropdown menu (Update EMI, Edit Notes, Mark Refunded, Discontinued, Delete)
-
-### Phase 5: Add Expanded Row with EMI History
-When a student row is clicked:
-- Show expandable section with EMI payment history table
-- Include columns: EMI #, Amount, Date, Platform, GST, Fees, Remarks, Updated By
-- Add Edit and Delete actions for each EMI record
-
-### Phase 6: Add All Missing Dialogs
-Implement or wire up:
-1. **Update EMI Dialog** - New `UpdateCohortEmiDialog` component
-2. **Add Student Dialog** - New `AddCohortStudentDialog` component
-3. **Refund Dialog** - AlertDialog for marking as refunded
-4. **Discontinued Dialog** - AlertDialog for marking as discontinued
-5. **Notes Dialog** - Dialog for editing notes + follow-up date + PAE toggle
-6. **View Notes Dialog** - Read-only view of notes with Edit button
-7. **Delete Student Dialog** - Admin-only AlertDialog for permanent deletion
-
-### Phase 7: Add Mutations
-Add missing mutations for:
-- Refund student (update status + refund_reason)
-- Discontinue student (update status)
-- Update notes/follow-up/PAE
-- Delete student (admin only)
-- Export CSV functionality
+Also update `permissions.ts` to include the full set of manager permissions as requested:
+- All menu items EXCEPT "Daily Money Flow" and "Users"
 
 ---
 
-## Technical Details
+## Technical Changes
 
-### New Files to Create
-1. `src/components/AddCohortStudentDialog.tsx` (based on AddHighFutureStudentDialog)
-2. `src/components/UpdateCohortEmiDialog.tsx` (based on UpdateHighFutureEmiDialog)
+### File 1: `src/lib/permissions.ts`
+**Change**: Update `DEFAULT_PERMISSIONS.manager` array
 
-### Files to Modify
-1. `src/pages/CohortPage.tsx` - Major enhancements (approximately 800+ lines to add)
+```typescript
+// Current (lines 90-96):
+manager: [
+  PERMISSION_KEYS.daily_money_flow,
+  PERMISSION_KEYS.customers,
+  PERMISSION_KEYS.sales_closers,
+  PERMISSION_KEYS.cohort_batches,
+  PERMISSION_KEYS.workshops,
+],
 
-### Database Tables Used
-- `cohort_students` - Student records
-- `cohort_emi_payments` - EMI payment history
-- `cohort_offer_amount_history` - Offer amount change tracking
-- `leads` - For student name/contact info (via lead_id)
-- `profiles` - For closer names and created_by names
-
-### Key Additions to CohortPage.tsx
-```text
-State additions:
-- emiStudent, addStudentOpen, refundingStudent, refundNotes
-- discontinuingStudent, deletingStudent, viewingNotesStudent
-- closerBreakdown calculation
-
-Mutations to add:
-- refundMutation, discontinueMutation, deleteStudentMutation, notesMutation
-
-UI sections to add:
-- Row 1: Financial cards with closer breakdown (3 cards)
-- Row 2: Interactive filter cards (6 cards)
-- Enhanced table with actions dropdown
-- Expanded row EMI table
-- All 7 dialogs listed above
+// New:
+manager: [
+  PERMISSION_KEYS.dashboard,
+  // daily_money_flow - NOT included
+  PERMISSION_KEYS.customers,
+  PERMISSION_KEYS.customer_insights,
+  PERMISSION_KEYS.call_schedule,
+  PERMISSION_KEYS.sales_closers,
+  PERMISSION_KEYS.cohort_batches,
+  PERMISSION_KEYS.workshops,
+  PERMISSION_KEYS.sales,
+  PERMISSION_KEYS.funnels,
+  PERMISSION_KEYS.products,
+  // users - NOT included
+],
 ```
 
-### Estimated Changes
-- New dialog components: ~1,300 lines total
-- CohortPage.tsx enhancements: ~800 additional lines
-- Total new/modified code: ~2,100 lines
+### File 2: `src/components/AppLayout.tsx`
+**Change**: Use `cohort_batches` permission key for cohort children
+
+```typescript
+// Line 223 - Change 'batch_icc' to 'cohort_batches'
+{ title: "+ Create Cohort", path: "/cohorts/manage", permissionKey: 'cohort_batches' as PermissionKey }
+
+// Line 232 - Change 'batch_icc' to 'cohort_batches'  
+permissionKey: 'cohort_batches' as PermissionKey
+
+// Line 240 - Change 'batch_icc' to 'cohort_batches'
+permissionKey: 'cohort_batches' as PermissionKey
+```
+
+---
+
+## Summary of Manager Access After Fix
+
+| Menu Item | Manager Access |
+|-----------|---------------|
+| Dashboard | ✅ Yes |
+| Daily Money Flow | ❌ No |
+| Customers | ✅ Yes |
+| Customer Insights | ✅ Yes |
+| 1:1 Call Schedule | ✅ Yes |
+| Sales Closers | ✅ Yes |
+| Cohort Batches | ✅ Yes |
+| All Workshops | ✅ Yes |
+| Sales | ✅ Yes |
+| Active Funnels | ✅ Yes |
+| Products | ✅ Yes |
+| Users | ❌ No |
+
+Financial data (offered amount, cash collected, remaining) will continue to be visible to managers as those checks already include managers.
