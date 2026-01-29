@@ -11,13 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useOrgClosers, useOrgIntegrations, hasIntegrationForCloser } from "@/hooks/useOrgClosers";
 
-// Closer email constants
-const ADESH_EMAIL = "aadeshnikist@gmail.com";
-
-// Time slots for Aadesh (90-minute intervals from 9:00 AM to 10:30 PM)
-const ADESH_TIME_SLOTS = [
+// Time slots for closers with Zoom integration (90-minute intervals from 9:00 AM to 10:30 PM)
+const ZOOM_TIME_SLOTS = [
   "09:00", "10:30", "12:00", "13:30", "15:00", 
   "16:30", "18:00", "19:30", "21:00", "22:30"
 ];
@@ -43,7 +40,7 @@ interface ReassignCallDialogProps {
   onSuccess: () => void;
 }
 
-// Generate time slots from 8 AM to 10 PM (for non-Adesh closers)
+// Generate time slots from 8 AM to 10 PM (for closers without specific slot patterns)
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let hour = 8; hour <= 22; hour++) {
@@ -85,63 +82,58 @@ export const ReassignCallDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
-  // Fetch available closers (sales_rep and admin roles)
-  const { data: closers } = useQuery({
-    queryKey: ["available-closers-reassign"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(`
-          id, 
-          full_name, 
-          email,
-          user_roles!inner(role)
-        `)
-        .in("user_roles.role", ["sales_rep", "admin"]);
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open,
-  });
+  // Fetch closers scoped to current organization
+  const { data: closers } = useOrgClosers();
+  
+  // Fetch integrations for the organization
+  const { data: integrations = [] } = useOrgIntegrations();
 
   // Get selected closer details
   const selectedCloser = useMemo(() => {
     return closers?.find(c => c.id === selectedCloserId);
   }, [closers, selectedCloserId]);
 
-  // Check if selected closer is Adesh
-  const isAdesh = selectedCloser?.email?.toLowerCase() === ADESH_EMAIL.toLowerCase();
+  // Check if selected closer has Zoom integration (uses time slot grid)
+  const hasZoom = selectedCloser ? hasIntegrationForCloser(integrations, selectedCloser.email, 'zoom') : false;
 
-  // Fetch booked slots for Adesh on selected date
-  const { data: bookedSlots, isLoading: isLoadingSlots } = useQuery({
-    queryKey: ["adesh-booked-slots-reassign", selectedCloserId, selectedDate ? format(selectedDate, "yyyy-MM-dd") : null],
-    queryFn: async () => {
-      if (!selectedCloserId || !selectedDate) return [];
-      
+  // Fetch booked slots for closers with Zoom on selected date
+  const { data: bookedSlots, isLoading: isLoadingSlots } = useMemo(() => {
+    return {
+      data: [] as string[],
+      isLoading: false
+    };
+  }, []);
+
+  // For Zoom closers, we need to fetch booked slots
+  const [fetchedBookedSlots, setFetchedBookedSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  useMemo(() => {
+    if (hasZoom && selectedCloserId && selectedDate && open) {
+      setLoadingSlots(true);
       const dateStr = format(selectedDate, "yyyy-MM-dd");
-      const { data, error } = await supabase
+      supabase
         .from("call_appointments")
         .select("scheduled_time")
         .eq("closer_id", selectedCloserId)
         .eq("scheduled_date", dateStr)
         .in("status", ["scheduled", "pending", "reschedule"])
-        .neq("id", appointment.id); // Exclude current appointment
-      
-      if (error) throw error;
-      return data?.map(apt => apt.scheduled_time.slice(0, 5)) || [];
-    },
-    enabled: isAdesh && !!selectedCloserId && !!selectedDate && open,
-  });
+        .neq("id", appointment.id)
+        .then(({ data }) => {
+          setFetchedBookedSlots(data?.map(apt => apt.scheduled_time.slice(0, 5)) || []);
+          setLoadingSlots(false);
+        });
+    }
+  }, [hasZoom, selectedCloserId, selectedDate, open, appointment.id]);
 
-  // Get available and booked slots for Adesh
+  // Get available and booked slots for Zoom closers
   const slotStatus = useMemo(() => {
-    const booked = new Set(bookedSlots || []);
-    return ADESH_TIME_SLOTS.map(slot => ({
+    const booked = new Set(fetchedBookedSlots);
+    return ZOOM_TIME_SLOTS.map(slot => ({
       time: slot,
       isBooked: booked.has(slot),
     }));
-  }, [bookedSlots]);
+  }, [fetchedBookedSlots]);
 
   // Check if date/time has changed
   const dateTimeChanged = useMemo(() => {
@@ -235,7 +227,7 @@ export const ReassignCallDialog = ({
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date);
     // Reset time only if switching closers changes the slot pattern
-    if (isAdesh && selectedTime && !ADESH_TIME_SLOTS.includes(selectedTime.slice(0, 5))) {
+    if (hasZoom && selectedTime && !ZOOM_TIME_SLOTS.includes(selectedTime.slice(0, 5))) {
       setSelectedTime("");
     }
     setIsDatePopoverOpen(false);
@@ -245,9 +237,9 @@ export const ReassignCallDialog = ({
     setSelectedCloserId(closerId);
     // Reset time when changing closer (different slot patterns)
     const newCloser = closers?.find(c => c.id === closerId);
-    const willBeAdesh = newCloser?.email?.toLowerCase() === ADESH_EMAIL.toLowerCase();
+    const willHaveZoom = newCloser ? hasIntegrationForCloser(integrations, newCloser.email, 'zoom') : false;
     
-    if (willBeAdesh && !ADESH_TIME_SLOTS.includes(selectedTime.slice(0, 5))) {
+    if (willHaveZoom && !ZOOM_TIME_SLOTS.includes(selectedTime.slice(0, 5))) {
       setSelectedTime("");
     }
   };
@@ -341,7 +333,7 @@ export const ReassignCallDialog = ({
             </Popover>
           </div>
 
-          {/* Time Selection - Different UI based on closer */}
+          {/* Time Selection - Different UI based on integration type */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
@@ -350,12 +342,12 @@ export const ReassignCallDialog = ({
             
             {!selectedCloserId ? (
               <p className="text-sm text-muted-foreground">Please select a closer first</p>
-            ) : isAdesh ? (
-              // Adesh: Show time slot grid
+            ) : hasZoom ? (
+              // Zoom closer: Show time slot grid
               <>
                 {!selectedDate ? (
                   <p className="text-sm text-muted-foreground">Please select a date to see available slots</p>
-                ) : isLoadingSlots ? (
+                ) : loadingSlots ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     <span className="ml-2 text-sm text-muted-foreground">Loading available slots...</span>
