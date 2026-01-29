@@ -273,6 +273,55 @@ export type Database = {
           },
         ]
       }
+      closer_integrations: {
+        Row: {
+          closer_id: string
+          created_at: string | null
+          id: string
+          integration_id: string
+          is_default: boolean | null
+          organization_id: string
+        }
+        Insert: {
+          closer_id: string
+          created_at?: string | null
+          id?: string
+          integration_id: string
+          is_default?: boolean | null
+          organization_id: string
+        }
+        Update: {
+          closer_id?: string
+          created_at?: string | null
+          id?: string
+          integration_id?: string
+          is_default?: boolean | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closer_integrations_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "closer_integrations_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "organization_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "closer_integrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cohort_batches: {
         Row: {
           cohort_type_id: string
@@ -1792,6 +1841,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "organization_features_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_integrations: {
+        Row: {
+          config: Json
+          created_at: string | null
+          id: string
+          integration_type: string
+          is_active: boolean | null
+          organization_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json
+          created_at?: string | null
+          id?: string
+          integration_type: string
+          is_active?: boolean | null
+          organization_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string | null
+          id?: string
+          integration_type?: string
+          is_active?: boolean | null
+          organization_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_integrations_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
