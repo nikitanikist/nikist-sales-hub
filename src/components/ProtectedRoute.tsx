@@ -15,7 +15,10 @@ const ProtectedRoute = ({ children, adminOnly = false, requiredPermission }: Pro
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[200px]">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="skeleton-shimmer h-8 w-8 rounded-lg" />
+          <div className="skeleton-shimmer h-4 w-20 rounded" />
+        </div>
       </div>
     );
   }

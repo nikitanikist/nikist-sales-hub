@@ -281,6 +281,31 @@ const Workshops = () => {
     enabled: !!currentOrganization,
   });
 
+  // Real-time subscription for workshops
+  useEffect(() => {
+    if (!currentOrganization) return;
+
+    const channel = supabase
+      .channel('workshops-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workshops',
+          filter: `organization_id=eq.${currentOrganization.id}`
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["workshops"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, currentOrganization]);
+
   const { data: leads } = useQuery({
     queryKey: ["leads-list", currentOrganization?.id],
     queryFn: async () => {

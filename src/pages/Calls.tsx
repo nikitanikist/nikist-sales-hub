@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 type DateFilter = 'yesterday' | 'today' | 'tomorrow' | 'custom';
 
@@ -129,7 +130,32 @@ const Calls = () => {
     enabled: !roleLoading && !!currentOrganization,
   });
 
-  // Fetch closers with call metrics
+  // Real-time subscription for call appointments
+  useEffect(() => {
+    if (!currentOrganization) return;
+
+    const channel = supabase
+      .channel('calls-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'call_appointments',
+          filter: `organization_id=eq.${currentOrganization.id}`
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["call-appointments"] });
+          queryClient.invalidateQueries({ queryKey: ["closer-metrics"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, currentOrganization]);
+
   type CloserMetrics = {
     id: string;
     full_name: string;
@@ -431,7 +457,14 @@ const Calls = () => {
         </CardHeader>
         <CardContent className="px-0 sm:px-6">
           {isLoading || roleLoading ? (
-            <div className="text-center py-8">Loading...</div>
+            <>
+              <div className="hidden sm:block">
+                <TableSkeleton columns={8} rows={5} />
+              </div>
+              <div className="sm:hidden p-4">
+                <MobileCardSkeleton count={3} />
+              </div>
+            </>
           ) : !appointments || appointments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No appointments scheduled for this date

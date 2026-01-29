@@ -29,6 +29,7 @@ import {
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 interface MoneyFlowEntry {
   id: string;
@@ -1108,7 +1109,14 @@ const DailyMoneyFlow = () => {
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <>
+              <div className="hidden sm:block">
+                <TableSkeleton columns={6} rows={5} />
+              </div>
+              <div className="sm:hidden">
+                <MobileCardSkeleton count={3} />
+              </div>
+            </>
           ) : entries.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               No entries yet. Tap "Add Data" to get started.

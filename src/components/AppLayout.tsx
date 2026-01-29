@@ -51,7 +51,7 @@ interface SidebarNavigationProps {
 }
 
 const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, isSuperAdmin, organizationName }: SidebarNavigationProps) => {
-  const { setOpenMobile, isMobile } = useSidebar();
+  const { setOpenMobile, isMobile, state } = useSidebar();
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -62,28 +62,40 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
   };
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            {/* Gradient background for logo */}
-            <div className="p-2.5 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
+        {state === "expanded" ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              {/* Gradient background for logo */}
+              <div className="p-2.5 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
+                {isSuperAdmin ? (
+                  <Shield className="h-5 w-5 text-white" />
+                ) : (
+                  <Building2 className="h-5 w-5 text-white" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-sidebar-foreground">
+                  {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
+                </h2>
+                <p className="text-xs text-sidebar-foreground/60 truncate max-w-[140px]">{userEmail}</p>
+              </div>
+            </div>
+            {/* Hide OrganizationSwitcher for Super Admins */}
+            {!isSuperAdmin && <OrganizationSwitcher />}
+          </div>
+        ) : (
+          <div className="flex justify-center">
+            <div className="p-2 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-lg">
               {isSuperAdmin ? (
-                <Shield className="h-5 w-5 text-white" />
+                <Shield className="h-4 w-4 text-white" />
               ) : (
-                <Building2 className="h-5 w-5 text-white" />
+                <Building2 className="h-4 w-4 text-white" />
               )}
             </div>
-            <div>
-              <h2 className="text-base font-bold text-sidebar-foreground">
-                {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
-              </h2>
-              <p className="text-xs text-sidebar-foreground/60 truncate max-w-[140px]">{userEmail}</p>
-            </div>
           </div>
-          {/* Hide OrganizationSwitcher for Super Admins */}
-          {!isSuperAdmin && <OrganizationSwitcher />}
-        </div>
+        )}
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
@@ -99,6 +111,7 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton
                       isActive={item.children.some(child => location.pathname === child.path)}
+                      tooltip={item.title}
                     >
                       <item.icon className="h-5 w-5" />
                       <span>{item.title}</span>
@@ -127,6 +140,7 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 <SidebarMenuButton
                   onClick={() => handleNavigation(item.path!)}
                   isActive={location.pathname === item.path}
+                  tooltip={item.title}
                 >
                   <item.icon className="h-5 w-5" />
                   <span>{item.title}</span>
@@ -145,14 +159,26 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        <Button
-          variant="ghost"
-          onClick={signOut}
-          className="w-full justify-start text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          <LogOut className="h-5 w-5 mr-2" />
-          Sign Out
-        </Button>
+        {state === "expanded" ? (
+          <Button
+            variant="ghost"
+            onClick={signOut}
+            className="w-full justify-start text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <LogOut className="h-5 w-5 mr-2" />
+            Sign Out
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={signOut}
+            className="w-full text-sidebar-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            title="Sign Out"
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
@@ -315,7 +341,12 @@ const AppLayoutContent = () => {
   if (loading || roleLoading || modulesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="p-3 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-lg animate-pulse">
+            <Building2 className="h-8 w-8 text-white" />
+          </div>
+          <div className="skeleton-shimmer h-4 w-24 rounded" />
+        </div>
       </div>
     );
   }
