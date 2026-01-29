@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown, ChevronRight, Phone, IndianRupee } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown, ChevronRight, Phone, IndianRupee, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -574,12 +574,12 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                 Add Workshop
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
+            <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>{editingWorkshop ? "Edit Workshop" : "Add New Workshop"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
+            <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-2">
                 <div className="space-y-2">
                   <Label htmlFor="title">Title</Label>
                   <Input
@@ -778,9 +778,10 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                  </div>
                )}
                
-               <DialogFooter>
-                 <Button type="submit">
-                   {editingWorkshop ? "Update" : "Create"} Workshop
+               <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
+                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                   {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                   {editingWorkshop ? "Update Workshop" : "Create Workshop"}
                  </Button>
                </DialogFooter>
              </form>

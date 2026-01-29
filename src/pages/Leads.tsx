@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar, Upload, RotateCcw, Plus } from "lucide-react";
+import { Search, Filter, RefreshCw, MoreVertical, Ban, Edit, MessageSquare, Users, Trash2, Link2, Calendar, Upload, RotateCcw, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -1550,12 +1550,12 @@ const Leads = () => {
 
       {/* Edit Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>{editingLead ? "Edit Customer Details" : "Add New Customer"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
+          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="grid gap-4 py-4 flex-1 overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="contact_name">Customer Name</Label>
@@ -1708,9 +1708,9 @@ const Leads = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="assigned_to">Assign To</Label>
-                  <Select name="assigned_to" defaultValue={editingLead?.assigned_to || "none"}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a closer" />
+                    <Select name="assigned_to" defaultValue={editingLead?.assigned_to || "none"}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a closer" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
@@ -1760,9 +1760,10 @@ const Leads = () => {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0 mt-4 pt-4 border-t">
               <Button type="submit" disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? "Saving..." : (editingLead ? "Update" : "Create") + " Customer"}
+                {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingLead ? "Update Customer" : "Create Customer"}
               </Button>
             </DialogFooter>
           </form>

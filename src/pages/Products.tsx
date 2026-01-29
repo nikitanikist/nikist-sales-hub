@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, RefreshCw, Pencil, Trash2, Package } from "lucide-react";
+import { Plus, Search, RefreshCw, Pencil, Trash2, Package, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
@@ -525,8 +525,9 @@ const Products = () => {
                     <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto h-11 sm:h-10">
                       Cancel
                     </Button>
-                    <Button onClick={handleSubmit} className="w-full sm:w-auto h-11 sm:h-10">
-                      {editingProduct ? "Update" : "Create"}
+                    <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending} className="w-full sm:w-auto h-11 sm:h-10">
+                      {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      {editingProduct ? "Update Product" : "Create Product"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>

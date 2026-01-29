@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, RefreshCw, Filter, Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
+import { Search, RefreshCw, Filter, Plus, Pencil, Trash2, TrendingUp, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -429,7 +429,8 @@ const Funnels = () => {
                     )}
 
                     <div className="flex flex-col sm:flex-row gap-2">
-                      <Button type="submit" className="flex-1 h-11 sm:h-10">
+                      <Button type="submit" className="flex-1 h-11 sm:h-10" disabled={createMutation.isPending || updateMutation.isPending}>
+                        {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {editingFunnel ? "Update Funnel" : "Create Funnel"}
                       </Button>
                       <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-11 sm:h-10">

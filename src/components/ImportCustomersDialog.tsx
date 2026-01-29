@@ -436,7 +436,7 @@ export const ImportCustomersDialog = ({
                         <Label>Select a product</Label>
                         <Select value={selectedProduct} onValueChange={setSelectedProduct}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select product" />
+                            <SelectValue placeholder="Select a product" />
                           </SelectTrigger>
                           <SelectContent>
                             {products?.map(p => (
@@ -449,7 +449,7 @@ export const ImportCustomersDialog = ({
                         <Label>Assign to</Label>
                         <Select value={selectedAssignTo} onValueChange={setSelectedAssignTo}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select person" />
+                            <SelectValue placeholder="Select a person" />
                           </SelectTrigger>
                           <SelectContent>
                             {salesClosers?.map(c => (
@@ -480,7 +480,7 @@ export const ImportCustomersDialog = ({
                         <Label>Sale From Workshop (Revenue Attribution)</Label>
                         <Select value={selectedConvertedFromWorkshop || selectedWorkshop} onValueChange={setSelectedConvertedFromWorkshop}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select workshop for revenue credit" />
+                            <SelectValue placeholder="Select a workshop for revenue credit" />
                           </SelectTrigger>
                           <SelectContent>
                             {workshops?.map(w => (
