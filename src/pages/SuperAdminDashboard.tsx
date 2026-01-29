@@ -357,37 +357,22 @@ const SuperAdminDashboard = () => {
 
     setAddingMember(true);
     try {
-      // Step 1: Create the user via edge function
+      // Create the user and add to organization via edge function
       const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
         body: {
           action: 'create',
+          organization_id: selectedOrg.id,
           email: newUserEmail.trim(),
           full_name: newUserName.trim(),
           phone: newUserPhone.trim() || null,
           password: newUserPassword,
           role: newMemberRole,
+          is_org_admin: newMemberIsOrgAdmin,
         }
       });
 
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
-
-      const userId = data?.user_id;
-      if (!userId) {
-        throw new Error("Failed to create user - no user ID returned");
-      }
-
-      // Step 2: Add to organization_members
-      const { error: memberError } = await supabase
-        .from("organization_members")
-        .insert({
-          organization_id: selectedOrg.id,
-          user_id: userId,
-          role: newMemberRole as "admin" | "sales_rep" | "viewer" | "manager" | "super_admin",
-          is_org_admin: newMemberIsOrgAdmin,
-        });
-
-      if (memberError) throw memberError;
 
       toast.success("Client user created and added to organization successfully");
       setShowAddMemberDialog(false);

@@ -44,7 +44,8 @@ serve(async (req) => {
       phone, 
       role, 
       password, 
-      permissions 
+      permissions,
+      is_org_admin 
     } = await req.json();
 
     console.log(`manage-users called with action: ${action}, org_id: ${organization_id}`);
@@ -160,7 +161,7 @@ serve(async (req) => {
           organization_id,
           user_id: userId,
           role: role,
-          is_org_admin: role === 'admin',
+          is_org_admin: is_org_admin !== undefined ? is_org_admin : (role === 'admin'),
         });
 
       if (memberError) {
