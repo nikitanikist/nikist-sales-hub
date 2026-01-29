@@ -65,19 +65,20 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-sidebar-primary rounded-lg">
+          <div className="flex items-center gap-3">
+            {/* Gradient background for logo */}
+            <div className="p-2.5 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
               {isSuperAdmin ? (
-                <Shield className="h-5 w-5 text-sidebar-primary-foreground" />
+                <Shield className="h-5 w-5 text-white" />
               ) : (
-                <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
+                <Building2 className="h-5 w-5 text-white" />
               )}
             </div>
             <div>
-            <h2 className="text-lg font-semibold text-sidebar-foreground">
-              {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
-            </h2>
-              <p className="text-xs text-sidebar-foreground/60">{userEmail}</p>
+              <h2 className="text-base font-bold text-sidebar-foreground">
+                {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
+              </h2>
+              <p className="text-xs text-sidebar-foreground/60 truncate max-w-[140px]">{userEmail}</p>
             </div>
           </div>
           {/* Hide OrganizationSwitcher for Super Admins */}
