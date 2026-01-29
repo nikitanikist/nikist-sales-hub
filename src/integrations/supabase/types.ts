@@ -1853,6 +1853,7 @@ export type Database = {
           config: Json
           created_at: string | null
           id: string
+          integration_name: string | null
           integration_type: string
           is_active: boolean | null
           organization_id: string
@@ -1862,6 +1863,7 @@ export type Database = {
           config?: Json
           created_at?: string | null
           id?: string
+          integration_name?: string | null
           integration_type: string
           is_active?: boolean | null
           organization_id: string
@@ -1871,6 +1873,7 @@ export type Database = {
           config?: Json
           created_at?: string | null
           id?: string
+          integration_name?: string | null
           integration_type?: string
           is_active?: boolean | null
           organization_id?: string
