@@ -445,7 +445,7 @@ const Users = () => {
                 <TableBody>
                   {users && users.length > 0 ? (
                     users.map((user) => (
-                      <TableRow key={user.id}>
+                      <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="font-medium">{user.full_name}</TableCell>
                         <TableCell>
                           <div className="space-y-1">
