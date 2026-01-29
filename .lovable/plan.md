@@ -1,108 +1,291 @@
 
-# Fix Plan: Integration Edit & Pabbly Display Issues
+
+# Fix Plan: Super Admin Features Tab - Migrate to Modules System
 
 ## Summary
 
-Two separate issues were identified:
-1. **WhatsApp/Zoom/Calendly Edit Dialog Bug** - Form fields appear empty when editing because state doesn't sync with prop changes
-2. **Pabbly Data Missing** - Webhooks table is empty; legacy env-based configs need migration to the database
+The Super Admin Dashboard's Features tab currently displays legacy Nikist-specific feature names from a hardcoded `AVAILABLE_FEATURES` array and queries the old `organization_features` table. This needs to be updated to use the new `modules` and `organization_modules` tables which contain generic SaaS module names.
 
 ---
 
-## Issue 1: Integration Edit Dialog State Sync
+## Current Problem
 
-### Problem
-The `AddIntegrationDialog.tsx` component initializes its state only once when the component mounts. Since the Dialog component stays mounted (just hidden), clicking "Edit" on different integrations doesn't update the form fields.
+### What's Wrong
 
-### Solution
-Add a `useEffect` hook to synchronize state when `existingIntegration` or `open` props change.
+| Current (Legacy) | Expected (New Modules) |
+|-----------------|----------------------|
+| Insider Crypto Club (`batch_icc`) | Cohort Management |
+| High Future (`batch_high_future`) | (covered by Cohort Management) |
+| Future Mentorship (`batch_futures`) | (covered by Cohort Management) |
+| Sales Closers (`sales_closers`) | One-to-One Sales Funnel |
+| Workshops | Workshops |
+| Dashboard, Customers, etc. | (These are UI features, not modules) |
 
-### File: `src/components/settings/AddIntegrationDialog.tsx`
+### Root Cause
+1. **Hardcoded Array**: Lines 54-70 define `AVAILABLE_FEATURES` with Nikist-specific product names
+2. **Wrong Table**: Lines 193-199 query `organization_features` instead of `organization_modules`
+3. **No Modules Integration**: The dashboard doesn't use the `modules` table at all
 
-**Add after line 110 (after the useState declarations):**
+---
 
+## Database State Analysis
+
+**`modules` table (new - correct):**
+- One-to-One Sales Funnel (slug: `one-to-one-funnel`)
+- Cohort Management (slug: `cohort-management`)
+- Workshops (slug: `workshops`)
+- Daily Money Flow (slug: `daily-money-flow`)
+
+**`organization_features` table (legacy - to be deprecated):**
+- Contains 15 feature flags like `batch_icc`, `batch_futures`, `batch_high_future`
+- These are Nikist-specific and should not be shown
+
+---
+
+## Implementation Steps
+
+### Step 1: Add Modules State and Fetch Logic
+
+**File:** `src/pages/SuperAdminDashboard.tsx`
+
+**Add new state variables:**
 ```typescript
-import { useState, useEffect } from "react";
+// Add new interface for modules
+interface Module {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  is_premium: boolean;
+  display_order: number;
+}
 
-// Add this useEffect after the useState declarations (around line 110):
-useEffect(() => {
-  if (open) {
-    if (existingIntegration) {
-      // Sync name
-      setName(existingIntegration.integration_name || "");
-      
-      // Sync config fields
-      const existingConfig = existingIntegration.config || {};
-      const newConfig: Record<string, string> = {};
-      fields.forEach((field) => {
-        if (existingConfig.uses_env_secrets && existingConfig[`${field.key}_secret`]) {
-          newConfig[field.key] = `[Env: ${existingConfig[`${field.key}_secret`]}]`;
-        } else {
-          const value = existingConfig[field.key];
-          newConfig[field.key] = typeof value === "string" ? value : "";
-        }
-      });
-      setConfig(newConfig);
-      
-      // Sync templates (for WhatsApp)
-      if (existingConfig.templates) {
-        setTemplates(existingConfig.templates as Record<string, unknown>);
-      } else {
-        setTemplates({});
-      }
-    } else {
-      // Reset form for new integration
-      setName("");
-      setConfig({});
-      setTemplates({});
-    }
+interface OrganizationModule {
+  id: string;
+  module_id: string;
+  is_enabled: boolean;
+  modules: Module;
+}
+
+// Add state
+const [allModules, setAllModules] = useState<Module[]>([]);
+const [orgModules, setOrgModules] = useState<OrganizationModule[]>([]);
+```
+
+**Add fetch functions:**
+```typescript
+// Fetch all available modules (call on mount)
+const fetchAllModules = async () => {
+  const { data, error } = await supabase
+    .from("modules")
+    .select("*")
+    .order("display_order");
+  
+  if (!error && data) {
+    setAllModules(data);
   }
-}, [open, existingIntegration?.id]);
+};
+
+// Update fetchOrgDetails to also fetch organization_modules
+const fetchOrgModules = async (orgId: string) => {
+  const { data, error } = await supabase
+    .from("organization_modules")
+    .select(`
+      id,
+      module_id,
+      is_enabled,
+      modules (*)
+    `)
+    .eq("organization_id", orgId);
+  
+  if (!error && data) {
+    setOrgModules(data as OrganizationModule[]);
+  }
+};
 ```
 
----
+### Step 2: Update fetchOrgDetails Function
 
-## Issue 2: Pabbly Webhook Data Migration
-
-### Problem
-The `organization_webhooks` table is empty. Nikist's Pabbly integration works via legacy environment variables (`PABBLY_STATUS_WEBHOOK_URL`), but the new UI only displays database records.
-
-### Solution
-Seed the existing Pabbly configuration into the `organization_webhooks` table for the Nikist organization.
-
-### Database Insert Required
-
-```sql
--- Insert the existing Pabbly outgoing webhook for Nikist organization
-INSERT INTO organization_webhooks (
-  organization_id,
-  name,
-  direction,
-  url,
-  trigger_event,
-  is_active
-) VALUES (
-  '00000000-0000-0000-0000-000000000001',  -- Nikist org ID
-  'Pabbly Call Status Sync',
-  'outgoing',
-  '[Will be populated from PABBLY_STATUS_WEBHOOK_URL env secret]',
-  'call.status_changed',
-  true
-);
-```
-
-**Note:** Since the actual URL is stored in an environment secret, we have two options:
-1. Store a reference pattern (like we do for other integrations)
-2. Or store the actual URL if provided
-
-### Alternative Approach: Show Legacy Config in UI
-
-Add a note in `PabblyIntegration.tsx` that shows when legacy environment-based webhooks are detected:
+**Lines 160-204:** Modify to fetch organization_modules instead of organization_features:
 
 ```typescript
-// Add a section that detects if PABBLY_STATUS_WEBHOOK_URL is configured
-// Show: "Legacy Pabbly webhook is active via environment configuration"
+const fetchOrgDetails = async (org: Organization) => {
+  setSelectedOrg(org);
+
+  try {
+    // Fetch members (keep existing logic)
+    // ...existing member fetching code...
+
+    // Replace organization_features with organization_modules
+    const { data: modules, error: modulesError } = await supabase
+      .from("organization_modules")
+      .select(`
+        id,
+        module_id,
+        is_enabled,
+        modules (*)
+      `)
+      .eq("organization_id", org.id);
+
+    if (modulesError) throw modulesError;
+    setOrgModules(modules as OrganizationModule[] || []);
+  } catch (error) {
+    console.error("Error fetching org details:", error);
+    toast.error("Failed to load organization details");
+  }
+};
 ```
+
+### Step 3: Update toggleFeature to toggleModule
+
+**Lines 265-300:** Replace with module-based toggle:
+
+```typescript
+const toggleModule = async (moduleId: string) => {
+  if (!selectedOrg) return;
+
+  const existingOrgModule = orgModules.find((om) => om.module_id === moduleId);
+
+  try {
+    if (existingOrgModule) {
+      // Update existing record
+      const { error } = await supabase
+        .from("organization_modules")
+        .update({ 
+          is_enabled: !existingOrgModule.is_enabled,
+          enabled_at: !existingOrgModule.is_enabled ? new Date().toISOString() : null
+        })
+        .eq("id", existingOrgModule.id);
+
+      if (error) throw error;
+    } else {
+      // Insert new record for this org + module
+      const { error } = await supabase
+        .from("organization_modules")
+        .insert({
+          organization_id: selectedOrg.id,
+          module_id: moduleId,
+          is_enabled: true,
+          enabled_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+    }
+
+    // Refresh modules for the selected org
+    const { data: modules } = await supabase
+      .from("organization_modules")
+      .select(`
+        id,
+        module_id,
+        is_enabled,
+        modules (*)
+      `)
+      .eq("organization_id", selectedOrg.id);
+
+    setOrgModules(modules as OrganizationModule[] || []);
+    toast.success("Module updated");
+  } catch (error) {
+    console.error("Error toggling module:", error);
+    toast.error("Failed to update module");
+  }
+};
+```
+
+### Step 4: Update Features Tab UI
+
+**Lines 756-777:** Replace with module-based rendering:
+
+```typescript
+<TabsContent value="features">
+  <div className="space-y-4">
+    <p className="text-sm text-muted-foreground">
+      Enable or disable modules for this organization
+    </p>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {allModules.map((module) => {
+        const orgModule = orgModules.find(
+          (om) => om.module_id === module.id
+        );
+        const isEnabled = orgModule?.is_enabled ?? false;
+
+        return (
+          <div
+            key={module.id}
+            className="flex items-center justify-between p-4 border rounded-lg"
+          >
+            <div className="space-y-1">
+              <span className="text-sm font-medium">{module.name}</span>
+              {module.description && (
+                <p className="text-xs text-muted-foreground">
+                  {module.description}
+                </p>
+              )}
+            </div>
+            <Switch
+              checked={isEnabled}
+              onCheckedChange={() => toggleModule(module.id)}
+            />
+          </div>
+        );
+      })}
+    </div>
+  </div>
+</TabsContent>
+```
+
+### Step 5: Update Details Tab Stats
+
+**Lines 599-604:** Update to show modules count:
+
+```typescript
+<div>
+  <Label className="text-muted-foreground">Modules Enabled</Label>
+  <p className="font-medium">
+    {orgModules.filter((m) => m.is_enabled).length} / {allModules.length}
+  </p>
+</div>
+```
+
+### Step 6: Update createOrganization Function
+
+**Lines 206-243:** When creating a new organization, enable all modules by default:
+
+```typescript
+const createOrganization = async () => {
+  // ...existing validation...
+
+  try {
+    const { data, error } = await supabase
+      .from("organizations")
+      .insert({ name, slug })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Enable all modules for the new organization
+    const defaultModules = allModules.map((m) => ({
+      organization_id: data.id,
+      module_id: m.id,
+      is_enabled: true,
+      enabled_at: new Date().toISOString(),
+    }));
+
+    await supabase.from("organization_modules").insert(defaultModules);
+
+    // Remove old organization_features insert
+    // ...rest of function...
+  }
+};
+```
+
+### Step 7: Remove Legacy Code
+
+- Remove the `AVAILABLE_FEATURES` constant (lines 54-70)
+- Remove `orgFeatures` state (line 78)
+- Remove the `OrganizationFeature` interface (lines 48-52)
 
 ---
 
@@ -110,37 +293,32 @@ Add a note in `PabblyIntegration.tsx` that shows when legacy environment-based w
 
 | File | Change |
 |------|--------|
-| `src/components/settings/AddIntegrationDialog.tsx` | Add `useEffect` to sync state when dialog opens with existing integration |
-
-## Database Operations
-
-| Operation | Description |
-|-----------|-------------|
-| Insert into `organization_webhooks` | Migrate Nikist's Pabbly webhook configuration |
+| `src/pages/SuperAdminDashboard.tsx` | Replace organization_features with organization_modules throughout |
 
 ---
 
 ## Testing After Fix
 
-1. **WhatsApp Edit Test:**
-   - Go to Settings → Integrations → WhatsApp
-   - Click Edit on "Main WhatsApp" integration
-   - Verify fields show: Name = "Main WhatsApp", API Key = "[Env: AISENSY_API_KEY]", etc.
-   - Verify templates section shows the configured templates
-
-2. **Zoom/Calendly Edit Test:**
-   - Click Edit on "Adesh Zoom" integration
-   - Verify Account ID shows "[Env: ZOOM_ADESH_ACCOUNT_ID]"
-
-3. **Pabbly Display Test:**
-   - After database insert, go to Settings → Integrations → Pabbly
-   - Verify "Pabbly Call Status Sync" appears in Outgoing Webhooks section
+1. **Login as Super Admin** and navigate to `/super-admin`
+2. **Select Nikist Organization** and click the "Features" tab
+3. **Verify Module Names:**
+   - Should show: "One-to-One Sales Funnel", "Cohort Management", "Workshops", "Daily Money Flow"
+   - Should NOT show: "Insider Crypto Club", "High Future", "Future Mentorship"
+4. **Test Toggle:** Disable a module and verify it saves correctly
+5. **Create New Organization:** Verify all modules are enabled by default
+6. **Check Details Tab:** Verify "Modules Enabled" count is accurate
 
 ---
 
 ## Technical Notes
 
-- The `useEffect` depends on `open` and `existingIntegration?.id` to avoid unnecessary re-renders
-- The `fields` variable is stable per integration type, so it's safe to reference in the effect
-- Legacy env-based integrations show `[Env: SECRET_NAME]` format to indicate they use secrets
-- For Pabbly, we may want to add a `uses_env_secret: true` and `url_secret` pattern similar to other integrations
+### Migration Strategy
+- The old `organization_features` table will remain for now as a fallback
+- The sidebar navigation may still reference legacy feature keys until a separate update
+- Future cleanup should remove `organization_features` table entirely
+
+### Module vs Feature Distinction
+- **Modules** = Major product capabilities (One-to-One Funnel, Cohort Management)
+- **Features** = UI-level toggles (Dashboard visibility, Customer insights)
+- This fix focuses on modules; features can be handled separately if needed
+
