@@ -17,6 +17,7 @@ import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { TableEmptyState } from "@/components/TableEmptyState";
+import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
 
 interface Funnel {
   id: string;
@@ -444,7 +445,14 @@ const Funnels = () => {
           </div>
 
           {isLoading ? (
-            <div className="text-center py-8">Loading funnels...</div>
+            <>
+              <div className="hidden sm:block">
+                <TableSkeleton columns={7} rows={5} />
+              </div>
+              <div className="sm:hidden">
+                <MobileCardSkeleton count={3} />
+              </div>
+            </>
           ) : (
             <>
             {/* Desktop Table View */}
@@ -469,8 +477,8 @@ const Funnels = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredFunnels.map((funnel) => (
-                      <TableRow key={funnel.id}>
+                    filteredFunnels.map((funnel, index) => (
+                      <TableRow key={funnel.id} className="animate-list-item" style={{ animationDelay: `${index * 30}ms` }}>
                         <TableCell className="font-medium">{funnel.funnel_name}</TableCell>
                         <TableCell>
                           {Number(funnel.amount || 0) === 0 ? (
