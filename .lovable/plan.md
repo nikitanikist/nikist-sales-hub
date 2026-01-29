@@ -1,166 +1,125 @@
 
-# Fix: Add Member Edge Function Error
 
-## Problem Identified
+# Plan: Complete Remaining Multi-Tenant Edge Function Migration
 
-When trying to add a member to an organization from the Super Admin Dashboard, the edge function fails with a non-2xx status code because:
+## Summary
 
-1. **Missing `organization_id`**: The frontend is not passing `organization_id` to the `manage-users` edge function, but the function requires it (returns 400 error when undefined)
+The tester's review is **partially correct**. After verifying the codebase:
 
-2. **Duplicate insert attempt**: The code structure shows a flawed pattern:
-   - The edge function (`manage-users`) already inserts into `organization_members` table when `action: 'create'` is called
-   - The frontend then tries to insert again after the function returns
-   - This would cause a duplicate key error if the first issue were fixed
+- **70% of the work IS complete**: Frontend dialogs, core edge functions (create-zoom-link, calendly-webhook, send-whatsapp-reminder), integration tables, and the Settings UI are properly implemented with database-driven integrations.
+- **30% still needs work**: Two edge functions (reassign-call, rebook-call) and the Leads.tsx page still contain hardcoded email constants.
 
-## Root Cause
+---
 
-In `src/pages/SuperAdminDashboard.tsx` (lines 361-370):
-```typescript
-const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
-  body: {
-    action: 'create',
-    email: newUserEmail.trim(),
-    full_name: newUserName.trim(),
-    phone: newUserPhone.trim() || null,
-    password: newUserPassword,
-    role: newMemberRole,
-    // organization_id is MISSING!
-  }
-});
+## Remaining Work
+
+### 1. Fix reassign-call Edge Function
+
+**File:** `supabase/functions/reassign-call/index.ts`
+
+**Current Issues (Lines 14-16):**
+```
+const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
+const AKANSHA_EMAIL = "akanshanikist@gmail.com";
+const ADESH_EMAIL = "aadeshnikist@gmail.com";
 ```
 
-The edge function checks for `organization_id` and returns error 400 when undefined:
+**Changes Required:**
+- Remove hardcoded email constants
+- Add database lookup for closer integrations
+- Replace email comparisons with integration type checks
+
+**Technical approach:**
 ```typescript
-if (!organization_id) {
-  return new Response(
-    JSON.stringify({ error: 'organization_id is required' }),
-    { status: 400, headers: {...} }
-  );
-}
+// Query closer's integration from database
+const { data: closerIntegration } = await supabase
+  .from('closer_integrations')
+  .select('integration_id, organization_integrations!inner(integration_type, config)')
+  .eq('closer_id', new_closer_id)
+  .eq('organization_id', appointment.organization_id)
+  .maybeSingle();
+
+const integrationType = closerIntegration?.organization_integrations?.integration_type;
+const useCalendly = integrationType === 'calendly';
+const useZoom = integrationType === 'zoom';
+
+// Get credentials from config instead of env vars
+const integrationConfig = closerIntegration?.organization_integrations?.config;
 ```
 
-## Solution
+---
 
-Update the `addMemberToOrg` function in `SuperAdminDashboard.tsx`:
+### 2. Fix rebook-call Edge Function
 
-1. **Add `organization_id` to the edge function call** - Pass `selectedOrg.id` as `organization_id`
+**File:** `supabase/functions/rebook-call/index.ts`
 
-2. **Remove the duplicate insert** - The edge function already handles adding the user to `organization_members`, so we don't need Step 2
-
-3. **Pass `is_org_admin` to the edge function** - The function uses this to set the `is_org_admin` field
-
-### Code Change
-
-**Before (lines 360-390):**
-```typescript
-// Step 1: Create the user via edge function
-const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
-  body: {
-    action: 'create',
-    email: newUserEmail.trim(),
-    full_name: newUserName.trim(),
-    phone: newUserPhone.trim() || null,
-    password: newUserPassword,
-    role: newMemberRole,
-  }
-});
-
-if (fnError) throw fnError;
-if (data?.error) throw new Error(data.error);
-
-const userId = data?.user_id;
-if (!userId) {
-  throw new Error("Failed to create user - no user ID returned");
-}
-
-// Step 2: Add to organization_members
-const { error: memberError } = await supabase
-  .from("organization_members")
-  .insert({
-    organization_id: selectedOrg.id,
-    user_id: userId,
-    role: newMemberRole,
-    is_org_admin: newMemberIsOrgAdmin,
-  });
-
-if (memberError) throw memberError;
+**Current Issues (Lines 14-16):**
+```
+const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
+const AKANSHA_EMAIL = "akanshanikist@gmail.com";
+const ADESH_EMAIL = "aadeshnikist@gmail.com";
 ```
 
-**After:**
+**Changes Required:**
+- Remove hardcoded email constants
+- Query closer's integration type from database
+- Use organization's integration config for Calendly tokens and Zoom credentials
+
+---
+
+### 3. Fix Leads.tsx Schedule Call Dropdown
+
+**File:** `src/pages/Leads.tsx`
+
+**Current Issues (Lines 1194, 1347):**
 ```typescript
-// Create user and add to organization via edge function
-const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
-  body: {
-    action: 'create',
-    organization_id: selectedOrg.id,  // ADD THIS
-    email: newUserEmail.trim(),
-    full_name: newUserName.trim(),
-    phone: newUserPhone.trim() || null,
-    password: newUserPassword,
-    role: newMemberRole,
-  }
-});
-
-if (fnError) throw fnError;
-if (data?.error) throw new Error(data.error);
-
-// Edge function already adds user to organization_members,
-// so we just need to update is_org_admin if different from default
-if (newMemberIsOrgAdmin && newMemberRole !== 'admin') {
-  // Edge function sets is_org_admin = true only for admin role
-  // If user wants org admin but different role, update it
-  await supabase
-    .from("organization_members")
-    .update({ is_org_admin: true })
-    .eq("user_id", data.user_id)
-    .eq("organization_id", selectedOrg.id);
-}
+const isAdesh = closer.email?.toLowerCase() === "aadeshnikist@gmail.com";
 ```
 
-## Additional Enhancement (Optional)
+**Changes Required:**
+- Import and use `useOrgIntegrations` and `hasIntegrationForCloser`
+- Replace email check with integration-based check
+- Enable scheduling for closers with Zoom OR Calendly integration
 
-The edge function currently determines `is_org_admin` based on whether `role === 'admin'`. To support the "Make Organization Admin" toggle for non-admin roles, we should also update the edge function to accept an explicit `is_org_admin` parameter.
-
-### Edge Function Update
-
-In `supabase/functions/manage-users/index.ts`, line 163-164:
+**Updated logic:**
 ```typescript
-// Before:
-is_org_admin: role === 'admin',
-
-// After:
-is_org_admin: is_org_admin !== undefined ? is_org_admin : (role === 'admin'),
+// Check if closer has any scheduling integration
+const hasSchedulingIntegration = 
+  hasIntegrationForCloser(integrations, closer.email, 'zoom') ||
+  hasIntegrationForCloser(integrations, closer.email, 'calendly');
 ```
 
-And extract `is_org_admin` from the request body (line 47):
-```typescript
-const { 
-  action, 
-  user_id, 
-  organization_id, 
-  membership_id,
-  email, 
-  full_name, 
-  phone, 
-  role, 
-  password, 
-  permissions,
-  is_org_admin  // ADD THIS
-} = await req.json();
-```
+---
+
+### 4. (Optional) Legacy Edge Functions
+
+The following edge functions are person-specific by design and may need review:
+
+| Function | Purpose | Recommendation |
+|----------|---------|----------------|
+| `calendly-webhook-akansha` | Akansha-specific Calendly webhook | Keep as legacy or deprecate once main webhook handles all orgs |
+| `schedule-adesh-call` | Adesh-specific scheduling | Keep as legacy or deprecate |
+| `schedule-calendly-call` | Dipanshu-specific Calendly | Keep as legacy or deprecate |
+
+These were intentionally created for specific closers before the multi-tenant architecture. The main `calendly-webhook` already handles organization routing, so these may be deprecated.
+
+---
 
 ## Files to Modify
 
-1. `src/pages/SuperAdminDashboard.tsx` - Add `organization_id` to edge function call, remove duplicate insert
-2. `supabase/functions/manage-users/index.ts` - Accept `is_org_admin` parameter explicitly
+| File | Priority | Changes |
+|------|----------|---------|
+| `supabase/functions/reassign-call/index.ts` | HIGH | Remove hardcoded emails, add integration lookups |
+| `supabase/functions/rebook-call/index.ts` | HIGH | Remove hardcoded emails, add integration lookups |
+| `src/pages/Leads.tsx` | HIGH | Replace email checks with integration checks |
 
-## Testing
+---
 
-After fix:
-1. Navigate to Super Admin Dashboard
-2. Select an organization
-3. Click "Add Member"
-4. Fill in all fields (Name, Email, Phone, Password, Role)
-5. Toggle "Make Organization Admin" on/off
-6. Click "Create"
-7. Verify user is created and added to organization without errors
+## Testing After Changes
+
+1. Reassign a call between closers with different integration types
+2. Rebook a call for a Calendly closer
+3. Rebook a call for a Zoom closer
+4. Schedule call from Leads page for different closer types
+5. Verify all closers with integrations appear enabled in dropdowns
+
