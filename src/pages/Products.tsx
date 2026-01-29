@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, RefreshCw, Pencil, Trash2, Package, Loader2 } from "lucide-react";
+import { Plus, Search, RefreshCw, Pencil, Trash2, Package, Loader2, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
@@ -583,27 +584,37 @@ const Products = () => {
                         </TableCell>
                         <TableCell>{product.funnel?.funnel_name || "N/A"}</TableCell>
                         <TableCell>
-                          {Number(product.price || 0) === 0 ? (
-                            <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200">
+                        {Number(product.price || 0) === 0 ? (
+                            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700 border-emerald-200">
                               Free
-                            </Badge>
+                            </span>
                           ) : (
-                            <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200">
+                            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-violet-100 text-violet-700 border-violet-200">
                               Paid
-                            </Badge>
+                            </span>
                           )}
                         </TableCell>
-                        <TableCell>{getUserCount(product.id)}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell>
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Users className="h-3.5 w-3.5" />
+                            {getUserCount(product.id)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
                           ₹{Number(product.price).toLocaleString("en-IN", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={product.is_active ? "default" : "secondary"}>
+                          <span className={cn(
+                            "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                            product.is_active 
+                              ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                              : "bg-gray-100 text-gray-700 border-gray-200"
+                          )}>
                             {product.is_active ? "Active" : "Inactive"}
-                          </Badge>
+                          </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -646,16 +657,21 @@ const Products = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant={product.is_active ? "default" : "secondary"} className="text-xs">
+                        <span className={cn(
+                          "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold",
+                          product.is_active 
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                            : "bg-gray-100 text-gray-700 border-gray-200"
+                        )}>
                           {product.is_active ? "Active" : "Inactive"}
-                        </Badge>
+                        </span>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-3 gap-2 text-center mb-3">
                       <div className="bg-muted/50 rounded-md p-2">
                         {Number(product.price || 0) === 0 ? (
-                          <div className="text-sm font-semibold text-green-600">Free</div>
+                          <div className="text-sm font-semibold text-emerald-600">Free</div>
                         ) : (
                           <div className="text-sm font-semibold">₹{Number(product.price).toLocaleString("en-IN")}</div>
                         )}
@@ -667,9 +683,9 @@ const Products = () => {
                       </div>
                       <div className="bg-muted/50 rounded-md p-2">
                         {Number(product.price || 0) === 0 ? (
-                          <Badge variant="secondary" className="bg-green-500/10 text-green-700 text-[10px] px-1">Free</Badge>
+                          <span className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 border-emerald-200">Free</span>
                         ) : (
-                          <Badge variant="default" className="bg-blue-500/10 text-blue-700 text-[10px] px-1">Paid</Badge>
+                          <span className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-semibold bg-violet-100 text-violet-700 border-violet-200">Paid</span>
                         )}
                         <div className="text-[10px] text-muted-foreground">Type</div>
                       </div>

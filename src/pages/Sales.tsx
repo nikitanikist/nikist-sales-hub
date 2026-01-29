@@ -222,11 +222,13 @@ const Sales = () => {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader className="px-4 sm:px-6">
+      <Card className="overflow-hidden">
+        <CardHeader className="px-4 sm:px-6 bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-b">
           <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-            <DollarSign className="h-5 w-5 text-success" />
-            Total Revenue: <span className="text-base sm:text-xl">${totalRevenue.toLocaleString()}</span>
+            <div className="p-2 bg-emerald-100 rounded-lg">
+              <DollarSign className="h-5 w-5 text-emerald-600" />
+            </div>
+            <span>Total Revenue: <span className="text-emerald-600">${totalRevenue.toLocaleString()}</span></span>
           </CardTitle>
         </CardHeader>
       </Card>

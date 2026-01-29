@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Search, RefreshCw, Filter, Plus, Pencil, Trash2, TrendingUp, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -484,14 +484,14 @@ const Funnels = () => {
                       <TableRow key={funnel.id} className="animate-list-item" style={{ animationDelay: `${index * 30}ms` }}>
                         <TableCell className="font-medium">{funnel.funnel_name}</TableCell>
                         <TableCell>
-                          {Number(funnel.amount || 0) === 0 ? (
-                            <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200">
+                        {Number(funnel.amount || 0) === 0 ? (
+                            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700 border-emerald-200">
                               Free
-                            </Badge>
+                            </span>
                           ) : (
-                            <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200">
+                            <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-violet-100 text-violet-700 border-violet-200">
                               Paid
-                            </Badge>
+                            </span>
                           )}
                         </TableCell>
                         <TableCell>{getWorkshopCount(funnel.id)}</TableCell>
@@ -538,13 +538,13 @@ const Funnels = () => {
                         </p>
                       </div>
                       {Number(funnel.amount || 0) === 0 ? (
-                        <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-200 text-xs">
+                        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-700 border-emerald-200">
                           Free
-                        </Badge>
+                        </span>
                       ) : (
-                        <Badge variant="default" className="bg-blue-500/10 text-blue-700 border-blue-200 text-xs">
+                        <span className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold bg-violet-100 text-violet-700 border-violet-200">
                           Paid
-                        </Badge>
+                        </span>
                       )}
                     </div>
                     
