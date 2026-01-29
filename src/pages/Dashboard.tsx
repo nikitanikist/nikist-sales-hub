@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Users, Calendar, DollarSign, TrendingUp, LayoutDashboard } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import AutomationStatusWidget from "@/components/AutomationStatusWidget";
@@ -9,6 +9,8 @@ import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { StatsCardsSkeleton, ChartCardSkeleton } from "@/components/skeletons";
+import { PageHeader } from "@/components/PageHeader";
+import { cn } from "@/lib/utils";
 
 const Dashboard = () => {
   const queryClient = useQueryClient();
@@ -107,35 +109,42 @@ const Dashboard = () => {
       title: "Total Leads",
       value: stats?.totalLeads || 0,
       icon: Users,
-      color: "text-primary",
+      iconBg: "bg-violet-100",
+      iconColor: "text-violet-600",
     },
     {
       title: "Workshops",
       value: stats?.totalWorkshops || 0,
       icon: Calendar,
-      color: "text-chart-2",
+      iconBg: "bg-sky-100",
+      iconColor: "text-sky-600",
     },
     {
       title: "Closed Sales",
       value: stats?.totalSales || 0,
       icon: TrendingUp,
-      color: "text-chart-3",
+      iconBg: "bg-emerald-100",
+      iconColor: "text-emerald-600",
     },
     {
       title: "Total Revenue",
-      value: `$${stats?.totalRevenue.toLocaleString() || 0}`,
+      value: `₹${stats?.totalRevenue.toLocaleString('en-IN') || 0}`,
       icon: DollarSign,
-      color: "text-success",
+      iconBg: "bg-amber-100",
+      iconColor: "text-amber-600",
     },
   ];
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Welcome back! Here's an overview of your CRM activity.
+          <p className="text-sm text-muted-foreground mb-1">Good morning!</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            <span className="gradient-text">Welcome</span> back
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Here's what's happening with your sales today.
           </p>
         </div>
         <div className="w-full sm:w-auto">
@@ -143,45 +152,72 @@ const Dashboard = () => {
         </div>
       </div>
       
-      {/* Stats Cards - 2 columns on mobile, 4 on desktop */}
+      {/* Stats Cards - Enhanced with colored icon backgrounds */}
       {statsLoading ? (
         <StatsCardsSkeleton count={4} />
       ) : (
-        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-          {statCards.map((stat) => (
-            <Card key={stat.title} className="animate-fade-in">
-              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 px-4 sm:px-6 pt-4 sm:pt-6">
-                <CardTitle className="text-xs sm:text-sm font-medium">{stat.title}</CardTitle>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </CardHeader>
-              <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-                <div className="text-lg sm:text-2xl font-bold">{stat.value}</div>
+        <div className="grid gap-4 sm:gap-6 grid-cols-2 lg:grid-cols-4">
+          {statCards.map((stat, index) => (
+            <Card key={stat.title} className="overflow-hidden" style={{ animationDelay: `${index * 50}ms` }}>
+              <CardContent className="p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className={cn("p-3 rounded-xl", stat.iconBg)}>
+                    <stat.icon className={cn("h-5 w-5", stat.iconColor)} />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-muted-foreground mb-1">
+                  {stat.title}
+                </p>
+                <p className="text-2xl sm:text-3xl font-bold">{stat.value}</p>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
+      {/* Chart Card with gradient bar */}
       <Card>
-        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6">
-          <CardTitle className="text-base sm:text-lg">Leads by Status</CardTitle>
-        </CardHeader>
-        <CardContent className="px-2 sm:px-6 pb-4 sm:pb-6">
+        <CardContent className="p-4 sm:p-6">
+          <h3 className="text-lg font-semibold mb-4">Leads by Status</h3>
           {leadsByStatus && leadsByStatus.length > 0 ? (
             <ResponsiveContainer width="100%" height={window.innerWidth < 640 ? 200 : 300}>
               <BarChart data={leadsByStatus}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <defs>
+                  <linearGradient id="violetGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(262, 83%, 58%)" />
+                    <stop offset="100%" stopColor="hsl(262, 83%, 70%)" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis 
                   dataKey="status" 
-                  tick={{ fontSize: window.innerWidth < 640 ? 10 : 12 }}
+                  tick={{ fontSize: window.innerWidth < 640 ? 10 : 12, fill: 'hsl(var(--muted-foreground))' }}
                   interval={0}
                   angle={window.innerWidth < 640 ? -45 : 0}
                   textAnchor={window.innerWidth < 640 ? "end" : "middle"}
                   height={window.innerWidth < 640 ? 60 : 30}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={{ stroke: 'hsl(var(--border))' }}
                 />
-                <YAxis tick={{ fontSize: 10 }} width={30} />
-                <Tooltip />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <YAxis 
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
+                  width={30}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={{ stroke: 'hsl(var(--border))' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                  }}
+                />
+                <Bar 
+                  dataKey="count" 
+                  fill="url(#violetGradient)" 
+                  radius={[6, 6, 0, 0]} 
+                />
               </BarChart>
             </ResponsiveContainer>
           ) : (

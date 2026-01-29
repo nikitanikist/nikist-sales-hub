@@ -1,104 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
+Vibrant & Energetic Design - ClickUp/Notion Style
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 218 24% 15%;
+    /* Backgrounds - Warmer off-white */
+    --background: 220 14% 98%;        /* #FAFBFC */
+    --foreground: 224 71% 4%;         /* #030712 */
 
+    /* Cards - Pure white */
     --card: 0 0% 100%;
-    --card-foreground: 218 24% 15%;
+    --card-foreground: 224 71% 4%;
 
+    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 218 24% 15%;
+    --popover-foreground: 224 71% 4%;
 
-    --primary: 217 91% 60%;
+    /* Primary - Vibrant Violet */
+    --primary: 262 83% 58%;           /* #7C3AED */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 218 24% 15%;
+    /* Secondary - Soft violet tint */
+    --secondary: 262 30% 96%;
+    --secondary-foreground: 262 83% 40%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    /* Muted/Subtle */
+    --muted: 220 14% 96%;             /* #F3F4F6 */
+    --muted-foreground: 220 9% 46%;   /* #6B7280 */
 
-    --accent: 210 40% 96%;
-    --accent-foreground: 218 24% 15%;
+    /* Accent */
+    --accent: 262 30% 94%;
+    --accent-foreground: 262 83% 45%;
 
-    --destructive: 0 84% 60%;
+    /* Semantic Colors - Vibrant versions */
+    --success: 160 84% 39%;           /* #059669 - Teal green */
+    --success-light: 160 84% 95%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;            /* #F59E0B - Amber */
+    --warning-light: 38 92% 95%;
+    --warning-foreground: 38 92% 20%;
+
+    --destructive: 0 84% 60%;         /* #EF4444 - Red */
+    --destructive-light: 0 84% 97%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    --info: 199 89% 48%;              /* #0EA5E9 - Sky blue */
+    --info-light: 199 89% 95%;
+    --info-foreground: 0 0% 100%;
 
-    --radius: 0.5rem;
+    /* Borders - Softer */
+    --border: 220 13% 91%;            /* #E5E7EB */
+    --input: 220 13% 91%;
+    --ring: 262 83% 58%;              /* Match primary */
 
-    --sidebar-background: 218 30% 18%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
+    /* Larger radius for friendly feel */
+    --radius: 0.75rem;                /* 12px instead of 8px */
+
+    /* Vibrant chart colors */
+    --chart-1: 262 83% 58%;           /* Violet */
+    --chart-2: 160 84% 39%;           /* Teal */
+    --chart-3: 38 92% 50%;            /* Amber */
+    --chart-4: 330 81% 60%;           /* Pink */
+    --chart-5: 199 89% 48%;           /* Sky */
+    --chart-6: 142 71% 45%;           /* Green */
+
+    /* Sidebar - Purple-tinted dark */
+    --sidebar-background: 250 24% 14%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 262 83% 65%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 218 25% 22%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 218 25% 25%;
-    --sidebar-ring: 217 91% 60%;
-
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
-    
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    
-    --chart-1: 217 91% 60%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 84% 60%;
-    --chart-5: 280 65% 60%;
+    --sidebar-accent: 250 24% 20%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 250 20% 22%;
+    --sidebar-ring: 262 83% 65%;
   }
 
   .dark {
-    --background: 218 30% 12%;
-    --foreground: 210 40% 98%;
+    --background: 250 24% 9%;
+    --foreground: 220 14% 96%;
 
-    --card: 218 30% 15%;
-    --card-foreground: 210 40% 98%;
+    --card: 250 24% 12%;
+    --card-foreground: 220 14% 96%;
 
-    --popover: 218 30% 15%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 250 24% 12%;
+    --popover-foreground: 220 14% 96%;
 
-    --primary: 217 91% 60%;
+    --primary: 262 83% 65%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 218 25% 22%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 250 24% 18%;
+    --secondary-foreground: 220 14% 96%;
 
-    --muted: 218 25% 22%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 250 24% 18%;
+    --muted-foreground: 220 9% 60%;
 
-    --accent: 218 25% 22%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 250 24% 20%;
+    --accent-foreground: 220 14% 96%;
 
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 218 25% 25%;
-    --input: 218 25% 25%;
-    --ring: 217 91% 60%;
+    --border: 250 20% 22%;
+    --input: 250 20% 22%;
+    --ring: 262 83% 65%;
 
-    --sidebar-background: 218 35% 8%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 250 30% 7%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 262 83% 65%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 218 30% 12%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 218 25% 18%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-accent: 250 24% 14%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 250 20% 18%;
+    --sidebar-ring: 262 83% 65%;
 
-    --success: 142 76% 36%;
+    --success: 160 84% 45%;
     --success-foreground: 0 0% 100%;
     
     --warning: 38 92% 50%;
@@ -113,16 +136,63 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+
+  h1, h2, h3 {
+    letter-spacing: -0.025em;
+  }
+}
+
+/* Shimmer effect for skeletons */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted-foreground) / 0.1) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Enhanced card hover lift */
+.card-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px -12px rgb(124 58 237 / 0.2);
+}
+
+/* Button press effect */
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(262 83% 58%), hsl(280 83% 58%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* Overdue call pulse animation */
 @keyframes overdue-pulse {
   0%, 100% { 
-    background-color: hsl(0 93% 94%); /* red-100 */
+    background-color: hsl(0 93% 94%);
   }
   50% { 
-    background-color: hsl(0 96% 89%); /* red-200 */
+    background-color: hsl(0 96% 89%);
   }
 }
 
@@ -162,7 +232,7 @@ All colors MUST be HSL.
   animation: list-item-enter 0.2s ease-out;
 }
 
-/* Card hover effect */
+/* Card hover effect (legacy) */
 .card-hover-effect {
   transition: transform 0.15s ease-out, box-shadow 0.15s ease-out;
 }
