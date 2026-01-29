@@ -327,6 +327,29 @@ const AppLayoutContent = () => {
       .filter((item): item is MenuItem => item !== null);
   };
 
+  // Get current page title from menu items based on pathname
+  const getCurrentPageTitle = (): string => {
+    const currentPath = location.pathname;
+    
+    // Check top-level menu items and their children
+    for (const item of menuItems) {
+      if (item.path === currentPath) {
+        return item.title;
+      }
+      // Check children (for Cohort Batches submenu)
+      if (item.children) {
+        for (const child of item.children) {
+          if (child.path === currentPath) {
+            return child.title;
+          }
+        }
+      }
+    }
+    
+    // Fallback to organization name or CRM
+    return currentOrganization?.name || "CRM";
+  };
+
   // Super Admin specific menu - only show Super Admin Dashboard
   const superAdminMenuItems: MenuItem[] = [
     { title: "Super Admin Dashboard", icon: Shield, path: "/super-admin" },
@@ -375,7 +398,7 @@ const AppLayoutContent = () => {
               {/* Left Section: Toggle + Heading */}
               <div className="flex items-center gap-2 sm:gap-3">
                 <SidebarTrigger className="h-9 w-9 sm:h-10 sm:w-10" />
-                <h1 className="text-lg sm:text-xl font-semibold hidden sm:block">{currentOrganization?.name || "CRM"}</h1>
+                <h1 className="text-lg sm:text-xl font-semibold hidden sm:block">{getCurrentPageTitle()}</h1>
               </div>
               
               {/* Right Section: Notifications + Profile */}
