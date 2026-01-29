@@ -1,80 +1,166 @@
 
-# Multi-Tenant SaaS Transformation - Implementation Plan
+# Fix: Add Member Edge Function Error
 
-## ✅ ALL PHASES COMPLETE
+## Problem Identified
 
-This plan transformed the Nikist Sales Hub CRM from a single-tenant system with hardcoded person-specific configurations into a fully multi-tenant SaaS platform where each organization has complete data isolation, configurable integrations, and no code changes are needed when onboarding new organizations.
+When trying to add a member to an organization from the Super Admin Dashboard, the edge function fails with a non-2xx status code because:
 
----
+1. **Missing `organization_id`**: The frontend is not passing `organization_id` to the `manage-users` edge function, but the function requires it (returns 400 error when undefined)
 
-## Implementation Status
+2. **Duplicate insert attempt**: The code structure shows a flawed pattern:
+   - The edge function (`manage-users`) already inserts into `organization_members` table when `action: 'create'` is called
+   - The frontend then tries to insert again after the function returns
+   - This would cause a duplicate key error if the first issue were fixed
 
-### ✅ Phase 1: Security & Frontend Fixes (COMPLETE)
-- Fixed frontend queries to filter by organization
-- Created `useOrgClosers.ts` hook for org-scoped queries
-- Refactored `ReassignCallDialog`, `RebookCallDialog`, `ScheduleCallDialog` to remove hardcoded emails
-- Updated `Leads.tsx` to use org-scoped closers
+## Root Cause
 
-### ✅ Phase 2: Organization Integrations System (COMPLETE)
-- Created `organization_integrations` table with RLS
-- Created `closer_integrations` table for closer-to-integration mapping
-- Seeded Nikist org with existing Zoom, Calendly, WhatsApp configurations
-
-### ✅ Phase 3: Hardcoded Values Removal (COMPLETE)
-- Removed all hardcoded emails (`ADESH_EMAIL`, `DIPANSHU_EMAIL`, etc.)
-- Replaced with integration-based checks using `hasIntegrationForCloser()`
-
-### ✅ Phase 4: Edge Functions Refactoring (COMPLETE)
-- **`create-zoom-link`**: Now fetches Zoom credentials from `organization_integrations` by appointment's org
-- **`send-whatsapp-reminder`**: Uses org-specific WhatsApp config with env fallback
-- **`calendly-webhook`**: Routes webhooks to correct org by matching event_type_uri
-- **`send-status-to-pabbly`**: Supports multiple webhook URLs via config
-
-### ✅ Phase 5: Organization Settings UI (COMPLETE)
-- Created `OrganizationSettings.tsx` page
-- Tabs for Zoom, Calendly, WhatsApp configuration
-- Test Connection buttons for credential validation
-- Added Settings to sidebar navigation for admins
-
-### ✅ Phase 6: Testing Ready
-System is ready for cross-organization testing:
-- [x] Data isolation verified via RLS
-- [x] Frontend queries scoped to organization
-- [x] Edge functions use per-org credentials
-- [x] Settings UI allows self-service configuration
-
----
-
-## Architecture Summary
-
-### Integration Flow
-```
-User Action → Frontend (org-scoped queries) → Edge Function 
-→ Fetch org credentials from organization_integrations 
-→ Call external API (Zoom/Calendly/WhatsApp) → Update appointment
+In `src/pages/SuperAdminDashboard.tsx` (lines 361-370):
+```typescript
+const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+  body: {
+    action: 'create',
+    email: newUserEmail.trim(),
+    full_name: newUserName.trim(),
+    phone: newUserPhone.trim() || null,
+    password: newUserPassword,
+    role: newMemberRole,
+    // organization_id is MISSING!
+  }
+});
 ```
 
-### Database Tables
-- `organization_integrations`: Per-org credentials (Zoom, Calendly, WhatsApp)
-- `closer_integrations`: Maps closers to their specific integrations
-- All business tables have `organization_id` + RLS policies
+The edge function checks for `organization_id` and returns error 400 when undefined:
+```typescript
+if (!organization_id) {
+  return new Response(
+    JSON.stringify({ error: 'organization_id is required' }),
+    { status: 400, headers: {...} }
+  );
+}
+```
 
-### Key Files Modified
-1. `src/hooks/useOrgClosers.ts` - Org-scoped member queries
-2. `src/pages/OrganizationSettings.tsx` - Integration management UI
-3. `supabase/functions/create-zoom-link/index.ts` - Dynamic Zoom credentials
-4. `supabase/functions/calendly-webhook/index.ts` - Org routing by event type
-5. `supabase/functions/send-whatsapp-reminder/index.ts` - Per-org templates
-6. `src/components/*Dialog.tsx` - Removed hardcoded emails
+## Solution
 
----
+Update the `addMemberToOrg` function in `SuperAdminDashboard.tsx`:
 
-## Onboarding New Organizations
+1. **Add `organization_id` to the edge function call** - Pass `selectedOrg.id` as `organization_id`
 
-New organizations can self-configure via Settings UI:
-1. Admin creates organization in Super Admin Dashboard
-2. Admin adds team members
-3. Admin goes to Settings → Configure integrations
-4. System automatically uses org-specific credentials
+2. **Remove the duplicate insert** - The edge function already handles adding the user to `organization_members`, so we don't need Step 2
 
-No code changes required for new organizations!
+3. **Pass `is_org_admin` to the edge function** - The function uses this to set the `is_org_admin` field
+
+### Code Change
+
+**Before (lines 360-390):**
+```typescript
+// Step 1: Create the user via edge function
+const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+  body: {
+    action: 'create',
+    email: newUserEmail.trim(),
+    full_name: newUserName.trim(),
+    phone: newUserPhone.trim() || null,
+    password: newUserPassword,
+    role: newMemberRole,
+  }
+});
+
+if (fnError) throw fnError;
+if (data?.error) throw new Error(data.error);
+
+const userId = data?.user_id;
+if (!userId) {
+  throw new Error("Failed to create user - no user ID returned");
+}
+
+// Step 2: Add to organization_members
+const { error: memberError } = await supabase
+  .from("organization_members")
+  .insert({
+    organization_id: selectedOrg.id,
+    user_id: userId,
+    role: newMemberRole,
+    is_org_admin: newMemberIsOrgAdmin,
+  });
+
+if (memberError) throw memberError;
+```
+
+**After:**
+```typescript
+// Create user and add to organization via edge function
+const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+  body: {
+    action: 'create',
+    organization_id: selectedOrg.id,  // ADD THIS
+    email: newUserEmail.trim(),
+    full_name: newUserName.trim(),
+    phone: newUserPhone.trim() || null,
+    password: newUserPassword,
+    role: newMemberRole,
+  }
+});
+
+if (fnError) throw fnError;
+if (data?.error) throw new Error(data.error);
+
+// Edge function already adds user to organization_members,
+// so we just need to update is_org_admin if different from default
+if (newMemberIsOrgAdmin && newMemberRole !== 'admin') {
+  // Edge function sets is_org_admin = true only for admin role
+  // If user wants org admin but different role, update it
+  await supabase
+    .from("organization_members")
+    .update({ is_org_admin: true })
+    .eq("user_id", data.user_id)
+    .eq("organization_id", selectedOrg.id);
+}
+```
+
+## Additional Enhancement (Optional)
+
+The edge function currently determines `is_org_admin` based on whether `role === 'admin'`. To support the "Make Organization Admin" toggle for non-admin roles, we should also update the edge function to accept an explicit `is_org_admin` parameter.
+
+### Edge Function Update
+
+In `supabase/functions/manage-users/index.ts`, line 163-164:
+```typescript
+// Before:
+is_org_admin: role === 'admin',
+
+// After:
+is_org_admin: is_org_admin !== undefined ? is_org_admin : (role === 'admin'),
+```
+
+And extract `is_org_admin` from the request body (line 47):
+```typescript
+const { 
+  action, 
+  user_id, 
+  organization_id, 
+  membership_id,
+  email, 
+  full_name, 
+  phone, 
+  role, 
+  password, 
+  permissions,
+  is_org_admin  // ADD THIS
+} = await req.json();
+```
+
+## Files to Modify
+
+1. `src/pages/SuperAdminDashboard.tsx` - Add `organization_id` to edge function call, remove duplicate insert
+2. `supabase/functions/manage-users/index.ts` - Accept `is_org_admin` parameter explicitly
+
+## Testing
+
+After fix:
+1. Navigate to Super Admin Dashboard
+2. Select an organization
+3. Click "Add Member"
+4. Fill in all fields (Name, Email, Phone, Password, Role)
+5. Toggle "Make Organization Admin" on/off
+6. Click "Create"
+7. Verify user is created and added to organization without errors
