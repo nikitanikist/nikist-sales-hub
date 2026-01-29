@@ -487,18 +487,6 @@ const DailyMoneyFlow = () => {
         }
       />
 
-      {/* Action Buttons */}
-      <div className="flex gap-2 justify-end">
-        <Button variant="outline" size="sm" className="sm:size-default h-10" onClick={() => setIsImportDialogOpen(true)}>
-          <Upload className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Bulk Import</span>
-        </Button>
-        <Button size="sm" className="sm:size-default h-10" onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Add Data</span>
-        </Button>
-      </div>
-
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
