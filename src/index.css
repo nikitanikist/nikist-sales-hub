@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -136,13 +136,28 @@ Vibrant & Energetic Design - ClickUp/Notion Style
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3 {
     letter-spacing: -0.025em;
+  }
+
+  /* Tabular numbers for data tables */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Slashed zero for better data clarity */
+  .slashed-zero {
+    font-variant-numeric: slashed-zero;
+  }
+
+  /* Combined for financial/dashboard data */
+  .data-text {
+    font-variant-numeric: tabular-nums slashed-zero;
   }
 }
 
