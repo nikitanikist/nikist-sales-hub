@@ -23,6 +23,7 @@ import { ImportCustomersDialog } from "@/components/ImportCustomersDialog";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
+import { useOrgClosers } from "@/hooks/useOrgClosers";
 
 const statusColors: Record<string, string> = {
   new: "bg-blue-500",
@@ -276,27 +277,8 @@ const Leads = () => {
     },
   });
 
-  // Fetch sales closers (profiles with sales_rep or admin roles)
-  const { data: salesClosers } = useQuery({
-    queryKey: ["sales-closers"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select(`
-          user_id,
-          role,
-          profile:profiles!user_roles_user_id_fkey(
-            id,
-            full_name,
-            email
-          )
-        `)
-        .in("role", ["sales_rep", "admin"]);
-
-      if (error) throw error;
-      return data?.map((r: any) => r.profile).filter(Boolean) || [];
-    },
-  });
+  // Fetch sales closers scoped to current organization
+  const { data: salesClosers } = useOrgClosers();
 
   const { data: workshops } = useQuery({
     queryKey: ["workshops", currentOrganization?.id],

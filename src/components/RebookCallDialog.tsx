@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Clock, Loader2, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -10,13 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useOrgIntegrations, hasIntegrationForCloser } from "@/hooks/useOrgClosers";
 
-// Adesh's email for checking if we should show time slot grid
-const ADESH_EMAIL = "aadeshnikist@gmail.com";
-
-// Time slots for Aadesh (90-minute intervals from 9:00 AM to 10:30 PM)
-const ADESH_TIME_SLOTS = [
+// Time slots for Zoom closers (90-minute intervals from 9:00 AM to 10:30 PM)
+const ZOOM_TIME_SLOTS = [
   "09:00",  // 9:00 AM
   "10:30",  // 10:30 AM
   "12:00",  // 12:00 PM
@@ -50,7 +47,7 @@ interface RebookCallDialogProps {
   onSuccess: () => void;
 }
 
-// Generate time slots from 8 AM to 10 PM (for non-Adesh closers)
+// Generate time slots from 8 AM to 10 PM (for non-Zoom closers)
 const generateTimeSlots = () => {
   const slots: string[] = [];
   for (let hour = 8; hour <= 22; hour++) {
@@ -81,35 +78,38 @@ export const RebookCallDialog = ({ open, onOpenChange, appointment, closer, onSu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDatePopoverOpen, setIsDatePopoverOpen] = useState(false);
 
-  // Check if this is Adesh
-  const isAdesh = closer?.email?.toLowerCase() === ADESH_EMAIL.toLowerCase();
+  // Fetch integrations for the organization
+  const { data: integrations = [] } = useOrgIntegrations();
 
-  // Fetch booked slots for Aadesh on selected date
-  const { data: bookedSlots, isLoading: isLoadingSlots } = useQuery({
-    queryKey: ["adesh-booked-slots-rebook", closer?.id, selectedDate ? format(selectedDate, "yyyy-MM-dd") : null],
-    queryFn: async () => {
-      if (!closer?.id || !selectedDate) return [];
-      
+  // Check if this closer has Zoom integration
+  const hasZoom = closer ? hasIntegrationForCloser(integrations, closer.email, 'zoom') : false;
+
+  // State for fetched booked slots
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+
+  // Fetch booked slots for Zoom closers on selected date
+  useEffect(() => {
+    if (hasZoom && closer?.id && selectedDate && open) {
+      setIsLoadingSlots(true);
       const dateStr = format(selectedDate, "yyyy-MM-dd");
-      const { data, error } = await supabase
+      supabase
         .from("call_appointments")
         .select("scheduled_time")
         .eq("closer_id", closer.id)
         .eq("scheduled_date", dateStr)
-        .in("status", ["scheduled", "pending", "reschedule"]);
-      
-      if (error) throw error;
-      
-      // Return array of booked time strings (e.g., ["10:30", "14:30"])
-      return data?.map(apt => apt.scheduled_time.slice(0, 5)) || [];
-    },
-    enabled: isAdesh && !!closer?.id && !!selectedDate && open,
-  });
+        .in("status", ["scheduled", "pending", "reschedule"])
+        .then(({ data }) => {
+          setBookedSlots(data?.map(apt => apt.scheduled_time.slice(0, 5)) || []);
+          setIsLoadingSlots(false);
+        });
+    }
+  }, [hasZoom, closer?.id, selectedDate, open]);
 
-  // Get available and booked slots for Adesh
+  // Get available and booked slots
   const slotStatus = useMemo(() => {
-    const booked = new Set(bookedSlots || []);
-    return ADESH_TIME_SLOTS.map(slot => ({
+    const booked = new Set(bookedSlots);
+    return ZOOM_TIME_SLOTS.map(slot => ({
       time: slot,
       isBooked: booked.has(slot),
     }));
@@ -129,7 +129,7 @@ export const RebookCallDialog = ({ open, onOpenChange, appointment, closer, onSu
 
     try {
       const newDate = format(selectedDate, "yyyy-MM-dd");
-      // For Adesh, time is in "HH:MM" format, need to append ":00" for the edge function
+      // For Zoom closers, time is in "HH:MM" format, need to append ":00" for the edge function
       const timeFormatted = selectedTime.includes(":00:") ? selectedTime : selectedTime + ":00";
 
       const { data, error } = await supabase.functions.invoke("rebook-call", {
@@ -246,15 +246,15 @@ export const RebookCallDialog = ({ open, onOpenChange, appointment, closer, onSu
             </Popover>
           </div>
 
-          {/* New Time Selection - Different UI for Adesh vs Others */}
+          {/* New Time Selection - Different UI for Zoom vs Others */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               New Time <span className="text-destructive">*</span>
             </Label>
             
-            {isAdesh ? (
-              // Adesh: Show time slot grid with availability
+            {hasZoom ? (
+              // Zoom closer: Show time slot grid with availability
               <>
                 {!selectedDate ? (
                   <p className="text-sm text-muted-foreground">Please select a date first to see available slots</p>

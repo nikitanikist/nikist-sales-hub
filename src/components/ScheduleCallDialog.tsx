@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CalendarIcon, Phone, Mail, User, Video, ExternalLink, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,15 +13,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useOrgIntegrations, hasIntegrationForCloser, getIntegrationForCloser } from "@/hooks/useOrgClosers";
 
-// Dipanshu's configuration for Calendly webhook integration
-const DIPANSHU_EMAIL = "nikistofficial@gmail.com";
-const DIPANSHU_CALENDLY_URL = "https://calendly.com/nikist/1-1-call-with-dipanshu-malasi-clone";
-
-// Adesh's configuration for direct Zoom API integration
-const ADESH_EMAIL = "aadeshnikist@gmail.com";
-
-// Time slots for Aadesh (90-minute intervals from 9:00 AM to 10:30 PM)
+// Time slots for Zoom closers (90-minute intervals from 9:00 AM to 10:30 PM)
 const TIME_SLOTS = [
   "09:00",  // 9:00 AM
   "10:30",  // 10:30 AM
@@ -71,35 +65,42 @@ export const ScheduleCallDialog = ({
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  // Check closer types
-  const isDipanshu = closer?.email?.toLowerCase() === DIPANSHU_EMAIL.toLowerCase();
-  const isAdesh = closer?.email?.toLowerCase() === ADESH_EMAIL.toLowerCase();
+  // Fetch integrations for the organization
+  const { data: integrations = [] } = useOrgIntegrations();
 
-  // Fetch booked slots for Aadesh on selected date
-  const { data: bookedSlots, isLoading: isLoadingSlots } = useQuery({
-    queryKey: ["adesh-booked-slots", closer?.id, selectedDate ? format(selectedDate, "yyyy-MM-dd") : null],
-    queryFn: async () => {
-      if (!closer?.id || !selectedDate) return [];
-      
+  // Check closer integration types dynamically
+  const hasCalendly = closer ? hasIntegrationForCloser(integrations, closer.email, 'calendly') : false;
+  const hasZoom = closer ? hasIntegrationForCloser(integrations, closer.email, 'zoom') : false;
+  
+  // Get Calendly URL from integration config
+  const calendlyIntegration = closer ? getIntegrationForCloser(integrations, closer.email, 'calendly') : undefined;
+  const calendlyUrl = calendlyIntegration?.config?.calendly_url;
+
+  // State for booked slots
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+
+  // Fetch booked slots for Zoom closers on selected date
+  useEffect(() => {
+    if (hasZoom && closer?.id && selectedDate && open) {
+      setIsLoadingSlots(true);
       const dateStr = format(selectedDate, "yyyy-MM-dd");
-      const { data, error } = await supabase
+      supabase
         .from("call_appointments")
         .select("scheduled_time")
         .eq("closer_id", closer.id)
         .eq("scheduled_date", dateStr)
-        .in("status", ["scheduled", "pending", "reschedule"]);
-      
-      if (error) throw error;
-      
-      // Return array of booked time strings (e.g., ["10:00:00", "14:30:00"])
-      return data?.map(apt => apt.scheduled_time.slice(0, 5)) || [];
-    },
-    enabled: isAdesh && !!closer?.id && !!selectedDate && open,
-  });
+        .in("status", ["scheduled", "pending", "reschedule"])
+        .then(({ data }) => {
+          setBookedSlots(data?.map(apt => apt.scheduled_time.slice(0, 5)) || []);
+          setIsLoadingSlots(false);
+        });
+    }
+  }, [hasZoom, closer?.id, selectedDate, open]);
 
   // Get available and booked slots
   const slotStatus = useMemo(() => {
-    const booked = new Set(bookedSlots || []);
+    const booked = new Set(bookedSlots);
     return TIME_SLOTS.map(slot => ({
       time: slot,
       isBooked: booked.has(slot),
@@ -114,8 +115,8 @@ export const ScheduleCallDialog = ({
 
       const scheduledDate = format(selectedDate, "yyyy-MM-dd");
 
-      // Determine which edge function to call based on closer
-      const edgeFunctionName = isAdesh ? "schedule-adesh-call" : "schedule-calendly-call";
+      // Determine which edge function to call based on integration type
+      const edgeFunctionName = hasZoom ? "schedule-adesh-call" : "schedule-calendly-call";
 
       // Call the appropriate edge function
       const { data, error } = await supabase.functions.invoke(edgeFunctionName, {
@@ -198,13 +199,13 @@ export const ScheduleCallDialog = ({
               <Label>Assigned Closer</Label>
               <div className="p-2 bg-primary/10 rounded-md text-sm font-medium flex items-center justify-between">
                 <span>{closer?.full_name}</span>
-                {isDipanshu && (
+                {hasCalendly && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground bg-background px-2 py-1 rounded">
                     <Video className="h-3 w-3" />
                     Calendly + WhatsApp
                   </span>
                 )}
-                {isAdesh && (
+                {hasZoom && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground bg-background px-2 py-1 rounded">
                     <Video className="h-3 w-3" />
                     Zoom + WhatsApp
@@ -213,24 +214,26 @@ export const ScheduleCallDialog = ({
               </div>
             </div>
 
-            {/* Dipanshu: Show Calendly booking message instead of date/time pickers */}
-            {isDipanshu ? (
+            {/* Calendly closer: Show Calendly booking message instead of date/time pickers */}
+            {hasCalendly ? (
               <div className="space-y-4">
                 <Alert className="bg-blue-500/10 border-blue-500/30">
                   <Video className="h-4 w-4 text-blue-500" />
                   <AlertDescription className="text-sm">
-                    For Dipanshu, please book calls directly in Calendly. The booking will sync automatically to this CRM with Zoom link and WhatsApp reminders.
+                    For this closer, please book calls directly in Calendly. The booking will sync automatically to this CRM with Zoom link and WhatsApp reminders.
                   </AlertDescription>
                 </Alert>
                 
-                <Button
-                  type="button"
-                  className="w-full"
-                  onClick={() => window.open(DIPANSHU_CALENDLY_URL, '_blank')}
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open Calendly to Book Call
-                </Button>
+                {calendlyUrl && (
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => window.open(calendlyUrl, '_blank')}
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open Calendly to Book Call
+                  </Button>
+                )}
               </div>
             ) : (
               <>
@@ -267,8 +270,8 @@ export const ScheduleCallDialog = ({
                   </Popover>
                 </div>
 
-                {/* Aadesh: Time Slot Grid */}
-                {isAdesh ? (
+                {/* Zoom closer: Time Slot Grid */}
+                {hasZoom ? (
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
                       <Clock className="h-4 w-4" />
@@ -299,7 +302,7 @@ export const ScheduleCallDialog = ({
                             {isBooked ? (
                               <div className="flex flex-col items-center">
                                 <span className="text-[10px]">Booked</span>
-                                <span className="text-[10px] font-medium text-black">{formatTimeDisplay(time)}</span>
+                                <span className="text-[10px] font-medium">{formatTimeDisplay(time)}</span>
                               </div>
                             ) : (
                               formatTimeDisplay(time)
@@ -340,7 +343,7 @@ export const ScheduleCallDialog = ({
             >
               Cancel
             </Button>
-            {!isDipanshu && (
+            {!hasCalendly && (
               <Button
                 type="submit"
                 disabled={scheduleCallMutation.isPending || !selectedDate || !selectedTime}
