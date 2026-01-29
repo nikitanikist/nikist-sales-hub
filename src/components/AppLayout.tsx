@@ -370,7 +370,7 @@ const AppLayoutContent = () => {
           organizationName={currentOrganization?.name}
         />
         <main className="flex-1 overflow-auto">
-          <div className="sticky top-0 z-10 bg-background border-b border-border">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
             <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3">
               {/* Left Section: Toggle + Heading */}
               <div className="flex items-center gap-2 sm:gap-3">
