@@ -88,7 +88,10 @@ const AutomationStatusWidget = () => {
       </CardHeader>
       <CardContent className="pt-0">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <div className="space-y-2">
+            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+          </div>
         ) : (
           <div className="space-y-1">
             <p className="text-sm">

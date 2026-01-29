@@ -636,7 +636,7 @@ const HighFuture = () => {
       case "refunded":
         return <Badge variant="destructive">Refunded</Badge>;
       case "discontinued":
-        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Discontinued</Badge>;
+        return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100 border border-slate-200">Discontinued</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }

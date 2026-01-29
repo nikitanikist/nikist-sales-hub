@@ -221,9 +221,11 @@ const Dashboard = () => {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-              No leads data to display yet. Add your first lead to see stats here.
-            </div>
+            <EmptyState
+              icon={TrendingUp}
+              title="No leads data yet"
+              description="Lead activity will appear here once you start adding leads."
+            />
           )}
         </CardContent>
       </Card>

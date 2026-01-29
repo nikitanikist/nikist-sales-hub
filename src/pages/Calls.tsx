@@ -249,9 +249,9 @@ const Calls = () => {
       case 'cancelled':
         return 'bg-red-100 text-red-700 border-red-200';
       case 'no_show':
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-slate-100 text-slate-700 border-slate-200';
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
