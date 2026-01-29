@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useModules } from "@/hooks/useModules";
 import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
@@ -30,6 +31,7 @@ interface MenuItem {
   path?: string;
   isBeta?: boolean;
   permissionKey?: PermissionKey;
+  moduleSlug?: string; // NEW: Module this menu item belongs to
   children?: {
     title: string;
     path: string;
@@ -159,6 +161,7 @@ const AppLayoutContent = () => {
   const { user, signOut, loading } = useAuth();
   const { isAdmin, isCloser, isManager, isSuperAdmin, isLoading: roleLoading, hasPermission } = useUserRole();
   const { currentOrganization, isSuperAdmin: orgIsSuperAdmin } = useOrganization();
+  const { isModuleEnabled, isLoading: modulesLoading } = useModules();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -244,20 +247,21 @@ const AppLayoutContent = () => {
     return items;
   }, [cohortTypes, isAdmin]);
 
-  // All menu items with permission keys
+  // All menu items with permission keys and module associations
   const allMenuItems: MenuItem[] = useMemo(() => [
     { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true, permissionKey: 'dashboard' as PermissionKey },
-    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow", permissionKey: 'daily_money_flow' as PermissionKey },
+    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow", permissionKey: 'daily_money_flow' as PermissionKey, moduleSlug: 'daily-money-flow' },
     { title: "Customers", icon: Users, path: "/leads", permissionKey: 'customers' as PermissionKey },
     { title: "Customer Insights", icon: ClipboardList, path: "/onboarding", permissionKey: 'customer_insights' as PermissionKey },
-    { title: "1:1 Call Schedule", icon: Phone, path: "/calls", permissionKey: 'call_schedule' as PermissionKey },
-    { title: "Sales Closers", icon: UserCog, path: "/sales-closers", permissionKey: 'sales_closers' as PermissionKey },
+    { title: "1:1 Call Schedule", icon: Phone, path: "/calls", permissionKey: 'call_schedule' as PermissionKey, moduleSlug: 'one-to-one-funnel' },
+    { title: "Sales Closers", icon: UserCog, path: "/sales-closers", permissionKey: 'sales_closers' as PermissionKey, moduleSlug: 'one-to-one-funnel' },
     { 
       title: "Cohort Batches", 
       icon: GraduationCap, 
-      children: dynamicCohortChildren
+      children: dynamicCohortChildren,
+      moduleSlug: 'cohort-management'
     },
-    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true, permissionKey: 'workshops' as PermissionKey },
+    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true, permissionKey: 'workshops' as PermissionKey, moduleSlug: 'workshops' },
     { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true, permissionKey: 'sales' as PermissionKey },
     { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true, permissionKey: 'funnels' as PermissionKey },
     { title: "Products", icon: Package, path: "/products", isBeta: true, permissionKey: 'products' as PermissionKey },
@@ -265,10 +269,15 @@ const AppLayoutContent = () => {
     { title: "Settings", icon: Settings, path: "/settings", permissionKey: 'settings' as PermissionKey },
   ], [dynamicCohortChildren]);
 
-  // Filter menu items based on permissions
+  // Filter menu items based on permissions AND modules
   const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
     return items
       .map(item => {
+        // First check if module is enabled (if item has a moduleSlug)
+        if (item.moduleSlug && !isModuleEnabled(item.moduleSlug)) {
+          return null;
+        }
+        
         if (item.children) {
           // Filter children based on permissions
           const filteredChildren = item.children.filter(child => 
@@ -302,7 +311,7 @@ const AppLayoutContent = () => {
     : filterMenuItems(allMenuItems);
 
   // Early returns after all hooks
-  if (loading || roleLoading) {
+  if (loading || roleLoading || modulesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-lg">Loading...</div>
