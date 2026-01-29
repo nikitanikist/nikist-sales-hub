@@ -619,7 +619,7 @@ const AllCloserCalls = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/sales-closers")}>
           <ArrowLeft className="h-5 w-5" />

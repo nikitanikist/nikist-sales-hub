@@ -670,7 +670,7 @@ const Products = () => {
                           "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold",
                           product.is_active 
                             ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                            : "bg-gray-100 text-gray-700 border-gray-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
                         )}>
                           {product.is_active ? "Active" : "Inactive"}
                         </span>

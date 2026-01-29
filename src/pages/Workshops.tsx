@@ -1097,12 +1097,12 @@ const Workshops = () => {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                   <div 
-                                    className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border-2 border-gray-300 dark:border-gray-600 cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all"
+                                    className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-slate-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "cross_workshop"); }}
                                   >
-                                    <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">{workshop.cross_workshop_count || 0}</div>
-                                    <div className="text-xs text-gray-500 font-medium">Cross-Workshop Payments</div>
-                                    <div className="text-xs text-gray-400 mt-1">Revenue credited to their original workshop</div>
+                                    <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">{workshop.cross_workshop_count || 0}</div>
+                                    <div className="text-xs text-slate-500 font-medium">Cross-Workshop Payments</div>
+                                    <div className="text-xs text-slate-400 mt-1">Revenue credited to their original workshop</div>
                                   </div>
                                 </div>
                               </div>

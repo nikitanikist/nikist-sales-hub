@@ -14,20 +14,20 @@ const statusStyles = {
   scheduled: "bg-blue-100 text-blue-700 border-blue-200",
   pending: "bg-amber-100 text-amber-700 border-amber-200",
   completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  cancelled: "bg-gray-100 text-gray-700 border-gray-200",
+  cancelled: "bg-slate-100 text-slate-700 border-slate-200",
   rescheduled: "bg-violet-100 text-violet-700 border-violet-200",
   no_show: "bg-red-100 text-red-700 border-red-200",
   
   // General statuses
   active: "bg-emerald-100 text-emerald-700 border-emerald-200",
-  inactive: "bg-gray-100 text-gray-700 border-gray-200",
+  inactive: "bg-slate-100 text-slate-700 border-slate-200",
   converted: "bg-emerald-100 text-emerald-700 border-emerald-200",
   refunded: "bg-red-100 text-red-700 border-red-200",
   
   // Workshop/Event statuses
   upcoming: "bg-blue-100 text-blue-700 border-blue-200",
   ongoing: "bg-violet-100 text-violet-700 border-violet-200",
-  past: "bg-gray-100 text-gray-700 border-gray-200",
+  past: "bg-slate-100 text-slate-700 border-slate-200",
   
   // Payment statuses
   paid: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -35,7 +35,7 @@ const statusStyles = {
   overdue: "bg-red-100 text-red-700 border-red-200",
   
   // Default
-  default: "bg-gray-100 text-gray-700 border-gray-200",
+  default: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
 export type StatusType = keyof typeof statusStyles;
