@@ -1,53 +1,96 @@
 
 
-# Premium Sticky Header Enhancement
+# Fix Sticky Header - Make It Truly Fixed
 
-## Overview
+## Problem Analysis
 
-This enhancement adds a subtle drop shadow and backdrop blur to the sticky header, creating a modern "floating glass" effect that's common in premium SaaS applications like Linear, Notion, and Vercel.
+The current layout structure has a fundamental issue with how CSS `sticky` positioning works:
+
+**Current Structure:**
+```
+<main className="flex-1 overflow-auto">  ← This is the scroll container
+  <div className="sticky top-0...">       ← Sticky relative to main, but main itself scrolls!
+    Header
+  </div>
+  <div>
+    Content (Outlet)
+  </div>
+</main>
+```
+
+When the parent (`<main>`) has `overflow-auto`, it becomes the scrolling container. The sticky header is sticky *within* that container, but since the entire `<main>` content is what scrolls, the header scrolls away too.
 
 ---
 
-## Current Implementation
+## Solution
 
-**File:** `src/components/AppLayout.tsx` (Line 373)
+Restructure the layout so:
+1. The header is outside the scrollable area
+2. Only the content (Outlet) area scrolls
 
-```tsx
-<div className="sticky top-0 z-10 bg-background border-b border-border">
+**New Structure:**
+```
+<main className="flex-1 flex flex-col overflow-hidden">
+  <div className="shrink-0 z-10...">       ← Fixed header (doesn't scroll)
+    Header
+  </div>
+  <div className="flex-1 overflow-auto">   ← Only this area scrolls
+    Content (Outlet)
+  </div>
+</main>
 ```
 
 ---
 
-## Proposed Changes
+## Technical Changes
 
-### Update Header Styling
+**File:** `src/components/AppLayout.tsx`
 
-**File:** `src/components/AppLayout.tsx` (Line 373)
+### Change 1: Update `<main>` container (Line 372)
 
 ```tsx
 // From:
-<div className="sticky top-0 z-10 bg-background border-b border-border">
+<main className="flex-1 overflow-auto">
 
 // To:
-<div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
+<main className="flex-1 flex flex-col overflow-hidden">
 ```
 
-### What Each Class Does
+### Change 2: Update header container (Line 373)
 
-| Class | Effect |
-|-------|--------|
-| `bg-background/95` | 95% opacity background - allows subtle content peek-through |
-| `backdrop-blur-sm` | Applies a light blur to content scrolling behind the header |
-| `shadow-sm` | Adds a subtle drop shadow for depth and separation |
+```tsx
+// From:
+<div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
+
+// To:
+<div className="shrink-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
+```
+
+### Change 3: Wrap content in scrollable container (Line 418)
+
+```tsx
+// From:
+<div className="p-4 sm:p-6">
+  <Outlet />
+</div>
+
+// To:
+<div className="flex-1 overflow-auto">
+  <div className="p-4 sm:p-6">
+    <Outlet />
+  </div>
+</div>
+```
 
 ---
 
-## Visual Impact
+## How It Works
 
-- **Floating effect**: The semi-transparent background with blur creates a modern glass-like appearance
-- **Depth perception**: The subtle shadow provides visual separation from page content
-- **Premium feel**: This technique is used by Linear, Notion, Vercel, and other top-tier SaaS products
-- **Subtle refinement**: The changes are intentionally subtle - just enough to add polish without being distracting
+| Element | Behavior |
+|---------|----------|
+| `<main>` with `flex flex-col overflow-hidden` | Creates a flex column that fills available space but clips overflow |
+| Header with `shrink-0` | Prevents the header from shrinking, keeps it at natural height |
+| Content wrapper with `flex-1 overflow-auto` | Takes remaining space and handles scrolling |
 
 ---
 
@@ -55,15 +98,15 @@ This enhancement adds a subtle drop shadow and backdrop blur to the sticky heade
 
 | File | Change |
 |------|--------|
-| `src/components/AppLayout.tsx` | Add backdrop blur and shadow to sticky header (line 373) |
+| `src/components/AppLayout.tsx` | Restructure layout to separate fixed header from scrollable content |
 
 ---
 
 ## Expected Result
 
-When you scroll the page:
-1. The header stays fixed at the top (existing behavior)
-2. Content scrolling beneath shows a subtle blur effect through the semi-transparent header
-3. A soft shadow creates visual separation between the header and content
-4. The overall effect feels more polished and premium
+After this change:
+1. The header with organization name and profile avatar will ALWAYS stay visible at the top
+2. Only the page content (dashboard, tables, etc.) will scroll
+3. The backdrop blur effect will work correctly when content scrolls behind the header
+4. Works consistently across all pages and on all devices (desktop + mobile)
 
