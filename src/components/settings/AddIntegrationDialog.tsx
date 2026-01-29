@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -108,6 +108,41 @@ export function AddIntegrationDialog({
     }
     return {};
   });
+
+  // Sync state when dialog opens with existing integration
+  useEffect(() => {
+    if (open) {
+      if (existingIntegration) {
+        // Sync name
+        setName(existingIntegration.integration_name || "");
+        
+        // Sync config fields
+        const existingConfig = existingIntegration.config || {};
+        const newConfig: Record<string, string> = {};
+        fields.forEach((field) => {
+          if (existingConfig.uses_env_secrets && existingConfig[`${field.key}_secret`]) {
+            newConfig[field.key] = `[Env: ${existingConfig[`${field.key}_secret`]}]`;
+          } else {
+            const value = existingConfig[field.key];
+            newConfig[field.key] = typeof value === "string" ? value : "";
+          }
+        });
+        setConfig(newConfig);
+        
+        // Sync templates (for WhatsApp)
+        if (existingConfig.templates) {
+          setTemplates(existingConfig.templates as Record<string, unknown>);
+        } else {
+          setTemplates({});
+        }
+      } else {
+        // Reset form for new integration
+        setName("");
+        setConfig({});
+        setTemplates({});
+      }
+    }
+  }, [open, existingIntegration?.id]);
 
   const handleSave = async () => {
     // Filter out empty values and env references that weren't changed
