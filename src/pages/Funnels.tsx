@@ -471,11 +471,14 @@ const Funnels = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredFunnels.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        No funnels found
-                      </TableCell>
-                    </TableRow>
+                    <TableEmptyState
+                      colSpan={7}
+                      icon={TrendingUp}
+                      title="No funnels found"
+                      description="Create your first funnel to organize products and track leads."
+                      actionLabel="Add Funnel"
+                      onAction={() => setIsDialogOpen(true)}
+                    />
                   ) : (
                     filteredFunnels.map((funnel, index) => (
                       <TableRow key={funnel.id} className="animate-list-item" style={{ animationDelay: `${index * 30}ms` }}>
@@ -515,7 +518,15 @@ const Funnels = () => {
             {/* Mobile Card View */}
             <div className="sm:hidden space-y-3">
               {filteredFunnels.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">No funnels found</div>
+                <div className="text-center py-8 text-muted-foreground">
+                  <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <p className="font-medium">No funnels found</p>
+                  <p className="text-sm mt-1">Create your first funnel to organize products and track leads.</p>
+                  <Button onClick={() => setIsDialogOpen(true)} className="mt-4">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Funnel
+                  </Button>
+                </div>
               ) : (
                 filteredFunnels.map((funnel) => (
                   <div key={funnel.id} className="rounded-lg border bg-card p-4">

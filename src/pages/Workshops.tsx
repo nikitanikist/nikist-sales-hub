@@ -21,6 +21,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
+import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 
 type CallCategory = 
   | "converted" 
@@ -46,10 +47,12 @@ const Workshops = () => {
   const [editingWorkshop, setEditingWorkshop] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
-const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [callsDialogOpen, setCallsDialogOpen] = useState(false);
   const [selectedWorkshopTitle, setSelectedWorkshopTitle] = useState<string>("");
   const [selectedCallCategory, setSelectedCallCategory] = useState<CallCategory>("converted");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [workshopToDelete, setWorkshopToDelete] = useState<any>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { isManager } = useUserRole();
@@ -380,11 +383,24 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workshops"] });
       toast.success("Workshop deleted successfully");
+      setDeleteDialogOpen(false);
+      setWorkshopToDelete(null);
     },
     onError: (error: any) => {
       toast.error(error.message);
     },
   });
+
+  const handleDeleteClick = (workshop: any) => {
+    setWorkshopToDelete(workshop);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (workshopToDelete) {
+      deleteMutation.mutate(workshopToDelete.id);
+    }
+  };
 
   const createFunnelMutation = useMutation({
     mutationFn: async (workshopData: any) => {
@@ -684,7 +700,11 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                               {funnel.funnel_name}
                             </SelectItem>
                           ))
-                        ) : null}
+                        ) : (
+                          <div className="py-3 px-2 text-center text-sm text-muted-foreground">
+                            No funnels available. Create one in the Funnels page first.
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -706,7 +726,11 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                               {product.product_name}
                             </SelectItem>
                           ))
-                        ) : null}
+                        ) : (
+                          <div className="py-3 px-2 text-center text-sm text-muted-foreground">
+                            No products available. Create one in the Products page first.
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -920,7 +944,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteMutation.mutate(workshop.id)}
+                              onClick={() => handleDeleteClick(workshop)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -1187,7 +1211,7 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
-                            onClick={() => deleteMutation.mutate(workshop.id)}
+                            onClick={() => handleDeleteClick(workshop)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -1336,6 +1360,16 @@ const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
         onOpenChange={setCallsDialogOpen}
         workshopTitle={selectedWorkshopTitle}
         category={selectedCallCategory}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Workshop"
+        itemName={workshopToDelete?.title}
+        isDeleting={deleteMutation.isPending}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );
