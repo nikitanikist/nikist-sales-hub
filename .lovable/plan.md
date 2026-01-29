@@ -1,24 +1,38 @@
 
+# Fix Sticky Header - Correct the Scroll Container
 
-# Fix Sticky Header - Correct CSS Structure
+## What You Want
+The header bar (hamburger menu ≡ + "Nikist" + avatar "N") should stay fixed at the top while only the dashboard content scrolls underneath.
 
-## Problem Root Cause
+## Why It Is Not Working
 
-CSS `position: sticky` only works when the element is **inside** a scrolling container. Currently:
+The page has **two scroll sources**:
+1. The browser window itself (body/html)
+2. The `<main>` element with `overflow-auto`
 
+Currently, the **browser window is scrolling** instead of just `<main>`. The `sticky` positioning only works relative to the nearest scroll container, but if the entire page scrolls, the header goes with it.
+
+**Current Problem Structure:**
 ```
-main (overflow-hidden)       <-- NOT scrolling
-  └── header (sticky)        <-- Sticky has NO effect!
-  └── content (overflow-auto) <-- Scrolling is here (sibling, not parent)
+body (scrolling!)
+  └── wrapper div (min-h-screen - can grow beyond viewport)
+        └── main (overflow-auto - should be the only scroll)
+              └── header (sticky - but page is scrolling, not main!)
+              └── content
 ```
-
-The header needs to be **inside** the scrolling container for sticky to work.
-
----
 
 ## Solution
 
-Move scrolling to `<main>` so the header is inside the scrolling area.
+Lock the outer wrapper to the viewport height so only `<main>` can scroll.
+
+**Fixed Structure:**
+```
+body (no scroll)
+  └── wrapper div (h-screen, overflow-hidden - locked to viewport)
+        └── main (overflow-auto - THE ONLY scroll container)
+              └── header (sticky - now works!)
+              └── content
+```
 
 ---
 
@@ -26,65 +40,42 @@ Move scrolling to `<main>` so the header is inside the scrolling area.
 
 **File:** `src/components/AppLayout.tsx`
 
-### Change 1: Update main container (Line 372)
+### Change 1: Lock wrapper div to viewport (Line 362)
 
 ```tsx
 // FROM:
-<main className="flex-1 flex flex-col overflow-hidden">
+<div className="flex min-h-screen w-full">
 
 // TO:
-<main className="flex-1 overflow-auto">
+<div className="flex h-screen w-full overflow-hidden">
 ```
 
-### Change 2: Update header (Line 373)
+**What this does:**
+- `h-screen` (instead of `min-h-screen`): Fixed height, cannot grow
+- `overflow-hidden`: Prevents this div from scrolling
 
-```tsx
-// FROM:
-<div className="sticky top-0 shrink-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
+### Why This Works
 
-// TO:
-<div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border shadow-sm">
-```
-
-### Change 3: Remove wrapper div around content (Lines 418-422)
-
-```tsx
-// FROM:
-<div className="flex-1 overflow-auto">
-  <div className="p-4 sm:p-6">
-    <Outlet />
-  </div>
-</div>
-
-// TO:
-<div className="p-4 sm:p-6">
-  <Outlet />
-</div>
-```
-
----
-
-## New Structure (Correct)
-
-```
-main (overflow-auto)         <-- Scrolling container
-  └── header (sticky top-0)  <-- Sticks to top while main scrolls!
-  └── content                <-- Scrolls with main
-```
+| Before | After |
+|--------|-------|
+| Wrapper can grow beyond viewport | Wrapper locked to viewport height |
+| Browser window scrolls | Browser window cannot scroll |
+| Sticky has no effect | Sticky works because only `main` scrolls |
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/components/AppLayout.tsx` | Restructure main to be the scroll container, remove wrapper div |
+| File | Line | Change |
+|------|------|--------|
+| `src/components/AppLayout.tsx` | 362 | Change `min-h-screen` to `h-screen overflow-hidden` |
 
 ---
 
 ## Expected Result
 
-- Header stays fixed at top when scrolling any page
-- Backdrop blur effect works correctly as content scrolls behind
-- Works on all pages and devices
-
+After this single line change:
+- The header (hamburger + "Nikist" + "N" avatar) stays fixed at the top
+- Dashboard content scrolls underneath the header
+- Backdrop blur effect shows content scrolling behind the semi-transparent header
+- Works on all pages (Dashboard, Leads, etc.) and on all devices
