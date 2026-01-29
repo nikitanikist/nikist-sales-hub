@@ -1,167 +1,146 @@
 
-# Fix Plan: SaaS Modular Architecture Review Issues
+# Fix Plan: Integration Edit & Pabbly Display Issues
 
 ## Summary
 
-The testing team found **7 valid issues** (plus 1 design verification). I've cross-checked each against the codebase and confirm they are real bugs that need fixing before going live.
+Two separate issues were identified:
+1. **WhatsApp/Zoom/Calendly Edit Dialog Bug** - Form fields appear empty when editing because state doesn't sync with prop changes
+2. **Pabbly Data Missing** - Webhooks table is empty; legacy env-based configs need migration to the database
 
 ---
 
-## Issue Priority Matrix
+## Issue 1: Integration Edit Dialog State Sync
 
-| Issue | Severity | Impact |
-|-------|----------|--------|
-| Issue 1: Template Structure Mismatch | CRITICAL | WhatsApp reminders will fail |
-| Issue 2 & 8: Video URL Missing | HIGH | Video templates won't work |
-| Issue 3: Org Switch State Bug | MEDIUM | Stale data on org switch |
-| Issue 4: Wrong Icon | LOW | UX confusion only |
-| Issue 5: Module Permissions | N/A | Design decision (already per spec) |
-| Issue 7: Pabbly Webhook URL | HIGH | Incoming webhooks non-functional |
+### Problem
+The `AddIntegrationDialog.tsx` component initializes its state only once when the component mounts. Since the Dialog component stays mounted (just hidden), clicking "Edit" on different integrations doesn't update the form fields.
 
----
+### Solution
+Add a `useEffect` hook to synchronize state when `existingIntegration` or `open` props change.
 
-## Fix 1: WhatsApp Template Structure (CRITICAL)
+### File: `src/components/settings/AddIntegrationDialog.tsx`
 
-**File:** `src/components/settings/WhatsAppTemplateConfig.tsx`
-
-**Current (WRONG):**
-```typescript
-interface TemplateConfig {
-  template_name: string;
-  video_url?: string;
-}
-```
-
-**Fix to:**
-```typescript
-interface TemplateConfig {
-  name: string;
-  isVideo: boolean;
-}
-```
-
-Changes needed:
-- Update interface to use `name` instead of `template_name`
-- Add `isVideo` boolean flag
-- Update `TEMPLATE_INFO` to include `isVideo` for each template type
-- Update `handleTemplateChange` to set `isVideo` based on template type
-- Remove per-template video URL field (move to integration level)
-
----
-
-## Fix 2: Add Video URL to WhatsApp Integration Form
-
-**File:** `src/components/settings/AddIntegrationDialog.tsx`
-
-Add video_url field to the WhatsApp field list:
-
-```typescript
-case "whatsapp":
-  return [
-    { key: "api_key", label: "AiSensy API Key", placeholder: "Enter AiSensy API Key", secret: true },
-    { key: "source", label: "Source Number", placeholder: "919266395637", secret: false },
-    { key: "support_number", label: "Support Number", placeholder: "+919266395637", secret: false },
-    { key: "video_url", label: "Video URL for Call Booking", placeholder: "https://...video.mp4", secret: false },
-  ];
-```
-
-This ensures video URL is saved at the config root level where the edge function expects it.
-
----
-
-## Fix 3: GeneralSettings Org Sync
-
-**File:** `src/pages/settings/GeneralSettings.tsx`
-
-Add useEffect to sync state when organization changes:
+**Add after line 110 (after the useState declarations):**
 
 ```typescript
 import { useState, useEffect } from "react";
 
-// After useState declarations, add:
+// Add this useEffect after the useState declarations (around line 110):
 useEffect(() => {
-  if (currentOrganization) {
-    setName(currentOrganization.name);
-    setLogoUrl(currentOrganization.logo_url || "");
+  if (open) {
+    if (existingIntegration) {
+      // Sync name
+      setName(existingIntegration.integration_name || "");
+      
+      // Sync config fields
+      const existingConfig = existingIntegration.config || {};
+      const newConfig: Record<string, string> = {};
+      fields.forEach((field) => {
+        if (existingConfig.uses_env_secrets && existingConfig[`${field.key}_secret`]) {
+          newConfig[field.key] = `[Env: ${existingConfig[`${field.key}_secret`]}]`;
+        } else {
+          const value = existingConfig[field.key];
+          newConfig[field.key] = typeof value === "string" ? value : "";
+        }
+      });
+      setConfig(newConfig);
+      
+      // Sync templates (for WhatsApp)
+      if (existingConfig.templates) {
+        setTemplates(existingConfig.templates as Record<string, unknown>);
+      } else {
+        setTemplates({});
+      }
+    } else {
+      // Reset form for new integration
+      setName("");
+      setConfig({});
+      setTemplates({});
+    }
   }
-}, [currentOrganization?.id]);
+}, [open, existingIntegration?.id]);
 ```
 
 ---
 
-## Fix 4: ModuleGuard Icon
+## Issue 2: Pabbly Webhook Data Migration
 
-**File:** `src/components/ModuleGuard.tsx`
+### Problem
+The `organization_webhooks` table is empty. Nikist's Pabbly integration works via legacy environment variables (`PABBLY_STATUS_WEBHOOK_URL`), but the new UI only displays database records.
 
-Change the import and icon in `DisabledModuleFallback`:
+### Solution
+Seed the existing Pabbly configuration into the `organization_webhooks` table for the Nikist organization.
+
+### Database Insert Required
+
+```sql
+-- Insert the existing Pabbly outgoing webhook for Nikist organization
+INSERT INTO organization_webhooks (
+  organization_id,
+  name,
+  direction,
+  url,
+  trigger_event,
+  is_active
+) VALUES (
+  '00000000-0000-0000-0000-000000000001',  -- Nikist org ID
+  'Pabbly Call Status Sync',
+  'outgoing',
+  '[Will be populated from PABBLY_STATUS_WEBHOOK_URL env secret]',
+  'call.status_changed',
+  true
+);
+```
+
+**Note:** Since the actual URL is stored in an environment secret, we have two options:
+1. Store a reference pattern (like we do for other integrations)
+2. Or store the actual URL if provided
+
+### Alternative Approach: Show Legacy Config in UI
+
+Add a note in `PabblyIntegration.tsx` that shows when legacy environment-based webhooks are detected:
 
 ```typescript
-import { Lock } from "lucide-react";  // Instead of Loader2
-
-// In DisabledModuleFallback:
-<Lock className="h-8 w-8 text-muted-foreground" />
+// Add a section that detects if PABBLY_STATUS_WEBHOOK_URL is configured
+// Show: "Legacy Pabbly webhook is active via environment configuration"
 ```
-
----
-
-## Fix 5: Pabbly Webhook URL (Two Options)
-
-**Option A (Recommended):** Update URL to use existing endpoint with documentation
-
-Update `PabblyIntegration.tsx` to:
-1. Point incoming webhook URLs to the existing `ingest-tagmango` endpoint
-2. Add a note explaining that incoming webhooks use the standard TagMango flow
-3. The webhook_id can be passed as query param for future routing
-
-```typescript
-const getIncomingWebhookUrl = (webhookId: string) => {
-  const baseUrl = import.meta.env.VITE_SUPABASE_URL || window.location.origin;
-  return `${baseUrl}/functions/v1/ingest-tagmango?source=pabbly&webhook_id=${webhookId}`;
-};
-```
-
-**Option B (Future):** Create a dedicated `pabbly-webhook` edge function that:
-- Reads webhook config by ID
-- Applies field mappings
-- Routes to appropriate handlers
-
-For now, Option A is faster and maintains backward compatibility.
-
----
-
-## Issue 5 Clarification: Module Permissions
-
-**No code change needed.** This was explicitly designed as "Super Admin only" per the approved plan. The RLS policy correctly restricts module toggling to Super Admins.
-
-If org admins should also toggle modules in the future, both the RLS policy and the `ModulesSettings.tsx` visibility check need updating.
 
 ---
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/components/settings/WhatsAppTemplateConfig.tsx` | Fix template structure to match edge function |
-| `src/components/settings/AddIntegrationDialog.tsx` | Add video_url field for WhatsApp |
-| `src/pages/settings/GeneralSettings.tsx` | Add useEffect for org sync |
-| `src/components/ModuleGuard.tsx` | Change icon from Loader2 to Lock |
-| `src/pages/settings/PabblyIntegration.tsx` | Fix webhook URL generation |
+| File | Change |
+|------|--------|
+| `src/components/settings/AddIntegrationDialog.tsx` | Add `useEffect` to sync state when dialog opens with existing integration |
+
+## Database Operations
+
+| Operation | Description |
+|-----------|-------------|
+| Insert into `organization_webhooks` | Migrate Nikist's Pabbly webhook configuration |
 
 ---
 
-## Testing After Fixes
+## Testing After Fix
 
-1. Create new WhatsApp integration with templates - verify saved structure matches `{ name, isVideo }`
-2. Enter video URL in WhatsApp config - verify it saves at root level
-3. Switch between organizations - verify GeneralSettings updates
-4. Navigate to disabled module route - verify Lock icon shows (not spinner)
-5. Create incoming webhook - verify URL uses existing endpoint
-6. Schedule a test call - verify WhatsApp reminder sends correctly
+1. **WhatsApp Edit Test:**
+   - Go to Settings → Integrations → WhatsApp
+   - Click Edit on "Main WhatsApp" integration
+   - Verify fields show: Name = "Main WhatsApp", API Key = "[Env: AISENSY_API_KEY]", etc.
+   - Verify templates section shows the configured templates
+
+2. **Zoom/Calendly Edit Test:**
+   - Click Edit on "Adesh Zoom" integration
+   - Verify Account ID shows "[Env: ZOOM_ADESH_ACCOUNT_ID]"
+
+3. **Pabbly Display Test:**
+   - After database insert, go to Settings → Integrations → Pabbly
+   - Verify "Pabbly Call Status Sync" appears in Outgoing Webhooks section
 
 ---
 
 ## Technical Notes
 
-- All fixes are isolated to their respective files with no cascading dependencies
-- Edge function `send-whatsapp-reminder` does NOT need changes - it already handles the correct structure
-- Backward compatibility is maintained - existing env-based WhatsApp configs still work via fallback
+- The `useEffect` depends on `open` and `existingIntegration?.id` to avoid unnecessary re-renders
+- The `fields` variable is stable per integration type, so it's safe to reference in the effect
+- Legacy env-based integrations show `[Env: SECRET_NAME]` format to indicate they use secrets
+- For Pabbly, we may want to add a `uses_env_secret: true` and `url_secret` pattern similar to other integrations
