@@ -2581,7 +2581,7 @@ export type Database = {
           id: string
           last_active_at: string | null
           organization_id: string
-          phone_number: string
+          phone_number: string | null
           qr_code: string | null
           qr_expires_at: string | null
           session_data: Json | null
@@ -2595,7 +2595,7 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           organization_id: string
-          phone_number: string
+          phone_number?: string | null
           qr_code?: string | null
           qr_expires_at?: string | null
           session_data?: Json | null
@@ -2609,7 +2609,7 @@ export type Database = {
           id?: string
           last_active_at?: string | null
           organization_id?: string
-          phone_number?: string
+          phone_number?: string | null
           qr_code?: string | null
           qr_expires_at?: string | null
           session_data?: Json | null
