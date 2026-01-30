@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { formatInOrgTime } from '@/lib/timezoneUtils';
 import { Search, RefreshCw, Eye, CheckCircle2, Circle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { Activity } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function WorkshopNotification() {
-  const { workshops, workshopsLoading } = useWorkshopNotification();
+  const { workshops, workshopsLoading, orgTimezone } = useWorkshopNotification();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkshop, setSelectedWorkshop] = useState<WorkshopWithDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -95,21 +95,12 @@ export default function WorkshopNotification() {
                   <TableRow key={workshop.id}>
                     <TableCell className="font-medium">
                       <div>
-                        {(() => {
-                          // Extract date portion to prevent timezone shifting
-                          const datePart = workshop.start_date.split('T')[0];
-                          const workshopDate = new Date(datePart + 'T12:00:00');
-                          return (
-                            <>
-                              <div className="font-medium">
-                                {format(workshopDate, 'MMM d')}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {format(workshopDate, 'yyyy')}
-                              </div>
-                            </>
-                          );
-                        })()}
+                        <div className="font-medium">
+                          {formatInOrgTime(workshop.start_date, orgTimezone, 'MMM d')}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatInOrgTime(workshop.start_date, orgTimezone, 'yyyy')}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>

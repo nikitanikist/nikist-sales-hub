@@ -5,14 +5,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Send, Loader2, FileText, Image } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatInOrgTime } from '@/lib/timezoneUtils';
 import { useMessageTemplates, MessageTemplate } from '@/hooks/useMessageTemplates';
 
 interface SendMessageNowDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workshopTitle: string;
-  workshopDate: Date;
+  workshopStartDate: string;
+  timezone: string;
   onSend: (params: {
     templateId: string;
     content: string;
@@ -25,7 +26,8 @@ export function SendMessageNowDialog({
   open,
   onOpenChange,
   workshopTitle,
-  workshopDate,
+  workshopStartDate,
+  timezone,
   onSend,
   isSending,
 }: SendMessageNowDialogProps) {
@@ -36,14 +38,14 @@ export function SendMessageNowDialog({
     return templates.find((t) => t.id === selectedTemplateId);
   }, [templates, selectedTemplateId]);
 
-  // Process template content with variables
+  // Process template content with variables - use org timezone
   const processedContent = useMemo(() => {
     if (!selectedTemplate) return '';
     return selectedTemplate.content
       .replace(/{workshop_name}/g, workshopTitle)
-      .replace(/{date}/g, format(workshopDate, 'MMMM d, yyyy'))
-      .replace(/{time}/g, format(workshopDate, 'h:mm a'));
-  }, [selectedTemplate, workshopTitle, workshopDate]);
+      .replace(/{date}/g, formatInOrgTime(workshopStartDate, timezone, 'MMMM d, yyyy'))
+      .replace(/{time}/g, formatInOrgTime(workshopStartDate, timezone, 'h:mm a'));
+  }, [selectedTemplate, workshopTitle, workshopStartDate, timezone]);
 
   const handleSend = () => {
     if (!selectedTemplate) return;
