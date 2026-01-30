@@ -89,13 +89,17 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Fetch pending messages that are due
+    // Fetch pending messages that are due, including session data for VPS session ID
     const now = new Date().toISOString();
     const { data: pendingMessages, error: fetchError } = await supabase
       .from('scheduled_whatsapp_messages')
       .select(`
         *,
-        whatsapp_groups!inner(group_jid, session_id)
+        whatsapp_groups!inner(
+          group_jid, 
+          session_id,
+          whatsapp_sessions!inner(session_data)
+        )
       `)
       .eq('status', 'pending')
       .lte('scheduled_for', now)
@@ -126,12 +130,16 @@ Deno.serve(async (req) => {
           throw new Error('Missing group configuration');
         }
 
+        // Get VPS session ID from session_data, fallback to local session ID with wa_ prefix
+        const sessionData = group.whatsapp_sessions?.session_data as { vps_session_id?: string } | null;
+        const vpsSessionId = sessionData?.vps_session_id || `wa_${group.session_id}`;
+
         // Build full URL safely
         const vpsUrl = buildUrl(VPS_URL, '/send');
 
         const vpsBody = JSON.stringify({
-          sessionId: group.session_id,
-          groupId: group.group_jid,
+          sessionId: vpsSessionId,
+          phone: group.group_jid,  // VPS expects "phone" field for recipient (works for both individual and group chats)
           message: msg.message_content,
           ...(msg.media_url && { mediaUrl: msg.media_url }),
           ...(msg.media_type && { mediaType: msg.media_type }),
