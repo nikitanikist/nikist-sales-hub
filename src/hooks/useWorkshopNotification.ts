@@ -73,9 +73,11 @@ export function useWorkshopNotification() {
 
       if (workshopsError) throw workshopsError;
       
+      // If no workshops, return empty array
+      if (!workshopsData || workshopsData.length === 0) return [];
+      
       // Fetch registration counts
-      const workshopIds = (workshopsData || []).map(w => w.id);
-      if (workshopIds.length === 0) return [];
+      const workshopIds = workshopsData.map(w => w.id);
       
       const { data: countData, error: countError } = await supabase
         .from('lead_assignments')
