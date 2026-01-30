@@ -73,11 +73,11 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 <Shield className="h-8 w-8 text-white" />
               </div>
             ) : (
-              <div className="w-full px-2">
+              <div className="w-full px-4 py-2">
                 <img
                   src={logoImage}
                   alt="Logo"
-                  className="w-full h-auto object-contain"
+                  className="w-full max-h-10 object-contain"
                 />
               </div>
             )}
