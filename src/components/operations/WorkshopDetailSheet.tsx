@@ -66,7 +66,9 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
 
   if (!workshop) return null;
 
-  const workshopDate = new Date(workshop.start_date);
+  // Extract date portion to prevent timezone shifting (e.g., Jan 31 UTC showing as Feb 1 in IST)
+  const datePart = workshop.start_date.split('T')[0];
+  const workshopDate = new Date(datePart + 'T12:00:00');
   const checkpoints = toCheckpoints(messages || []);
   const hasSequence = !!(workshop.tag?.template_sequence_id);
 
@@ -128,7 +130,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                 <SelectTrigger>
                   <SelectValue placeholder="Select a tag..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" side="bottom" align="start" className="z-[100]">
                   <SelectItem value="none">No tag</SelectItem>
                   {tags.map((tag) => (
                     <SelectItem key={tag.id} value={tag.id}>
@@ -188,7 +190,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                   <SelectTrigger>
                     <SelectValue placeholder="Select account..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" side="bottom" align="start" className="z-[100]">
                     <SelectItem value="none">No account</SelectItem>
                     {connectedSessions.map((session) => (
                       <SelectItem key={session.id} value={session.id}>
@@ -229,7 +231,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                   <SelectTrigger>
                     <SelectValue placeholder="Select group..." />
                   </SelectTrigger>
-                  <SelectContent>
+                <SelectContent position="popper" side="bottom" align="start" className="z-[100]">
                     <SelectItem value="none">No group</SelectItem>
                     {sessionGroups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
