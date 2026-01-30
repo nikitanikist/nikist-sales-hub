@@ -5,12 +5,13 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Settings, Building2, Blocks, Puzzle, Users, Video, Calendar, MessageCircle, Webhook } from "lucide-react";
+import { Settings, Building2, Blocks, Puzzle, Users, Video, Calendar, MessageCircle, Webhook, Bell } from "lucide-react";
 import { IntegrationSection } from "@/components/settings/IntegrationSection";
 import { GeneralSettings } from "@/pages/settings/GeneralSettings";
 import { ModulesSettings } from "@/pages/settings/ModulesSettings";
 import { PabblyIntegration } from "@/pages/settings/PabblyIntegration";
 import { WhatsAppConnection } from "@/pages/settings/WhatsAppConnection";
+import { WorkshopNotificationSettings } from "@/pages/settings/WorkshopNotificationSettings";
 import { PageIntro } from "@/components/PageIntro";
 import { CloserAssignments } from "@/components/settings/CloserAssignments";
 
@@ -204,6 +205,10 @@ const OrganizationSettings = () => {
             <Users className="h-4 w-4" />
             Team
           </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2">
+            <Bell className="h-4 w-4" />
+            Notifications
+          </TabsTrigger>
         </TabsList>
 
         {/* General Settings Tab */}
@@ -289,6 +294,11 @@ const OrganizationSettings = () => {
         {/* Team Tab */}
         <TabsContent value="team">
           <CloserAssignments />
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications">
+          <WorkshopNotificationSettings />
         </TabsContent>
       </Tabs>
     </div>
