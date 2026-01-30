@@ -1,168 +1,303 @@
 
-
-# Enhance Workshop Notification: Cancel Messages, Group Search, and Simplified Group List
+# Reorganize Sidebar Navigation into Grouped Categories
 
 ## Overview
-Three improvements to the Workshop Notification page to enhance usability:
-1. Add ability to cancel scheduled messages
-2. Add search functionality for WhatsApp groups
-3. Simplify group list by removing admin/non-admin separation
+Restructure the sidebar menu from a flat list into organized collapsible categories for better UX. Also rename "Users" to "Team Members" to avoid confusion with customers.
 
 ---
 
-## 1. Cancel Scheduled Messages
+## Proposed Sidebar Structure
 
-### Current State
-- The `cancelMessage` function already exists in the hook but is not exposed in the UI
-- Messages show status (pending, sent, failed, cancelled) but users cannot cancel pending ones
-
-### Changes Required
-
-**File: `src/components/operations/MessageCheckpoints.tsx`**
-
-Add a cancel button for each pending message:
-
-- Add `onCancel` prop to receive the cancel handler
-- Add `isCancelling` prop for loading state
-- For messages with status `pending`, show a small "Cancel" button/icon (X icon)
-- Disable the button while cancellation is in progress
-- Confirm before cancelling (optional - or just do it directly since it's easy to re-run)
-
-**UI Layout:**
 ```
-┌─────────────────────────────────────────────────────────┐
-│ ○ 11:00 AM   Morning Reminder      [Scheduled] [✕]     │
-│ ○  1:00 PM   Afternoon Reminder    [Scheduled] [✕]     │
-│ ✓  6:00 PM   1 Hour Before         [Sent]              │
-│ ✗  6:30 PM   30 Min Before         [Cancelled]         │
-└─────────────────────────────────────────────────────────┘
-```
-
-**File: `src/components/operations/WorkshopDetailSheet.tsx`**
-
-Pass the cancel handler down to MessageCheckpoints:
-- Destructure `cancelMessage` and `isCancellingMessage` from `useWorkshopNotification`
-- Pass these to `MessageCheckpoints` component
-
----
-
-## 2. Search WhatsApp Groups
-
-### Current State
-- Groups are listed in a ScrollArea with no filtering
-- Users must manually scroll through all groups to find the one they want
-
-### Changes Required
-
-**File: `src/components/operations/MultiGroupSelect.tsx`**
-
-Add a search input at the top of the groups list:
-
-- Add `searchQuery` state
-- Add a search Input field with search icon
-- Filter `sessionGroups` based on search query (case-insensitive match on group name)
-- Clear search when session changes
-
-**UI Layout:**
-```
-┌─────────────────────────────────────────────────────────┐
-│ WhatsApp Groups                              [⟳ Sync]   │
-├─────────────────────────────────────────────────────────┤
-│ [☐ Select All (24)]    [Clear (3)]                     │
-├─────────────────────────────────────────────────────────┤
-│ 🔍 [Search groups...                               ]    │
-├─────────────────────────────────────────────────────────┤
-│ ☑ Crypto Masterclass - Jan 2025          234 members   │
-│ ☑ Trading Workshop Q1                    156 members   │
-│ ☐ Options Basics Group                   89 members    │
-│ ☐ Futures Community                      312 members   │
-└─────────────────────────────────────────────────────────┘
-│ 3 groups selected                                       │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────┐
+│  Dashboard                      │
+├─────────────────────────────────┤
+│ ▼ Finance                       │
+│    ├─ Daily Money Flow          │
+│    └─ Sales                     │
+├─────────────────────────────────┤
+│ ▼ Customers                     │
+│    ├─ All Customers             │
+│    └─ Customer Insights         │
+├─────────────────────────────────┤
+│ ▼ Closers                       │
+│    ├─ 1:1 Call Schedule         │
+│    └─ Sales Closers             │
+├─────────────────────────────────┤
+│ ▼ Funnels                       │
+│    ├─ All Workshops             │
+│    ├─ Active Funnels            │
+│    └─ Products                  │
+├─────────────────────────────────┤
+│ ▼ Cohort Batches                │
+│    ├─ [Dynamic cohort types]    │
+│    └─ Manage Cohorts            │
+├─────────────────────────────────┤
+│ ▼ Operations                    │
+│    └─ Workshop Notification     │
+├─────────────────────────────────┤
+│  Team Members                   │
+├─────────────────────────────────┤
+│  Settings                       │
+└─────────────────────────────────┘
 ```
 
 ---
 
-## 3. Simplify Group List (Remove Admin/Non-Admin Separation)
+## Changes Summary
 
-### Current State
-- Groups are separated into "Admin Groups" and "Not Admin" sections
-- Non-admin groups have reduced opacity and warning styling
-- "Select All Admin" button only selects admin groups
-
-### Changes Required
-
-**File: `src/components/operations/MultiGroupSelect.tsx`**
-
-Remove the admin/non-admin categorization:
-
-- Remove `adminGroups` and `nonAdminGroups` computed values
-- Show all groups in a single flat list (alphabetically sorted)
-- Change "Select All Admin" button to "Select All" (selects all groups)
-- Remove the admin badge and warning styling from individual items
-- Remove the "without admin rights" warning in the selection summary
-- Keep participant count display for each group
-
-**Simplified UI:**
-```
-┌─────────────────────────────────────────────────────────┐
-│ WhatsApp Groups                              [⟳ Sync]   │
-├─────────────────────────────────────────────────────────┤
-│ [☐ Select All (24)]    [Clear (3)]                     │
-├─────────────────────────────────────────────────────────┤
-│ 🔍 [Search groups...                               ]    │
-├─────────────────────────────────────────────────────────┤
-│ ☑ Crypto Masterclass - Jan 2025          234 members   │
-│ ☑ Futures Community                       312 members   │
-│ ☐ Options Basics Group                    89 members   │
-│ ☑ Trading Workshop Q1                     156 members   │
-└─────────────────────────────────────────────────────────┘
-│ 3 groups selected                                       │
-└─────────────────────────────────────────────────────────┘
-```
+| Current | New |
+|---------|-----|
+| Flat list of ~14 items | 5 collapsible groups + 3 standalone items |
+| "Users" menu item | Renamed to "Team Members" |
+| "Customers" menu item | Renamed to "All Customers" (within Customers group) |
 
 ---
 
-## Technical Details
+## Technical Implementation
 
-### Files to Modify
+### File: `src/components/AppLayout.tsx`
 
-| File | Changes |
-|------|---------|
-| `src/components/operations/MessageCheckpoints.tsx` | Add `onCancel` prop, render cancel button for pending messages |
-| `src/components/operations/WorkshopDetailSheet.tsx` | Pass cancel handler to MessageCheckpoints |
-| `src/components/operations/MultiGroupSelect.tsx` | Add search input, remove admin/non-admin separation, simplify Select All |
+**Changes to `allMenuItems` array:**
 
-### MessageCheckpoints Props Update
 ```typescript
-interface MessageCheckpointsProps {
-  checkpoints: Checkpoint[];
-  isLoading?: boolean;
-  timezone?: string;
-  onCancel?: (messageId: string) => void;  // NEW
-  isCancelling?: boolean;                   // NEW
+const allMenuItems: MenuItem[] = useMemo(() => [
+  // Standalone: Dashboard
+  { 
+    title: "Dashboard", 
+    icon: LayoutDashboard, 
+    path: "/", 
+    isBeta: true, 
+    permissionKey: 'dashboard' 
+  },
+  
+  // GROUP: Finance
+  { 
+    title: "Finance", 
+    icon: Wallet, 
+    children: [
+      { title: "Daily Money Flow", path: "/daily-money-flow", permissionKey: 'daily_money_flow' },
+      { title: "Sales", path: "/sales", permissionKey: 'sales' },
+    ],
+    // No single moduleSlug - children have different modules
+  },
+  
+  // GROUP: Customers
+  { 
+    title: "Customers", 
+    icon: Users, 
+    children: [
+      { title: "All Customers", path: "/leads", permissionKey: 'customers' },
+      { title: "Customer Insights", path: "/onboarding", permissionKey: 'customer_insights' },
+    ],
+  },
+  
+  // GROUP: Closers
+  { 
+    title: "Closers", 
+    icon: UserCog, 
+    moduleSlug: 'one-to-one-funnel',  // Both children require this module
+    children: [
+      { title: "1:1 Call Schedule", path: "/calls", permissionKey: 'call_schedule' },
+      { title: "Sales Closers", path: "/sales-closers", permissionKey: 'sales_closers' },
+    ],
+  },
+  
+  // GROUP: Funnels
+  { 
+    title: "Funnels", 
+    icon: TrendingUp, 
+    children: [
+      { title: "All Workshops", path: "/workshops", permissionKey: 'workshops' },
+      { title: "Active Funnels", path: "/funnels", permissionKey: 'funnels' },
+      { title: "Products", path: "/products", permissionKey: 'products' },
+    ],
+  },
+  
+  // GROUP: Cohort Batches (dynamic, unchanged)
+  { 
+    title: "Cohort Batches", 
+    icon: GraduationCap, 
+    children: dynamicCohortChildren,
+    moduleSlug: 'cohort-management'
+  },
+  
+  // GROUP: Operations (unchanged)
+  { 
+    title: "Operations", 
+    icon: Activity, 
+    children: [
+      { title: "Workshop Notification", path: "/operations/workshop-notification", permissionKey: 'workshops' },
+    ],
+    moduleSlug: 'workshops'
+  },
+  
+  // Standalone: Team Members (renamed from "Users")
+  { 
+    title: "Team Members", 
+    icon: UsersRound, 
+    path: "/users", 
+    permissionKey: 'users' 
+  },
+  
+  // Standalone: Settings
+  { 
+    title: "Settings", 
+    icon: Settings, 
+    path: "/settings", 
+    permissionKey: 'settings' 
+  },
+], [dynamicCohortChildren]);
+```
+
+### Additional Considerations
+
+**Module Filtering Logic:**
+- The Finance group has children with different module requirements:
+  - "Daily Money Flow" requires `daily-money-flow` module
+  - "Sales" has no module requirement
+- Need to add `moduleSlug` to child items for proper filtering
+
+**Update MenuItem interface:**
+```typescript
+interface MenuItem {
+  title: string;
+  icon: typeof LayoutDashboard;
+  path?: string;
+  isBeta?: boolean;
+  permissionKey?: PermissionKey;
+  moduleSlug?: string;
+  children?: {
+    title: string;
+    path: string;
+    permissionKey?: PermissionKey;
+    moduleSlug?: string;  // ADD: Module for individual children
+  }[];
 }
 ```
 
-### MultiGroupSelect State Addition
-```typescript
-const [searchQuery, setSearchQuery] = useState('');
+**Update `filterMenuItems` function:**
+- Check moduleSlug on children as well as parent
+- Filter children by both permission AND module
 
-const filteredGroups = useMemo(() => 
-  sessionGroups.filter(g => 
-    g.group_name.toLowerCase().includes(searchQuery.toLowerCase())
-  ),
-  [sessionGroups, searchQuery]
-);
+---
+
+### File: `src/pages/Users.tsx`
+
+**Update PageIntro:**
+```typescript
+<PageIntro
+  icon={UsersIcon}
+  tagline="Team Members"  // Keep consistent with sidebar
+  description="Manage access and roles for your organization."
+  variant="violet"
+/>
 ```
 
 ---
 
-## Summary
+### File: `src/lib/permissions.ts`
 
-| Feature | What Users Get |
-|---------|---------------|
-| **Cancel Messages** | Click X next to any scheduled (pending) message to cancel it |
-| **Search Groups** | Type to filter groups by name instead of scrolling |
-| **Simplified List** | All groups shown equally without admin/non-admin distinction |
+**Update permission labels:**
+```typescript
+export const PERMISSION_LABELS: Record<PermissionKey, string> = {
+  // ... existing
+  users: 'Team Members',  // Changed from 'Users'
+};
+```
 
+**Update permission groups for organized display:**
+```typescript
+export const PERMISSION_GROUPS = [
+  {
+    label: 'Finance',
+    permissions: [
+      PERMISSION_KEYS.daily_money_flow,
+      PERMISSION_KEYS.sales,
+    ],
+  },
+  {
+    label: 'Customers',
+    permissions: [
+      PERMISSION_KEYS.customers,
+      PERMISSION_KEYS.customer_insights,
+    ],
+  },
+  {
+    label: 'Closers',
+    permissions: [
+      PERMISSION_KEYS.call_schedule,
+      PERMISSION_KEYS.sales_closers,
+    ],
+  },
+  {
+    label: 'Funnels',
+    permissions: [
+      PERMISSION_KEYS.workshops,
+      PERMISSION_KEYS.funnels,
+      PERMISSION_KEYS.products,
+    ],
+  },
+  {
+    label: 'Cohort Batches',
+    permissions: [
+      PERMISSION_KEYS.cohort_batches,
+    ],
+  },
+  {
+    label: 'Other',
+    permissions: [
+      PERMISSION_KEYS.dashboard,
+      PERMISSION_KEYS.users,
+      PERMISSION_KEYS.settings,
+    ],
+  },
+];
+```
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/AppLayout.tsx` | Restructure `allMenuItems` into grouped categories, update child filtering logic |
+| `src/lib/permissions.ts` | Update permission labels and groups |
+| `src/pages/Users.tsx` | Already shows "Team Members" - no change needed |
+
+---
+
+## Visual Before/After
+
+**Before (14 items, mostly flat):**
+```
+Dashboard
+Daily Money Flow
+Customers
+Customer Insights
+1:1 Call Schedule
+Sales Closers
+▼ Cohort Batches
+All Workshops
+▼ Operations
+Sales
+Active Funnels
+Products
+Users
+Settings
+```
+
+**After (organized groups):**
+```
+Dashboard
+▼ Finance
+▼ Customers  
+▼ Closers
+▼ Funnels
+▼ Cohort Batches
+▼ Operations
+Team Members
+Settings
+```
+
+Much cleaner with logical groupings that match business functions!
