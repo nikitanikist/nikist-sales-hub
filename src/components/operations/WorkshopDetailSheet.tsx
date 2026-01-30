@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Users, Calendar, Tag, MessageCircle, Smartphone, RefreshCw } from 'lucide-react';
+import { Users, Calendar, Tag, MessageCircle, Smartphone } from 'lucide-react';
 import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
@@ -14,6 +13,7 @@ import { WorkshopTagBadge } from './WorkshopTagBadge';
 import { MessageCheckpoints, toCheckpoints } from './MessageCheckpoints';
 import { MessagingActions } from './MessagingActions';
 import { SendMessageNowDialog } from './SendMessageNowDialog';
+import { MultiGroupSelect } from './MultiGroupSelect';
 import { formatInOrgTime } from '@/lib/timezoneUtils';
 
 interface WorkshopDetailSheetProps {
@@ -29,13 +29,14 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     updateTag, 
     isUpdatingTag, 
     updateSession, 
-    updateGroup, 
-    isUpdatingGroup,
+    updateGroups, 
+    isUpdatingGroups,
     runMessaging,
     isRunningMessaging,
     sendMessageNow,
     isSendingNow,
     useWorkshopMessages,
+    useWorkshopGroups: useFetchWorkshopGroups,
     subscribeToMessages,
     orgTimezone,
   } = useWorkshopNotification();
@@ -47,16 +48,34 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
   // Fetch messages for this workshop
   const { data: messages, isLoading: messagesLoading } = useWorkshopMessages(workshop?.id || null);
   
+  // Fetch linked groups for this workshop from junction table
+  const { data: linkedGroups } = useFetchWorkshopGroups(workshop?.id || null);
+  
   // Subscribe to real-time updates
   useEffect(() => {
     if (!workshop?.id || !open) return;
     return subscribeToMessages(workshop.id);
   }, [workshop?.id, open, subscribeToMessages]);
 
-  // Filter groups by selected session
+  // Track selected session
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     workshop?.whatsapp_session_id || null
   );
+  
+  // Track selected group IDs (multi-select)
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  
+  // Initialize selected groups from junction table
+  useEffect(() => {
+    if (linkedGroups && linkedGroups.length > 0) {
+      setSelectedGroupIds(linkedGroups.map(g => g.group_id));
+    } else if (workshop?.whatsapp_group_id) {
+      // Fallback to legacy single group
+      setSelectedGroupIds([workshop.whatsapp_group_id]);
+    } else {
+      setSelectedGroupIds([]);
+    }
+  }, [linkedGroups, workshop?.whatsapp_group_id]);
   
   useEffect(() => {
     if (workshop?.whatsapp_session_id) {
@@ -64,11 +83,26 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     }
   }, [workshop?.whatsapp_session_id]);
 
-  const sessionGroups = groups?.filter(g => 
-    !selectedSessionId || g.session_id === selectedSessionId
-  ) || [];
+  // Filter groups by selected session and map with is_admin
+  const sessionGroups = useMemo(() => 
+    (groups || [])
+      .filter(g => !selectedSessionId || g.session_id === selectedSessionId)
+      .map(g => ({
+        ...g,
+        is_admin: g.is_admin ?? false,
+      })),
+    [groups, selectedSessionId]
+  );
 
   const connectedSessions = sessions?.filter(s => s.status === 'connected') || [];
+
+  // Handle group selection change
+  const handleGroupSelectionChange = (groupIds: string[]) => {
+    setSelectedGroupIds(groupIds);
+    if (workshop) {
+      updateGroups({ workshopId: workshop.id, groupIds });
+    }
+  };
 
   if (!workshop) return null;
 
@@ -207,56 +241,41 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                 </Select>
               </div>
 
-              {/* Group Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground">Group</Label>
-                  {selectedSessionId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => syncGroups(selectedSessionId)}
-                      disabled={isSyncing}
-                      className="h-7 text-xs"
-                    >
-                      <RefreshCw className={`h-3 w-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
-                      Sync
-                    </Button>
-                  )}
-                </div>
-                <Select
-                  value={workshop.whatsapp_group_id || 'none'}
-                  onValueChange={(value) => {
-                    updateGroup({ workshopId: workshop.id, groupId: value === 'none' ? null : value });
-                  }}
-                  disabled={!selectedSessionId || isUpdatingGroup}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select group..." />
-                  </SelectTrigger>
-                <SelectContent position="popper" side="bottom" align="start" className="z-[100]">
-                    <SelectItem value="none">No group</SelectItem>
-                    {sessionGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          {group.group_name}
-                          <span className="text-xs text-muted-foreground">
-                            ({group.participant_count || 0})
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Multi-Group Selection */}
+              <MultiGroupSelect
+                groups={sessionGroups}
+                selectedGroupIds={selectedGroupIds}
+                onSelectionChange={handleGroupSelectionChange}
+                onSync={selectedSessionId ? () => syncGroups(selectedSessionId) : undefined}
+                isSyncing={isSyncing}
+                disabled={!selectedSessionId || isUpdatingGroups}
+                sessionId={selectedSessionId}
+              />
 
-              {workshop.whatsapp_group && (
-                <div className="flex items-center gap-2 p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-lg text-sm">
-                  <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200">
-                    Linked
-                  </Badge>
-                  <span className="font-medium">{workshop.whatsapp_group.group_name}</span>
+              {/* Show linked groups summary */}
+              {selectedGroupIds.length > 0 && (
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                      {selectedGroupIds.length} Group{selectedGroupIds.length !== 1 ? 's' : ''} Linked
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    {selectedGroupIds.slice(0, 3).map(id => {
+                      const group = sessionGroups.find(g => g.id === id);
+                      return group ? (
+                        <div key={id} className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {group.group_name}
+                        </div>
+                      ) : null;
+                    })}
+                    {selectedGroupIds.length > 3 && (
+                      <div className="text-xs text-muted-foreground">
+                        +{selectedGroupIds.length - 3} more
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -281,19 +300,20 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
 
           {/* Messaging Actions */}
           <MessagingActions
-            onRunSequence={() => runMessaging({ workshopId: workshop.id, workshop })}
+            onRunSequence={() => runMessaging({ workshopId: workshop.id, workshop, groupIds: selectedGroupIds })}
             onSendNow={() => setSendNowDialogOpen(true)}
             isRunningSequence={isRunningMessaging}
             isSendingNow={isSendingNow}
-            hasGroup={!!workshop.whatsapp_group_id}
+            hasGroups={selectedGroupIds.length > 0}
+            groupCount={selectedGroupIds.length}
             hasSession={!!workshop.whatsapp_session_id}
             hasSequence={hasSequence}
           />
         </div>
       </SheetContent>
 
-      {/* Send Message Now Dialog */}
-      {workshop.whatsapp_group_id && workshop.whatsapp_session_id && (
+      {/* Send Message Now Dialog - use first selected group for immediate send */}
+      {selectedGroupIds.length > 0 && workshop.whatsapp_session_id && (
         <SendMessageNowDialog
           open={sendNowDialogOpen}
           onOpenChange={setSendNowDialogOpen}
@@ -301,17 +321,21 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
           workshopStartDate={workshop.start_date}
           timezone={orgTimezone}
           onSend={async ({ templateId, content, mediaUrl }) => {
-            await sendMessageNow({
-              workshopId: workshop.id,
-              groupId: workshop.whatsapp_group_id!,
-              sessionId: workshop.whatsapp_session_id!,
-              templateId,
-              content,
-              mediaUrl,
-            });
+            // Send to all selected groups
+            for (const groupId of selectedGroupIds) {
+              await sendMessageNow({
+                workshopId: workshop.id,
+                groupId: groupId,
+                sessionId: workshop.whatsapp_session_id!,
+                templateId,
+                content,
+                mediaUrl,
+              });
+            }
             setSendNowDialogOpen(false);
           }}
           isSending={isSendingNow}
+          groupCount={selectedGroupIds.length}
         />
       )}
     </Sheet>

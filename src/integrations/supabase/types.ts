@@ -2553,6 +2553,7 @@ export type Database = {
           id: string
           invite_link: string | null
           is_active: boolean | null
+          is_admin: boolean | null
           organization_id: string
           participant_count: number | null
           session_id: string
@@ -2567,6 +2568,7 @@ export type Database = {
           id?: string
           invite_link?: string | null
           is_active?: boolean | null
+          is_admin?: boolean | null
           organization_id: string
           participant_count?: number | null
           session_id: string
@@ -2581,6 +2583,7 @@ export type Database = {
           id?: string
           invite_link?: string | null
           is_active?: boolean | null
+          is_admin?: boolean | null
           organization_id?: string
           participant_count?: number | null
           session_id?: string
@@ -2791,6 +2794,42 @@ export type Database = {
             columns: ["template_sequence_id"]
             isOneToOne: false
             referencedRelation: "template_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_whatsapp_groups: {
+        Row: {
+          created_at: string | null
+          group_id: string
+          id: string
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          group_id: string
+          id?: string
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string | null
+          group_id?: string
+          id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_whatsapp_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_whatsapp_groups_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
