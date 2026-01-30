@@ -1,94 +1,62 @@
 
 
-# WhatsApp VPS Integration - Continue Implementation
+# Fix WhatsApp Device Connection in Settings
 
-The VPS secrets still need to be added, and then we'll build the complete integration.
+## Problem Identified
 
----
+The WhatsApp tab in Settings is showing the **AiSensy API integration form** instead of the **device connection feature** with QR code scanning. This happened because:
 
-## Step 1: Add VPS Secrets
+1. The `WhatsAppConnection` component was created at `src/pages/settings/WhatsAppConnection.tsx`
+2. It was exported in `src/pages/settings/index.ts`
+3. But it was **never integrated into the OrganizationSettings page** - the settings page still uses `IntegrationSection` for WhatsApp
 
-Add two secrets required for edge function communication with your VPS:
+## Solution
 
-| Secret Name | Value |
-|-------------|-------|
-| `WHATSAPP_VPS_URL` | `http://72.61.251.65:3000` |
-| `WHATSAPP_VPS_API_KEY` | `nikist-whatsapp-2025` |
-
----
-
-## Step 2: Create VPS Proxy Edge Function
-
-**File**: `supabase/functions/vps-whatsapp-proxy/index.ts`
-
-Creates a secure bridge between your CRM and the VPS WhatsApp service:
-- Validates user authentication (Supabase JWT)
-- Proxies requests with the API key from secrets
-- Handles: connect, status, QR code, disconnect, sync groups, send message
+Replace the WhatsApp `IntegrationSection` with the new `WhatsAppConnection` component in the Integrations tab.
 
 ---
 
-## Step 3: Build WhatsApp Connection Page
+## Technical Changes
 
-**File**: `src/pages/settings/WhatsAppConnection.tsx`
+### File: `src/pages/OrganizationSettings.tsx`
 
-Settings page for connecting WhatsApp devices:
-- Display connected sessions for the organization
-- QR code scanning to connect new device
-- Status polling (every 3 seconds during connection)
-- Disconnect session button
-- Sync groups button
+**Change 1**: Import `WhatsAppConnection`
+- Add import for `WhatsAppConnection` from `./pages/settings/WhatsAppConnection`
 
-**Route**: Add `/settings/whatsapp` route in `App.tsx`
+**Change 2**: Replace WhatsApp IntegrationSection
+- Line 278-286: Replace the current WhatsApp `TabsContent` that uses `IntegrationSection`
+- Replace with the `WhatsAppConnection` component
 
----
+Before:
+```tsx
+<TabsContent value="whatsapp">
+  <IntegrationSection
+    type="whatsapp"
+    integrations={groupedIntegrations.whatsapp}
+    onSave={handleSave}
+    onDelete={handleDelete}
+    isSaving={saveMutation.isPending}
+  />
+</TabsContent>
+```
 
-## Step 4: Create Supporting Hooks
-
-**Files**:
-- `src/hooks/useWhatsAppSession.ts` - Session management (connect, status, disconnect)
-- `src/hooks/useWhatsAppGroups.ts` - Group sync and management
-
----
-
-## Step 5: Add Workshop WhatsApp Tab
-
-**File**: `src/components/workshops/WorkshopWhatsAppTab.tsx`
-
-Add messaging capabilities to workshop management:
-- Link WhatsApp group to workshop
-- View scheduled messages
-- Send immediate message to group
-- Use message templates
-
-**Modify**: `src/pages/Workshops.tsx` to include new tab
+After:
+```tsx
+<TabsContent value="whatsapp">
+  <WhatsAppConnection />
+</TabsContent>
+```
 
 ---
 
-## Step 6: Create Message Queue Processor
+## Result
 
-**File**: `supabase/functions/process-whatsapp-queue/index.ts`
+After this change:
+- Clicking Settings → Integrations → WhatsApp will show:
+  - Connection status (connected/not connected)
+  - "Connect Device" button that opens QR code dialog
+  - Synced WhatsApp groups list
+  - Session history
 
-Automated message sending:
-- Process pending messages from `scheduled_whatsapp_messages`
-- Send via VPS `/send` endpoint
-- Update status (sent/failed)
-- Retry logic for failed messages
-
----
-
-## Technical Details
-
-**New Files (6)**:
-1. `supabase/functions/vps-whatsapp-proxy/index.ts`
-2. `supabase/functions/process-whatsapp-queue/index.ts`
-3. `src/pages/settings/WhatsAppConnection.tsx`
-4. `src/components/workshops/WorkshopWhatsAppTab.tsx`
-5. `src/hooks/useWhatsAppSession.ts`
-6. `src/hooks/useWhatsAppGroups.ts`
-
-**Modified Files (3)**:
-1. `src/App.tsx` - Add WhatsApp settings route
-2. `src/pages/settings/index.ts` - Export new page
-3. `src/pages/Workshops.tsx` - Add WhatsApp tab
+The AiSensy integration can be moved to a separate section if still needed.
 
