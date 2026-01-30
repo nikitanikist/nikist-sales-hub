@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
 import { WorkshopWhatsAppTab } from "@/components/workshops/WorkshopWhatsAppTab";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useWorkshopTags } from "@/hooks/useWorkshopTags";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { TableSkeleton, MobileCardSkeleton } from "@/components/skeletons";
@@ -55,10 +56,12 @@ const Workshops = () => {
   const [selectedCallCategory, setSelectedCallCategory] = useState<CallCategory>("converted");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [workshopToDelete, setWorkshopToDelete] = useState<any>(null);
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { isManager } = useUserRole();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
+  const { tags, tagsLoading } = useWorkshopTags();
 
   const openCallsDialog = (workshopTitle: string, category: CallCategory) => {
     setSelectedWorkshopTitle(workshopTitle);
@@ -513,6 +516,7 @@ const Workshops = () => {
       funnel_id: formData.get("funnel_id") === "none" ? null : formData.get("funnel_id") || null,
       product_id:
         formData.get("product_id") === "none" ? null : formData.get("product_id") || null,
+      tag_id: selectedTagId === "none" || selectedTagId === null ? null : selectedTagId,
     };
 
     if (editingWorkshop) {
@@ -532,9 +536,10 @@ const Workshops = () => {
     return workshop.title.toLowerCase().includes(query);
   });
 
-  // Sync selectedFunnelId when editingWorkshop changes
+  // Sync selectedFunnelId and selectedTagId when editingWorkshop changes
   useEffect(() => {
     setSelectedFunnelId(editingWorkshop?.funnel_id || null);
+    setSelectedTagId(editingWorkshop?.tag_id || null);
   }, [editingWorkshop]);
 
   // Real-time updates for leads, lead_assignments, call_appointments, and workshops
@@ -778,22 +783,55 @@ const Workshops = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                     <Label htmlFor="lead_id">Related Lead (Optional)</Label>
-                     <Select name="lead_id" defaultValue={editingWorkshop?.lead_id || "none"}>
-                       <SelectTrigger>
-                         <SelectValue placeholder="Select a lead" />
-                       </SelectTrigger>
-                       <SelectContent>
-                         <SelectItem value="none">None</SelectItem>
-                        {leads?.map((lead) => (
-                          <SelectItem key={lead.id} value={lead.id}>
-                            {lead.company_name}
-                          </SelectItem>
-                        ))}
+                    <Label htmlFor="tag_id">Tag (Optional)</Label>
+                    <Select 
+                      name="tag_id" 
+                      value={selectedTagId ?? "none"}
+                      onValueChange={(value) => setSelectedTagId(value === "none" ? null : value)}
+                      disabled={tagsLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={tagsLoading ? "Loading..." : "Select a tag"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {tags && tags.length > 0 ? (
+                          tags.map((tag) => (
+                            <SelectItem key={tag.id} value={tag.id}>
+                              <div className="flex items-center gap-2">
+                                <span 
+                                  className="h-2 w-2 rounded-full" 
+                                  style={{ backgroundColor: tag.color || '#8B5CF6' }} 
+                                />
+                                {tag.name}
+                              </div>
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="py-3 px-2 text-center text-sm text-muted-foreground">
+                            No tags available. Create tags in Settings → Notifications.
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
-                 </div>
+                </div>
+                <div className="space-y-2">
+                   <Label htmlFor="lead_id">Related Lead (Optional)</Label>
+                   <Select name="lead_id" defaultValue={editingWorkshop?.lead_id || "none"}>
+                     <SelectTrigger>
+                       <SelectValue placeholder="Select a lead" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="none">None</SelectItem>
+                      {leads?.map((lead) => (
+                        <SelectItem key={lead.id} value={lead.id}>
+                          {lead.company_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                </div>
                
                {editingWorkshop && (
