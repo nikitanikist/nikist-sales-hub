@@ -1,231 +1,168 @@
 
-# Add Manual Variable Support to "Send Message Now" Dialog
 
-## Problem
-When using "Send Message Now" to send an immediate message, templates containing manual variables like `{zoom_link}` or `{whatsapp_group_link}` display the literal placeholder text instead of actual values. The dialog currently only replaces auto-filled variables (workshop_name, date, time).
+# Enhance Workshop Notification: Cancel Messages, Group Search, and Simplified Group List
 
-## Current Flow
-```
-User clicks "Send Message Now"
-       ↓
-Select template from dropdown
-       ↓
-Preview shows {zoom_link} as literal text  ← BUG
-       ↓
-Message sent with {zoom_link} visible
-```
-
-## Proposed Flow
-```
-User clicks "Send Message Now"
-       ↓
-Select template from dropdown
-       ↓
-System scans template for {variables}
-       ↓
-If manual variables found:
-┌────────────────────────────────────────┐
-│ Template: After Noon Notification      │
-│                                        │
-│ Enter values for variables:            │
-│ ┌────────────────────────────────────┐ │
-│ │ Zoom Link *                        │ │
-│ │ [_________________________]        │ │
-│ └────────────────────────────────────┘ │
-│                                        │
-│ Message Preview:                       │
-│ ┌────────────────────────────────────┐ │
-│ │ Tonight at 7 PM, you'll learn...  │ │
-│ │                                    │ │
-│ │ https://zoom.us/j/123456          │ │
-│ └────────────────────────────────────┘ │
-└────────────────────────────────────────┘
-       ↓
-All variables replaced correctly
-       ↓
-Message sent with actual link
-```
+## Overview
+Three improvements to the Workshop Notification page to enhance usability:
+1. Add ability to cancel scheduled messages
+2. Add search functionality for WhatsApp groups
+3. Simplify group list by removing admin/non-admin separation
 
 ---
 
-## Implementation Details
+## 1. Cancel Scheduled Messages
 
-### File to Modify: `src/components/operations/SendMessageNowDialog.tsx`
+### Current State
+- The `cancelMessage` function already exists in the hook but is not exposed in the UI
+- Messages show status (pending, sent, failed, cancelled) but users cannot cancel pending ones
 
-**Changes needed:**
+### Changes Required
 
-1. **Import variable utilities**
-   - Import `extractVariables`, `categorizeVariables`, `getVariableLabel` from templateVariables.ts
+**File: `src/components/operations/MessageCheckpoints.tsx`**
 
-2. **Add state for manual variable inputs**
-   - Track manual variables detected in selected template
-   - Track user-entered values for each variable
+Add a cancel button for each pending message:
 
-3. **Detect variables when template is selected**
-   - When user selects a template, extract all variables from its content
-   - Separate into auto-filled and manual categories
+- Add `onCancel` prop to receive the cancel handler
+- Add `isCancelling` prop for loading state
+- For messages with status `pending`, show a small "Cancel" button/icon (X icon)
+- Disable the button while cancellation is in progress
+- Confirm before cancelling (optional - or just do it directly since it's easy to re-run)
 
-4. **Add input fields for manual variables**
-   - Show input fields for each manual variable when detected
-   - Pre-fill from saved workshop variables if available (need to pass savedVariables prop)
-
-5. **Update preview to show replaced values**
-   - Replace both auto-filled AND manual variables in the preview
-   - Show placeholder hint if variable not yet entered
-
-6. **Validate before sending**
-   - Require all manual variables to be filled
-   - Disable "Send Now" button until all fields have values
-
-7. **Pass complete content to onSend**
-   - Content passed to onSend should have all variables replaced
-
----
-
-### Updated Component Props
-
-```typescript
-interface SendMessageNowDialogProps {
-  // ... existing props
-  savedVariables?: Record<string, string>;  // NEW: Pre-fill from workshop variables
-}
-```
-
-### Key Code Changes
-
-**Variable Detection (when template selected):**
-```typescript
-const { autoFilled, manual } = useMemo(() => {
-  if (!selectedTemplate?.content) return { autoFilled: [], manual: [] };
-  const allVars = extractVariables(selectedTemplate.content);
-  return categorizeVariables(allVars);
-}, [selectedTemplate?.content]);
-```
-
-**State for manual variable values:**
-```typescript
-const [manualValues, setManualValues] = useState<Record<string, string>>({});
-
-// Initialize from saved values when template changes
-useEffect(() => {
-  const initial: Record<string, string> = {};
-  manual.forEach(key => {
-    initial[key] = savedVariables?.[key] || '';
-  });
-  setManualValues(initial);
-}, [manual, savedVariables]);
-```
-
-**Updated preview with all variables replaced:**
-```typescript
-const processedContent = useMemo(() => {
-  if (!selectedTemplate) return '';
-  let content = selectedTemplate.content
-    .replace(/{workshop_name}/gi, workshopTitle)
-    .replace(/{date}/gi, formatInOrgTime(workshopStartDate, timezone, 'MMMM d, yyyy'))
-    .replace(/{time}/gi, formatInOrgTime(workshopStartDate, timezone, 'h:mm a'));
-  
-  // Replace manual variables
-  for (const [key, value] of Object.entries(manualValues)) {
-    if (value) {
-      content = content.replace(new RegExp(`\\{${key}\\}`, 'gi'), value);
-    }
-  }
-  
-  return content;
-}, [selectedTemplate, workshopTitle, workshopStartDate, timezone, manualValues]);
-```
-
-**Validation:**
-```typescript
-const allManualFilled = manual.length === 0 || 
-  manual.every(key => manualValues[key]?.trim());
-```
-
----
-
-### UI Layout (when manual variables detected)
-
+**UI Layout:**
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ ↗ Send Message Now                                  ✕   │
+│ ○ 11:00 AM   Morning Reminder      [Scheduled] [✕]     │
+│ ○  1:00 PM   Afternoon Reminder    [Scheduled] [✕]     │
+│ ✓  6:00 PM   1 Hour Before         [Sent]              │
+│ ✗  6:30 PM   30 Min Before         [Cancelled]         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**File: `src/components/operations/WorkshopDetailSheet.tsx`**
+
+Pass the cancel handler down to MessageCheckpoints:
+- Destructure `cancelMessage` and `isCancellingMessage` from `useWorkshopNotification`
+- Pass these to `MessageCheckpoints` component
+
+---
+
+## 2. Search WhatsApp Groups
+
+### Current State
+- Groups are listed in a ScrollArea with no filtering
+- Users must manually scroll through all groups to find the one they want
+
+### Changes Required
+
+**File: `src/components/operations/MultiGroupSelect.tsx`**
+
+Add a search input at the top of the groups list:
+
+- Add `searchQuery` state
+- Add a search Input field with search icon
+- Filter `sessionGroups` based on search query (case-insensitive match on group name)
+- Clear search when session changes
+
+**UI Layout:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ WhatsApp Groups                              [⟳ Sync]   │
 ├─────────────────────────────────────────────────────────┤
-│                                                         │
-│ Select Template                                         │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ After Noon Notification-1PM                    ▼    │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                         │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ Enter values for variables:                         │ │
-│ │                                                     │ │
-│ │ Zoom Link *                                         │ │
-│ │ ┌─────────────────────────────────────────────────┐ │ │
-│ │ │ https://zoom.us/j/...                           │ │ │
-│ │ └─────────────────────────────────────────────────┘ │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                         │
-│ Message Preview                                         │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ https://joinnikitschool.in/crypto-loss-recovery   │ │
-│ │ framework                                          │ │
-│ │                                                    │ │
-│ │ Tonight at 7 PM, you'll learn everything in       │ │
-│ │ detail.                                           │ │
-│ │                                                    │ │
-│ │ https://zoom.us/j/123456789                       │ │
-│ │                                                    │ │
-│ │ 📷 Media attached                                  │ │
-│ └─────────────────────────────────────────────────────┘ │
-│ Variables like {workshop_name} are replaced with        │
-│ actual values                                           │
-│                                                         │
+│ [☐ Select All (24)]    [Clear (3)]                     │
 ├─────────────────────────────────────────────────────────┤
-│                        [Cancel]   [↗ Send Now (1 group)]│
+│ 🔍 [Search groups...                               ]    │
+├─────────────────────────────────────────────────────────┤
+│ ☑ Crypto Masterclass - Jan 2025          234 members   │
+│ ☑ Trading Workshop Q1                    156 members   │
+│ ☐ Options Basics Group                   89 members    │
+│ ☐ Futures Community                      312 members   │
+└─────────────────────────────────────────────────────────┘
+│ 3 groups selected                                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Parent Component Update
+## 3. Simplify Group List (Remove Admin/Non-Admin Separation)
 
-**WorkshopDetailSheet.tsx** - Pass saved variables to dialog:
+### Current State
+- Groups are separated into "Admin Groups" and "Not Admin" sections
+- Non-admin groups have reduced opacity and warning styling
+- "Select All Admin" button only selects admin groups
 
-```typescript
-<SendMessageNowDialog
-  // ... existing props
-  savedVariables={variablesMap}  // ADD THIS
-/>
+### Changes Required
+
+**File: `src/components/operations/MultiGroupSelect.tsx`**
+
+Remove the admin/non-admin categorization:
+
+- Remove `adminGroups` and `nonAdminGroups` computed values
+- Show all groups in a single flat list (alphabetically sorted)
+- Change "Select All Admin" button to "Select All" (selects all groups)
+- Remove the admin badge and warning styling from individual items
+- Remove the "without admin rights" warning in the selection summary
+- Keep participant count display for each group
+
+**Simplified UI:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ WhatsApp Groups                              [⟳ Sync]   │
+├─────────────────────────────────────────────────────────┤
+│ [☐ Select All (24)]    [Clear (3)]                     │
+├─────────────────────────────────────────────────────────┤
+│ 🔍 [Search groups...                               ]    │
+├─────────────────────────────────────────────────────────┤
+│ ☑ Crypto Masterclass - Jan 2025          234 members   │
+│ ☑ Futures Community                       312 members   │
+│ ☐ Options Basics Group                    89 members   │
+│ ☑ Trading Workshop Q1                     156 members   │
+└─────────────────────────────────────────────────────────┘
+│ 3 groups selected                                       │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Files to Modify
+## Technical Details
 
-| File | Change |
-|------|--------|
-| `src/components/operations/SendMessageNowDialog.tsx` | Add variable detection, input fields, and full replacement logic |
-| `src/components/operations/WorkshopDetailSheet.tsx` | Pass `savedVariables` prop to dialog |
+### Files to Modify
 
----
+| File | Changes |
+|------|---------|
+| `src/components/operations/MessageCheckpoints.tsx` | Add `onCancel` prop, render cancel button for pending messages |
+| `src/components/operations/WorkshopDetailSheet.tsx` | Pass cancel handler to MessageCheckpoints |
+| `src/components/operations/MultiGroupSelect.tsx` | Add search input, remove admin/non-admin separation, simplify Select All |
 
-## Edge Cases
+### MessageCheckpoints Props Update
+```typescript
+interface MessageCheckpointsProps {
+  checkpoints: Checkpoint[];
+  isLoading?: boolean;
+  timezone?: string;
+  onCancel?: (messageId: string) => void;  // NEW
+  isCancelling?: boolean;                   // NEW
+}
+```
 
-| Scenario | Behavior |
-|----------|----------|
-| Template has no manual variables | No input fields shown, works as before |
-| User switches to different template | Reset manual values, re-detect variables |
-| Saved variables exist for workshop | Pre-fill input fields |
-| User leaves field empty | "Send Now" button disabled |
-| Template has only auto-filled vars | No input section, works as before |
+### MultiGroupSelect State Addition
+```typescript
+const [searchQuery, setSearchQuery] = useState('');
+
+const filteredGroups = useMemo(() => 
+  sessionGroups.filter(g => 
+    g.group_name.toLowerCase().includes(searchQuery.toLowerCase())
+  ),
+  [sessionGroups, searchQuery]
+);
+```
 
 ---
 
 ## Summary
 
-This enhancement extends the existing variable system to the "Send Message Now" dialog:
-- Detects `{variable}` patterns in the selected template
-- Shows inline input fields for manual variables
-- Pre-fills from saved workshop variables when available
-- Updates preview in real-time as user types
-- Ensures complete variable replacement before sending
+| Feature | What Users Get |
+|---------|---------------|
+| **Cancel Messages** | Click X next to any scheduled (pending) message to cancel it |
+| **Search Groups** | Type to filter groups by name instead of scrolling |
+| **Simplified List** | All groups shown equally without admin/non-admin distinction |
+
