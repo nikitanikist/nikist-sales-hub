@@ -1,81 +1,91 @@
 
 
-# Fix Logo to Display as a Wide Wordmark Banner
+# Replace Logo Image with Animated Text Logo
 
-## Problem
-The current 64x64px square format doesn't work for your wordmark (text-based) logo. The square crops out the text and only shows the sparkle effects, making it look unprofessional. Wordmark logos need a wide, horizontal format.
+## Overview
+Remove the current PNG logo image and replace it with a stylish text-based logo reading "tagfunnel.ai" that features modern typography and a subtle animation effect.
 
-## Solution
-Create a wide banner-style container that spans the sidebar width with minimal height, and position the video to show the text portion.
+## What Will Change
 
-## Changes
+### Visual Design
+- **Text**: "tagfunnel.ai" displayed as styled text
+- **Typography**: Bold, modern font with the "tag" part in one style and "funnel.ai" potentially with a gradient or accent
+- **Animation**: Subtle shimmer/glow effect that runs on page load and optionally on hover
+- **Spacing**: Consistent 20px padding above and below, centered horizontally
 
-**File: `src/components/AppLayout.tsx`**
+### Design Concept
+```
+┌─────────────────────────┐
+│                         │  <- ~20px padding
+│     tagfunnel.ai        │  <- Gradient text with shimmer animation
+│                         │  <- ~20px padding
+├─────────────────────────┤
+│ Organization Switcher   │
+├─────────────────────────┤
+│ Dashboard               │
+└─────────────────────────┘
+```
 
-### Expanded Sidebar State (lines 76-85)
+## Implementation Steps
 
-Change from:
-```tsx
-<div className="w-16 h-16 mx-auto rounded-xl overflow-hidden shadow-md">
-  <video
-    src={logoVideo}
-    autoPlay
-    loop
-    muted
-    playsInline
-    className="w-full h-full object-cover scale-150"
-  />
+1. **Remove the logo image import** from AppLayout.tsx
+
+2. **Create a new TextLogo component** with:
+   - "tag" in white/light color
+   - "funnel" with a gradient effect (violet to purple, matching brand)
+   - ".ai" in a lighter accent color
+   - Animated shimmer effect on load
+   - Optional subtle hover glow
+
+3. **Update the sidebar header** to use the new text component instead of the `<img>` tag
+
+4. **Add a custom animation** to the CSS for the shimmer/glow effect
+
+5. **Handle collapsed sidebar state** - show just a "T" or funnel icon when sidebar is collapsed
+
+---
+
+## Technical Details
+
+### New CSS Animation (in index.css)
+A shimmer animation that creates a subtle light sweep across the text:
+- Gradient overlay that moves from left to right
+- Runs once on mount with a slight delay
+- Optional: repeats on hover
+
+### TextLogo Component Structure
+```text
+<div className="logo-container">
+  <span className="tag-part">tag</span>
+  <span className="funnel-part gradient-text">funnel</span>
+  <span className="ai-part">.ai</span>
 </div>
 ```
 
-To:
-```tsx
-<div className="w-full h-12 rounded-lg overflow-hidden">
-  <video
-    src={logoVideo}
-    autoPlay
-    loop
-    muted
-    playsInline
-    className="w-full h-auto object-cover object-bottom scale-[2] translate-y-[25%]"
-  />
-</div>
-```
+### Styling Approach
+- Use the existing `gradient-text` utility class for the gradient effect
+- Font: Inter (already imported), weight 700-800 for boldness
+- Size: Approximately 20-24px to fill the space appropriately
+- Colors: White for "tag", gradient violet-purple for "funnel", muted for ".ai"
 
-## Design Rationale
+### Files to Modify
 
-| Property | Value | Reason |
-|----------|-------|--------|
-| `w-full` | 100% width | Span the full sidebar width (~220px) |
-| `h-12` | 48px height | Compact banner height for wordmark |
-| `rounded-lg` | 8px corners | Softer corners that don't dominate |
-| `scale-[2]` | 200% zoom | Zoom in to focus on the text |
-| `object-bottom` | Bottom alignment | Focus on the text area at bottom of video |
-| `translate-y-[25%]` | Shift down | Fine-tune to center the text in view |
+| File | Changes |
+|------|---------|
+| `src/components/AppLayout.tsx` | Remove image import, add TextLogo component inline or as separate component |
+| `src/index.css` | Add new `@keyframes logo-shimmer` animation |
+| `tailwind.config.ts` | Add the shimmer animation to the config |
 
-## Visual Comparison
+### Animation Options
 
-**Before (Square - Current):**
-```
-┌────────────────────────┐
-│       ┌──────┐         │
-│       │ ✨✨ │         │  ← 64x64 square, only shows sparkles
-│       └──────┘         │
-│ [Organization Switch]  │
-└────────────────────────┘
-```
+**Option A: Shimmer Effect**
+A light sweep that moves across the text once on load, creating a premium feel.
 
-**After (Wide Banner):**
-```
-┌────────────────────────┐
-│ ┌────────────────────┐ │
-│ │   HIGH TICKET      │ │  ← Full width, 48px tall, text visible
-│ └────────────────────┘ │
-│ [Organization Switch]  │
-└────────────────────────┘
-```
+**Option B: Subtle Glow Pulse**
+The gradient portion gently pulses with a soft glow effect.
 
-## Summary
+**Option C: Letter-by-letter fade in**
+Each letter fades in sequentially for a dynamic entrance.
 
-The wordmark text will now be prominently displayed in a wide banner format that matches professional logo placement in sidebars. The video is scaled and positioned to crop out excess sparkle effects and focus on the readable text.
+The plan will implement Option A (shimmer) as it's the most polished and professional-looking while being subtle enough not to distract.
 
