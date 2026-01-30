@@ -1,6 +1,6 @@
 import { CheckCircle2, Circle, Clock, AlertCircle, XCircle, Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { formatInOrgTime, getTimezoneAbbreviation, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
 
 interface Checkpoint {
   id: string;
@@ -15,6 +15,7 @@ interface Checkpoint {
 interface MessageCheckpointsProps {
   checkpoints: Checkpoint[];
   isLoading?: boolean;
+  timezone?: string;
 }
 
 const statusConfig = {
@@ -39,18 +40,18 @@ const statusConfig = {
   failed: {
     icon: AlertCircle,
     label: 'Failed',
-    className: 'text-red-500',
-    badgeClass: 'bg-red-100 text-red-700',
+    className: 'text-destructive',
+    badgeClass: 'bg-destructive/10 text-destructive',
   },
   cancelled: {
     icon: XCircle,
     label: 'Cancelled',
-    className: 'text-slate-400',
-    badgeClass: 'bg-slate-100 text-slate-500',
+    className: 'text-muted-foreground',
+    badgeClass: 'bg-muted text-muted-foreground',
   },
 };
 
-export function MessageCheckpoints({ checkpoints, isLoading }: MessageCheckpointsProps) {
+export function MessageCheckpoints({ checkpoints, isLoading, timezone = DEFAULT_TIMEZONE }: MessageCheckpointsProps) {
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -77,8 +78,13 @@ export function MessageCheckpoints({ checkpoints, isLoading }: MessageCheckpoint
     );
   }
 
+  const tzAbbr = getTimezoneAbbreviation(timezone);
+
   return (
     <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Times shown in {tzAbbr}
+      </p>
       {checkpoints.map((checkpoint) => {
         const config = statusConfig[checkpoint.status];
         const Icon = config.icon;
@@ -106,11 +112,11 @@ export function MessageCheckpoints({ checkpoints, isLoading }: MessageCheckpoint
               </div>
               {checkpoint.status === 'sent' && checkpoint.sentAt && (
                 <p className="text-xs text-muted-foreground">
-                  Sent at {format(checkpoint.sentAt, 'h:mm a')}
+                  Sent at {formatInOrgTime(checkpoint.sentAt, timezone, 'h:mm a')}
                 </p>
               )}
               {checkpoint.status === 'failed' && checkpoint.errorMessage && (
-                <p className="text-xs text-red-500 truncate">
+                <p className="text-xs text-destructive truncate">
                   {checkpoint.errorMessage}
                 </p>
               )}
@@ -139,13 +145,14 @@ export function toCheckpoints(
     status: string;
     sent_at: string | null;
     error_message: string | null;
-  }>
+  }>,
+  timezone: string = DEFAULT_TIMEZONE
 ): Checkpoint[] {
   return messages.map((msg) => {
     const scheduledDate = new Date(msg.scheduled_for);
     return {
       id: msg.id,
-      time: format(scheduledDate, 'h:mm a'),
+      time: formatInOrgTime(scheduledDate, timezone, 'h:mm a'),
       label: msg.message_type.replace(/_/g, ' ').replace(/step \d+/i, 'Message'),
       status: msg.status as Checkpoint['status'],
       scheduledFor: scheduledDate,

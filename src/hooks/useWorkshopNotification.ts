@@ -2,8 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
-import { useEffect } from 'react';
-import { format, parse, setHours, setMinutes, setSeconds, isBefore } from 'date-fns';
+import { format, setHours, setMinutes, setSeconds, isBefore } from 'date-fns';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
 
 export interface ScheduledMessage {
   id: string;
@@ -53,6 +54,9 @@ export interface WorkshopWithDetails {
 export function useWorkshopNotification() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+
+  // Get organization timezone with fallback
+  const orgTimezone = currentOrganization?.timezone || DEFAULT_TIMEZONE;
 
   // Fetch workshops with their tags, groups, and registration counts
   const { data: workshops, isLoading: workshopsLoading, error } = useQuery({
@@ -236,8 +240,12 @@ export function useWorkshopNotification() {
       if (seqError) throw seqError;
       if (!sequenceData?.steps?.length) throw new Error('Sequence has no steps configured');
       
-      // Parse workshop date
-      const workshopDate = new Date(workshop.start_date);
+      // Parse workshop date - interpret as org timezone
+      // Workshop start_date is stored as a date string (YYYY-MM-DD) 
+      // We need to treat it as a date in the organization's timezone
+      const workshopDateStr = workshop.start_date;
+      const workshopDateInOrgTz = toZonedTime(new Date(workshopDateStr), orgTimezone);
+      
       const now = new Date();
       
       // Check for existing scheduled messages to avoid duplicates
@@ -259,20 +267,25 @@ export function useWorkshopNotification() {
         
         // Parse send_time (format: "HH:MM:SS")
         const [hours, minutes, seconds] = step.send_time.split(':').map(Number);
-        let scheduledFor = new Date(workshopDate);
-        scheduledFor = setHours(scheduledFor, hours);
-        scheduledFor = setMinutes(scheduledFor, minutes);
-        scheduledFor = setSeconds(scheduledFor, seconds || 0);
+        
+        // Create the scheduled time in org timezone
+        let scheduledInOrgTz = new Date(workshopDateInOrgTz);
+        scheduledInOrgTz = setHours(scheduledInOrgTz, hours);
+        scheduledInOrgTz = setMinutes(scheduledInOrgTz, minutes);
+        scheduledInOrgTz = setSeconds(scheduledInOrgTz, seconds || 0);
+        
+        // Convert to UTC for storage
+        const scheduledForUTC = fromZonedTime(scheduledInOrgTz, orgTimezone);
         
         // Skip if scheduled time is in the past
-        if (isBefore(scheduledFor, now)) continue;
+        if (isBefore(scheduledForUTC, now)) continue;
         
-        // Apply template variables
+        // Apply template variables - format dates in org timezone
         const templateContent = step.template?.content || '';
         const processedContent = templateContent
           .replace(/{workshop_name}/g, workshop.title)
-          .replace(/{date}/g, format(workshopDate, 'MMMM d, yyyy'))
-          .replace(/{time}/g, format(workshopDate, 'h:mm a'));
+          .replace(/{date}/g, format(workshopDateInOrgTz, 'MMMM d, yyyy'))
+          .replace(/{time}/g, format(workshopDateInOrgTz, 'h:mm a'));
         
         messagesToCreate.push({
           organization_id: currentOrganization.id,
@@ -281,7 +294,7 @@ export function useWorkshopNotification() {
           message_type: typeKey,
           message_content: processedContent,
           media_url: step.template?.media_url || null,
-          scheduled_for: scheduledFor.toISOString(),
+          scheduled_for: scheduledForUTC.toISOString(),
           status: 'pending' as const,
         });
       }
@@ -412,6 +425,7 @@ export function useWorkshopNotification() {
     workshops: workshops || [],
     workshopsLoading,
     error,
+    orgTimezone,
     useWorkshopMessages,
     subscribeToMessages,
     updateTag: updateTagMutation.mutate,

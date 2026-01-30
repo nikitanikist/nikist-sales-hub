@@ -6,7 +6,6 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Users, Calendar, Tag, MessageCircle, Smartphone, RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
 import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
@@ -15,6 +14,7 @@ import { WorkshopTagBadge } from './WorkshopTagBadge';
 import { MessageCheckpoints, toCheckpoints } from './MessageCheckpoints';
 import { MessagingActions } from './MessagingActions';
 import { SendMessageNowDialog } from './SendMessageNowDialog';
+import { formatInOrgTime } from '@/lib/timezoneUtils';
 
 interface WorkshopDetailSheetProps {
   workshop: WorkshopWithDetails | null;
@@ -37,6 +37,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     isSendingNow,
     useWorkshopMessages,
     subscribeToMessages,
+    orgTimezone,
   } = useWorkshopNotification();
   
   const { tags } = useWorkshopTags();
@@ -74,7 +75,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
   // Extract date portion to prevent timezone shifting (e.g., Jan 31 UTC showing as Feb 1 in IST)
   const datePart = workshop.start_date.split('T')[0];
   const workshopDate = new Date(datePart + 'T12:00:00');
-  const checkpoints = toCheckpoints(messages || []);
+  const checkpoints = toCheckpoints(messages || [], orgTimezone);
   const hasSequence = !!(workshop.tag?.template_sequence_id);
 
   return (
@@ -95,10 +96,10 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
               <div>
                 <p className="text-xs text-muted-foreground">Workshop Date</p>
                 <p className="text-sm font-medium">
-                  {format(workshopDate, 'MMM d, yyyy')}
+                  {formatInOrgTime(workshopDate, orgTimezone, 'MMM d, yyyy')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {format(workshopDate, 'EEEE')}
+                  {formatInOrgTime(workshopDate, orgTimezone, 'EEEE')}
                 </p>
               </div>
               <div>
@@ -275,6 +276,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
             <MessageCheckpoints 
               checkpoints={checkpoints}
               isLoading={messagesLoading}
+              timezone={orgTimezone}
             />
           </section>
 
