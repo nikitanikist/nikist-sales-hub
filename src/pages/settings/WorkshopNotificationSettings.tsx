@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image } from 'lucide-react';
 import { useMessageTemplates, TEMPLATE_VARIABLES, CreateTemplateInput } from '@/hooks/useMessageTemplates';
 import { useTemplateSequences, CreateSequenceInput, CreateStepInput } from '@/hooks/useTemplateSequences';
 import { useWorkshopTags, TAG_COLORS, CreateTagInput } from '@/hooks/useWorkshopTags';
@@ -471,13 +472,14 @@ function TagEditorDialog({
 
 // Main Settings Component
 export function WorkshopNotificationSettings() {
-  const { templates, templatesLoading, createTemplate, updateTemplate, deleteTemplate, isCreating, isUpdating } = useMessageTemplates();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { templates, templatesLoading, deleteTemplate } = useMessageTemplates();
   const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStep, isCreatingSequence } = useTemplateSequences();
   const { tags, tagsLoading, createTag, updateTag, deleteTag, isCreating: isCreatingTag, isUpdating: isUpdatingTag } = useWorkshopTags();
 
-  // Template dialog state
-  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  // Get initial tab from URL params
+  const initialTab = searchParams.get('tab') || 'templates';
 
   // Sequence dialog state
   const [sequenceDialogOpen, setSequenceDialogOpen] = useState(false);
@@ -496,7 +498,7 @@ export function WorkshopNotificationSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="templates" className="space-y-4">
+        <Tabs defaultValue={initialTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="templates" className="gap-2">
               <FileText className="h-4 w-4" />
@@ -518,7 +520,7 @@ export function WorkshopNotificationSettings() {
               <p className="text-sm text-muted-foreground">
                 Create reusable message templates with variables.
               </p>
-              <Button onClick={() => { setEditingTemplate(null); setTemplateDialogOpen(true); }}>
+              <Button onClick={() => navigate('/settings/templates/new')}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Template
               </Button>
@@ -548,16 +550,21 @@ export function WorkshopNotificationSettings() {
                   ) : (
                     templates.map((t) => (
                       <TableRow key={t.id}>
-                        <TableCell className="font-medium">{t.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {t.media_url && <Image className="h-4 w-4 text-muted-foreground" />}
+                            {t.name}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-muted-foreground max-w-xs truncate">
-                          {t.content.slice(0, 80)}...
+                          {t.content.slice(0, 80)}{t.content.length > 80 ? '...' : ''}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => { setEditingTemplate(t); setTemplateDialogOpen(true); }}
+                              onClick={() => navigate(`/settings/templates/${t.id}`)}
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
@@ -729,20 +736,6 @@ export function WorkshopNotificationSettings() {
         </Tabs>
 
         {/* Dialogs */}
-        <TemplateEditorDialog
-          open={templateDialogOpen}
-          onOpenChange={setTemplateDialogOpen}
-          template={editingTemplate}
-          onSave={async (data) => {
-            if (data.id) {
-              updateTemplate({ id: data.id, ...data });
-            } else {
-              await createTemplate(data);
-            }
-            setTemplateDialogOpen(false);
-          }}
-          isSaving={isCreating || isUpdating}
-        />
 
         <SequenceEditorDialog
           open={sequenceDialogOpen}
