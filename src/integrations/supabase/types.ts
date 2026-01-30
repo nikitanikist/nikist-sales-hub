@@ -2253,6 +2253,89 @@ export type Database = {
           },
         ]
       }
+      scheduled_whatsapp_messages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          group_id: string
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message_content: string
+          message_type: string
+          organization_id: string
+          retry_count: number | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          workshop_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          group_id: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_content: string
+          message_type: string
+          organization_id: string
+          retry_count?: number | null
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          workshop_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          group_id?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_content?: string
+          message_type?: string
+          organization_id?: string
+          retry_count?: number | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_whatsapp_messages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_whatsapp_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_whatsapp_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_whatsapp_messages_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_permissions: {
         Row: {
           created_at: string | null
@@ -2379,10 +2462,213 @@ export type Database = {
           },
         ]
       }
+      whatsapp_groups: {
+        Row: {
+          created_at: string
+          group_jid: string
+          group_name: string
+          id: string
+          invite_link: string | null
+          is_active: boolean | null
+          organization_id: string
+          participant_count: number | null
+          session_id: string
+          synced_at: string | null
+          updated_at: string
+          workshop_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          group_jid: string
+          group_name: string
+          id?: string
+          invite_link?: string | null
+          is_active?: boolean | null
+          organization_id: string
+          participant_count?: number | null
+          session_id: string
+          synced_at?: string | null
+          updated_at?: string
+          workshop_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          group_jid?: string
+          group_name?: string
+          id?: string
+          invite_link?: string | null
+          is_active?: boolean | null
+          organization_id?: string
+          participant_count?: number | null
+          session_id?: string
+          synced_at?: string | null
+          updated_at?: string
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_groups_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_groups_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_groups_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_message_templates: {
+        Row: {
+          content: string
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean | null
+          media_url: string | null
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          media_url?: string | null
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          media_url?: string | null
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_sessions: {
+        Row: {
+          connected_at: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          last_active_at: string | null
+          organization_id: string
+          phone_number: string
+          qr_code: string | null
+          qr_expires_at: string | null
+          session_data: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          connected_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          last_active_at?: string | null
+          organization_id: string
+          phone_number: string
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          session_data?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          connected_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          last_active_at?: string | null
+          organization_id?: string
+          phone_number?: string
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          session_data?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_automation_config: {
+        Row: {
+          auto_schedule_messages: boolean | null
+          created_at: string
+          default_workshop_time: string | null
+          id: string
+          message_schedule: Json | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_schedule_messages?: boolean | null
+          created_at?: string
+          default_workshop_time?: string | null
+          id?: string
+          message_schedule?: Json | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_schedule_messages?: boolean | null
+          created_at?: string
+          default_workshop_time?: string | null
+          id?: string
+          message_schedule?: Json | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_automation_config_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshops: {
         Row: {
           ad_spend: number | null
           amount: number | null
+          automation_status: Json | null
           created_at: string
           created_by: string
           current_participants: number | null
@@ -2401,10 +2687,12 @@ export type Database = {
           status: Database["public"]["Enums"]["workshop_status"]
           title: string
           updated_at: string
+          whatsapp_group_id: string | null
         }
         Insert: {
           ad_spend?: number | null
           amount?: number | null
+          automation_status?: Json | null
           created_at?: string
           created_by: string
           current_participants?: number | null
@@ -2423,10 +2711,12 @@ export type Database = {
           status?: Database["public"]["Enums"]["workshop_status"]
           title: string
           updated_at?: string
+          whatsapp_group_id?: string | null
         }
         Update: {
           ad_spend?: number | null
           amount?: number | null
+          automation_status?: Json | null
           created_at?: string
           created_by?: string
           current_participants?: number | null
@@ -2445,6 +2735,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["workshop_status"]
           title?: string
           updated_at?: string
+          whatsapp_group_id?: string | null
         }
         Relationships: [
           {
@@ -2480,6 +2771,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshops_whatsapp_group_id_fkey"
+            columns: ["whatsapp_group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
             referencedColumns: ["id"]
           },
         ]
