@@ -49,16 +49,17 @@ Deno.serve(async (req) => {
     });
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getUser(token);
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
     
-    if (claimsError || !claimsData?.user) {
+    if (claimsError || !claimsData?.claims) {
+      console.error('Auth validation failed:', claimsError);
       return new Response(
         JSON.stringify({ error: 'Invalid token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const userId = claimsData.user.id;
+    const userId = claimsData.claims.sub;
 
     // Parse request body
     const body: VPSProxyRequest = await req.json();
