@@ -472,6 +472,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
           }}
           isSending={isSendingNow}
           groupCount={selectedGroupIds.length}
+          savedVariables={variablesMap}
         />
       )}
 
