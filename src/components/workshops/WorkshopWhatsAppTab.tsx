@@ -71,6 +71,27 @@ export function WorkshopWhatsAppTab({ workshopId, workshopTitle }: WorkshopWhats
     linkToWorkshop({ groupId, workshopId: null });
   };
 
+  // Parse VPS error for better user feedback
+  const parseVpsError = (data: any): { title: string; description: string } => {
+    let title = 'Send Error';
+    let description = data?.error || 'An unknown error occurred';
+    
+    if (data?.upstream === 'vps') {
+      if (data?.status === 401) {
+        title = 'VPS Authentication Failed (401)';
+        description = data.hint || 'The VPS rejected the API key.';
+      } else if (data?.status === 404) {
+        title = 'VPS Endpoint Not Found (404)';
+        description = data.hint || 'The VPS endpoint was not found.';
+      } else if (data?.status && data?.status >= 500) {
+        title = `VPS Server Error (${data.status})`;
+        description = data.hint || 'The VPS service is experiencing issues.';
+      }
+    }
+    
+    return { title, description };
+  };
+
   // Send immediate message
   const sendMessageMutation = useMutation({
     mutationFn: async ({ groupId, message }: { groupId: string; message: string }) => {
@@ -103,7 +124,32 @@ export function WorkshopWhatsAppTab({ workshopId, workshopTitle }: WorkshopWhats
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        // Try to read error response body
+        try {
+          const resp = (response as any).response;
+          if (resp) {
+            const text = await resp.text();
+            const errorData = JSON.parse(text);
+            if (errorData?.upstream === 'vps') {
+              const { title, description } = parseVpsError(errorData);
+              toast.error(title, { description });
+              throw new Error(description);
+            }
+          }
+        } catch {
+          // Fall through to default error handling
+        }
+        throw response.error;
+      }
+      
+      // Check for VPS errors in response data
+      if (response.data?.upstream === 'vps' && response.data?.status >= 400) {
+        const { title, description } = parseVpsError(response.data);
+        toast.error(title, { description });
+        throw new Error(description);
+      }
+      
       return response.data;
     },
     onSuccess: () => {
@@ -111,7 +157,10 @@ export function WorkshopWhatsAppTab({ workshopId, workshopTitle }: WorkshopWhats
       setCustomMessage('');
     },
     onError: (error: Error) => {
-      toast.error('Failed to send message: ' + error.message);
+      // Only show generic toast if not a VPS error (already handled)
+      if (!error.message.includes('VPS')) {
+        toast.error('Failed to send message: ' + error.message);
+      }
     },
   });
 
