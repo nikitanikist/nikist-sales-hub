@@ -10,6 +10,7 @@ import { IntegrationSection } from "@/components/settings/IntegrationSection";
 import { GeneralSettings } from "@/pages/settings/GeneralSettings";
 import { ModulesSettings } from "@/pages/settings/ModulesSettings";
 import { PabblyIntegration } from "@/pages/settings/PabblyIntegration";
+import { WhatsAppConnection } from "@/pages/settings/WhatsAppConnection";
 import { PageIntro } from "@/components/PageIntro";
 import { CloserAssignments } from "@/components/settings/CloserAssignments";
 
@@ -276,13 +277,7 @@ const OrganizationSettings = () => {
             </TabsContent>
 
             <TabsContent value="whatsapp">
-              <IntegrationSection
-                type="whatsapp"
-                integrations={groupedIntegrations.whatsapp}
-                onSave={handleSave}
-                onDelete={handleDelete}
-                isSaving={saveMutation.isPending}
-              />
+              <WhatsAppConnection />
             </TabsContent>
 
             <TabsContent value="webhooks">
