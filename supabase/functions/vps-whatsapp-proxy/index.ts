@@ -491,16 +491,39 @@ Deno.serve(async (req) => {
         
         if (upsertError) {
           console.error('Failed to upsert groups:', upsertError);
-        } else {
-          console.log(`Synced ${groupsToUpsert.length} groups`);
+          // Return error to frontend - do NOT return success
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              upstream: 'db',
+              error: 'Failed to save groups to database',
+              code: upsertError.code,
+              details: upsertError.message,
+              vpsCount: vpsGroups.length,
+              savedCount: 0
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
+        
+        // Verify groups were actually saved by counting
+        const { count: savedCount, error: countError } = await supabase
+          .from('whatsapp_groups')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', organizationId)
+          .eq('session_id', localSessionIdForDb)
+          .eq('is_active', true);
+        
+        const actualSavedCount = countError ? groupsToUpsert.length : (savedCount || 0);
+        console.log(`Synced ${groupsToUpsert.length} groups from VPS, ${actualSavedCount} verified in DB`);
         
         // Return groups count to frontend
         return new Response(
           JSON.stringify({ 
             success: true, 
             groups: groupsToUpsert,
-            count: groupsToUpsert.length 
+            vpsCount: vpsGroups.length,
+            savedCount: actualSavedCount
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -508,7 +531,7 @@ Deno.serve(async (req) => {
       
       // No groups found
       return new Response(
-        JSON.stringify({ success: true, groups: [], count: 0 }),
+        JSON.stringify({ success: true, groups: [], vpsCount: 0, savedCount: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

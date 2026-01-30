@@ -117,15 +117,35 @@ export function useWhatsAppGroups() {
         throw new Error(description);
       }
       
+      // Check for database errors from the backend
+      if (response.data?.upstream === 'db' && !response.data?.success) {
+        const errorMsg = response.data?.details || response.data?.error || 'Database save failed';
+        toast.error('Failed to save groups', { 
+          description: `Error: ${errorMsg} (Code: ${response.data?.code || 'unknown'})`
+        });
+        throw new Error(errorMsg);
+      }
+      
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
-      toast.success(`Synced ${data.groups?.length || 0} groups`);
+      // Immediately invalidate and refetch to update the UI
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups', currentOrganization?.id] });
+      
+      const savedCount = data.savedCount ?? data.groups?.length ?? 0;
+      const vpsCount = data.vpsCount ?? savedCount;
+      
+      if (savedCount === 0 && vpsCount > 0) {
+        toast.warning(`Fetched ${vpsCount} groups but none were saved`, {
+          description: 'There may be a database issue. Check backend logs.'
+        });
+      } else {
+        toast.success(`Saved ${savedCount} groups`);
+      }
     },
     onError: (error: Error) => {
-      // Only show generic toast if not a VPS error (already handled)
-      if (!error.message.includes('VPS')) {
+      // Only show generic toast if not already handled
+      if (!error.message.includes('VPS') && !error.message.includes('database')) {
         toast.error('Failed to sync groups: ' + error.message);
       }
     },
