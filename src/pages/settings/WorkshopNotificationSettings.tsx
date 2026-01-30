@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,18 +33,34 @@ function TemplateEditorDialog({
   const [name, setName] = useState(template?.name || '');
   const [content, setContent] = useState(template?.content || '');
   const [description, setDescription] = useState(template?.description || '');
+  const [mediaUrl, setMediaUrl] = useState(template?.media_url || '');
+
+  // Sync state when template prop changes
+  useEffect(() => {
+    if (template) {
+      setName(template.name || '');
+      setContent(template.content || '');
+      setDescription(template.description || '');
+      setMediaUrl(template.media_url || '');
+    } else {
+      setName('');
+      setContent('');
+      setDescription('');
+      setMediaUrl('');
+    }
+  }, [template]);
 
   const handleSave = () => {
     if (!name.trim() || !content.trim()) {
       toast.error('Name and content are required');
       return;
     }
-    onSave({ id: template?.id, name, content, description });
+    onSave({ id: template?.id, name, content, description, media_url: mediaUrl.trim() || null });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{template ? 'Edit Template' : 'Create Template'}</DialogTitle>
           <DialogDescription>
@@ -91,6 +107,25 @@ function TemplateEditorDialog({
               ))}
             </div>
           </div>
+          <div className="space-y-2">
+            <Label>Media URL (Optional)</Label>
+            <Input
+              value={mediaUrl}
+              onChange={(e) => setMediaUrl(e.target.value)}
+              placeholder="https://example.com/image.jpg"
+            />
+            {mediaUrl && (
+              <img
+                src={mediaUrl}
+                alt="Preview"
+                className="h-20 object-cover rounded border"
+                onError={(e) => (e.currentTarget.style.display = 'none')}
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Enter an image or video URL to attach media to this template.
+            </p>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -131,6 +166,21 @@ function SequenceEditorDialog({
   const [newStepTime, setNewStepTime] = useState('11:00');
   const [newStepTemplate, setNewStepTemplate] = useState('');
   const [newStepLabel, setNewStepLabel] = useState('');
+
+  // Sync state when sequence prop changes
+  useEffect(() => {
+    if (sequence) {
+      setName(sequence.name || '');
+      setDescription(sequence.description || '');
+    } else {
+      setName('');
+      setDescription('');
+    }
+    // Reset step inputs when sequence changes
+    setNewStepTime('11:00');
+    setNewStepTemplate('');
+    setNewStepLabel('');
+  }, [sequence]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -307,6 +357,21 @@ function TagEditorDialog({
   const [color, setColor] = useState(tag?.color || TAG_COLORS[0].value);
   const [description, setDescription] = useState(tag?.description || '');
   const [sequenceId, setSequenceId] = useState(tag?.template_sequence_id || '_none');
+
+  // Sync state when tag prop changes
+  useEffect(() => {
+    if (tag) {
+      setName(tag.name || '');
+      setColor(tag.color || TAG_COLORS[0].value);
+      setDescription(tag.description || '');
+      setSequenceId(tag.template_sequence_id || '_none');
+    } else {
+      setName('');
+      setColor(TAG_COLORS[0].value);
+      setDescription('');
+      setSequenceId('_none');
+    }
+  }, [tag]);
 
   const handleSave = () => {
     if (!name.trim()) {
