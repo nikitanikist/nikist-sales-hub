@@ -378,8 +378,8 @@ export function useWorkshopNotification() {
         throw new Error('WhatsApp session not found');
       }
 
-      const sessionData = session.session_data as { sessionId?: string };
-      const vpsSessionId = sessionData.sessionId;
+      const sessionData = session.session_data as { vps_session_id?: string };
+      const vpsSessionId = sessionData.vps_session_id;
 
       if (!vpsSessionId) {
         throw new Error('WhatsApp session is not properly configured');
