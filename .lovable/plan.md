@@ -1,30 +1,21 @@
 
+# Fix: Add "sync-groups" Action to WhatsApp VPS Proxy
 
-## Problem Analysis
+## Problem Identified
 
-From the screenshot and database query, you have **3 stale sessions** stuck in "connecting" status:
-- `19aec740-1add-4da7-9...` - Last active: null
-- `32b178de-c23d-4083-9...` - Last active: null  
-- `a08c1e45-4abd-4580-8...` - Last active: null
+The "Sync WhatsApp Group" button fails with **"Edge function return is none"** because:
 
-These sessions were created when you clicked "Connect Device" but then cancelled or navigated away before completing the connection. They are:
-1. Cluttering the UI with useless entries
-2. Potentially still being polled by the VPS (wasting resources)
+1. The frontend (`useWhatsAppGroups.ts`) calls the edge function with `action: 'sync-groups'`
+2. The edge function (`vps-whatsapp-proxy/index.ts`) only handles these actions: `connect`, `status`, `disconnect`, `send`, `health`
+3. The `sync-groups` action falls through to the `default` case and returns an "Invalid action" error
+4. This causes the mutation to fail with a confusing error message
 
----
+## Solution
 
-## Solution Overview
-
-We will implement **automatic cleanup of stale sessions** and add a **delete button** for manual cleanup:
-
-### 1. Add a "Delete Session" button for each non-connected session
-Users should be able to manually delete abandoned sessions from the history list.
-
-### 2. Clean up sessions when user cancels connection
-When the user clicks "Cancel" in the QR dialog, we should delete the session from the database (not just stop polling).
-
-### 3. Auto-cleanup stale sessions on page load
-Sessions that have been in "connecting" status for more than 5 minutes with no activity should be automatically cleaned up.
+Add a new `sync-groups` case to the edge function that:
+1. Calls the VPS `/groups/:sessionId` endpoint to fetch all WhatsApp groups
+2. Stores the groups in the `whatsapp_groups` database table
+3. Returns the synced groups to the frontend
 
 ---
 
@@ -32,152 +23,160 @@ Sessions that have been in "connecting" status for more than 5 minutes with no a
 
 | File | Changes |
 |------|---------|
-| `src/hooks/useWhatsAppSession.ts` | Add `deleteSession` mutation, update `cancelConnection` to delete DB record, add auto-cleanup logic |
-| `src/pages/settings/WhatsAppConnection.tsx` | Add delete button for non-connected sessions in the session history list |
+| `supabase/functions/vps-whatsapp-proxy/index.ts` | Add `sync-groups` action handler |
 
 ---
 
-## Technical Details
+## Technical Implementation
 
-### 1. Hook Changes (`useWhatsAppSession.ts`)
+### 1. Update VPSProxyRequest Interface
 
-**Add a delete session mutation:**
+Add `sync-groups` to the allowed actions:
+
 ```typescript
-const deleteSessionMutation = useMutation({
-  mutationFn: async (sessionId: string) => {
-    const { error } = await supabase
-      .from('whatsapp_sessions')
-      .delete()
-      .eq('id', sessionId);
-    if (error) throw error;
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
-    toast.success('Session removed');
-  },
-});
+interface VPSProxyRequest {
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups';
+  sessionId?: string;
+  organizationId?: string;
+  groupId?: string;
+  message?: string;
+  mediaUrl?: string;
+  mediaType?: string;
+}
 ```
 
-**Update `cancelConnection` to delete the current session:**
+### 2. Add sync-groups Case in Switch Statement
+
+After the `send` case (around line 260), add:
+
 ```typescript
-const cancelConnection = useCallback(async () => {
-  const currentSessionId = connectionState.sessionId;
-  
-  setPollingInterval(null);
-  setConnectionState({
-    isConnecting: false,
-    sessionId: null,
-    qrCode: null,
-    status: 'disconnected',
-    error: null,
-  });
-  
-  // Delete the abandoned session from DB
-  if (currentSessionId) {
-    await supabase
-      .from('whatsapp_sessions')
-      .delete()
-      .eq('id', currentSessionId);
-    queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+case 'sync-groups': {
+  if (!sessionId || !organizationId) {
+    return new Response(
+      JSON.stringify({ error: 'Session ID and Organization ID are required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
-}, [connectionState.sessionId, queryClient]);
+  
+  localSessionIdForDb = sessionId;
+  vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+  
+  if (!vpsSessionIdForVps) {
+    console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+    vpsSessionIdForVps = sessionId;
+  }
+  
+  // Call VPS to get groups - typical endpoint is /groups/:sessionId
+  vpsEndpoint = `/groups/${vpsSessionIdForVps}`;
+  vpsMethod = 'GET';
+  break;
+}
 ```
 
-**Add auto-cleanup effect for stale sessions:**
+### 3. Handle sync-groups Response (Store Groups in DB)
+
+After the existing status update block (around line 394), add logic to store groups when the action is `sync-groups`:
+
 ```typescript
-// Auto-cleanup stale sessions (connecting for >5 minutes with no activity)
-useEffect(() => {
-  if (!sessions || !currentOrganization) return;
+// Store groups for sync-groups action
+if (action === 'sync-groups' && isJson && localSessionIdForDb && organizationId) {
+  const vpsGroups = responseData?.groups || responseData || [];
   
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-  const staleSessions = sessions.filter(s => 
-    s.status === 'connecting' && 
-    s.created_at < fiveMinutesAgo &&
-    !s.last_active_at
-  );
-  
-  if (staleSessions.length > 0) {
-    // Clean up stale sessions
-    supabase
-      .from('whatsapp_sessions')
-      .delete()
-      .in('id', staleSessions.map(s => s.id))
-      .then(() => {
-        queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+  if (Array.isArray(vpsGroups) && vpsGroups.length > 0) {
+    // Upsert groups into database
+    const groupsToUpsert = vpsGroups.map((g: any) => ({
+      organization_id: organizationId,
+      session_id: localSessionIdForDb,
+      group_jid: g.id || g.jid || g.groupId,
+      group_name: g.name || g.subject || 'Unknown Group',
+      participant_count: g.participants?.length || g.size || 0,
+      is_active: true,
+      synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+    
+    const { error: upsertError } = await supabase
+      .from('whatsapp_groups')
+      .upsert(groupsToUpsert, { 
+        onConflict: 'group_jid,organization_id',
+        ignoreDuplicates: false 
       });
+    
+    if (upsertError) {
+      console.error('Failed to upsert groups:', upsertError);
+    } else {
+      console.log(`Synced ${groupsToUpsert.length} groups`);
+    }
+    
+    // Return groups count to frontend
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        groups: groupsToUpsert,
+        count: groupsToUpsert.length 
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
-}, [sessions, currentOrganization, queryClient]);
+  
+  // No groups found
+  return new Response(
+    JSON.stringify({ success: true, groups: [], count: 0 }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
 ```
 
-### 2. UI Changes (`WhatsAppConnection.tsx`)
+---
 
-**Add delete button for non-connected sessions:**
-```tsx
-{sessions.map((session) => (
-  <div key={session.id} className="flex items-center justify-between p-3 border rounded-lg">
-    <div className="flex items-center gap-3">
-      <Smartphone className="h-4 w-4 text-muted-foreground" />
-      <div>
-        <p className="text-sm font-medium">
-          {session.phone_number || session.display_name || session.id.slice(0, 20) + '...'}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Last active: {format(new Date(session.updated_at), 'PP p')}
-        </p>
-      </div>
-    </div>
-    <div className="flex items-center gap-2">
-      <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}>
-        {session.status}
-      </Badge>
-      {session.status !== 'connected' && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => deleteSession(session.id)}
-          disabled={isDeletingSession}
-        >
-          <Trash2 className="h-4 w-4 text-muted-foreground" />
-        </Button>
-      )}
-    </div>
-  </div>
-))}
+## VPS Requirement
+
+**Important**: This fix assumes your VPS has a `/groups/:sessionId` endpoint that returns WhatsApp groups. If your VPS uses a different endpoint, you'll need to update the `vpsEndpoint` path accordingly.
+
+The expected response from VPS should be an array of groups like:
+```json
+{
+  "groups": [
+    { "id": "120363xxx@g.us", "name": "My Group", "participants": [...] },
+    ...
+  ]
+}
+```
+
+If your VPS doesn't have this endpoint yet, you'll need to add it to your Baileys service:
+
+```javascript
+// In your VPS server
+app.get('/groups/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session?.socket) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  
+  try {
+    const groups = await session.socket.groupFetchAllParticipating();
+    const groupList = Object.values(groups).map(g => ({
+      id: g.id,
+      name: g.subject,
+      participants: g.participants
+    }));
+    res.json({ groups: groupList });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 ```
 
 ---
 
 ## Expected Behavior After Fix
 
-1. **Manual cleanup**: Each session in the history (except "connected" ones) will have a trash icon button to delete it
-2. **Cancel cleanup**: When user clicks "Cancel" in the QR dialog, the abandoned session is deleted from the database
-3. **Auto cleanup**: On page load, any session stuck in "connecting" status for more than 5 minutes (without activity) will be automatically deleted
-4. **Better UX**: The session history will only show meaningful entries (connected sessions or active connection attempts)
-
----
-
-## Visual Change
-
-```text
-Before:
-+----------------------------------+-------------+
-| 19aec740-1add-4da7-9...          | connecting  |
-+----------------------------------+-------------+
-| 32b178de-c23d-4083-9...          | connecting  |
-+----------------------------------+-------------+
-| a08c1e45-4abd-4580-8...          | connecting  |
-+----------------------------------+-------------+
-
-After (with delete buttons):
-+----------------------------------+-------------+------+
-| 19aec740-1add-4da7-9...          | connecting  | [X]  |
-+----------------------------------+-------------+------+
-| 32b178de-c23d-4083-9...          | connecting  | [X]  |
-+----------------------------------+-------------+------+
-| a08c1e45-4abd-4580-8...          | connecting  | [X]  |
-+----------------------------------+-------------+------+
-
-After auto-cleanup runs (or user deletes):
-(Empty - all stale sessions removed)
-```
-
+1. User clicks "Sync WhatsApp Group"
+2. Edge function receives `action: 'sync-groups'`
+3. Edge function calls VPS `/groups/wa_xxx` endpoint
+4. VPS returns list of WhatsApp groups
+5. Edge function stores groups in `whatsapp_groups` table
+6. Frontend shows "Synced X groups" toast
+7. Groups appear in the UI for linking to workshops
