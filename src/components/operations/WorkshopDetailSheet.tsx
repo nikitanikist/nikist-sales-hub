@@ -42,6 +42,8 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     isRunningMessaging,
     sendMessageNow,
     isSendingNow,
+    cancelMessage,
+    isCancellingMessage,
     useWorkshopMessages,
     useWorkshopGroups: useFetchWorkshopGroups,
     subscribeToMessages,
@@ -426,6 +428,8 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                 checkpoints={checkpoints}
                 isLoading={messagesLoading}
                 timezone={orgTimezone}
+                onCancel={cancelMessage}
+                isCancelling={isCancellingMessage}
               />
             </div>
           </CollapsibleSection>

@@ -1,6 +1,7 @@
-import { CheckCircle2, Circle, Clock, AlertCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, AlertCircle, XCircle, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatInOrgTime, getTimezoneAbbreviation, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
+import { Button } from '@/components/ui/button';
 
 interface Checkpoint {
   id: string;
@@ -16,6 +17,8 @@ interface MessageCheckpointsProps {
   checkpoints: Checkpoint[];
   isLoading?: boolean;
   timezone?: string;
+  onCancel?: (messageId: string) => void;
+  isCancelling?: boolean;
 }
 
 const statusConfig = {
@@ -51,7 +54,13 @@ const statusConfig = {
   },
 };
 
-export function MessageCheckpoints({ checkpoints, isLoading, timezone = DEFAULT_TIMEZONE }: MessageCheckpointsProps) {
+export function MessageCheckpoints({ 
+  checkpoints, 
+  isLoading, 
+  timezone = DEFAULT_TIMEZONE,
+  onCancel,
+  isCancelling,
+}: MessageCheckpointsProps) {
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -88,6 +97,7 @@ export function MessageCheckpoints({ checkpoints, isLoading, timezone = DEFAULT_
       {checkpoints.map((checkpoint) => {
         const config = statusConfig[checkpoint.status];
         const Icon = config.icon;
+        const canCancel = checkpoint.status === 'pending' && onCancel;
         
         return (
           <div
@@ -121,14 +131,32 @@ export function MessageCheckpoints({ checkpoints, isLoading, timezone = DEFAULT_
                 </p>
               )}
             </div>
-            <span
-              className={cn(
-                'text-xs font-medium px-2 py-0.5 rounded-full',
-                config.badgeClass
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  'text-xs font-medium px-2 py-0.5 rounded-full',
+                  config.badgeClass
+                )}
+              >
+                {config.label}
+              </span>
+              {canCancel && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => onCancel(checkpoint.id)}
+                  disabled={isCancelling}
+                  title="Cancel this message"
+                >
+                  {isCancelling ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <X className="h-3.5 w-3.5" />
+                  )}
+                </Button>
               )}
-            >
-              {config.label}
-            </span>
+            </div>
           </div>
         );
       })}
