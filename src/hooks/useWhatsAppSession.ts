@@ -33,6 +33,43 @@ interface VpsErrorResponse {
   hint?: string;
   suggestion?: string;
   responsePreview?: string;
+  debug?: {
+    vpsUrlConfigured?: boolean;
+    apiKeyLength?: number;
+    endpoint?: string;
+  };
+}
+
+interface TestVpsResult {
+  success: boolean;
+  status?: number;
+  message: string;
+  hint?: string;
+  debug?: Record<string, unknown>;
+}
+
+// Helper function to parse VPS error response body from supabase.functions.invoke
+async function parseInvokeError(error: unknown, response?: Response): Promise<VpsErrorResponse> {
+  // Try to read the response body if available
+  if (response) {
+    try {
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { error: text || 'Unknown error' };
+      }
+    } catch {
+      // Couldn't read response
+    }
+  }
+  
+  // Fallback to error message
+  if (error instanceof Error) {
+    return { error: error.message };
+  }
+  
+  return { error: 'Unknown error occurred' };
 }
 
 // Helper function to handle VPS error responses (outside component to avoid hook issues)
@@ -45,18 +82,21 @@ function parseVpsError(data: VpsErrorResponse, context: string): { title: string
   // Check if this is a VPS upstream error
   if (data.upstream === 'vps') {
     if (data.status === 401) {
-      title = 'VPS Authentication Failed';
+      title = 'VPS Authentication Failed (401)';
       description = data.hint || 'The VPS rejected the API key. Please verify the WHATSAPP_VPS_API_KEY secret is correct.';
       
-      // Log suggestion for debugging
+      // Log debug info
+      if (data.debug) {
+        console.info('VPS Debug info:', data.debug);
+      }
       if (data.suggestion) {
         console.info('Suggestion:', data.suggestion);
       }
     } else if (data.status === 404) {
-      title = 'VPS Endpoint Not Found';
+      title = 'VPS Endpoint Not Found (404)';
       description = data.hint || 'The VPS endpoint was not found. Check VPS configuration.';
     } else if (data.status && data.status >= 500) {
-      title = 'VPS Server Error';
+      title = `VPS Server Error (${data.status})`;
       description = data.hint || 'The WhatsApp VPS service is experiencing issues. Please try again later.';
     }
     
@@ -106,6 +146,59 @@ export function useWhatsAppSession() {
     enabled: !!currentOrganization,
   });
 
+  // Test VPS Connection mutation
+  const testVpsMutation = useMutation({
+    mutationFn: async (): Promise<TestVpsResult> => {
+      const organizationId = orgIdRef.current;
+      if (!organizationId) throw new Error('No organization selected');
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+
+      const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
+        body: {
+          action: 'health',
+          organizationId,
+        },
+      });
+
+      // Handle invoke-level errors
+      if (response.error) {
+        // Try to parse error body
+        const errorData = await parseInvokeError(response.error, (response as any).response);
+        
+        if (errorData.upstream === 'vps') {
+          return {
+            success: false,
+            status: errorData.status,
+            message: errorData.error || 'VPS request failed',
+            hint: errorData.hint,
+            debug: errorData.debug,
+          };
+        }
+        
+        throw new Error(errorData.error || response.error.message);
+      }
+      
+      // Check for upstream VPS errors in the response data
+      if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
+        return {
+          success: false,
+          status: response.data.status,
+          message: response.data.error || 'VPS request failed',
+          hint: response.data.hint,
+          debug: response.data.debug,
+        };
+      }
+      
+      return {
+        success: true,
+        status: 200,
+        message: 'VPS connection successful!',
+      };
+    },
+  });
+
   // Start connection mutation - defined before any callbacks that might use it
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -122,7 +215,18 @@ export function useWhatsAppSession() {
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        // Try to get more details from the response
+        const errorData = await parseInvokeError(response.error, (response as any).response);
+        
+        if (errorData.upstream === 'vps') {
+          const { title, description } = parseVpsError(errorData, 'connect');
+          toast.error(title, { description });
+          throw new Error(description);
+        }
+        
+        throw response.error;
+      }
       
       // Check for upstream VPS errors in the response
       if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
@@ -175,7 +279,15 @@ export function useWhatsAppSession() {
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        const errorData = await parseInvokeError(response.error, (response as any).response);
+        if (errorData.upstream === 'vps') {
+          const { title, description } = parseVpsError(errorData, 'disconnect');
+          toast.error(title, { description });
+          throw new Error(description);
+        }
+        throw response.error;
+      }
       return response.data;
     },
     onSuccess: () => {
@@ -183,7 +295,9 @@ export function useWhatsAppSession() {
       toast.success('WhatsApp disconnected');
     },
     onError: (error: Error) => {
-      toast.error('Failed to disconnect', { description: error.message });
+      if (!error.message.includes('VPS')) {
+        toast.error('Failed to disconnect', { description: error.message });
+      }
     },
   });
 
@@ -203,7 +317,15 @@ export function useWhatsAppSession() {
       },
     });
 
-    if (response.error) throw response.error;
+    if (response.error) {
+      const errorData = await parseInvokeError(response.error, (response as any).response);
+      if (errorData.upstream === 'vps') {
+        const { title, description } = parseVpsError(errorData, action);
+        toast.error(title, { description });
+        throw new Error(description);
+      }
+      throw response.error;
+    }
     
     // Check for upstream VPS errors in the response
     if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
@@ -298,5 +420,8 @@ export function useWhatsAppSession() {
     disconnect: disconnectMutation.mutate,
     isDisconnecting: disconnectMutation.isPending,
     cancelConnection,
+    // Test VPS Connection
+    testVpsConnection: testVpsMutation.mutateAsync,
+    isTestingVps: testVpsMutation.isPending,
   };
 }

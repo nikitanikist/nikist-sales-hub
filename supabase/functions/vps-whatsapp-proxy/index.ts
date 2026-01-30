@@ -74,6 +74,27 @@ async function fetchWithAuthRetry(
   return { response: lastResponse!, strategyUsed: -1 };
 }
 
+// Lookup VPS session ID from local DB session UUID
+async function getVpsSessionId(
+  supabaseClient: any,
+  localSessionId: string
+): Promise<string | null> {
+  const { data, error } = await supabaseClient
+    .from('whatsapp_sessions')
+    .select('session_data')
+    .eq('id', localSessionId)
+    .single();
+
+  if (error || !data) {
+    console.error('Failed to lookup VPS session ID:', error);
+    return null;
+  }
+
+  // session_data is JSONB with { vps_session_id: "..." }
+  const sessionData = (data as any)?.session_data as { vps_session_id?: string } | null;
+  return sessionData?.vps_session_id || null;
+}
+
 interface VPSProxyRequest {
   action: 'connect' | 'status' | 'qr' | 'disconnect' | 'sync-groups' | 'send' | 'health';
   sessionId?: string;
@@ -101,7 +122,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'WhatsApp VPS not configured',
-          hint: 'Please set WHATSAPP_VPS_URL and WHATSAPP_VPS_API_KEY secrets'
+          hint: 'Please set WHATSAPP_VPS_URL and WHATSAPP_VPS_API_KEY secrets in your backend'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -164,75 +185,87 @@ Deno.serve(async (req) => {
     let vpsEndpoint = '';
     let vpsMethod = 'GET';
     let vpsBody: Record<string, unknown> | null = null;
+    let localSessionIdForDb: string | null = null;
+    let vpsSessionIdForVps: string | null = null;
 
     switch (action) {
-      case 'connect':
+      case 'connect': {
+        // Generate local session UUID and VPS-friendly session ID
+        localSessionIdForDb = crypto.randomUUID();
+        vpsSessionIdForVps = `wa_${localSessionIdForDb}`;
+        
         vpsEndpoint = '/connect';
         vpsMethod = 'POST';
-        vpsBody = { sessionId: sessionId || `org_${organizationId}_${Date.now()}` };
+        vpsBody = { sessionId: vpsSessionIdForVps };
         break;
+      }
 
       case 'status':
-        if (!sessionId) {
-          return new Response(
-            JSON.stringify({ error: 'Session ID required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        vpsEndpoint = `/status/${sessionId}`;
-        vpsMethod = 'GET';
-        break;
-
       case 'qr':
-        if (!sessionId) {
-          return new Response(
-            JSON.stringify({ error: 'Session ID required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        vpsEndpoint = `/qr/${sessionId}`;
-        vpsMethod = 'GET';
-        break;
-
       case 'disconnect':
+      case 'sync-groups': {
         if (!sessionId) {
           return new Response(
             JSON.stringify({ error: 'Session ID required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        vpsEndpoint = `/disconnect/${sessionId}`;
-        vpsMethod = 'POST';
-        break;
-
-      case 'sync-groups':
-        if (!sessionId) {
-          return new Response(
-            JSON.stringify({ error: 'Session ID required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        
+        localSessionIdForDb = sessionId;
+        
+        // Lookup VPS session ID from database
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          // Fallback: maybe it's a legacy session where session_data wasn't populated
+          // Try using the sessionId directly as the VPS session ID
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
         }
-        vpsEndpoint = `/groups/sync/${sessionId}`;
-        vpsMethod = 'POST';
+        
+        if (action === 'status') {
+          vpsEndpoint = `/status/${vpsSessionIdForVps}`;
+          vpsMethod = 'GET';
+        } else if (action === 'qr') {
+          vpsEndpoint = `/qr/${vpsSessionIdForVps}`;
+          vpsMethod = 'GET';
+        } else if (action === 'disconnect') {
+          vpsEndpoint = `/disconnect/${vpsSessionIdForVps}`;
+          vpsMethod = 'POST';
+        } else if (action === 'sync-groups') {
+          vpsEndpoint = `/groups/sync/${vpsSessionIdForVps}`;
+          vpsMethod = 'POST';
+        }
         break;
+      }
 
-      case 'send':
+      case 'send': {
         if (!sessionId || !groupId || !message) {
           return new Response(
             JSON.stringify({ error: 'Session ID, group ID, and message are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
+        
+        localSessionIdForDb = sessionId;
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
+        }
+        
         vpsEndpoint = '/send';
         vpsMethod = 'POST';
         vpsBody = {
-          sessionId,
+          sessionId: vpsSessionIdForVps,
           groupId,
           message,
           ...(mediaUrl && { mediaUrl }),
           ...(mediaType && { mediaType }),
         };
         break;
+      }
 
       case 'health':
         vpsEndpoint = '/health';
@@ -281,7 +314,13 @@ Deno.serve(async (req) => {
       // Add specific hints based on status
       if (vpsResponse.status === 401) {
         errorPayload.hint = 'VPS rejected credentials. The API key may be incorrect or the VPS expects a different authentication format.';
-        errorPayload.suggestion = 'Verify WHATSAPP_VPS_API_KEY secret matches what the VPS expects.';
+        errorPayload.suggestion = 'Verify WHATSAPP_VPS_API_KEY secret matches what the VPS expects (no quotes, no extra spaces).';
+        // Include debug info (safe, non-secret)
+        errorPayload.debug = {
+          vpsUrlConfigured: !!VPS_URL,
+          apiKeyLength: VPS_API_KEY?.length || 0,
+          endpoint: vpsEndpoint,
+        };
       } else if (vpsResponse.status === 404) {
         errorPayload.hint = 'VPS endpoint not found. The VPS may not support this action or the URL is incorrect.';
       } else if (vpsResponse.status >= 500) {
@@ -295,24 +334,35 @@ Deno.serve(async (req) => {
     }
 
     // Handle session storage for connect action
-    if (action === 'connect' && isJson && responseData?.sessionId) {
+    if (action === 'connect' && localSessionIdForDb && vpsSessionIdForVps) {
       const { error: insertError } = await supabase
         .from('whatsapp_sessions')
-        .upsert({
-          session_id: responseData.sessionId,
+        .insert({
+          id: localSessionIdForDb,
           organization_id: organizationId,
           status: 'connecting',
-          created_by: userId,
+          session_data: { vps_session_id: vpsSessionIdForVps },
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'session_id' });
+        });
 
       if (insertError) {
         console.error('Failed to store session:', insertError);
+      } else {
+        console.log(`Session stored: local=${localSessionIdForDb}, vps=${vpsSessionIdForVps}`);
       }
+      
+      // Return the LOCAL session ID to the frontend (not VPS session ID)
+      return new Response(
+        JSON.stringify({ 
+          sessionId: localSessionIdForDb,
+          status: 'connecting',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Update session status for status check
-    if (action === 'status' && isJson && sessionId && organizationId) {
+    if (action === 'status' && isJson && localSessionIdForDb && organizationId) {
       const { error: updateError } = await supabase
         .from('whatsapp_sessions')
         .update({
@@ -320,7 +370,7 @@ Deno.serve(async (req) => {
           phone_number: responseData?.phoneNumber || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('session_id', sessionId);
+        .eq('id', localSessionIdForDb);
 
       if (updateError) {
         console.error('Failed to update session status:', updateError);
@@ -328,12 +378,12 @@ Deno.serve(async (req) => {
     }
 
     // Store synced groups
-    if (action === 'sync-groups' && isJson && responseData?.groups && organizationId) {
+    if (action === 'sync-groups' && isJson && responseData?.groups && organizationId && localSessionIdForDb) {
       const groups = responseData.groups.map((g: { id: string; name: string; participantCount?: number }) => ({
         group_jid: g.id,
         group_name: g.name,
         organization_id: organizationId,
-        session_id: sessionId,
+        session_id: localSessionIdForDb, // Use local UUID, not VPS session ID
         participant_count: g.participantCount || 0,
         synced_at: new Date().toISOString(),
       }));

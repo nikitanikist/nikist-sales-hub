@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity } from 'lucide-react';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 export function WhatsAppConnection() {
   const {
@@ -18,10 +20,18 @@ export function WhatsAppConnection() {
     disconnect,
     isDisconnecting,
     cancelConnection,
+    testVpsConnection,
+    isTestingVps,
   } = useWhatsAppSession();
 
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    status?: number;
+    message: string;
+    hint?: string;
+  } | null>(null);
 
   const handleConnect = () => {
     connect();
@@ -33,11 +43,106 @@ export function WhatsAppConnection() {
     setQrDialogOpen(false);
   };
 
+  const handleTestConnection = async () => {
+    setTestResult(null);
+    try {
+      const result = await testVpsConnection();
+      setTestResult(result);
+      if (result.success) {
+        toast.success('VPS connection test passed!');
+      } else {
+        toast.error(`VPS test failed: ${result.message}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setTestResult({
+        success: false,
+        message,
+      });
+      toast.error('VPS test failed: ' + message);
+    }
+  };
+
   const connectedSessions = sessions?.filter(s => s.status === 'connected') || [];
   const hasConnectedSession = connectedSessions.length > 0;
 
   return (
     <div className="space-y-6">
+      {/* VPS Connection Test Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            VPS Connection Test
+          </CardTitle>
+          <CardDescription>
+            Test the connection to your WhatsApp VPS before connecting a device
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={isTestingVps}
+            >
+              {isTestingVps ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Activity className="h-4 w-4 mr-2" />
+              )}
+              Test VPS Connection
+            </Button>
+            
+            {testResult && (
+              <Badge variant={testResult.success ? 'default' : 'destructive'}>
+                {testResult.success ? (
+                  <><CheckCircle className="h-3 w-3 mr-1" /> Connected</>
+                ) : (
+                  <><XCircle className="h-3 w-3 mr-1" /> Failed ({testResult.status || 'Error'})</>
+                )}
+              </Badge>
+            )}
+          </div>
+
+          {testResult && !testResult.success && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>VPS Connection Failed</AlertTitle>
+              <AlertDescription className="mt-2 space-y-2">
+                <p>{testResult.message}</p>
+                {testResult.hint && (
+                  <p className="text-sm opacity-90">{testResult.hint}</p>
+                )}
+                {testResult.status === 401 && (
+                  <div className="mt-3 p-3 bg-background/50 rounded text-sm">
+                    <p className="font-medium mb-2">How to fix:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                      <li>Open your backend panel (click "View Backend" below)</li>
+                      <li>Navigate to Secrets / Environment Variables</li>
+                      <li>Update <code className="bg-muted px-1 rounded">WHATSAPP_VPS_API_KEY</code> with the correct API key</li>
+                      <li>Make sure there are no quotes or extra spaces around the value</li>
+                      <li>Wait ~30 seconds for the change to take effect, then test again</li>
+                    </ol>
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {testResult?.success && (
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertTitle>VPS Connection Successful</AlertTitle>
+              <AlertDescription>
+                Your backend can reach the WhatsApp VPS. You can now connect a device.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Main WhatsApp Connection Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

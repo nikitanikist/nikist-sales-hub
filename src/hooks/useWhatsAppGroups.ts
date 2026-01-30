@@ -15,6 +15,57 @@ interface WhatsAppGroup {
   is_active: boolean;
 }
 
+interface VpsErrorResponse {
+  error?: string;
+  upstream?: string;
+  status?: number;
+  hint?: string;
+  suggestion?: string;
+}
+
+// Parse VPS error for better user feedback
+function parseVpsError(data: VpsErrorResponse): { title: string; description: string } {
+  let title = 'Sync Error';
+  let description = data.error || 'An unknown error occurred';
+  
+  if (data.upstream === 'vps') {
+    if (data.status === 401) {
+      title = 'VPS Authentication Failed (401)';
+      description = data.hint || 'The VPS rejected the API key.';
+    } else if (data.status === 404) {
+      title = 'VPS Endpoint Not Found (404)';
+      description = data.hint || 'The VPS endpoint was not found.';
+    } else if (data.status && data.status >= 500) {
+      title = `VPS Server Error (${data.status})`;
+      description = data.hint || 'The VPS service is experiencing issues.';
+    }
+  }
+  
+  return { title, description };
+}
+
+// Parse invoke error response body
+async function parseInvokeError(error: unknown, response?: Response): Promise<VpsErrorResponse> {
+  if (response) {
+    try {
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { error: text || 'Unknown error' };
+      }
+    } catch {
+      // Couldn't read response
+    }
+  }
+  
+  if (error instanceof Error) {
+    return { error: error.message };
+  }
+  
+  return { error: 'Unknown error occurred' };
+}
+
 export function useWhatsAppGroups() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
@@ -49,7 +100,23 @@ export function useWhatsAppGroups() {
         },
       });
 
-      if (response.error) throw response.error;
+      if (response.error) {
+        const errorData = await parseInvokeError(response.error, (response as any).response);
+        if (errorData.upstream === 'vps') {
+          const { title, description } = parseVpsError(errorData);
+          toast.error(title, { description });
+          throw new Error(description);
+        }
+        throw response.error;
+      }
+      
+      // Check for upstream VPS errors in response data
+      if (response.data?.upstream === 'vps' && response.data?.status >= 400) {
+        const { title, description } = parseVpsError(response.data);
+        toast.error(title, { description });
+        throw new Error(description);
+      }
+      
       return response.data;
     },
     onSuccess: (data) => {
@@ -57,7 +124,10 @@ export function useWhatsAppGroups() {
       toast.success(`Synced ${data.groups?.length || 0} groups`);
     },
     onError: (error: Error) => {
-      toast.error('Failed to sync groups: ' + error.message);
+      // Only show generic toast if not a VPS error (already handled)
+      if (!error.message.includes('VPS')) {
+        toast.error('Failed to sync groups: ' + error.message);
+      }
     },
   });
 
