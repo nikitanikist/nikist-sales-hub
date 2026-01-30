@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, Calendar, Tag, MessageCircle, Smartphone, ExternalLink, RefreshCw } from 'lucide-react';
+import { Users, Calendar, Tag, MessageCircle, Smartphone, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
@@ -13,7 +13,8 @@ import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { WorkshopTagBadge } from './WorkshopTagBadge';
 import { MessageCheckpoints, toCheckpoints } from './MessageCheckpoints';
-import { RunMessagingButton } from './RunMessagingButton';
+import { MessagingActions } from './MessagingActions';
+import { SendMessageNowDialog } from './SendMessageNowDialog';
 
 interface WorkshopDetailSheetProps {
   workshop: WorkshopWithDetails | null;
@@ -22,6 +23,8 @@ interface WorkshopDetailSheetProps {
 }
 
 export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDetailSheetProps) {
+  const [sendNowDialogOpen, setSendNowDialogOpen] = useState(false);
+  
   const { 
     updateTag, 
     isUpdatingTag, 
@@ -30,6 +33,8 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     isUpdatingGroup,
     runMessaging,
     isRunningMessaging,
+    sendMessageNow,
+    isSendingNow,
     useWorkshopMessages,
     subscribeToMessages,
   } = useWorkshopNotification();
@@ -275,15 +280,40 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
 
           <Separator />
 
-          {/* Run Messaging Button */}
-          <RunMessagingButton
-            onClick={() => runMessaging({ workshopId: workshop.id, workshop })}
-            isLoading={isRunningMessaging}
+          {/* Messaging Actions */}
+          <MessagingActions
+            onRunSequence={() => runMessaging({ workshopId: workshop.id, workshop })}
+            onSendNow={() => setSendNowDialogOpen(true)}
+            isRunningSequence={isRunningMessaging}
+            isSendingNow={isSendingNow}
             hasGroup={!!workshop.whatsapp_group_id}
+            hasSession={!!workshop.whatsapp_session_id}
             hasSequence={hasSequence}
           />
         </div>
       </SheetContent>
+
+      {/* Send Message Now Dialog */}
+      {workshop.whatsapp_group_id && workshop.whatsapp_session_id && (
+        <SendMessageNowDialog
+          open={sendNowDialogOpen}
+          onOpenChange={setSendNowDialogOpen}
+          workshopTitle={workshop.title}
+          workshopDate={workshopDate}
+          onSend={async ({ templateId, content, mediaUrl }) => {
+            await sendMessageNow({
+              workshopId: workshop.id,
+              groupId: workshop.whatsapp_group_id!,
+              sessionId: workshop.whatsapp_session_id!,
+              templateId,
+              content,
+              mediaUrl,
+            });
+            setSendNowDialogOpen(false);
+          }}
+          isSending={isSendingNow}
+        />
+      )}
     </Sheet>
   );
 }

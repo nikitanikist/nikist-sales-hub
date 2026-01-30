@@ -339,6 +339,76 @@ export function useWorkshopNotification() {
     },
   });
 
+  // Send a message immediately
+  const sendMessageNowMutation = useMutation({
+    mutationFn: async ({
+      workshopId,
+      groupId,
+      sessionId,
+      templateId,
+      content,
+      mediaUrl,
+    }: {
+      workshopId: string;
+      groupId: string;
+      sessionId: string;
+      templateId: string;
+      content: string;
+      mediaUrl?: string | null;
+    }) => {
+      // Get the group JID from the database
+      const { data: group, error: groupError } = await supabase
+        .from('whatsapp_groups')
+        .select('group_jid')
+        .eq('id', groupId)
+        .single();
+      
+      if (groupError || !group?.group_jid) {
+        throw new Error('Group not found');
+      }
+
+      // Get the session's VPS session ID
+      const { data: session, error: sessionError } = await supabase
+        .from('whatsapp_sessions')
+        .select('session_data')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionError || !session?.session_data) {
+        throw new Error('WhatsApp session not found');
+      }
+
+      const sessionData = session.session_data as { sessionId?: string };
+      const vpsSessionId = sessionData.sessionId;
+
+      if (!vpsSessionId) {
+        throw new Error('WhatsApp session is not properly configured');
+      }
+      
+      // Call VPS proxy to send immediately
+      const { data, error } = await supabase.functions.invoke('vps-whatsapp-proxy', {
+        body: {
+          action: 'send',
+          sessionId: vpsSessionId,
+          groupId: group.group_jid,
+          message: content,
+          ...(mediaUrl && { mediaUrl }),
+        },
+      });
+      
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to send message');
+      
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Message sent successfully');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to send message', { description: error.message });
+    },
+  });
+
   return {
     workshops: workshops || [],
     workshopsLoading,
@@ -355,5 +425,7 @@ export function useWorkshopNotification() {
     isRunningMessaging: runMessagingMutation.isPending,
     cancelMessage: cancelMessageMutation.mutate,
     isCancellingMessage: cancelMessageMutation.isPending,
+    sendMessageNow: sendMessageNowMutation.mutateAsync,
+    isSendingNow: sendMessageNowMutation.isPending,
   };
 }
