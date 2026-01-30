@@ -67,31 +67,23 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
       <SidebarHeader className="border-b border-sidebar-border p-4">
         {state === "expanded" ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              {/* Logo */}
-              {isSuperAdmin ? (
-                <div className="p-2.5 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
-                  <Shield className="h-5 w-5 text-white" />
-                </div>
-              ) : (
-                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md">
-                  <video
-                    src={logoVideo}
-                    autoPlay
-                    loop
-                    muted
-                    playsInline
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-              <div>
-                <h2 className="text-base font-bold text-sidebar-foreground">
-                  {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
-                </h2>
-                <p className="text-xs text-sidebar-foreground/60 truncate max-w-[140px]">{userEmail}</p>
+            {/* Logo - full width display */}
+            {isSuperAdmin ? (
+              <div className="flex items-center justify-center p-4 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
+                <Shield className="h-8 w-8 text-white" />
               </div>
-            </div>
+            ) : (
+              <div className="w-full aspect-video rounded-xl overflow-hidden shadow-md">
+                <video
+                  src={logoVideo}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
             {/* Hide OrganizationSwitcher for Super Admins */}
             {!isSuperAdmin && <OrganizationSwitcher />}
           </div>
