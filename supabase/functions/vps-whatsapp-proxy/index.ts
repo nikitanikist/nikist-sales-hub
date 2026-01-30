@@ -415,6 +415,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Update session status after successful disconnect
+    if (action === 'disconnect' && localSessionIdForDb && organizationId) {
+      const { error: updateError } = await supabase
+        .from('whatsapp_sessions')
+        .update({
+          status: 'disconnected',
+          phone_number: null,
+          qr_code: null,
+          qr_expires_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', localSessionIdForDb);
+
+      if (updateError) {
+        console.error('Failed to update session status after disconnect:', updateError);
+      } else {
+        console.log(`Session ${localSessionIdForDb} marked as disconnected`);
+      }
+
+      // Return success to frontend
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          status: 'disconnected',
+          sessionId: localSessionIdForDb 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Store groups for sync-groups action
     if (action === 'sync-groups' && isJson && localSessionIdForDb && organizationId) {
       const vpsGroups = responseData?.groups || responseData || [];
