@@ -270,3 +270,31 @@ Vibrant & Energetic Design - ClickUp/Notion Style
 .skeleton-pulse {
   animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
+
+/* Logo shimmer animation */
+@keyframes logo-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.logo-text-container {
+  position: relative;
+}
+
+.logo-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 100%
+  );
+  animation: logo-shimmer 2s ease-in-out 0.5s 1;
+}
+
+.logo-text-container:hover .logo-shimmer {
+  animation: logo-shimmer 1s ease-in-out;
+}
