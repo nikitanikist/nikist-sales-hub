@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -35,9 +35,50 @@ interface VpsErrorResponse {
   responsePreview?: string;
 }
 
+// Helper function to handle VPS error responses (outside component to avoid hook issues)
+function parseVpsError(data: VpsErrorResponse, context: string): { title: string; description: string } {
+  console.error(`${context} VPS error:`, data);
+  
+  let title = 'Connection Error';
+  let description = data.error || 'An unknown error occurred';
+  
+  // Check if this is a VPS upstream error
+  if (data.upstream === 'vps') {
+    if (data.status === 401) {
+      title = 'VPS Authentication Failed';
+      description = data.hint || 'The VPS rejected the API key. Please verify the WHATSAPP_VPS_API_KEY secret is correct.';
+      
+      // Log suggestion for debugging
+      if (data.suggestion) {
+        console.info('Suggestion:', data.suggestion);
+      }
+    } else if (data.status === 404) {
+      title = 'VPS Endpoint Not Found';
+      description = data.hint || 'The VPS endpoint was not found. Check VPS configuration.';
+    } else if (data.status && data.status >= 500) {
+      title = 'VPS Server Error';
+      description = data.hint || 'The WhatsApp VPS service is experiencing issues. Please try again later.';
+    }
+    
+    // Log response preview for debugging
+    if (data.responsePreview) {
+      console.debug('VPS response preview:', data.responsePreview);
+    }
+  }
+  
+  return { title, description };
+}
+
 export function useWhatsAppSession() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  
+  // Use ref to store current organization ID to avoid stale closures
+  const orgIdRef = useRef<string | undefined>(currentOrganization?.id);
+  useEffect(() => {
+    orgIdRef.current = currentOrganization?.id;
+  }, [currentOrganization?.id]);
+  
   const [connectionState, setConnectionState] = useState<ConnectionState>({
     isConnecting: false,
     sessionId: null,
@@ -65,70 +106,32 @@ export function useWhatsAppSession() {
     enabled: !!currentOrganization,
   });
 
-  // Handle VPS error responses with detailed messaging
-  const handleVpsError = useCallback((data: VpsErrorResponse, context: string): string => {
-    console.error(`${context} VPS error:`, data);
-    
-    let title = 'Connection Error';
-    let description = data.error || 'An unknown error occurred';
-    
-    // Check if this is a VPS upstream error
-    if (data.upstream === 'vps') {
-      if (data.status === 401) {
-        title = 'VPS Authentication Failed';
-        description = data.hint || 'The VPS rejected the API key. Please verify the WHATSAPP_VPS_API_KEY secret is correct.';
-        
-        // Log suggestion for debugging
-        if (data.suggestion) {
-          console.info('Suggestion:', data.suggestion);
-        }
-      } else if (data.status === 404) {
-        title = 'VPS Endpoint Not Found';
-        description = data.hint || 'The VPS endpoint was not found. Check VPS configuration.';
-      } else if (data.status && data.status >= 500) {
-        title = 'VPS Server Error';
-        description = data.hint || 'The WhatsApp VPS service is experiencing issues. Please try again later.';
-      }
-      
-      // Log response preview for debugging
-      if (data.responsePreview) {
-        console.debug('VPS response preview:', data.responsePreview);
-      }
-    }
-    
-    toast.error(title, { description });
-    
-    return description;
-  }, []);
-
-  const callVPSProxy = async (action: string, params: Record<string, unknown> = {}) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Not authenticated');
-
-    const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
-      body: {
-        action,
-        organizationId: currentOrganization?.id,
-        ...params,
-      },
-    });
-
-    if (response.error) throw response.error;
-    
-    // Check for upstream VPS errors in the response
-    if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
-      const errorMessage = handleVpsError(response.data, action);
-      throw new Error(errorMessage);
-    }
-    
-    return response.data;
-  };
-
-  // Start connection
+  // Start connection mutation - defined before any callbacks that might use it
   const connectMutation = useMutation({
     mutationFn: async () => {
-      if (!currentOrganization) throw new Error('No organization selected');
-      return callVPSProxy('connect');
+      const organizationId = orgIdRef.current;
+      if (!organizationId) throw new Error('No organization selected');
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+
+      const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
+        body: {
+          action: 'connect',
+          organizationId,
+        },
+      });
+
+      if (response.error) throw response.error;
+      
+      // Check for upstream VPS errors in the response
+      if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
+        const { title, description } = parseVpsError(response.data, 'connect');
+        toast.error(title, { description });
+        throw new Error(description);
+      }
+      
+      return response.data;
     },
     onSuccess: (data) => {
       setConnectionState(prev => ({
@@ -148,12 +151,69 @@ export function useWhatsAppSession() {
         status: 'error',
         error: error.message,
       }));
-      // Only show toast if not already shown by handleVpsError
+      // Only show toast if not already shown by parseVpsError
       if (!error.message.includes('VPS rejected') && !error.message.includes('VPS endpoint')) {
         toast.error('Failed to start connection', { description: error.message });
       }
     },
   });
+
+  // Disconnect mutation
+  const disconnectMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const organizationId = orgIdRef.current;
+      if (!organizationId) throw new Error('No organization selected');
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+
+      const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
+        body: {
+          action: 'disconnect',
+          organizationId,
+          sessionId,
+        },
+      });
+
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+      toast.success('WhatsApp disconnected');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to disconnect', { description: error.message });
+    },
+  });
+
+  // Helper to call VPS proxy - defined after mutations to avoid hook order issues
+  const callVPSProxy = useCallback(async (action: string, params: Record<string, unknown> = {}) => {
+    const organizationId = orgIdRef.current;
+    if (!organizationId) throw new Error('No organization selected');
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Not authenticated');
+
+    const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
+      body: {
+        action,
+        organizationId,
+        ...params,
+      },
+    });
+
+    if (response.error) throw response.error;
+    
+    // Check for upstream VPS errors in the response
+    if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
+      const { title, description } = parseVpsError(response.data, action);
+      toast.error(title, { description });
+      throw new Error(description);
+    }
+    
+    return response.data;
+  }, []);
 
   // Get QR code
   const fetchQRCode = useCallback(async (sessionId: string) => {
@@ -168,7 +228,7 @@ export function useWhatsAppSession() {
     } catch (error) {
       console.error('Failed to fetch QR code:', error);
     }
-  }, [currentOrganization]);
+  }, [callVPSProxy]);
 
   // Check status
   const checkStatus = useCallback(async (sessionId: string) => {
@@ -197,7 +257,7 @@ export function useWhatsAppSession() {
     } catch (error) {
       console.error('Failed to check status:', error);
     }
-  }, [currentOrganization, queryClient]);
+  }, [callVPSProxy, queryClient]);
 
   // Polling effect
   useEffect(() => {
@@ -216,20 +276,6 @@ export function useWhatsAppSession() {
 
     return () => clearInterval(interval);
   }, [pollingInterval, connectionState.sessionId, fetchQRCode, checkStatus]);
-
-  // Disconnect
-  const disconnectMutation = useMutation({
-    mutationFn: async (sessionId: string) => {
-      return callVPSProxy('disconnect', { sessionId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
-      toast.success('WhatsApp disconnected');
-    },
-    onError: (error: Error) => {
-      toast.error('Failed to disconnect', { description: error.message });
-    },
-  });
 
   // Cancel connection attempt
   const cancelConnection = useCallback(() => {
