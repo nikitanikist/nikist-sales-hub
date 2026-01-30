@@ -73,14 +73,14 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 <Shield className="h-8 w-8 text-white" />
               </div>
             ) : (
-              <div className="w-full aspect-video rounded-xl overflow-hidden shadow-md">
+              <div className="w-16 h-16 mx-auto rounded-xl overflow-hidden shadow-md">
                 <video
                   src={logoVideo}
                   autoPlay
                   loop
                   muted
                   playsInline
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover scale-150"
                 />
               </div>
             )}
