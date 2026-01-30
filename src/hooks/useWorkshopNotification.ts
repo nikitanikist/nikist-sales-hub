@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { format, setHours, setMinutes, setSeconds, isBefore } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
-
+import { getMediaTypeFromUrl } from '@/lib/mediaUtils';
 export interface ScheduledMessage {
   id: string;
   organization_id: string;
@@ -366,13 +366,15 @@ export function useWorkshopNotification() {
           // Skip if already scheduled for this group
           if (existingCombos.has(`${typeKey}|${groupId}`)) continue;
           
+          const templateMediaUrl = step.template?.media_url || null;
           messagesToCreate.push({
             organization_id: currentOrganization.id,
             group_id: groupId,
             workshop_id: workshopId,
             message_type: typeKey,
             message_content: processedContent,
-            media_url: step.template?.media_url || null,
+            media_url: templateMediaUrl,
+            media_type: getMediaTypeFromUrl(templateMediaUrl),
             scheduled_for: scheduledForUTC.toISOString(),
             status: 'pending' as const,
           });
@@ -478,6 +480,7 @@ export function useWorkshopNotification() {
       }
       
       // Call VPS proxy with local DB UUID - edge function handles VPS ID lookup
+      const detectedMediaType = getMediaTypeFromUrl(mediaUrl);
       const { data, error } = await supabase.functions.invoke('vps-whatsapp-proxy', {
         body: {
           action: 'send',
@@ -485,6 +488,7 @@ export function useWorkshopNotification() {
           groupId: group.group_jid,
           message: content,
           ...(mediaUrl && { mediaUrl }),
+          ...(mediaUrl && detectedMediaType && { mediaType: detectedMediaType }),
         },
       });
       
