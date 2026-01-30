@@ -15,7 +15,7 @@ import { ROUTE_TO_PERMISSION, PermissionKey } from "@/lib/permissions";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { OrganizationProvider, useOrganization } from "@/hooks/useOrganization";
 import { supabase } from "@/integrations/supabase/client";
-import logoImage from "@/assets/logo.png";
+import { TextLogo } from "@/components/TextLogo";
 // Icon mapping for dynamic cohort types
 const iconMap: Record<string, typeof LayoutDashboard> = {
   Users: Users,
@@ -75,13 +75,7 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 </div>
               </div>
             ) : (
-              <div className="w-full flex items-center justify-center">
-                <img
-                  src={logoImage}
-                  alt="Logo"
-                  className="w-[85%] max-w-[180px] h-auto object-contain"
-                />
-              </div>
+              <TextLogo />
             )}
             {/* Hide OrganizationSwitcher for Super Admins */}
             {!isSuperAdmin && <OrganizationSwitcher />}
@@ -93,13 +87,7 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 <Shield className="h-4 w-4 text-white" />
               </div>
             ) : (
-              <div className="w-8 h-8">
-                <img
-                  src={logoImage}
-                  alt="Logo"
-                  className="w-full h-full object-contain"
-                />
-              </div>
+              <TextLogo collapsed />
             )}
           </div>
         )}
@@ -427,14 +415,8 @@ const AppLayoutContent = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16">
-            <img
-              src={logoImage}
-              alt="Loading..."
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <div className="skeleton-shimmer h-4 w-24 rounded" />
+          <TextLogo />
+          <div className="skeleton-shimmer h-4 w-24 rounded mt-4" />
         </div>
       </div>
     );
