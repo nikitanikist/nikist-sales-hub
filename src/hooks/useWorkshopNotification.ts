@@ -66,7 +66,7 @@ export function useWorkshopNotification() {
         .select(`
           id, title, start_date, organization_id, tag_id, whatsapp_group_id, whatsapp_session_id, automation_status,
           tag:workshop_tags(id, name, color, template_sequence_id),
-          whatsapp_group:whatsapp_groups(id, group_name, group_jid)
+          whatsapp_group:whatsapp_groups!workshops_whatsapp_group_id_fkey(id, group_name, group_jid)
         `)
         .eq('organization_id', currentOrganization.id)
         .order('start_date', { ascending: false });
