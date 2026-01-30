@@ -1,68 +1,81 @@
 
-# Fix Logo Size in Sidebar
+
+# Fix Logo to Display as a Wide Wordmark Banner
 
 ## Problem
-The logo video currently uses `aspect-video` (16:9 ratio), making it look like a video player instead of a compact logo. It takes up too much vertical and horizontal space.
+The current 64x64px square format doesn't work for your wordmark (text-based) logo. The square crops out the text and only shows the sparkle effects, making it look unprofessional. Wordmark logos need a wide, horizontal format.
 
 ## Solution
-Make the logo smaller and more compact with a square/near-square aspect ratio, and zoom in slightly to focus on the logo content.
+Create a wide banner-style container that spans the sidebar width with minimal height, and position the video to show the text portion.
 
 ## Changes
 
 **File: `src/components/AppLayout.tsx`**
 
-### Expanded Sidebar State (line 76)
+### Expanded Sidebar State (lines 76-85)
+
 Change from:
 ```tsx
-<div className="w-full aspect-video rounded-xl overflow-hidden shadow-md">
+<div className="w-16 h-16 mx-auto rounded-xl overflow-hidden shadow-md">
+  <video
+    src={logoVideo}
+    autoPlay
+    loop
+    muted
+    playsInline
+    className="w-full h-full object-cover scale-150"
+  />
+</div>
 ```
 
 To:
 ```tsx
-<div className="w-16 h-16 mx-auto rounded-xl overflow-hidden shadow-md">
+<div className="w-full h-12 rounded-lg overflow-hidden">
+  <video
+    src={logoVideo}
+    autoPlay
+    loop
+    muted
+    playsInline
+    className="w-full h-auto object-cover object-bottom scale-[2] translate-y-[25%]"
+  />
+</div>
 ```
 
-Also scale the video slightly larger than its container to "zoom in" on the logo:
-```tsx
-<video
-  src={logoVideo}
-  autoPlay
-  loop
-  muted
-  playsInline
-  className="w-full h-full object-cover scale-150"
-/>
-```
+## Design Rationale
 
-### Visual Comparison
+| Property | Value | Reason |
+|----------|-------|--------|
+| `w-full` | 100% width | Span the full sidebar width (~220px) |
+| `h-12` | 48px height | Compact banner height for wordmark |
+| `rounded-lg` | 8px corners | Softer corners that don't dominate |
+| `scale-[2]` | 200% zoom | Zoom in to focus on the text |
+| `object-bottom` | Bottom alignment | Focus on the text area at bottom of video |
+| `translate-y-[25%]` | Shift down | Fine-tune to center the text in view |
 
-**Before:**
+## Visual Comparison
+
+**Before (Square - Current):**
 ```
 ┌────────────────────────┐
-│ ┌────────────────────┐ │
-│ │                    │ │  ← Full width, 16:9 aspect
-│ │    LOGO VIDEO      │ │     (looks like video player)
-│ │                    │ │
-│ └────────────────────┘ │
+│       ┌──────┐         │
+│       │ ✨✨ │         │  ← 64x64 square, only shows sparkles
+│       └──────┘         │
 │ [Organization Switch]  │
 └────────────────────────┘
 ```
 
-**After:**
+**After (Wide Banner):**
 ```
 ┌────────────────────────┐
-│       ┌──────┐         │
-│       │ LOGO │         │  ← 64x64px, centered
-│       └──────┘         │     (proper logo size)
+│ ┌────────────────────┐ │
+│ │   HIGH TICKET      │ │  ← Full width, 48px tall, text visible
+│ └────────────────────┘ │
 │ [Organization Switch]  │
 └────────────────────────┘
 ```
 
 ## Summary
 
-| Change | Before | After |
-|--------|--------|-------|
-| Container width | `w-full` | `w-16` (64px) |
-| Aspect ratio | `aspect-video` (16:9) | `h-16` (square) |
-| Position | Full width | `mx-auto` (centered) |
-| Video scale | Normal | `scale-150` (zoomed in) |
+The wordmark text will now be prominently displayed in a wide banner format that matches professional logo placement in sidebars. The video is scaled and positioned to crop out excess sparkle effects and focus on the readable text.
+
