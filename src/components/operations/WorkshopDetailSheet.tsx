@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Users, Calendar, Tag, MessageCircle, Smartphone } from 'lucide-react';
+import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock } from 'lucide-react';
 import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
@@ -14,6 +14,7 @@ import { MessageCheckpoints, toCheckpoints } from './MessageCheckpoints';
 import { MessagingActions } from './MessagingActions';
 import { SendMessageNowDialog } from './SendMessageNowDialog';
 import { MultiGroupSelect } from './MultiGroupSelect';
+import { CollapsibleSection } from './CollapsibleSection';
 import { formatInOrgTime } from '@/lib/timezoneUtils';
 
 interface WorkshopDetailSheetProps {
@@ -64,6 +65,33 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
   
   // Track selected group IDs (multi-select)
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+
+  // Track expanded sections - compute defaults based on completion status
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  
+  // Initialize expanded sections based on what's incomplete
+  useEffect(() => {
+    if (!workshop || !open) return;
+    
+    const initial = new Set<string>();
+    
+    // Always expand overview when first opened
+    initial.add('overview');
+    
+    // Auto-expand incomplete sections
+    if (!workshop.tag_id) {
+      initial.add('tag');
+    }
+    if (!workshop.whatsapp_session_id || !workshop.automation_status?.whatsapp_group_linked) {
+      initial.add('whatsapp');
+    }
+    // Expand checkpoints if there are messages
+    if (messages && messages.length > 0) {
+      initial.add('checkpoints');
+    }
+    
+    setExpandedSections(initial);
+  }, [workshop?.id, open]);
   
   // Initialize selected groups from junction table
   useEffect(() => {
@@ -104,25 +132,58 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     }
   };
 
+  const toggleSection = (id: string) => (expanded: boolean) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (expanded) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
   if (!workshop) return null;
 
   const checkpoints = toCheckpoints(messages || [], orgTimezone);
   const hasSequence = !!(workshop.tag?.template_sequence_id);
+  
+  // Calculate summaries for collapsed state
+  const tagSummary = workshop.tag 
+    ? `${workshop.tag.name}${hasSequence ? ' · Has sequence' : ' · No sequence'}`
+    : 'Not assigned';
+  
+  const whatsappSummary = selectedSessionId 
+    ? `${connectedSessions.find(s => s.id === selectedSessionId)?.display_name || 'Connected'} · ${selectedGroupIds.length} group${selectedGroupIds.length !== 1 ? 's' : ''}`
+    : 'Not configured';
+  
+  const checkpointsSummary = messages && messages.length > 0
+    ? `${messages.filter(m => m.status === 'sent').length}/${messages.length} sent`
+    : 'No messages scheduled';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="text-left pr-8">{workshop.title}</SheetTitle>
+      <SheetContent className="sm:max-w-lg flex flex-col p-0">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b">
+          <SheetTitle className="text-left pr-8 line-clamp-2">{workshop.title}</SheetTitle>
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            {formatInOrgTime(workshop.start_date, orgTimezone, 'EEEE, MMM d · h:mm a')}
+          </p>
         </SheetHeader>
 
-        <div className="mt-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 py-2">
           {/* Overview Section */}
-          <section className="space-y-3">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Overview
-            </h3>
+          <CollapsibleSection
+            id="overview"
+            title="Overview"
+            icon={Info}
+            status="neutral"
+            summary={`${workshop.registrations_count || 0} registrations`}
+            isExpanded={expandedSections.has('overview')}
+            onToggle={toggleSection('overview')}
+          >
             <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
               <div>
                 <p className="text-xs text-muted-foreground">Workshop Date</p>
@@ -143,17 +204,21 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                 </div>
               </div>
             </div>
-          </section>
+          </CollapsibleSection>
 
-          <Separator />
+          <Separator className="my-1" />
 
           {/* Workshop Tag Section */}
-          <section className="space-y-3">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              Workshop Tag
-            </h3>
-            <div className="space-y-2">
+          <CollapsibleSection
+            id="tag"
+            title="Workshop Tag"
+            icon={Tag}
+            status={workshop.tag_id ? (hasSequence ? 'complete' : 'incomplete') : 'incomplete'}
+            summary={tagSummary}
+            isExpanded={expandedSections.has('tag')}
+            onToggle={toggleSection('tag')}
+          >
+            <div className="space-y-3">
               <Select
                 value={workshop.tag_id || 'none'}
                 onValueChange={(value) => {
@@ -184,7 +249,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
               </Select>
               
               {workshop.tag && (
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 text-sm p-2 rounded-md bg-muted/50">
                   <WorkshopTagBadge 
                     name={workshop.tag.name} 
                     color={workshop.tag.color} 
@@ -201,17 +266,20 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                 </div>
               )}
             </div>
-          </section>
+          </CollapsibleSection>
 
-          <Separator />
+          <Separator className="my-1" />
 
           {/* WhatsApp Settings Section */}
-          <section className="space-y-3">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <MessageCircle className="h-4 w-4" />
-              WhatsApp Settings
-            </h3>
-            
+          <CollapsibleSection
+            id="whatsapp"
+            title="WhatsApp Settings"
+            icon={MessageCircle}
+            status={selectedSessionId && selectedGroupIds.length > 0 ? 'complete' : 'incomplete'}
+            summary={whatsappSummary}
+            isExpanded={expandedSections.has('whatsapp')}
+            onToggle={toggleSection('whatsapp')}
+          >
             <div className="space-y-4">
               {/* Account Selection */}
               <div className="space-y-2">
@@ -279,37 +347,48 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                 </div>
               )}
             </div>
-          </section>
+          </CollapsibleSection>
 
-          <Separator />
+          <Separator className="my-1" />
 
           {/* Message Checkpoints Section */}
-          <section className="space-y-3">
-            <h3 className="text-sm font-medium">Message Checkpoints</h3>
-            <p className="text-xs text-muted-foreground">
-              Status updates automatically in real-time
-            </p>
-            <MessageCheckpoints 
-              checkpoints={checkpoints}
-              isLoading={messagesLoading}
-              timezone={orgTimezone}
-            />
-          </section>
-
-          <Separator />
-
-          {/* Messaging Actions */}
-          <MessagingActions
-            onRunSequence={() => runMessaging({ workshopId: workshop.id, workshop, groupIds: selectedGroupIds })}
-            onSendNow={() => setSendNowDialogOpen(true)}
-            isRunningSequence={isRunningMessaging}
-            isSendingNow={isSendingNow}
-            hasGroups={selectedGroupIds.length > 0}
-            groupCount={selectedGroupIds.length}
-            hasSession={!!workshop.whatsapp_session_id}
-            hasSequence={hasSequence}
-          />
+          <CollapsibleSection
+            id="checkpoints"
+            title="Message Checkpoints"
+            icon={Calendar}
+            status={messages && messages.length > 0 ? 'neutral' : 'neutral'}
+            summary={checkpointsSummary}
+            isExpanded={expandedSections.has('checkpoints')}
+            onToggle={toggleSection('checkpoints')}
+          >
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Status updates automatically in real-time
+              </p>
+              <MessageCheckpoints 
+                checkpoints={checkpoints}
+                isLoading={messagesLoading}
+                timezone={orgTimezone}
+              />
+            </div>
+          </CollapsibleSection>
         </div>
+
+        {/* Sticky Footer with Messaging Actions */}
+        <SheetFooter className="border-t bg-background px-6 py-4 mt-auto">
+          <div className="w-full">
+            <MessagingActions
+              onRunSequence={() => runMessaging({ workshopId: workshop.id, workshop, groupIds: selectedGroupIds })}
+              onSendNow={() => setSendNowDialogOpen(true)}
+              isRunningSequence={isRunningMessaging}
+              isSendingNow={isSendingNow}
+              hasGroups={selectedGroupIds.length > 0}
+              groupCount={selectedGroupIds.length}
+              hasSession={!!workshop.whatsapp_session_id}
+              hasSequence={hasSequence}
+            />
+          </div>
+        </SheetFooter>
       </SheetContent>
 
       {/* Send Message Now Dialog - use first selected group for immediate send */}
