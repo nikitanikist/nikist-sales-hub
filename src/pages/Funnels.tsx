@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Search, RefreshCw, Filter, Plus, Pencil, Trash2, TrendingUp, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -46,6 +47,7 @@ const Funnels = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
+  const { format: formatOrg } = useOrgTimezone();
 
   // Fetch lead assignments for counting leads per funnel
   const { data: leadAssignments = [] } = useQuery({
@@ -497,7 +499,7 @@ const Funnels = () => {
                         <TableCell>{getWorkshopCount(funnel.id)}</TableCell>
                         <TableCell>{getProductCount(funnel.id)}</TableCell>
                         <TableCell>{getLeadCount(funnel.id)}</TableCell>
-                        <TableCell>{funnel.created_at ? format(new Date(funnel.created_at), "MMM dd, yyyy") : "N/A"}</TableCell>
+                        <TableCell>{funnel.created_at ? formatOrg(funnel.created_at, "MMM dd, yyyy") : "N/A"}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(funnel)}>

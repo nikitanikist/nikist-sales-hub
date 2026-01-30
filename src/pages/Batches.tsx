@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfDay } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useBatchInsights } from "@/hooks/useBatchInsights";
@@ -103,6 +104,7 @@ const Batches = () => {
   const queryClient = useQueryClient();
   const { isAdmin, isManager, isCloser, profileId } = useUserRole();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
+  const { getToday, format: formatOrg } = useOrgTimezone();
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null);
@@ -390,7 +392,7 @@ const Batches = () => {
       }
       
       // Today's follow-up filter
-      const todayFormatted = format(new Date(), "yyyy-MM-dd");
+      const todayFormatted = getToday();
       const matchesTodayFollowUp = !filterTodayFollowUp || 
         student.next_follow_up_date === todayFormatted;
       
@@ -984,7 +986,7 @@ const Batches = () => {
             <div>
               <h1 className="text-lg sm:text-2xl font-bold">{selectedBatch.name}</h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Start: {format(new Date(selectedBatch.start_date), "dd MMM yyyy")} • 
+                Start: {formatOrg(selectedBatch.start_date, "dd MMM yyyy")} • 
                 {selectedBatch.is_active ? " Active" : " Inactive"}
               </p>
             </div>
@@ -2537,14 +2539,12 @@ const Batches = () => {
                     onClick={() => setSelectedBatch(batch)}
                   >
                     <TableCell className="font-medium">{batch.name}</TableCell>
-                    <TableCell>{format(new Date(batch.start_date), "dd MMM yyyy")}</TableCell>
+                    <TableCell>{formatOrg(batch.start_date, "dd MMM yyyy")}</TableCell>
                     <TableCell>
                       {(() => {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0);
-                        const startDate = new Date(batch.start_date);
-                        startDate.setHours(0, 0, 0, 0);
-                        const isLive = startDate <= today;
+                        const today = getToday();
+                        const batchDate = formatOrg(batch.start_date, "yyyy-MM-dd");
+                        const isLive = batchDate <= today;
                         
                         return isLive ? (
                           <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Live</Badge>

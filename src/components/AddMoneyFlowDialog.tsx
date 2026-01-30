@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,7 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getToday, getYesterday, format: formatOrg } = useOrgTimezone();
 
   const [dateOption, setDateOption] = useState<"today" | "yesterday" | "custom">("today");
   const [customDate, setCustomDate] = useState<Date | undefined>(new Date());
@@ -81,11 +83,11 @@ const AddMoneyFlowDialog = ({ open, onOpenChange, editingEntry }: AddMoneyFlowDi
 
   const getSelectedDate = (): string => {
     if (dateOption === "today") {
-      return format(new Date(), "yyyy-MM-dd");
+      return getToday();
     } else if (dateOption === "yesterday") {
-      return format(subDays(new Date(), 1), "yyyy-MM-dd");
+      return getYesterday();
     } else {
-      return customDate ? format(customDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+      return customDate ? formatOrg(customDate, "yyyy-MM-dd") : getToday();
     }
   };
 

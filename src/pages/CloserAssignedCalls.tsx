@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isFuture, isPast, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import type { Database } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
 import { RebookCallDialog } from "@/components/RebookCallDialog";
@@ -358,6 +359,7 @@ const CloserAssignedCalls = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
+  const { getToday, format: formatOrg, toOrgTime } = useOrgTimezone();
   // Read initial status filter from URL
   const initialStatus = searchParams.get("status") || "all";
   
