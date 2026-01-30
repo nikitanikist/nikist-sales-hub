@@ -80,22 +80,18 @@ export function useWorkshopNotification() {
       // If no workshops, return empty array
       if (!workshopsData || workshopsData.length === 0) return [];
       
-      // Fetch registration counts
-      const workshopIds = workshopsData.map(w => w.id);
+      // Fetch registration counts using database aggregation (avoids 1000-row limit)
+      const { data: metricsData, error: metricsError } = await supabase
+        .rpc('get_workshop_metrics');
       
-      const { data: countData, error: countError } = await supabase
-        .from('lead_assignments')
-        .select('workshop_id')
-        .in('workshop_id', workshopIds);
+      if (metricsError) {
+        console.error('Error fetching workshop metrics:', metricsError);
+      }
       
-      if (countError) throw countError;
-      
-      // Count per workshop
+      // Create lookup map from metrics
       const countMap: Record<string, number> = {};
-      (countData || []).forEach(la => {
-        if (la.workshop_id) {
-          countMap[la.workshop_id] = (countMap[la.workshop_id] || 0) + 1;
-        }
+      (metricsData || []).forEach((m: { workshop_id: string; registration_count: number }) => {
+        countMap[m.workshop_id] = Number(m.registration_count) || 0;
       });
       
       return (workshopsData || []).map(w => ({
