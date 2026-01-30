@@ -342,7 +342,8 @@ export function useWhatsAppSession() {
     try {
       const data = await callVPSProxy('status', { sessionId });
       
-      // VPS returns { status: "...", qrCode?: "...", phoneNumber?: "..." }
+      // VPS returns { status: "...", qr?: "...", phoneNumber?: "..." }
+      // Note: VPS uses "qr" field, not "qrCode"
       if (data.status === 'connected') {
         setConnectionState(prev => ({
           ...prev,
@@ -364,9 +365,10 @@ export function useWhatsAppSession() {
         setPollingInterval(null);
       } else {
         // Still connecting - extract QR code from the status response
+        // VPS returns "qr" field (not "qrCode")
         setConnectionState(prev => ({
           ...prev,
-          qrCode: data.qrCode || prev.qrCode,
+          qrCode: data.qr || prev.qrCode,
           status: 'connecting',
         }));
       }

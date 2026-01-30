@@ -356,17 +356,29 @@ Deno.serve(async (req) => {
 
     // Update session status for status check (including QR code from VPS response)
     if (action === 'status' && isJson && localSessionIdForDb && organizationId) {
-      // VPS returns { status: "...", qrCode?: "...", phoneNumber?: "..." }
+      // Map VPS status values to database-compatible status values
+      // VPS returns "qr" but database expects "qr_pending"
+      const statusMap: Record<string, string> = {
+        'qr': 'qr_pending',
+        'connected': 'connected',
+        'disconnected': 'disconnected',
+        'connecting': 'connecting',
+      };
+      
+      // VPS returns { status: "...", qr?: "...", phoneNumber?: "..." }
+      const vpsStatus = responseData?.status || 'unknown';
+      const dbStatus = statusMap[vpsStatus] || vpsStatus;
+      
       const updatePayload: Record<string, unknown> = {
-        status: responseData?.status || 'unknown',
+        status: dbStatus,
         phone_number: responseData?.phoneNumber || null,
         last_active_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
       
-      // Store QR code if present (VPS returns qrCode when status is "qr_pending" or similar)
-      if (responseData?.qrCode) {
-        updatePayload.qr_code = responseData.qrCode;
+      // Store QR code if present - VPS returns "qr" field (not "qrCode")
+      if (responseData?.qr) {
+        updatePayload.qr_code = responseData.qr;
         // Set QR expiry (typically 60 seconds)
         updatePayload.qr_expires_at = new Date(Date.now() + 60000).toISOString();
       }
