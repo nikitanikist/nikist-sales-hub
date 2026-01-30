@@ -1,51 +1,66 @@
 
-## Problem Diagnosis
 
-The "VPS Endpoint Not Found (404)" error occurs because:
+## Root Cause Identified
 
-1. **Session insert is failing silently** - When you click "Connect Device", the backend tries to insert a session row, but it fails with:
-   ```
-   null value in column "phone_number" of relation "whatsapp_sessions" violates not-null constraint
-   ```
+Your VPS does **not** have a separate `/qr` endpoint. According to your VPS documentation:
 
-2. **The VPS session ID mapping is lost** - Without a stored session row, the next calls (qr, status) can't look up the VPS session ID mapping
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/health` | Health check |
+| POST | `/connect` | Create session (needs `{"sessionId": "xxx"}`) |
+| GET | `/status/:sessionId` | Get session status **& QR code** |
+| POST | `/send` | Send message |
 
-3. **Wrong session ID sent to VPS** - The fallback uses the raw UUID (`370f17da-2522-46e0-968c-2d3c37145e17`) instead of the VPS-formatted ID (`wa_370f17da-2522-46e0-968c-2d3c37145e17`)
-
-4. **VPS returns 404** - The VPS doesn't recognize the session ID format, so it returns "Cannot GET /qr/..."
+The current code is calling `/qr/{sessionId}` which returns 404 because that endpoint does not exist. The QR code is returned **inside** the `/status/:sessionId` response.
 
 ---
 
-## Solution
+## What needs to change
 
-### Step 1: Make `phone_number` nullable in the database
-The phone number is only known AFTER the user scans the QR and connects. It should be nullable initially.
+### 1. Remove the `qr` action from the backend function
+The `qr` action is invalid because the VPS doesn't have a `/qr` endpoint. We should remove it and rely solely on the `status` endpoint which returns both status and QR code.
 
-**Database migration:**
-```sql
-ALTER TABLE public.whatsapp_sessions 
-ALTER COLUMN phone_number DROP NOT NULL;
-```
+### 2. Update the frontend to only poll `/status`
+Instead of calling `qr` separately, the frontend should:
+- Call `status` which returns `{ status: "...", qrCode: "..." }`
+- Extract the QR code from the status response
 
-### Step 2: Add a placeholder or explicit null for phone_number on insert (in edge function)
-Update the edge function to explicitly handle the nullable field:
-- On `connect`: Insert with `phone_number: null`
-- On `status` (when connected): Update with the actual phone number from VPS
+### 3. Fix the `sync-groups` endpoint (if needed)
+Your VPS may not have `/groups/sync/:sessionId`. If group sync is needed, we should confirm the correct endpoint or remove that feature.
 
 ---
 
 ## Files to modify
 
-1. **Database migration** - Make `phone_number` nullable
-2. **`supabase/functions/vps-whatsapp-proxy/index.ts`** - Ensure explicit null for phone_number on insert
+### Backend: `supabase/functions/vps-whatsapp-proxy/index.ts`
+- Remove the `case 'qr'` branch entirely
+- Update `case 'status'` to also return `qrCode` from VPS response
+
+### Frontend: `src/hooks/useWhatsAppSession.ts`
+- Remove the `fetchQRCode` function (it calls the non-existent `/qr` endpoint)
+- Update `checkStatus` to extract and set the QR code from the status response
 
 ---
 
-## Expected result after fix
+## Expected flow after fix
 
-1. Click "Connect Device"
-2. Session row is successfully inserted with `phone_number: null` and `session_data: { vps_session_id: "wa_xxx" }`
-3. QR code endpoint is called with correct VPS session ID: `/qr/wa_xxx`
-4. VPS returns QR code
-5. Dialog shows QR code for scanning
-6. After scan, status updates with actual phone number
+1. User clicks **Connect Device**
+2. Backend calls `POST /connect` with `{ sessionId: "wa_xxx" }`
+3. Frontend starts polling `status` action
+4. Backend calls `GET /status/wa_xxx`
+5. VPS returns `{ status: "qr_pending", qrCode: "data:image/..." }`
+6. Frontend displays the QR code
+7. User scans QR
+8. VPS returns `{ status: "connected", phoneNumber: "+91..." }`
+9. UI shows "Connected"
+
+---
+
+## Technical summary
+
+| Current (broken) | Fixed |
+|------------------|-------|
+| `action: qr` → `GET /qr/{id}` → 404 | Removed |
+| `action: status` → no QR extraction | `action: status` → extract `qrCode` from response |
+| `fetchQRCode()` calls `qr` action | `checkStatus()` handles QR display |
+
