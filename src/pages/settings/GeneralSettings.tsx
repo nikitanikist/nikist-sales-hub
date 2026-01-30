@@ -6,27 +6,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Building2, Save, Loader2 } from "lucide-react";
+import { Building2, Save, Loader2, Globe } from "lucide-react";
+import { COMMON_TIMEZONES, DEFAULT_TIMEZONE, getTimezoneAbbreviation } from "@/lib/timezoneUtils";
 
 export function GeneralSettings() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, refreshOrganizations } = useOrganization();
   const queryClient = useQueryClient();
   
   const [name, setName] = useState(currentOrganization?.name || "");
   const [logoUrl, setLogoUrl] = useState(currentOrganization?.logo_url || "");
+  const [timezone, setTimezone] = useState(currentOrganization?.timezone || DEFAULT_TIMEZONE);
 
   // Sync state when organization changes
   useEffect(() => {
     if (currentOrganization) {
       setName(currentOrganization.name);
       setLogoUrl(currentOrganization.logo_url || "");
+      setTimezone(currentOrganization.timezone || DEFAULT_TIMEZONE);
     }
   }, [currentOrganization?.id]);
 
   // Update organization mutation
   const updateMutation = useMutation({
-    mutationFn: async ({ name, logoUrl }: { name: string; logoUrl: string }) => {
+    mutationFn: async ({ name, logoUrl, timezone }: { name: string; logoUrl: string; timezone: string }) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
 
       const { error } = await supabase
@@ -34,6 +38,7 @@ export function GeneralSettings() {
         .update({
           name,
           logo_url: logoUrl || null,
+          timezone,
         })
         .eq("id", currentOrganization.id);
 
@@ -42,6 +47,7 @@ export function GeneralSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organizations"] });
       queryClient.invalidateQueries({ queryKey: ["user-organizations"] });
+      refreshOrganizations();
       toast({ title: "Organization updated successfully" });
     },
     onError: (error: Error) => {
@@ -62,7 +68,7 @@ export function GeneralSettings() {
       });
       return;
     }
-    updateMutation.mutate({ name: name.trim(), logoUrl: logoUrl.trim() });
+    updateMutation.mutate({ name: name.trim(), logoUrl: logoUrl.trim(), timezone });
   };
 
   if (!currentOrganization) {
@@ -106,6 +112,29 @@ export function GeneralSettings() {
             />
             <p className="text-xs text-muted-foreground">
               The slug is used for internal identification and cannot be changed.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="org-timezone" className="flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Timezone
+            </Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger id="org-timezone">
+                <SelectValue placeholder="Select timezone" />
+              </SelectTrigger>
+              <SelectContent>
+                {COMMON_TIMEZONES.map((tz) => (
+                  <SelectItem key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              All scheduled times (workshops, notifications) will use this timezone.
+              Currently set to <span className="font-medium">{getTimezoneAbbreviation(timezone)}</span>.
             </p>
           </div>
 

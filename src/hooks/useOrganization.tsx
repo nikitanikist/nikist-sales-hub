@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { DEFAULT_TIMEZONE } from "@/lib/timezoneUtils";
 
 interface Organization {
   id: string;
@@ -8,6 +9,7 @@ interface Organization {
   slug: string;
   logo_url: string | null;
   is_active: boolean;
+  timezone: string;
 }
 
 interface OrganizationMember {
@@ -76,11 +78,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         // Super admins can see all organizations
         const { data: allOrgs, error } = await supabase
           .from("organizations")
-          .select("*")
+          .select("id, name, slug, logo_url, is_active, timezone")
           .order("name");
 
         if (error) throw error;
-        orgs = allOrgs || [];
+        orgs = (allOrgs || []).map(org => ({
+          ...org,
+          timezone: org.timezone || DEFAULT_TIMEZONE,
+        }));
       } else {
         // Regular users see only their organizations
         const { data: memberships, error } = await supabase
@@ -94,7 +99,8 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
               name,
               slug,
               logo_url,
-              is_active
+              is_active,
+              timezone
             )
           `)
           .eq("user_id", profile.id);
@@ -103,8 +109,11 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
         // Extract organizations from memberships
         orgs = (memberships || [])
-          .map((m: any) => m.organizations)
-          .filter((org: any) => org !== null);
+          .map((m: any) => ({
+            ...m.organizations,
+            timezone: m.organizations?.timezone || DEFAULT_TIMEZONE,
+          }))
+          .filter((org: any) => org !== null && org.id);
 
         // Check if user is org admin for current org
         const currentOrgMembership = memberships?.find(
