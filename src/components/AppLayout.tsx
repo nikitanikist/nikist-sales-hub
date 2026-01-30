@@ -15,7 +15,7 @@ import { ROUTE_TO_PERMISSION, PermissionKey } from "@/lib/permissions";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { OrganizationProvider, useOrganization } from "@/hooks/useOrganization";
 import { supabase } from "@/integrations/supabase/client";
-
+import logoVideo from "@/assets/logo.mp4";
 // Icon mapping for dynamic cohort types
 const iconMap: Record<string, typeof LayoutDashboard> = {
   Users: Users,
@@ -68,14 +68,23 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
         {state === "expanded" ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              {/* Gradient background for logo */}
-              <div className="p-2.5 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
-                {isSuperAdmin ? (
+              {/* Logo */}
+              {isSuperAdmin ? (
+                <div className="p-2.5 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
                   <Shield className="h-5 w-5 text-white" />
-                ) : (
-                  <Building2 className="h-5 w-5 text-white" />
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md">
+                  <video
+                    src={logoVideo}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
               <div>
                 <h2 className="text-base font-bold text-sidebar-foreground">
                   {isSuperAdmin ? "Super Admin" : organizationName || "CRM"}
@@ -88,13 +97,22 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="p-2 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-lg">
-              {isSuperAdmin ? (
+            {isSuperAdmin ? (
+              <div className="p-2 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-lg">
                 <Shield className="h-4 w-4 text-white" />
-              ) : (
-                <Building2 className="h-4 w-4 text-white" />
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-lg overflow-hidden">
+                <video
+                  src={logoVideo}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
           </div>
         )}
       </SidebarHeader>
@@ -421,8 +439,15 @@ const AppLayoutContent = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
-          <div className="p-3 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-lg animate-pulse">
-            <Building2 className="h-8 w-8 text-white" />
+          <div className="w-16 h-16 rounded-xl overflow-hidden shadow-lg">
+            <video
+              src={logoVideo}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="skeleton-shimmer h-4 w-24 rounded" />
         </div>
