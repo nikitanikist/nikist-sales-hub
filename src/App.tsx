@@ -31,6 +31,7 @@ import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
 import ProtectedRoute from "./components/ProtectedRoute";
+import TemplateEditor from "./pages/settings/TemplateEditor";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,8 @@ const App = () => (
               <Route path="/users" element={<Users />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/settings" element={<ProtectedRoute adminOnly><OrganizationSettings /></ProtectedRoute>} />
+              <Route path="/settings/templates/new" element={<ProtectedRoute adminOnly><TemplateEditor /></ProtectedRoute>} />
+              <Route path="/settings/templates/:id" element={<ProtectedRoute adminOnly><TemplateEditor /></ProtectedRoute>} />
               <Route path="/super-admin" element={<SuperAdminDashboard />} />
               <Route path="/super-admin/create-org" element={<SuperAdminDashboard />} />
             </Route>
