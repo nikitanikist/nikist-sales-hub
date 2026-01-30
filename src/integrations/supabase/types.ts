@@ -2336,6 +2336,86 @@ export type Database = {
           },
         ]
       }
+      template_sequence_steps: {
+        Row: {
+          created_at: string
+          id: string
+          send_time: string
+          sequence_id: string
+          step_order: number
+          template_id: string
+          time_label: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          send_time: string
+          sequence_id: string
+          step_order: number
+          template_id: string
+          time_label?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          send_time?: string
+          sequence_id?: string
+          step_order?: number
+          template_id?: string
+          time_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "template_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "template_sequence_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_sequences: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_permissions: {
         Row: {
           created_at: string | null
@@ -2664,6 +2744,54 @@ export type Database = {
           },
         ]
       }
+      workshop_tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          template_sequence_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          template_sequence_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          template_sequence_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_tags_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_tags_template_sequence_id_fkey"
+            columns: ["template_sequence_id"]
+            isOneToOne: false
+            referencedRelation: "template_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshops: {
         Row: {
           ad_spend: number | null
@@ -2685,9 +2813,11 @@ export type Database = {
           product_id: string | null
           start_date: string
           status: Database["public"]["Enums"]["workshop_status"]
+          tag_id: string | null
           title: string
           updated_at: string
           whatsapp_group_id: string | null
+          whatsapp_session_id: string | null
         }
         Insert: {
           ad_spend?: number | null
@@ -2709,9 +2839,11 @@ export type Database = {
           product_id?: string | null
           start_date: string
           status?: Database["public"]["Enums"]["workshop_status"]
+          tag_id?: string | null
           title: string
           updated_at?: string
           whatsapp_group_id?: string | null
+          whatsapp_session_id?: string | null
         }
         Update: {
           ad_spend?: number | null
@@ -2733,9 +2865,11 @@ export type Database = {
           product_id?: string | null
           start_date?: string
           status?: Database["public"]["Enums"]["workshop_status"]
+          tag_id?: string | null
           title?: string
           updated_at?: string
           whatsapp_group_id?: string | null
+          whatsapp_session_id?: string | null
         }
         Relationships: [
           {
@@ -2774,10 +2908,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "workshops_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_tags"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "workshops_whatsapp_group_id_fkey"
             columns: ["whatsapp_group_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshops_whatsapp_session_id_fkey"
+            columns: ["whatsapp_session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
             referencedColumns: ["id"]
           },
         ]

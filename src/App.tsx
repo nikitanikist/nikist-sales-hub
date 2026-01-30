@@ -26,6 +26,7 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import CohortPage from "./pages/CohortPage";
 import ManageCohorts from "./pages/ManageCohorts";
 import OrganizationSettings from "./pages/OrganizationSettings";
+import { WorkshopNotification } from "./pages/operations";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
@@ -59,6 +60,7 @@ const App = () => (
               <Route path="/cohorts/:cohortSlug" element={<ProtectedRoute><ModuleGuard moduleSlug="cohort-management"><CohortPage /></ModuleGuard></ProtectedRoute>} />
               <Route path="/daily-money-flow" element={<ModuleGuard moduleSlug="daily-money-flow"><DailyMoneyFlow /></ModuleGuard>} />
               <Route path="/workshops" element={<ModuleGuard moduleSlug="workshops"><Workshops /></ModuleGuard>} />
+              <Route path="/operations/workshop-notification" element={<ModuleGuard moduleSlug="workshops"><WorkshopNotification /></ModuleGuard>} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />
               <Route path="/products" element={<Products />} />
