@@ -137,6 +137,13 @@ Deno.serve(async (req) => {
         // Build full URL safely
         const vpsUrl = buildUrl(VPS_URL, '/send');
 
+        // Log media information for debugging
+        console.log(`Message ${msg.id} media info:`, {
+          hasMediaUrl: !!msg.media_url,
+          mediaType: msg.media_type,
+          mediaUrlPreview: msg.media_url?.slice(0, 80),
+        });
+
         const vpsBody = JSON.stringify({
           sessionId: vpsSessionId,
           phone: group.group_jid,  // VPS expects "phone" field for recipient (works for both individual and group chats)
@@ -144,6 +151,8 @@ Deno.serve(async (req) => {
           ...(msg.media_url && { mediaUrl: msg.media_url }),
           ...(msg.media_type && { mediaType: msg.media_type }),
         });
+
+        console.log(`VPS request body for ${msg.id}:`, vpsBody);
 
         // Send message to VPS with auth retry
         const { response, strategyUsed } = await fetchWithAuthRetry(
