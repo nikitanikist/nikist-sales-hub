@@ -1,117 +1,336 @@
 
-## What’s happening (confirmed from backend + logs)
-- Your **WhatsApp Groups UI is empty** because the `whatsapp_groups` table currently has **0 rows** (confirmed by a database query).
-- The **only recorded “sync-groups” runs** in backend logs (at `13:28` and `13:31`) show this error:
 
-  `42P10: there is no unique or exclusion constraint matching the ON CONFLICT specification`
+# Workshop Notification Operations System - Implementation Plan
 
-  That means the backend function fetched groups from the VPS, but **failed to save them** in the database.
-- Even worse: the backend function currently **returns `success: true` even when saving fails**, so the UI can show “Synced 27 groups” while the database remains empty—leading to “No groups synced yet” in the list.
+## Overview
 
-## Why it’s still happening for you right now
-Even though the code diff shows we changed:
-- `onConflict: 'group_jid,organization_id'` → `onConflict: 'session_id,group_jid'`
-
-…the database still shows **0 groups** and the backend logs still show the old conflict error (and no newer successful sync logs). This strongly suggests **the deployed backend function is still the old version**, or the sync button isn’t hitting the updated deployment yet.
-
-## Goal
-Make the sync reliable and transparent:
-1) Ensure groups are actually saved into the database.
-2) Ensure the UI tells you the truth if saving fails.
-3) Ensure the UI refreshes and displays groups immediately after sync.
+This plan implements the Workshop Notification Operations UI, enabling admins to configure message templates, create template sequences with dynamic times, organize workshops using tags, and schedule automated WhatsApp group messages.
 
 ---
 
-## Implementation plan
+## Database Changes
 
-### 1) Backend function: make sync fail loudly if DB save fails
-**File:** `supabase/functions/vps-whatsapp-proxy/index.ts`
+### New Tables Required
 
-**Changes:**
-- Keep `onConflict: 'session_id,group_jid'` (this matches the real unique constraint).
-- If `upsertError` occurs:
-  - Return HTTP `500` (or `400`) with a JSON payload like:
-    ```json
-    { "success": false, "upstream": "db", "error": "...", "code": "...", "details": "..." }
-    ```
-  - Do **not** return `{ success: true }`.
+Three new tables need to be created:
 
-**Why:** Right now the function logs the error but still returns success, which hides the real issue.
+**1. `workshop_tags`** - Categorize workshops and link to template sequences
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | Primary key |
+| organization_id | UUID | FK to organizations |
+| name | TEXT | Tag name (e.g., "Evening Workshop") |
+| color | TEXT | Hex color for UI badge |
+| description | TEXT | Optional description |
+| template_sequence_id | UUID | FK to template_sequences |
+| created_at | TIMESTAMPTZ | Auto-generated |
+| updated_at | TIMESTAMPTZ | Auto-generated |
+
+**2. `template_sequences`** - Named collections of templates with scheduled times
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | Primary key |
+| organization_id | UUID | FK to organizations |
+| name | TEXT | Sequence name (e.g., "Evening Notification Sequence") |
+| description | TEXT | Optional description |
+| created_at | TIMESTAMPTZ | Auto-generated |
+| updated_at | TIMESTAMPTZ | Auto-generated |
+
+**3. `template_sequence_steps`** - Individual steps within a sequence
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | Primary key |
+| sequence_id | UUID | FK to template_sequences |
+| template_id | UUID | FK to whatsapp_message_templates |
+| send_time | TIME | Admin-configurable time (e.g., "11:00:00") |
+| time_label | TEXT | Friendly label (e.g., "Morning Reminder") |
+| step_order | INTEGER | Order within sequence |
+| created_at | TIMESTAMPTZ | Auto-generated |
+
+**4. Columns to add to `workshops` table**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| tag_id | UUID | FK to workshop_tags |
+| whatsapp_session_id | UUID | FK to whatsapp_sessions (which WA account to use) |
+
+**Note:** The `whatsapp_group_id` and `automation_status` columns already exist on the workshops table.
 
 ---
 
-### 2) Backend function: verify save by reading back from the database
-Still in `vps-whatsapp-proxy/index.ts` inside `sync-groups`:
-- After `upsert`, run a DB read (fast + small) to confirm persistence:
-  - Option A (recommended): count rows saved for that session/org:
-    - `select('*', { count: 'exact', head: true })` filtered by `organization_id`, `session_id`, `is_active=true`
-  - Option B: `select('id, group_jid, group_name')` and return the saved groups (first N) to the UI.
+## Architecture Flow
 
-Return payload should include something like:
-```json
-{
-  "success": true,
-  "vpsCount": 27,
-  "savedCount": 27
-}
+```text
++---------------------+
+|   Workshop Tags     |
+|  "Evening Workshop" |
+|         |           |
+|    sequence_id -----|------+
++---------------------+      |
+                             v
++---------------------+    +-------------------------+
+|     Workshops       |    |  Template Sequences     |
+|                     |    | "Evening Notification"  |
+|    tag_id ----------|--->|                         |
+|                     |    +-------------------------+
+|  whatsapp_session_id|              |
+|         |           |              v
++---------|-----------+    +-------------------------+
+          |                |   Sequence Steps        |
+          v                |  11:00 AM -> Template 1 |
++---------------------+    |  01:00 PM -> Template 2 |
+|  WhatsApp Sessions  |    |  06:00 PM -> Template 3 |
+| (Multiple accounts) |    |  06:55 PM -> Template 4 |
++---------------------+    +-------------------------+
 ```
 
-**Why:** This guarantees the “Synced X groups” message corresponds to what’s actually stored.
+---
+
+## Files to Create
+
+### Pages
+
+| File | Purpose |
+|------|---------|
+| `src/pages/operations/WorkshopNotification.tsx` | Main table page showing workshops with date, name, tag, registrations |
+| `src/pages/operations/index.ts` | Barrel export |
+| `src/pages/settings/WorkshopNotificationSettings.tsx` | Settings page with 3 tabs: Templates, Sequences, Tags |
+
+### Components
+
+| File | Purpose |
+|------|---------|
+| `src/components/operations/WorkshopDetailSheet.tsx` | Slide-over panel with tag selector, WA account/group, checkpoints |
+| `src/components/operations/WorkshopTagBadge.tsx` | Color-coded tag badge component |
+| `src/components/operations/MessageCheckpoints.tsx` | Real-time checkbox list with status (Sent/Pending/Failed) |
+| `src/components/operations/RunMessagingButton.tsx` | Action button to schedule all messages |
+| `src/components/settings/TemplateEditor.tsx` | Dialog to create/edit message templates with media upload |
+| `src/components/settings/SequenceEditor.tsx` | Dialog to create/edit sequences with time pickers |
+| `src/components/settings/TagEditor.tsx` | Dialog to create/edit tags with color picker and sequence assignment |
+
+### Hooks
+
+| File | Purpose |
+|------|---------|
+| `src/hooks/useWorkshopTags.ts` | CRUD operations for workshop tags |
+| `src/hooks/useTemplateSequences.ts` | CRUD operations for template sequences and steps |
+| `src/hooks/useWorkshopNotification.ts` | Business logic for scheduling messages + real-time subscription |
 
 ---
 
-### 3) Frontend: show “Saved X groups” not “Synced X groups”
-**File:** `src/hooks/useWhatsAppGroups.ts`
+## Files to Modify
 
-**Changes:**
-- Update success toast to use `savedCount` returned by the backend:
-  - `toast.success(\`Saved ${data.savedCount} groups\`)`
-- If `savedCount` is `0` but `vpsCount > 0`, show a warning toast explaining saving failed or is blocked.
-
-**Why:** Prevents confusing “Synced 27 groups” when the list remains empty.
+| File | Changes |
+|------|---------|
+| `src/components/AppLayout.tsx` | Add "Operations" collapsible menu with "Workshop Notification" submenu |
+| `src/App.tsx` | Add routes for `/operations/workshop-notification` and settings tab |
+| `src/pages/OrganizationSettings.tsx` | Add "Notifications" tab linking to workshop notification settings |
 
 ---
 
-### 4) Frontend: force an immediate refresh after sync
-**Files:**
-- `src/hooks/useWhatsAppGroups.ts`
-- (optional) `src/pages/settings/WhatsAppConnection.tsx`
+## Implementation Details
 
-**Changes:**
-- After a successful sync:
-  - `invalidateQueries({ queryKey: ['whatsapp-groups', currentOrganization.id] })`
-  - optionally `refetchQueries` right after invalidation (to update UI immediately)
-- In the Settings UI, optionally add a small “Refresh” button near the groups header that triggers refetch manually.
+### 1. Sidebar Navigation (AppLayout.tsx)
+
+Add new collapsible menu item after "All Workshops":
+
+```typescript
+{
+  title: "Operations",
+  icon: Activity,
+  children: [
+    { title: "Workshop Notification", path: "/operations/workshop-notification", permissionKey: 'workshops' as PermissionKey },
+  ],
+  moduleSlug: 'workshops'
+},
+```
+
+### 2. Workshop Notification Page
+
+**Table Columns:**
+- Date (formatted from `workshops.start_date`)
+- Workshop Name (`workshops.title`)
+- Tag (color-coded badge from `workshop_tags` via `tag_id`)
+- Registrations (count from `lead_assignments`)
+- Action (View button opens sheet)
+
+**Features:**
+- Search by workshop name
+- Filter by tag
+- Sorted by date descending (newest first)
+
+### 3. Workshop Detail Sheet
+
+**Sections:**
+
+1. **Overview** - Registration count, workshop date/time
+2. **Workshop Tag** - Dropdown to select/change tag, shows linked sequence name
+3. **WhatsApp Settings**:
+   - Account dropdown (lists all connected sessions)
+   - Group dropdown (lists groups from selected account)
+4. **Message Checkpoints** - Real-time list showing:
+   - Checkbox icon (filled if sent)
+   - Time (e.g., "11:00 AM")
+   - Template name (e.g., "Morning Reminder")
+   - Status badge (Sent/Pending/Scheduled/Failed)
+5. **Run the Messaging** button - Schedules all messages from tag's sequence
+
+### 4. Real-Time Checkpoints
+
+Subscribe to `scheduled_whatsapp_messages` table changes:
+
+```typescript
+supabase
+  .channel('checkpoints-realtime')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'scheduled_whatsapp_messages',
+    filter: `workshop_id=eq.${workshopId}`
+  }, () => {
+    queryClient.invalidateQueries({ queryKey: ['workshop-messages', workshopId] });
+  })
+  .subscribe();
+```
+
+### 5. Run the Messaging Logic
+
+When user clicks "Run the Messaging":
+
+1. Validate group is linked (error if not)
+2. Validate tag is assigned (error if no sequence)
+3. Get sequence steps from tag's template_sequence_id
+4. For each step:
+   - Calculate scheduled time: `workshopDate + step.send_time`
+   - Skip if time is in the past
+   - Check if already scheduled (avoid duplicates)
+   - Insert into `scheduled_whatsapp_messages`
+5. Show success toast with count
+6. Update `workshops.automation_status` JSONB
+
+### 6. Settings: Templates Tab
+
+- Table showing all templates with name, preview, actions
+- Create/Edit dialog with:
+  - Template name input
+  - Rich textarea for content
+  - Variable hints: `{workshop_name}`, `{date}`, `{time}`, `{zoom_link}`
+  - Optional media upload field
+
+### 7. Settings: Sequences Tab
+
+- List of sequences with name and step count
+- Create/Edit dialog with:
+  - Sequence name input
+  - Sortable list of steps, each with:
+    - Time picker (any time from 00:00-23:59)
+    - Template dropdown
+    - Label input (optional)
+    - Remove button
+  - Add step button
+
+### 8. Settings: Tags Tab
+
+- List of tags with name, color badge, linked sequence
+- Create/Edit dialog with:
+  - Tag name input
+  - Color picker (preset colors: Purple, Blue, Green, Yellow, Orange, Red)
+  - Template sequence dropdown
+  - Description input (optional)
 
 ---
 
-### 5) Force redeploy the backend function and verify via logs
-After implementing the above:
-- Force redeploy `vps-whatsapp-proxy` (so we’re sure the new code is live).
-- Verify with backend logs that we now see:
-  - “Synced X groups” **without** any `42P10` error
-- Verify with database query that `whatsapp_groups` row count becomes > 0.
+## RLS Policies for New Tables
+
+All new tables will follow the existing organization-scoped pattern:
+
+```sql
+-- SELECT: Users in org can view
+CREATE POLICY "Users can view tags in their organization"
+ON workshop_tags FOR SELECT
+USING (organization_id = ANY (get_user_organization_ids()) OR is_super_admin(auth.uid()));
+
+-- INSERT: Admins and managers can create
+CREATE POLICY "Admins can create tags"
+ON workshop_tags FOR INSERT
+WITH CHECK ((organization_id = ANY (get_user_organization_ids()) AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager'))) OR is_super_admin(auth.uid()));
+
+-- UPDATE/DELETE: Same as INSERT
+```
+
+Similar policies for `template_sequences` and `template_sequence_steps`.
 
 ---
 
-## Testing checklist (in Preview)
-1. Go to **Settings → WhatsApp Connection**
-2. Click **Sync Groups**
-3. Expect toast: **“Saved 27 groups”**
-4. Groups should appear immediately in the list
-5. Confirm backend logs show no `Failed to upsert groups` errors
-6. Confirm database has rows in `whatsapp_groups`
+## Migration Order
+
+1. Create `template_sequences` table (no dependencies)
+2. Create `template_sequence_steps` table (depends on template_sequences + whatsapp_message_templates)
+3. Create `workshop_tags` table (depends on template_sequences)
+4. Add `tag_id` and `whatsapp_session_id` columns to `workshops`
+5. Add indexes for performance
+6. Add RLS policies to all new tables
+7. Enable realtime for `scheduled_whatsapp_messages` (if not already enabled)
 
 ---
 
-## Edge cases handled by this plan
-- If the VPS returns groups but the DB cannot save them (RLS/constraints/shape issues), you’ll see a real error (not a fake success).
-- If the backend deployment is lagging or stale, the redeploy + versioned logs will confirm we’re running the updated code.
+## Testing Checklist
+
+**Workshop Notification Page:**
+- [ ] Table displays all workshops with correct data
+- [ ] Tag badge shows with correct color
+- [ ] View button opens detail sheet
+- [ ] Search filters correctly
+
+**Workshop Detail Sheet:**
+- [ ] Tag dropdown shows all org tags
+- [ ] Changing tag updates sequence display
+- [ ] WhatsApp account dropdown shows all connected sessions
+- [ ] Group dropdown shows groups from selected account
+- [ ] Checkpoints show real-time status updates
+
+**Run the Messaging:**
+- [ ] Error shown if no group linked
+- [ ] Error shown if no tag assigned
+- [ ] Creates correct scheduled messages
+- [ ] Skips past times
+- [ ] Doesn't create duplicates
+- [ ] Updates automation_status
+
+**Settings: Templates:**
+- [ ] Can create, edit, delete templates
+- [ ] Content saves correctly
+
+**Settings: Sequences:**
+- [ ] Can create sequences with multiple steps
+- [ ] Time picker allows any time
+- [ ] Steps can be reordered
+
+**Settings: Tags:**
+- [ ] Can create tags with colors
+- [ ] Can link sequence to tag
+- [ ] Color shows correctly in badge
 
 ---
 
-## Files that will be changed
-- `supabase/functions/vps-whatsapp-proxy/index.ts` (return proper error, verify savedCount, ensure deployed version)
-- `src/hooks/useWhatsAppGroups.ts` (toast messaging + stronger refetch)
-- (optional) `src/pages/settings/WhatsAppConnection.tsx` (manual refresh UX)
+## Estimated Effort by Component
+
+| Component | Estimate |
+|-----------|----------|
+| Database migrations (3 tables + columns) | 0.5 day |
+| Hooks (3 new hooks) | 1 day |
+| Sidebar navigation update | 0.5 day |
+| Workshop Notification page + table | 1 day |
+| Workshop Detail Sheet | 1.5 days |
+| Real-time checkpoints | 0.5 day |
+| Run the Messaging logic | 1 day |
+| Settings: Template Editor | 1 day |
+| Settings: Sequence Editor | 1.5 days |
+| Settings: Tag Editor | 0.5 day |
+| Integration into OrganizationSettings | 0.5 day |
+| Testing and polish | 1.5 days |
+| **Total** | **~11 days** |
 
