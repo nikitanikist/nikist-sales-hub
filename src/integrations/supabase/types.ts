@@ -2750,6 +2750,51 @@ export type Database = {
           },
         ]
       }
+      workshop_sequence_variables: {
+        Row: {
+          created_at: string | null
+          id: string
+          organization_id: string
+          updated_at: string | null
+          variable_key: string
+          variable_value: string
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          organization_id: string
+          updated_at?: string | null
+          variable_key: string
+          variable_value: string
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          organization_id?: string
+          updated_at?: string | null
+          variable_key?: string
+          variable_value?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_sequence_variables_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_sequence_variables_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshop_tags: {
         Row: {
           color: string | null

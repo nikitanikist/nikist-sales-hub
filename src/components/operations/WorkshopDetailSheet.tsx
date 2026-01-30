@@ -9,13 +9,17 @@ import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorksho
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { useSequenceVariables } from '@/hooks/useSequenceVariables';
 import { WorkshopTagBadge } from './WorkshopTagBadge';
 import { MessageCheckpoints, toCheckpoints } from './MessageCheckpoints';
 import { MessagingActions } from './MessagingActions';
 import { SendMessageNowDialog } from './SendMessageNowDialog';
 import { MultiGroupSelect } from './MultiGroupSelect';
 import { CollapsibleSection } from './CollapsibleSection';
+import { SequenceVariablesDialog } from './SequenceVariablesDialog';
 import { formatInOrgTime } from '@/lib/timezoneUtils';
+import { extractSequenceVariables } from '@/lib/templateVariables';
+import { supabase } from '@/integrations/supabase/client';
 
 interface WorkshopDetailSheetProps {
   workshop: WorkshopWithDetails | null;
@@ -25,6 +29,8 @@ interface WorkshopDetailSheetProps {
 
 export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDetailSheetProps) {
   const [sendNowDialogOpen, setSendNowDialogOpen] = useState(false);
+  const [variablesDialogOpen, setVariablesDialogOpen] = useState(false);
+  const [pendingManualVariables, setPendingManualVariables] = useState<string[]>([]);
   
   const { 
     updateTag, 
@@ -45,6 +51,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
   const { tags } = useWorkshopTags();
   const { sessions } = useWhatsAppSession();
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
+  const { variablesMap, saveVariables, isSaving } = useSequenceVariables(workshop?.id || null);
   
   // Fetch messages for this workshop
   const { data: messages, isLoading: messagesLoading } = useWorkshopMessages(workshop?.id || null);
@@ -148,6 +155,56 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
 
   const checkpoints = toCheckpoints(messages || [], orgTimezone);
   const hasSequence = !!(workshop.tag?.template_sequence_id);
+  
+  // Handle Run Sequence - check for manual variables first
+  const handleRunSequence = async () => {
+    if (!workshop.tag?.template_sequence_id) {
+      runMessaging({ workshopId: workshop.id, workshop, groupIds: selectedGroupIds, manualVariables: {} });
+      return;
+    }
+
+    // Fetch the sequence steps to extract variables
+    const { data: sequenceData } = await supabase
+      .from('template_sequences')
+      .select(`
+        steps:template_sequence_steps(
+          template:whatsapp_message_templates(content)
+        )
+      `)
+      .eq('id', workshop.tag.template_sequence_id)
+      .single();
+
+    if (sequenceData?.steps) {
+      const { manual } = extractSequenceVariables(sequenceData.steps);
+      
+      if (manual.length > 0) {
+        // Show dialog for manual variables
+        setPendingManualVariables(manual);
+        setVariablesDialogOpen(true);
+        return;
+      }
+    }
+
+    // No manual variables needed, run directly
+    runMessaging({ workshopId: workshop.id, workshop, groupIds: selectedGroupIds, manualVariables: {} });
+  };
+
+  // Handle variables dialog submission
+  const handleVariablesSubmit = async (variables: Record<string, string>) => {
+    // Save variables to database
+    await saveVariables({ workshopId: workshop.id, variables });
+    
+    // Run messaging with the variables
+    runMessaging({ 
+      workshopId: workshop.id, 
+      workshop, 
+      groupIds: selectedGroupIds, 
+      manualVariables: variables 
+    });
+    
+    setVariablesDialogOpen(false);
+    setPendingManualVariables([]);
+  };
   
   // Calculate summaries for collapsed state
   const tagSummary = workshop.tag 
@@ -259,7 +316,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                       → Has template sequence
                     </span>
                   ) : (
-                    <span className="text-xs text-amber-600">
+                    <span className="text-xs text-destructive">
                       → No sequence configured
                     </span>
                   )}
@@ -378,9 +435,9 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
         <SheetFooter className="border-t bg-background px-6 py-4 mt-auto">
           <div className="w-full">
             <MessagingActions
-              onRunSequence={() => runMessaging({ workshopId: workshop.id, workshop, groupIds: selectedGroupIds })}
+              onRunSequence={handleRunSequence}
               onSendNow={() => setSendNowDialogOpen(true)}
-              isRunningSequence={isRunningMessaging}
+              isRunningSequence={isRunningMessaging || isSaving}
               isSendingNow={isSendingNow}
               hasGroups={selectedGroupIds.length > 0}
               groupCount={selectedGroupIds.length}
@@ -417,6 +474,19 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
           groupCount={selectedGroupIds.length}
         />
       )}
+
+      {/* Sequence Variables Dialog */}
+      <SequenceVariablesDialog
+        open={variablesDialogOpen}
+        onOpenChange={setVariablesDialogOpen}
+        workshopTitle={workshop.title}
+        workshopStartDate={workshop.start_date}
+        timezone={orgTimezone}
+        manualVariables={pendingManualVariables}
+        savedValues={variablesMap}
+        onSubmit={handleVariablesSubmit}
+        isSubmitting={isRunningMessaging || isSaving}
+      />
     </Sheet>
   );
 }
