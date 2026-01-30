@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { format } from "date-fns";
 import { useOrgTimezone } from "@/hooks/useOrgTimezone";
+import { fromOrgTime, formatInOrgTime, getTimezoneAbbreviation } from "@/lib/timezoneUtils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
 import { WorkshopWhatsAppTab } from "@/components/workshops/WorkshopWhatsAppTab";
@@ -504,11 +505,26 @@ const Workshops = () => {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const timezone = currentOrganization?.timezone || 'Asia/Kolkata';
+    
+    // Get raw input strings - user enters these in org timezone (IST)
+    const startDateInput = formData.get("start_date") as string;
+    const endDateInput = formData.get("end_date") as string;
+    
+    // Convert from org timezone (IST) to UTC for storage
+    // User input "2026-01-31T01:00" means 1 AM IST, stored as 7:30 PM UTC Jan 30
+    const startDateUTC = startDateInput 
+      ? fromOrgTime(new Date(startDateInput), timezone).toISOString() 
+      : null;
+    const endDateUTC = endDateInput 
+      ? fromOrgTime(new Date(endDateInput), timezone).toISOString() 
+      : null;
+    
     const data = {
       title: formData.get("title"),
       description: formData.get("description"),
-      start_date: formData.get("start_date"),
-      end_date: formData.get("end_date"),
+      start_date: startDateUTC,
+      end_date: endDateUTC,
       location: formData.get("location"),
       max_participants: formData.get("max_participants") ? Number(formData.get("max_participants")) : null,
       ad_spend: formData.get("ad_spend") ? Number(formData.get("ad_spend")) : 0,
@@ -651,22 +667,36 @@ const Workshops = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="start_date">Start Date</Label>
+                    <Label htmlFor="start_date">
+                      Start Date & Time{" "}
+                      <span className="text-muted-foreground text-xs">
+                        ({getTimezoneAbbreviation(currentOrganization?.timezone || 'Asia/Kolkata')})
+                      </span>
+                    </Label>
                     <Input
                       id="start_date"
                       name="start_date"
                       type="datetime-local"
-                      defaultValue={editingWorkshop?.start_date ? format(new Date(editingWorkshop.start_date), "yyyy-MM-dd'T'HH:mm") : ""}
+                      defaultValue={editingWorkshop?.start_date 
+                        ? formatInOrgTime(editingWorkshop.start_date, currentOrganization?.timezone || 'Asia/Kolkata', "yyyy-MM-dd'T'HH:mm") 
+                        : ""}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="end_date">End Date</Label>
+                    <Label htmlFor="end_date">
+                      End Date & Time{" "}
+                      <span className="text-muted-foreground text-xs">
+                        ({getTimezoneAbbreviation(currentOrganization?.timezone || 'Asia/Kolkata')})
+                      </span>
+                    </Label>
                     <Input
                       id="end_date"
                       name="end_date"
                       type="datetime-local"
-                      defaultValue={editingWorkshop?.end_date ? format(new Date(editingWorkshop.end_date), "yyyy-MM-dd'T'HH:mm") : ""}
+                      defaultValue={editingWorkshop?.end_date 
+                        ? formatInOrgTime(editingWorkshop.end_date, currentOrganization?.timezone || 'Asia/Kolkata', "yyyy-MM-dd'T'HH:mm") 
+                        : ""}
                       required
                     />
                   </div>
