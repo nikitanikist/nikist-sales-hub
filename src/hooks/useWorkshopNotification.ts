@@ -378,18 +378,17 @@ export function useWorkshopNotification() {
         throw new Error('WhatsApp session not found');
       }
 
+      // Verify session has VPS ID configured (edge function will look it up)
       const sessionData = session.session_data as { vps_session_id?: string };
-      const vpsSessionId = sessionData.vps_session_id;
-
-      if (!vpsSessionId) {
+      if (!sessionData?.vps_session_id) {
         throw new Error('WhatsApp session is not properly configured');
       }
       
-      // Call VPS proxy to send immediately
+      // Call VPS proxy with local DB UUID - edge function handles VPS ID lookup
       const { data, error } = await supabase.functions.invoke('vps-whatsapp-proxy', {
         body: {
           action: 'send',
-          sessionId: vpsSessionId,
+          sessionId: sessionId,  // Send local DB UUID, not VPS session ID
           groupId: group.group_jid,
           message: content,
           ...(mediaUrl && { mediaUrl }),
