@@ -1,37 +1,36 @@
 
 
-# Fix "Send Message Now" - Wrong Session ID Being Sent
+# Fix VPS Send Message - Wrong Field Name for Recipient
 
 ## Problem
 
-The error "Missing required fields: sessionId, phone, message" occurs because:
+The VPS `/send` endpoint rejects the request with:
+```json
+{"error":"Missing required fields: sessionId, phone, message"}
+```
 
-1. The frontend sends the **VPS session ID** (`wa_43df529e-...`) to the edge function
-2. The edge function expects the **local database UUID** (`43df529e-...`) and does its own VPS ID lookup
-3. When it tries to look up `wa_43df529e-...` in the database, it fails (invalid UUID format)
-4. The fallback uses the malformed ID, causing the VPS API to reject it
+The Edge Function is sending `groupId` but the VPS API expects `phone` for the recipient field.
 
 ---
 
 ## Root Cause
 
-```typescript
-// Current code in useWorkshopNotification.ts (line 392)
-sessionId: vpsSessionId,  // ← WRONG: Sending "wa_43df529e-..."
+```text
+Edge Function sends:             VPS expects:
+{                                {
+  "sessionId": "wa_...",           "sessionId": "wa_...",
+  "groupId": "120363...@g.us",     "phone": "120363...@g.us",  ← Different field name!
+  "message": "Hello"               "message": "Hello"
+}                                }
 ```
 
-But the edge function expects:
-```typescript
-// In vps-whatsapp-proxy/index.ts (line 243)
-localSessionIdForDb = sessionId;  // Expects local UUID like "43df529e-..."
-vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);  // Then looks up VPS ID
-```
+The VPS uses `phone` for BOTH individual chats and group chats. The group JID (e.g., `120363417177523752@g.us`) should be passed as the `phone` field.
 
 ---
 
 ## Solution
 
-Send the **local database session ID** (the `sessionId` parameter from the original function call), not the VPS session ID that we looked up.
+Update the Edge Function to send `phone` instead of `groupId` when calling the VPS `/send` endpoint.
 
 ---
 
@@ -39,79 +38,72 @@ Send the **local database session ID** (the `sessionId` parameter from the origi
 
 | File | Change |
 |------|--------|
-| `src/hooks/useWorkshopNotification.ts` | Send `sessionId` (local UUID) instead of `vpsSessionId` |
+| `supabase/functions/vps-whatsapp-proxy/index.ts` | Change `groupId` to `phone` in the send action (line ~254-258) |
 
 ---
 
 ## Technical Change
 
-**Current code:**
+**Current code (lines 253-259):**
 ```typescript
-const sessionData = session.session_data as { vps_session_id?: string };
-const vpsSessionId = sessionData.vps_session_id;
-
-if (!vpsSessionId) {
-  throw new Error('WhatsApp session is not properly configured');
-}
-
-const { data, error } = await supabase.functions.invoke('vps-whatsapp-proxy', {
-  body: {
-    action: 'send',
-    sessionId: vpsSessionId,  // ← WRONG
-    groupId: group.group_jid,
-    message: content,
-  },
-});
+vpsBody = {
+  sessionId: vpsSessionIdForVps,
+  groupId,           // ← Wrong field name
+  message,
+  ...(mediaUrl && { mediaUrl }),
+  ...(mediaType && { mediaType }),
+};
 ```
 
 **Fixed code:**
 ```typescript
-// Remove the VPS session ID lookup - the edge function does this internally
-// Just verify the session exists
-const sessionData = session.session_data as { vps_session_id?: string };
-if (!sessionData?.vps_session_id) {
-  throw new Error('WhatsApp session is not properly configured');
-}
-
-const { data, error } = await supabase.functions.invoke('vps-whatsapp-proxy', {
-  body: {
-    action: 'send',
-    sessionId: sessionId,  // ← CORRECT: Send local DB UUID
-    groupId: group.group_jid,
-    message: content,
-  },
-});
+vpsBody = {
+  sessionId: vpsSessionIdForVps,
+  phone: groupId,    // ← VPS expects "phone" field for recipient (works for groups too)
+  message,
+  ...(mediaUrl && { mediaUrl }),
+  ...(mediaType && { mediaType }),
+};
 ```
 
 ---
 
 ## Data Flow After Fix
 
-```
-Frontend                    Edge Function                    VPS
-   │                              │                            │
-   │  sessionId: "43df529e-..."   │                            │
-   │ ──────────────────────────>  │                            │
-   │                              │                            │
-   │                        Look up in DB:                     │
-   │                        session_data.vps_session_id        │
-   │                        = "wa_43df529e-..."                │
-   │                              │                            │
-   │                              │  sessionId: "wa_43df529e-..."
-   │                              │ ──────────────────────────> │
-   │                              │                            │
-   │                              │  { success: true }         │
-   │  <──────────────────────────────────────────────────────  │
+```text
+Frontend                         Edge Function                       VPS
+   │                                    │                              │
+   │  groupId: "120363...@g.us"         │                              │
+   │ ─────────────────────────────────> │                              │
+   │                                    │                              │
+   │                              Maps groupId to phone:               │
+   │                              { phone: "120363...@g.us" }          │
+   │                                    │                              │
+   │                                    │  POST /send                  │
+   │                                    │  { sessionId, phone, message }
+   │                                    │ ────────────────────────────> │
+   │                                    │                              │
+   │                                    │  { success: true }           │
+   │  <─────────────────────────────────────────────────────────────── │
 ```
 
 ---
 
-## Testing
+## Expected Result
+
+After this fix:
+- The VPS receives the correctly named `phone` field
+- Messages are sent successfully to WhatsApp groups
+- Success toast "Message sent successfully" appears
+
+---
+
+## Testing Steps
 
 1. Go to Operations → Workshop Notification
 2. Click View on "Test workshop"
 3. Click "Send Message Now"
 4. Select a template
 5. Click "Send Now"
-6. Verify message appears in WhatsApp group
+6. Verify the message appears in the WhatsApp group
 
