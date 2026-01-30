@@ -1,199 +1,255 @@
 
 
-# Multi-Group WhatsApp Selection with Admin Status
+# Workshop Notification UX Improvements - Implementation Plan
 
 ## Overview
 
-Currently, the workshop detail sheet only allows selecting **one** WhatsApp group. You want to:
-1. Select **multiple** WhatsApp groups to send the sequence to
-2. See which groups you are an **admin** of (since you can only send messages to groups where you're an admin)
+This plan implements a series of UX enhancements to make the Workshop Notification system more intuitive for daily operations. The focus is on reducing scrolling, providing clear guidance, and surfacing important information at the right time.
 
-## Current Limitation
+## Priority 1 (High Impact, Low-Medium Effort)
 
-Right now:
-- Workshops table has a single `whatsapp_group_id` column (one-to-one relationship)
-- Group selection uses a `<Select>` dropdown (single selection only)
-- The VPS returns group data during sync, but we don't capture admin status
+### 1. Today's Workshop Priority Card
 
-## Implementation Plan
+**Goal:** Show today's workshop prominently at the top of the page with setup progress and actionable warnings.
 
-### Phase 1: Database Changes
+**New Component:** `src/components/operations/TodaysWorkshopCard.tsx`
 
-#### 1.1 Add `is_admin` column to `whatsapp_groups` table
+| Feature | Description |
+|---------|-------------|
+| Filter logic | Show workshops where `start_date` is today (in org timezone) |
+| Progress bar | Visual indicator showing setup completion percentage |
+| Missing items | Specific warnings like "Select WhatsApp groups" |
+| Quick actions | "Complete Setup" or "Run Sequence" buttons |
+| Multiple workshops | If multiple today, show primary with a "+X more" indicator |
 
-```sql
-ALTER TABLE public.whatsapp_groups 
-ADD COLUMN is_admin boolean DEFAULT false;
+**Progress Calculation:**
+- Step 1: Tag assigned (25%)
+- Step 2: Tag has sequence linked (25%)
+- Step 3: WhatsApp account selected (25%)
+- Step 4: Groups selected (25%)
+
+---
+
+### 2. Accordion Layout for Side Sheet
+
+**Goal:** Replace vertical scrolling with collapsible sections that auto-expand incomplete steps.
+
+**File:** `src/components/operations/WorkshopDetailSheet.tsx`
+
+**Changes:**
+| Section | Collapsed State | Expanded State |
+|---------|-----------------|----------------|
+| Overview | Date, time, registrations (one line) | Full grid with details |
+| Workshop Tag | Current tag name + sequence status | Tag selector |
+| WhatsApp Settings | Account + group count summary | Full account/group selection |
+| Message Checkpoints | "X/Y messages scheduled" summary | Full checkpoint list |
+
+**Auto-expand Logic:**
+- If no tag selected: expand "Workshop Tag"
+- If no account/groups: expand "WhatsApp Settings"
+- If messages exist: expand "Message Checkpoints"
+- All other sections show summary in collapsed state
+
+**UI Pattern:** Using existing `Collapsible` component from `@radix-ui/react-collapsible`
+
+---
+
+### 3. Actionable Status Badges
+
+**Goal:** Replace generic "Pending/Partial/Ready" with specific action-oriented text.
+
+**File:** `src/pages/operations/WorkshopNotification.tsx`
+
+**Current vs. Improved:**
+| Current Badge | Improved Badge |
+|---------------|----------------|
+| `Pending` | `Assign Tag` or `Select Groups` |
+| `Partial` | `Run Sequence` |
+| `Ready` | `Ready` (with green checkmark) |
+
+**Logic:**
+```
+if (!tag_id) → "Assign Tag"
+if (!whatsapp_session_id) → "Select Account"
+if (!groups linked) → "Select Groups"
+if (!messages_scheduled) → "Run Sequence"
+else → "Ready"
 ```
 
-This will store whether you're an admin for each group.
+---
 
-#### 1.2 Create junction table for multi-group support
+## Priority 2 (Medium Impact, Low-Medium Effort)
 
-```sql
-CREATE TABLE public.workshop_whatsapp_groups (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  workshop_id uuid NOT NULL REFERENCES public.workshops(id) ON DELETE CASCADE,
-  group_id uuid NOT NULL REFERENCES public.whatsapp_groups(id) ON DELETE CASCADE,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(workshop_id, group_id)
-);
+### 4. Quick Actions in Table Row
 
--- Enable RLS
-ALTER TABLE public.workshop_whatsapp_groups ENABLE ROW LEVEL SECURITY;
+**Goal:** Add inline action buttons to the table so users can act without opening the sheet.
 
--- RLS policies (similar to existing patterns)
-CREATE POLICY "Users can view workshop groups in their org"
-  ON public.workshop_whatsapp_groups FOR SELECT
-  USING (EXISTS (
-    SELECT 1 FROM public.workshops w 
-    WHERE w.id = workshop_id 
-    AND (w.organization_id = ANY(get_user_organization_ids()) OR is_super_admin(auth.uid()))
-  ));
+**File:** `src/pages/operations/WorkshopNotification.tsx`
 
-CREATE POLICY "Admins can manage workshop groups"
-  ON public.workshop_whatsapp_groups FOR ALL
-  USING (EXISTS (
-    SELECT 1 FROM public.workshops w 
-    WHERE w.id = workshop_id 
-    AND ((w.organization_id = ANY(get_user_organization_ids()) 
-         AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager')))
-        OR is_super_admin(auth.uid()))
-  ));
+**Changes to Actions column:**
+| State | Buttons Shown |
+|-------|---------------|
+| Fully setup | `[Run]` `[View]` |
+| Incomplete | `[Setup]` `[View]` |
+
+- "Run" button triggers `runMessaging` directly
+- "Setup" button opens sheet (same as View but conveys intent)
+- Both save one click compared to current flow
+
+---
+
+### 5. Sticky CTA Button in Side Sheet
+
+**Goal:** Keep the main action button always visible at the bottom of the sheet.
+
+**File:** `src/components/operations/WorkshopDetailSheet.tsx`
+
+**Changes:**
+- Move `MessagingActions` to a sticky footer
+- Show disabled reason inline when button is disabled
+- Add visual emphasis (gradient, shadow) to draw attention
+
+---
+
+### 6. Real-time Progress Banner (Optional Enhancement)
+
+**Goal:** Show a floating progress banner when messages are actively being sent.
+
+**New Component:** `src/components/operations/MessagingProgressBanner.tsx`
+
+| Feature | Description |
+|---------|-------------|
+| Display | Fixed banner at top of page |
+| Content | "Sending: 2/5 messages sent" with progress bar |
+| Trigger | When any message status is "sending" |
+| Dismiss | Auto-hide when complete, or manual dismiss |
+| Real-time | Uses existing Supabase subscription |
+
+---
+
+## Implementation Details
+
+### TodaysWorkshopCard Component
+
+```
++-----------------------------------------------------------+
+|  Today's Workshop                                          |
++-----------------------------------------------------------+
+|  [Icon] Crypto Masterclass - Jan 31, 7:00 PM              |
+|                                                            |
+|  Registrations: 570        Tag: [Evening Workshop]        |
+|                                                            |
+|  Setup Progress:                                           |
+|  [████████░░] 75% Complete                                |
+|                                                            |
+|  [!] Missing: WhatsApp group not selected                 |
+|                                                            |
+|  [Complete Setup]  [View Details]                         |
++-----------------------------------------------------------+
 ```
 
-### Phase 2: Update VPS Proxy to Capture Admin Status
+### Accordion Section Structure
 
-#### 2.1 Modify `vps-whatsapp-proxy/index.ts` sync-groups action
+```
++-----------------------------------------------------------+
+|  Workshop Title                                   [Close]  |
++-----------------------------------------------------------+
+|                                                            |
+|  [v] Overview                              Jan 31, 7:00 PM |
+|      ├─ 570 registrations                                 |
+|      └─ Evening Workshop                                  |
+|                                                            |
+|  [v] Workshop Tag                               [Complete] |
+|      └─ Evening Workshop → Has sequence (5 messages)      |
+|                                                            |
+|  [>] WhatsApp Settings                      [!] Incomplete |
+|      └─ Account: Not selected                             |
+|      └─ Groups: 0 selected                                |
+|                                                            |
+|  [v] Message Checkpoints                          0/5 sent |
+|      └─ No messages scheduled yet                         |
+|                                                            |
++-----------------------------------------------------------+
+|  [    Run the Sequence (Disabled)    ]                    |
+|  Complete WhatsApp settings first                         |
++-----------------------------------------------------------+
+```
 
-The Baileys library typically returns group metadata including:
-- `participants[]` with each participant's role (admin, superadmin, member)
-- The VPS likely already sends this data, we just need to extract it
+---
 
-Update the group mapping to capture admin status:
+## Files to Create
 
+| File | Purpose |
+|------|---------|
+| `src/components/operations/TodaysWorkshopCard.tsx` | Hero card for today's workshop |
+| `src/components/operations/CollapsibleSection.tsx` | Reusable accordion section wrapper |
+| `src/components/operations/MessagingProgressBanner.tsx` | (P2) Real-time sending indicator |
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `WorkshopNotification.tsx` | Add TodaysWorkshopCard, update status badges, add quick actions |
+| `WorkshopDetailSheet.tsx` | Refactor to accordion layout with sticky footer |
+| `MessagingActions.tsx` | Adapt for sticky footer positioning |
+
+---
+
+## Technical Considerations
+
+### Date Filtering for "Today's Workshop"
+- Use org timezone from `useWorkshopNotification().orgTimezone`
+- Compare workshop `start_date` using `date-fns` `isSameDay` in org timezone
+- Handle edge case: multiple workshops on same day (show first chronologically)
+
+### Accordion State Management
+- Track expanded sections in local state: `Set<string>`
+- On mount, calculate which sections are incomplete and auto-expand
+- Allow user to manually expand/collapse any section
+
+### Progress Calculation Helper
 ```typescript
-const groupsToUpsert = vpsGroups.map((g: any) => {
-  // Check if the connected session user is admin
-  // Baileys returns participants with roles
-  const myJid = responseData?.myJid || sessionPhoneNumber;
-  const myParticipant = g.participants?.find((p: any) => 
-    p.id === myJid || p.id?.includes(myJid?.split('@')[0])
-  );
-  const isAdmin = myParticipant?.admin === 'admin' || 
-                  myParticipant?.admin === 'superadmin' ||
-                  myParticipant?.isAdmin === true;
-
-  return {
-    // ... existing fields
-    is_admin: isAdmin,
-  };
-});
-```
-
-### Phase 3: Frontend Changes
-
-#### 3.1 Update `useWhatsAppGroups.ts` hook
-
-Add `is_admin` to the interface and return data:
-
-```typescript
-interface WhatsAppGroup {
-  // ... existing fields
-  is_admin: boolean;
+function calculateProgress(workshop: WorkshopWithDetails): {
+  percent: number;
+  missing: string[];
+} {
+  const steps = [
+    { done: !!workshop.tag_id, label: 'Assign a workshop tag' },
+    { done: !!workshop.tag?.template_sequence_id, label: 'Tag needs a template sequence' },
+    { done: !!workshop.whatsapp_session_id, label: 'Select WhatsApp account' },
+    { done: workshop.automation_status?.whatsapp_group_linked, label: 'Select WhatsApp groups' },
+  ];
+  
+  const completed = steps.filter(s => s.done).length;
+  const missing = steps.filter(s => !s.done).map(s => s.label);
+  
+  return { percent: (completed / steps.length) * 100, missing };
 }
 ```
 
-#### 3.2 Create new multi-select component
+---
 
-Replace the single `<Select>` with a checkbox-based multi-select:
+## Out of Scope (P3 - Future)
 
-**File: `src/components/operations/MultiGroupSelect.tsx`**
+The following improvements from the prompt are deferred for a future iteration:
 
-- Shows all groups with checkboxes
-- Admin groups show a badge/icon (like a crown or shield)
-- Non-admin groups show a warning indicator and are optionally disabled
-- "Select All Admin Groups" quick action
+1. **Progress Stepper** - More complex than accordion, accordion achieves similar goal
+2. **Visual Sequence Timeline** in Settings - Significant refactor of sequence editor
+3. **Inline Step Adding** - Nice-to-have enhancement for settings page
+4. **Drag-to-reorder steps** - Requires additional state management
 
-#### 3.3 Update `WorkshopDetailSheet.tsx`
+---
 
-Changes:
-- Replace single group Select with new MultiGroupSelect component
-- Track selected groups as an array: `selectedGroupIds: string[]`
-- Update the "Linked" display to show count of linked groups
-- Pass multiple group IDs to `runMessaging`
+## Summary
 
-#### 3.4 Update `useWorkshopNotification.ts` hook
+| Component | Status | Effort |
+|-----------|--------|--------|
+| TodaysWorkshopCard | New | Medium |
+| Accordion layout | Refactor | Medium |
+| Actionable badges | Update | Low |
+| Quick actions | Update | Low |
+| Sticky CTA | Update | Low |
+| Progress banner | New (optional) | Medium |
 
-**updateGroupsMutation** (new):
-- Accept array of group IDs
-- Insert into `workshop_whatsapp_groups` junction table
-- Remove any groups that were deselected
-
-**runMessagingMutation**:
-- Fetch all linked groups from junction table
-- Create scheduled messages for **each group** (loop)
-- Each message row links to its specific group_id
-
-#### 3.5 Update `useWorkshopMessages` query
-
-- Join with `workshop_whatsapp_groups` to get group info
-- Show which group each message was sent to in the checkpoints
-
-### Phase 4: Update Message Queue Processing
-
-#### 4.1 Modify `runMessaging` logic
-
-Instead of creating one message per step, create one message per step **per group**:
-
-```typescript
-for (const step of sequenceData.steps) {
-  for (const groupId of selectedGroupIds) {
-    messagesToCreate.push({
-      // ... existing fields
-      group_id: groupId,  // Each group gets its own message
-      message_type: `${typeKey}_${groupId}`,  // Unique per group
-    });
-  }
-}
-```
-
-### UI Mockup (Text Description)
-
-```
-WhatsApp Groups
-[Button: Sync]
-
-[ ] Select All Admin Groups
-
-Available Groups:
-[x] Workshop Group A        (150) [Admin badge]
-[x] Workshop Group B        (200) [Admin badge]  
-[ ] Random Family Group     (45)  [Not admin - grayed]
-[x] Trading Community       (500) [Admin badge]
-[ ] College Friends         (30)  [Not admin - grayed]
-
-3 groups selected (all admin)
-
-[Linked Groups:]
-- Workshop Group A (150 members)
-- Workshop Group B (200 members)  
-- Trading Community (500 members)
-```
-
-### Summary of Changes
-
-| Component | Change |
-|-----------|--------|
-| Database | Add `is_admin` column, create `workshop_whatsapp_groups` junction table |
-| VPS Proxy | Capture admin status during group sync |
-| useWhatsAppGroups | Include `is_admin` in group interface |
-| MultiGroupSelect | New component with checkbox list and admin indicators |
-| WorkshopDetailSheet | Replace single Select with MultiGroupSelect |
-| useWorkshopNotification | New mutation for multi-group linking, update runMessaging to loop groups |
-| Message Checkpoints | Show which group each message was sent to |
-
-### Migration Path
-
-The existing `whatsapp_group_id` on workshops table will be kept temporarily for backwards compatibility. New groups will use the junction table, and we'll migrate existing single-group links during rollout.
+Total estimated effort: **Medium** - mostly UI refactoring with existing data patterns.
 
