@@ -7,3 +7,4 @@ export { WorkshopDetailSheet } from './WorkshopDetailSheet';
 export { TodaysWorkshopCard } from './TodaysWorkshopCard';
 export { CollapsibleSection } from './CollapsibleSection';
 export { MultiGroupSelect } from './MultiGroupSelect';
+export { MessagingProgressBanner } from './MessagingProgressBanner';

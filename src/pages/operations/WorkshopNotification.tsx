@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { formatInOrgTime } from '@/lib/timezoneUtils';
 import { 
   Search, 
@@ -16,8 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/skeletons';
 import { PageIntro } from '@/components/PageIntro';
-import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
-import { WorkshopTagBadge, WorkshopDetailSheet, TodaysWorkshopCard } from '@/components/operations';
+import { useWorkshopNotification, WorkshopWithDetails, ScheduledMessage } from '@/hooks/useWorkshopNotification';
+import { WorkshopTagBadge, WorkshopDetailSheet, TodaysWorkshopCard, MessagingProgressBanner } from '@/components/operations';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -93,10 +93,30 @@ export default function WorkshopNotification() {
     runMessaging,
     isRunningMessaging,
     useWorkshopGroups,
+    useWorkshopMessages,
+    subscribeToMessages,
   } = useWorkshopNotification();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkshop, setSelectedWorkshop] = useState<WorkshopWithDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [activeProgressWorkshop, setActiveProgressWorkshop] = useState<WorkshopWithDetails | null>(null);
+
+  // Subscribe to messages for the active progress workshop
+  const { data: progressMessages } = useWorkshopMessages(activeProgressWorkshop?.id || null);
+  
+  useEffect(() => {
+    if (!activeProgressWorkshop?.id) return;
+    return subscribeToMessages(activeProgressWorkshop.id);
+  }, [activeProgressWorkshop?.id, subscribeToMessages]);
+
+  // Track when messaging starts to show progress banner
+  useEffect(() => {
+    if (selectedWorkshop && isRunningMessaging) {
+      setActiveProgressWorkshop(selectedWorkshop);
+      setBannerDismissed(false);
+    }
+  }, [isRunningMessaging, selectedWorkshop]);
 
   // Keep selectedWorkshop in sync with fresh query data after mutations
   useEffect(() => {
@@ -126,6 +146,21 @@ export default function WorkshopNotification() {
 
   return (
     <div className="space-y-6 p-6">
+      {/* Real-time Progress Banner */}
+      {activeProgressWorkshop && progressMessages && !bannerDismissed && (
+        <MessagingProgressBanner
+          messages={progressMessages}
+          workshopTitle={activeProgressWorkshop.title}
+          onDismiss={() => {
+            setBannerDismissed(true);
+            setActiveProgressWorkshop(null);
+          }}
+          onViewDetails={() => {
+            handleViewWorkshop(activeProgressWorkshop);
+          }}
+        />
+      )}
+      
       <PageIntro
         icon={Activity}
         tagline="Operations"
