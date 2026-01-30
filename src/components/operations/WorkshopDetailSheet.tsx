@@ -72,9 +72,6 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
 
   if (!workshop) return null;
 
-  // Extract date portion to prevent timezone shifting (e.g., Jan 31 UTC showing as Feb 1 in IST)
-  const datePart = workshop.start_date.split('T')[0];
-  const workshopDate = new Date(datePart + 'T12:00:00');
   const checkpoints = toCheckpoints(messages || [], orgTimezone);
   const hasSequence = !!(workshop.tag?.template_sequence_id);
 
@@ -96,10 +93,10 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
               <div>
                 <p className="text-xs text-muted-foreground">Workshop Date</p>
                 <p className="text-sm font-medium">
-                  {formatInOrgTime(workshopDate, orgTimezone, 'MMM d, yyyy')}
+                  {formatInOrgTime(workshop.start_date, orgTimezone, 'MMM d, yyyy')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatInOrgTime(workshopDate, orgTimezone, 'EEEE')}
+                  {formatInOrgTime(workshop.start_date, orgTimezone, 'EEEE')}
                 </p>
               </div>
               <div>
@@ -301,7 +298,8 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
           open={sendNowDialogOpen}
           onOpenChange={setSendNowDialogOpen}
           workshopTitle={workshop.title}
-          workshopDate={workshopDate}
+          workshopStartDate={workshop.start_date}
+          timezone={orgTimezone}
           onSend={async ({ templateId, content, mediaUrl }) => {
             await sendMessageNow({
               workshopId: workshop.id,
