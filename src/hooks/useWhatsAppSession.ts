@@ -26,6 +26,15 @@ interface ConnectionState {
   error: string | null;
 }
 
+interface VpsErrorResponse {
+  error?: string;
+  upstream?: string;
+  status?: number;
+  hint?: string;
+  suggestion?: string;
+  responsePreview?: string;
+}
+
 export function useWhatsAppSession() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
@@ -56,6 +65,42 @@ export function useWhatsAppSession() {
     enabled: !!currentOrganization,
   });
 
+  // Handle VPS error responses with detailed messaging
+  const handleVpsError = useCallback((data: VpsErrorResponse, context: string): string => {
+    console.error(`${context} VPS error:`, data);
+    
+    let title = 'Connection Error';
+    let description = data.error || 'An unknown error occurred';
+    
+    // Check if this is a VPS upstream error
+    if (data.upstream === 'vps') {
+      if (data.status === 401) {
+        title = 'VPS Authentication Failed';
+        description = data.hint || 'The VPS rejected the API key. Please verify the WHATSAPP_VPS_API_KEY secret is correct.';
+        
+        // Log suggestion for debugging
+        if (data.suggestion) {
+          console.info('Suggestion:', data.suggestion);
+        }
+      } else if (data.status === 404) {
+        title = 'VPS Endpoint Not Found';
+        description = data.hint || 'The VPS endpoint was not found. Check VPS configuration.';
+      } else if (data.status && data.status >= 500) {
+        title = 'VPS Server Error';
+        description = data.hint || 'The WhatsApp VPS service is experiencing issues. Please try again later.';
+      }
+      
+      // Log response preview for debugging
+      if (data.responsePreview) {
+        console.debug('VPS response preview:', data.responsePreview);
+      }
+    }
+    
+    toast.error(title, { description });
+    
+    return description;
+  }, []);
+
   const callVPSProxy = async (action: string, params: Record<string, unknown> = {}) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) throw new Error('Not authenticated');
@@ -69,6 +114,13 @@ export function useWhatsAppSession() {
     });
 
     if (response.error) throw response.error;
+    
+    // Check for upstream VPS errors in the response
+    if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
+      const errorMessage = handleVpsError(response.data, action);
+      throw new Error(errorMessage);
+    }
+    
     return response.data;
   };
 
@@ -96,7 +148,10 @@ export function useWhatsAppSession() {
         status: 'error',
         error: error.message,
       }));
-      toast.error('Failed to start connection: ' + error.message);
+      // Only show toast if not already shown by handleVpsError
+      if (!error.message.includes('VPS rejected') && !error.message.includes('VPS endpoint')) {
+        toast.error('Failed to start connection', { description: error.message });
+      }
     },
   });
 
@@ -172,7 +227,7 @@ export function useWhatsAppSession() {
       toast.success('WhatsApp disconnected');
     },
     onError: (error: Error) => {
-      toast.error('Failed to disconnect: ' + error.message);
+      toast.error('Failed to disconnect', { description: error.message });
     },
   });
 

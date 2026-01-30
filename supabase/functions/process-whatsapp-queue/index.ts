@@ -1,9 +1,72 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.78.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// VPS auth header strategies to try in order
+const AUTH_STRATEGIES = [
+  (apiKey: string) => ({ 'X-API-Key': apiKey }),
+  (apiKey: string) => ({ 'Authorization': `Bearer ${apiKey}` }),
+  (apiKey: string) => ({ 'Authorization': apiKey }),
+  (apiKey: string) => ({ 'apikey': apiKey }),
+];
+
+// Safe JSON parse that returns the text if parsing fails
+function safeJsonParse(text: string): { parsed: any; isJson: boolean } {
+  try {
+    return { parsed: JSON.parse(text), isJson: true };
+  } catch {
+    return { parsed: text, isJson: false };
+  }
+}
+
+// Build full URL safely (handles trailing slashes)
+function buildUrl(base: string, path: string): string {
+  const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${cleanBase}${cleanPath}`;
+}
+
+// Try fetch with multiple auth header strategies
+async function fetchWithAuthRetry(
+  url: string,
+  method: string,
+  body: string | undefined,
+  apiKey: string
+): Promise<{ response: Response; strategyUsed: number }> {
+  let lastResponse: Response | null = null;
+  
+  for (let i = 0; i < AUTH_STRATEGIES.length; i++) {
+    const authHeaders = AUTH_STRATEGIES[i](apiKey);
+    
+    console.log(`VPS auth attempt ${i + 1}/${AUTH_STRATEGIES.length} using header: ${Object.keys(authHeaders)[0]}`);
+    
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      },
+      body,
+    });
+    
+    console.log(`VPS response status: ${response.status}`);
+    
+    // If not 401, return immediately (could be success or other error)
+    if (response.status !== 401) {
+      return { response, strategyUsed: i };
+    }
+    
+    // Store last 401 response for fallback
+    lastResponse = response;
+  }
+  
+  // All strategies returned 401
+  console.log('All VPS auth strategies returned 401');
+  return { response: lastResponse!, strategyUsed: -1 };
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -63,27 +126,36 @@ Deno.serve(async (req) => {
           throw new Error('Missing group configuration');
         }
 
-        // Send message to VPS
-        const response = await fetch(`${VPS_URL}/send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': VPS_API_KEY,
-          },
-          body: JSON.stringify({
-            sessionId: group.session_id,
-            groupId: group.group_jid,
-            message: msg.message_content,
-            ...(msg.media_url && { mediaUrl: msg.media_url }),
-            ...(msg.media_type && { mediaType: msg.media_type }),
-          }),
+        // Build full URL safely
+        const vpsUrl = buildUrl(VPS_URL, '/send');
+
+        const vpsBody = JSON.stringify({
+          sessionId: group.session_id,
+          groupId: group.group_jid,
+          message: msg.message_content,
+          ...(msg.media_url && { mediaUrl: msg.media_url }),
+          ...(msg.media_type && { mediaType: msg.media_type }),
         });
 
-        const responseData = await response.json();
+        // Send message to VPS with auth retry
+        const { response, strategyUsed } = await fetchWithAuthRetry(
+          vpsUrl,
+          'POST',
+          vpsBody,
+          VPS_API_KEY
+        );
+
+        const responseText = await response.text();
+        const { parsed: responseData, isJson } = safeJsonParse(responseText);
 
         if (!response.ok) {
-          throw new Error(responseData.error || 'VPS send failed');
+          const errorMessage = isJson && responseData?.error 
+            ? responseData.error 
+            : `VPS error ${response.status}: ${responseText.slice(0, 200)}`;
+          throw new Error(errorMessage);
         }
+
+        console.log(`Message ${msg.id} sent with auth strategy ${strategyUsed + 1}`);
 
         // Update message status to sent
         await supabase
@@ -100,14 +172,11 @@ Deno.serve(async (req) => {
     );
 
     // Handle failed messages
-    const failedResults = results.filter((r) => r.status === 'rejected');
-    for (let i = 0; i < failedResults.length; i++) {
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
       const msg = pendingMessages[i];
-      const result = failedResults.find((_, idx) => 
-        results[idx].status === 'rejected' && pendingMessages[idx].id === msg.id
-      );
       
-      if (result && result.status === 'rejected') {
+      if (result.status === 'rejected') {
         const retryCount = (msg.retry_count || 0) + 1;
         const maxRetries = 3;
 
