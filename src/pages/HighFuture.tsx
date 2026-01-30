@@ -22,6 +22,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfDay } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useBatchInsights } from "@/hooks/useBatchInsights";
@@ -87,6 +88,7 @@ const HighFuture = () => {
   const queryClient = useQueryClient();
   const { isAdmin, isManager } = useUserRole();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
+  const { getToday, format: formatOrg } = useOrgTimezone();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingBatch, setEditingBatch] = useState<HighFutureBatch | null>(null);
   const [deletingBatch, setDeletingBatch] = useState<HighFutureBatch | null>(null);
@@ -283,7 +285,7 @@ const HighFuture = () => {
       }
       
       // Today's follow-up filter
-      const todayFormatted = format(new Date(), "yyyy-MM-dd");
+      const todayFormatted = getToday();
       const matchesTodayFollowUp = !filterTodayFollowUp || 
         student.next_follow_up_date === todayFormatted;
       
@@ -378,7 +380,7 @@ const HighFuture = () => {
     const closerBreakdownArray = Object.values(breakdown).sort((a, b) => b.received - a.received);
     
     // Calculate today's follow-up count
-    const todayFormatted = format(new Date(), "yyyy-MM-dd");
+    const todayFormatted = getToday();
     const todayFollowUpCount = batchStudents.filter(s => 
       s.next_follow_up_date === todayFormatted
     ).length;
@@ -610,7 +612,7 @@ const HighFuture = () => {
     
     const headers = ["Conversion Date", "Student Name", "Amount Offered", "Cash Received", "Due Amount", "Email", "Phone", "Closer", "Status"];
     const rows = filteredStudents.map(s => [
-      format(new Date(s.conversion_date), "yyyy-MM-dd"),
+      formatOrg(s.conversion_date, "yyyy-MM-dd"),
       s.contact_name,
       s.offer_amount,
       s.cash_received,
@@ -626,7 +628,7 @@ const HighFuture = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${selectedBatch?.name || "high-future"}-students-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `${selectedBatch?.name || "high-future"}-students-${getToday()}.csv`;
     a.click();
   };
 
@@ -943,7 +945,7 @@ const HighFuture = () => {
           <UpcomingPaymentsCalendar
             upcomingPayments={insights.upcomingPayments}
             onDateClick={(date, students) => handleOpenStudentList(
-              `Students Due on ${format(new Date(date), "dd MMM yyyy")}`,
+              `Students Due on ${formatOrg(date, "dd MMM yyyy")}`,
               `${students.length} students with follow-up scheduled`,
               students as HighFutureStudent[]
             )}
@@ -1443,7 +1445,7 @@ const HighFuture = () => {
                                 <ChevronRight className="h-4 w-4" />
                               )}
                             </TableCell>
-                            <TableCell>{format(new Date(student.conversion_date), "dd MMM yyyy")}</TableCell>
+                            <TableCell>{formatOrg(student.conversion_date, "dd MMM yyyy")}</TableCell>
                             <TableCell className="font-medium">
                               <div className="flex items-center gap-2">
                                 {student.contact_name}
@@ -1548,7 +1550,7 @@ const HighFuture = () => {
                                               <TableCell>₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</TableCell>
                                               <TableCell>₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</TableCell>
                                               <TableCell>{emi.payment_platform || "-"}</TableCell>
-                                              <TableCell>{format(new Date(emi.payment_date), "dd MMM yyyy")}</TableCell>
+                                              <TableCell>{formatOrg(emi.payment_date, "dd MMM yyyy")}</TableCell>
                                               <TableCell className="max-w-[150px] truncate" title={emi.remarks || undefined}>
                                                 {emi.remarks || "-"}
                                               </TableCell>
@@ -1629,7 +1631,7 @@ const HighFuture = () => {
                                   />
                                 )}
                               </div>
-                              <p className="text-xs text-muted-foreground">{format(new Date(student.conversion_date), "dd MMM yyyy")}</p>
+                              <p className="text-xs text-muted-foreground">{formatOrg(student.conversion_date, "dd MMM yyyy")}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -1712,7 +1714,7 @@ const HighFuture = () => {
                                     <span className="text-green-600 font-medium">₹{Number(emi.amount).toLocaleString('en-IN')}</span>
                                   </div>
                                   <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
-                                    <span>Date: {format(new Date(emi.payment_date), "dd MMM yyyy")}</span>
+                                    <span>Date: {formatOrg(emi.payment_date, "dd MMM yyyy")}</span>
                                     <span>Platform: {emi.payment_platform || "-"}</span>
                                     <span>GST: ₹{Number(emi.gst_fees || 0).toLocaleString('en-IN')}</span>
                                     <span>Fees: ₹{Number(emi.platform_fees || 0).toLocaleString('en-IN')}</span>
@@ -1880,7 +1882,7 @@ const HighFuture = () => {
               <Label className="text-muted-foreground">Next Follow-up Date</Label>
               <p className="font-medium">
                 {viewingNotesStudent?.next_follow_up_date 
-                  ? format(new Date(viewingNotesStudent.next_follow_up_date), "dd MMM yyyy")
+                  ? formatOrg(viewingNotesStudent.next_follow_up_date, "dd MMM yyyy")
                   : "Not set"}
               </p>
             </div>

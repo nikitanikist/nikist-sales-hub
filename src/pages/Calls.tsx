@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { format, addDays, subDays, parse } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,20 +66,20 @@ const Calls = () => {
   const queryClient = useQueryClient();
   const { isAdmin, isCloser, isManager, profileId, isLoading: roleLoading } = useUserRole();
   const { currentOrganization } = useOrganization();
+  const { getToday, getYesterday, getTomorrow, format: formatOrg } = useOrgTimezone();
 
   const getSelectedDate = () => {
-    const today = new Date();
     switch (dateFilter) {
       case 'yesterday':
-        return format(subDays(today, 1), 'yyyy-MM-dd');
+        return getYesterday();
       case 'today':
-        return format(today, 'yyyy-MM-dd');
+        return getToday();
       case 'tomorrow':
-        return format(addDays(today, 1), 'yyyy-MM-dd');
+        return getTomorrow();
       case 'custom':
-        return format(customDate, 'yyyy-MM-dd');
+        return formatOrg(customDate, 'yyyy-MM-dd');
       default:
-        return format(today, 'yyyy-MM-dd');
+        return getToday();
     }
   };
 
@@ -459,7 +460,7 @@ const Calls = () => {
       {/* Appointments Table */}
       <Card>
         <CardHeader className="px-4 sm:px-6">
-          <CardTitle className="text-base sm:text-lg">Appointments for {format(new Date(selectedDate), 'MMM dd, yyyy')}</CardTitle>
+          <CardTitle className="text-base sm:text-lg">Appointments for {formatOrg(selectedDate, 'MMM dd, yyyy')}</CardTitle>
         </CardHeader>
         <CardContent className="px-0 sm:px-6">
           {isLoading || roleLoading ? (

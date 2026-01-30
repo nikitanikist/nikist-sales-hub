@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { format } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
 import { WorkshopWhatsAppTab } from "@/components/workshops/WorkshopWhatsAppTab";
@@ -62,6 +63,7 @@ const Workshops = () => {
   const { isManager } = useUserRole();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
   const { tags, tagsLoading } = useWorkshopTags();
+  const { format: formatOrg } = useOrgTimezone();
 
   const openCallsDialog = (workshopTitle: string, category: CallCategory) => {
     setSelectedWorkshopTitle(workshopTitle);
@@ -960,8 +962,8 @@ const Workshops = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            {workshop.start_date ? format(new Date(workshop.start_date), "MMM dd, yyyy") : "N/A"}
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                            {workshop.start_date ? formatOrg(workshop.start_date, "MMM dd, yyyy") : "N/A"}
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">{workshop.title}</TableCell>

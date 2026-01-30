@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear, endOfYear, subYears, getDay, startOfWeek, endOfWeek, startOfDay, endOfDay } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, IndianRupee, TrendingUp, TrendingDown, Calendar, Trash2, Pencil, Upload, Trophy, ChevronLeft, ChevronRight, Target, Percent, Award, Star, Zap, BarChart3 } from "lucide-react";
@@ -61,6 +62,7 @@ const DailyMoneyFlow = () => {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { getToday, format: formatOrg } = useOrgTimezone();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
 
   // Fetch all money flow entries
@@ -147,8 +149,8 @@ const DailyMoneyFlow = () => {
     },
   });
 
-  // Calculate today's data
-  const today = format(new Date(), "yyyy-MM-dd");
+  // Calculate today's data using org timezone
+  const today = getToday();
   const todayEntry = entries.find((e) => e.date === today);
   const todayRevenue = todayEntry?.total_revenue || 0;
   const todayCash = todayEntry?.cash_collected || 0;
@@ -173,7 +175,7 @@ const DailyMoneyFlow = () => {
       const avg7Cash = last7.reduce((sum, x) => sum + Number(x.cash_collected), 0) / last7.length;
       
       return {
-        date: format(new Date(e.date), "dd MMM"),
+        date: formatOrg(e.date, "dd MMM"),
         revenue: Number(e.total_revenue),
         cash: Number(e.cash_collected),
         avg7Cash: Math.round(avg7Cash),
@@ -399,7 +401,7 @@ const DailyMoneyFlow = () => {
     // Best month
     const monthlyTotals: { [key: string]: number } = {};
     entries.forEach((e) => {
-      const monthKey = format(new Date(e.date), 'MMM yyyy');
+      const monthKey = formatOrg(e.date, 'MMM yyyy');
       monthlyTotals[monthKey] = (monthlyTotals[monthKey] || 0) + Number(e.cash_collected);
     });
     const bestMonth = Object.entries(monthlyTotals).reduce((best, [month, cash]) =>
@@ -496,7 +498,7 @@ const DailyMoneyFlow = () => {
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
             <div className="text-lg sm:text-2xl font-bold">{formatCompactCurrency(todayRevenue)}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">{format(new Date(), "dd MMM yyyy")}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{formatOrg(new Date(), "dd MMM yyyy")}</p>
           </CardContent>
         </Card>
 
@@ -518,7 +520,7 @@ const DailyMoneyFlow = () => {
           </CardHeader>
           <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
             <div className="text-lg sm:text-2xl font-bold">{formatCompactCurrency(monthRevenue)}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">{format(new Date(), "MMM yyyy")}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{formatOrg(new Date(), "MMM yyyy")}</p>
           </CardContent>
         </Card>
 
@@ -662,7 +664,7 @@ const DailyMoneyFlow = () => {
                   {insightsData.bestDay ? (
                     <>
                       <div className="text-sm sm:text-2xl font-bold text-yellow-600 dark:text-yellow-500">
-                        {format(new Date(insightsData.bestDay.date), "dd MMM")}
+                        {formatOrg(insightsData.bestDay.date, "dd MMM")}
                       </div>
                       <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
                         {formatCompactCurrency(Number(insightsData.bestDay.cash_collected))}
@@ -910,7 +912,7 @@ const DailyMoneyFlow = () => {
                     {formatCompactCurrency(allTimeRecords.bestDay.cash)}
                   </div>
                   <p className="text-[10px] sm:text-sm text-yellow-600 dark:text-yellow-500 mt-1">
-                    {format(new Date(allTimeRecords.bestDay.date), "dd MMM yy")}
+                    {formatOrg(allTimeRecords.bestDay.date, "dd MMM yy")}
                   </p>
                 </CardContent>
               </Card>
@@ -926,7 +928,7 @@ const DailyMoneyFlow = () => {
                     {formatCompactCurrency(allTimeRecords.bestWeek.cash)}
                   </div>
                   <p className="text-[10px] sm:text-sm text-blue-600 dark:text-blue-500 mt-1">
-                    {format(new Date(allTimeRecords.bestWeek.startDate), "dd MMM yy")}
+                    {formatOrg(allTimeRecords.bestWeek.startDate, "dd MMM yy")}
                   </p>
                 </CardContent>
               </Card>
@@ -1144,7 +1146,7 @@ const DailyMoneyFlow = () => {
                     {paginatedEntries.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell className="font-medium">
-                          {format(new Date(entry.date), "dd MMM yyyy")}
+                          {formatOrg(entry.date, "dd MMM yyyy")}
                         </TableCell>
                         <TableCell className="text-right">{formatCurrency(Number(entry.total_revenue))}</TableCell>
                         <TableCell className="text-right">{formatCurrency(Number(entry.cash_collected))}</TableCell>
@@ -1181,7 +1183,7 @@ const DailyMoneyFlow = () => {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <div className="font-medium text-sm">
-                          {format(new Date(entry.date), "dd MMM yyyy")}
+                          {formatOrg(entry.date, "dd MMM yyyy")}
                         </div>
                         {entry.creator_name && (
                           <div className="text-[10px] text-muted-foreground">by {entry.creator_name}</div>
