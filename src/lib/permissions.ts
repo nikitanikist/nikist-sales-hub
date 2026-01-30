@@ -43,7 +43,7 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   dashboard: 'Dashboard',
   daily_money_flow: 'Daily Money Flow',
-  customers: 'Customers',
+  customers: 'All Customers',
   customer_insights: 'Customer Insights',
   call_schedule: '1:1 Call Schedule',
   sales_closers: 'Sales Closers',
@@ -52,21 +52,39 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   sales: 'Sales',
   funnels: 'Active Funnels',
   products: 'Products',
-  users: 'Users',
+  users: 'Team Members',
   settings: 'Organization Settings',
 };
 
-// Permission groups for organized display
+// Permission groups for organized display (matches sidebar structure)
 export const PERMISSION_GROUPS = [
   {
-    label: 'Main Menu',
+    label: 'Finance',
     permissions: [
-      PERMISSION_KEYS.dashboard,
       PERMISSION_KEYS.daily_money_flow,
+      PERMISSION_KEYS.sales,
+    ],
+  },
+  {
+    label: 'Customers',
+    permissions: [
       PERMISSION_KEYS.customers,
       PERMISSION_KEYS.customer_insights,
+    ],
+  },
+  {
+    label: 'Closers',
+    permissions: [
       PERMISSION_KEYS.call_schedule,
       PERMISSION_KEYS.sales_closers,
+    ],
+  },
+  {
+    label: 'Funnels',
+    permissions: [
+      PERMISSION_KEYS.workshops,
+      PERMISSION_KEYS.funnels,
+      PERMISSION_KEYS.products,
     ],
   },
   {
@@ -78,10 +96,7 @@ export const PERMISSION_GROUPS = [
   {
     label: 'Other',
     permissions: [
-      PERMISSION_KEYS.workshops,
-      PERMISSION_KEYS.sales,
-      PERMISSION_KEYS.funnels,
-      PERMISSION_KEYS.products,
+      PERMISSION_KEYS.dashboard,
       PERMISSION_KEYS.users,
       PERMISSION_KEYS.settings,
     ],

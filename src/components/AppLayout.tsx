@@ -31,11 +31,12 @@ interface MenuItem {
   path?: string;
   isBeta?: boolean;
   permissionKey?: PermissionKey;
-  moduleSlug?: string; // NEW: Module this menu item belongs to
+  moduleSlug?: string; // Module this menu item belongs to
   children?: {
     title: string;
     path: string;
     permissionKey?: PermissionKey;
+    moduleSlug?: string; // Module for individual child items
   }[];
 }
 
@@ -274,21 +275,62 @@ const AppLayoutContent = () => {
     return items;
   }, [cohortTypes, isAdmin]);
 
-  // All menu items with permission keys and module associations
+  // All menu items with permission keys and module associations - organized into groups
   const allMenuItems: MenuItem[] = useMemo(() => [
+    // Standalone: Dashboard
     { title: "Dashboard", icon: LayoutDashboard, path: "/", isBeta: true, permissionKey: 'dashboard' as PermissionKey },
-    { title: "Daily Money Flow", icon: Wallet, path: "/daily-money-flow", permissionKey: 'daily_money_flow' as PermissionKey, moduleSlug: 'daily-money-flow' },
-    { title: "Customers", icon: Users, path: "/leads", permissionKey: 'customers' as PermissionKey },
-    { title: "Customer Insights", icon: ClipboardList, path: "/onboarding", permissionKey: 'customer_insights' as PermissionKey },
-    { title: "1:1 Call Schedule", icon: Phone, path: "/calls", permissionKey: 'call_schedule' as PermissionKey, moduleSlug: 'one-to-one-funnel' },
-    { title: "Sales Closers", icon: UserCog, path: "/sales-closers", permissionKey: 'sales_closers' as PermissionKey, moduleSlug: 'one-to-one-funnel' },
+    
+    // GROUP: Finance
+    { 
+      title: "Finance", 
+      icon: Wallet, 
+      children: [
+        { title: "Daily Money Flow", path: "/daily-money-flow", permissionKey: 'daily_money_flow' as PermissionKey, moduleSlug: 'daily-money-flow' },
+        { title: "Sales", path: "/sales", permissionKey: 'sales' as PermissionKey },
+      ],
+    },
+    
+    // GROUP: Customers
+    { 
+      title: "Customers", 
+      icon: Users, 
+      children: [
+        { title: "All Customers", path: "/leads", permissionKey: 'customers' as PermissionKey },
+        { title: "Customer Insights", path: "/onboarding", permissionKey: 'customer_insights' as PermissionKey },
+      ],
+    },
+    
+    // GROUP: Closers
+    { 
+      title: "Closers", 
+      icon: UserCog, 
+      moduleSlug: 'one-to-one-funnel',
+      children: [
+        { title: "1:1 Call Schedule", path: "/calls", permissionKey: 'call_schedule' as PermissionKey },
+        { title: "Sales Closers", path: "/sales-closers", permissionKey: 'sales_closers' as PermissionKey },
+      ],
+    },
+    
+    // GROUP: Funnels
+    { 
+      title: "Funnels", 
+      icon: TrendingUp, 
+      children: [
+        { title: "All Workshops", path: "/workshops", permissionKey: 'workshops' as PermissionKey, moduleSlug: 'workshops' },
+        { title: "Active Funnels", path: "/funnels", permissionKey: 'funnels' as PermissionKey },
+        { title: "Products", path: "/products", permissionKey: 'products' as PermissionKey },
+      ],
+    },
+    
+    // GROUP: Cohort Batches (dynamic)
     { 
       title: "Cohort Batches", 
       icon: GraduationCap, 
       children: dynamicCohortChildren,
       moduleSlug: 'cohort-management'
     },
-    { title: "All Workshops", icon: Calendar, path: "/workshops", isBeta: true, permissionKey: 'workshops' as PermissionKey, moduleSlug: 'workshops' },
+    
+    // GROUP: Operations
     { 
       title: "Operations", 
       icon: Activity, 
@@ -297,10 +339,11 @@ const AppLayoutContent = () => {
       ],
       moduleSlug: 'workshops'
     },
-    { title: "Sales", icon: DollarSign, path: "/sales", isBeta: true, permissionKey: 'sales' as PermissionKey },
-    { title: "Active Funnels", icon: TrendingUp, path: "/funnels", isBeta: true, permissionKey: 'funnels' as PermissionKey },
-    { title: "Products", icon: Package, path: "/products", isBeta: true, permissionKey: 'products' as PermissionKey },
-    { title: "Users", icon: UsersRound, path: "/users", permissionKey: 'users' as PermissionKey },
+    
+    // Standalone: Team Members (renamed from "Users")
+    { title: "Team Members", icon: UsersRound, path: "/users", permissionKey: 'users' as PermissionKey },
+    
+    // Standalone: Settings
     { title: "Settings", icon: Settings, path: "/settings", permissionKey: 'settings' as PermissionKey },
   ], [dynamicCohortChildren]);
 
@@ -308,16 +351,21 @@ const AppLayoutContent = () => {
   const filterMenuItems = (items: MenuItem[]): MenuItem[] => {
     return items
       .map(item => {
-        // First check if module is enabled (if item has a moduleSlug)
+        // First check if module is enabled at parent level (if item has a moduleSlug)
         if (item.moduleSlug && !isModuleEnabled(item.moduleSlug)) {
           return null;
         }
         
         if (item.children) {
-          // Filter children based on permissions
-          const filteredChildren = item.children.filter(child => 
-            !child.permissionKey || hasPermission(child.permissionKey)
-          );
+          // Filter children based on permissions AND their individual module requirements
+          const filteredChildren = item.children.filter(child => {
+            // Check child-level module requirement
+            if (child.moduleSlug && !isModuleEnabled(child.moduleSlug)) {
+              return false;
+            }
+            // Check permission
+            return !child.permissionKey || hasPermission(child.permissionKey);
+          });
           
           // Only include parent if it has visible children
           if (filteredChildren.length === 0) return null;
