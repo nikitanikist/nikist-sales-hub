@@ -28,13 +28,23 @@ export interface UpdateTemplateInput extends Partial<CreateTemplateInput> {
 }
 
 // Template variables that can be used in message content
+// Auto-filled variables are resolved automatically from workshop data
+// Manual variables require user input when running a sequence
 export const TEMPLATE_VARIABLES = [
-  { key: '{workshop_name}', description: 'Name of the workshop' },
-  { key: '{date}', description: 'Workshop date' },
-  { key: '{time}', description: 'Workshop time' },
-  { key: '{zoom_link}', description: 'Zoom meeting link' },
-  { key: '{whatsapp_group_link}', description: 'WhatsApp group invite link' },
+  // Auto-filled from workshop data
+  { key: '{workshop_name}', description: 'Name of the workshop', type: 'auto' as const },
+  { key: '{date}', description: 'Workshop date (e.g., January 30, 2026)', type: 'auto' as const },
+  { key: '{time}', description: 'Workshop time (e.g., 7:00 PM)', type: 'auto' as const },
+  // Manual input required
+  { key: '{zoom_link}', description: 'Zoom meeting link', type: 'manual' as const },
+  { key: '{whatsapp_group_link}', description: 'WhatsApp group invite link', type: 'manual' as const },
+  { key: '{youtube_link}', description: 'YouTube live stream link', type: 'manual' as const },
+  { key: '{telegram_link}', description: 'Telegram group link', type: 'manual' as const },
 ];
+
+export const AUTO_FILLED_VARIABLE_KEYS = TEMPLATE_VARIABLES
+  .filter(v => v.type === 'auto')
+  .map(v => v.key.slice(1, -1)); // Remove braces
 
 export function useMessageTemplates() {
   const { currentOrganization } = useOrganization();
