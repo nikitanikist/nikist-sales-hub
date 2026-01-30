@@ -393,8 +393,28 @@ export function useWhatsAppSession() {
     return () => clearInterval(interval);
   }, [pollingInterval, connectionState.sessionId, checkStatus]);
 
-  // Cancel connection attempt
-  const cancelConnection = useCallback(() => {
+  // Delete session mutation
+  const deleteSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const { error } = await supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .eq('id', sessionId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+      toast.success('Session removed');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to remove session', { description: error.message });
+    },
+  });
+
+  // Cancel connection attempt and delete the abandoned session
+  const cancelConnection = useCallback(async () => {
+    const currentSessionId = connectionState.sessionId;
+    
     setPollingInterval(null);
     setConnectionState({
       isConnecting: false,
@@ -403,7 +423,39 @@ export function useWhatsAppSession() {
       status: 'disconnected',
       error: null,
     });
-  }, []);
+    
+    // Delete the abandoned session from DB
+    if (currentSessionId) {
+      await supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .eq('id', currentSessionId);
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+    }
+  }, [connectionState.sessionId, queryClient]);
+
+  // Auto-cleanup stale sessions (connecting for >5 minutes with no activity)
+  useEffect(() => {
+    if (!sessions || !currentOrganization) return;
+    
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const staleSessions = sessions.filter(s => 
+      s.status === 'connecting' && 
+      s.created_at < fiveMinutesAgo &&
+      !s.last_active_at
+    );
+    
+    if (staleSessions.length > 0) {
+      // Clean up stale sessions silently
+      supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .in('id', staleSessions.map(s => s.id))
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+        });
+    }
+  }, [sessions, currentOrganization, queryClient]);
 
   return {
     sessions,
@@ -414,6 +466,8 @@ export function useWhatsAppSession() {
     disconnect: disconnectMutation.mutate,
     isDisconnecting: disconnectMutation.isPending,
     cancelConnection,
+    deleteSession: deleteSessionMutation.mutate,
+    isDeletingSession: deleteSessionMutation.isPending,
     // Test VPS Connection
     testVpsConnection: testVpsMutation.mutateAsync,
     isTestingVps: testVpsMutation.isPending,
