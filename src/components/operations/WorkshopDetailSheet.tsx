@@ -116,11 +116,11 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
             </h3>
             <div className="space-y-2">
               <Select
-                value={workshop.tag_id || ''}
+                value={workshop.tag_id || 'none'}
                 onValueChange={(value) => {
                   updateTag({ 
                     workshopId: workshop.id, 
-                    tagId: value || null 
+                    tagId: value === 'none' ? null : value 
                   });
                 }}
                 disabled={isUpdatingTag}
@@ -129,7 +129,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                   <SelectValue placeholder="Select a tag..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No tag</SelectItem>
+                  <SelectItem value="none">No tag</SelectItem>
                   {tags.map((tag) => (
                     <SelectItem key={tag.id} value={tag.id}>
                       <div className="flex items-center gap-2">
@@ -178,30 +178,26 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Account</Label>
                 <Select
-                  value={selectedSessionId || ''}
+                  value={selectedSessionId || 'none'}
                   onValueChange={(value) => {
-                    setSelectedSessionId(value || null);
-                    updateSession({ workshopId: workshop.id, sessionId: value || null });
+                    const sessionId = value === 'none' ? null : value;
+                    setSelectedSessionId(sessionId);
+                    updateSession({ workshopId: workshop.id, sessionId });
                   }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select account..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {connectedSessions.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground">
-                        No connected accounts
-                      </div>
-                    ) : (
-                      connectedSessions.map((session) => (
-                        <SelectItem key={session.id} value={session.id}>
-                          <div className="flex items-center gap-2">
-                            <Smartphone className="h-4 w-4" />
-                            {session.display_name || session.phone_number || 'Connected'}
-                          </div>
-                        </SelectItem>
-                      ))
-                    )}
+                    <SelectItem value="none">No account</SelectItem>
+                    {connectedSessions.map((session) => (
+                      <SelectItem key={session.id} value={session.id}>
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="h-4 w-4" />
+                          {session.display_name || session.phone_number || 'Connected'}
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -224,9 +220,9 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                   )}
                 </div>
                 <Select
-                  value={workshop.whatsapp_group_id || ''}
+                  value={workshop.whatsapp_group_id || 'none'}
                   onValueChange={(value) => {
-                    updateGroup({ workshopId: workshop.id, groupId: value || null });
+                    updateGroup({ workshopId: workshop.id, groupId: value === 'none' ? null : value });
                   }}
                   disabled={!selectedSessionId || isUpdatingGroup}
                 >
@@ -234,23 +230,18 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                     <SelectValue placeholder="Select group..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {sessionGroups.length === 0 ? (
-                      <div className="p-2 text-sm text-muted-foreground">
-                        No groups available
-                      </div>
-                    ) : (
-                      sessionGroups.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4" />
-                            {group.group_name}
-                            <span className="text-xs text-muted-foreground">
-                              ({group.participant_count || 0})
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))
-                    )}
+                    <SelectItem value="none">No group</SelectItem>
+                    {sessionGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          {group.group_name}
+                          <span className="text-xs text-muted-foreground">
+                            ({group.participant_count || 0})
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
