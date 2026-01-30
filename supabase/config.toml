@@ -54,5 +54,8 @@ verify_jwt = false
 [functions.reassign-call]
 verify_jwt = false
 
-[functions.mcp-crm]
+[functions.vps-whatsapp-proxy]
+verify_jwt = false
+
+[functions.process-whatsapp-queue]
 verify_jwt = false

@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown, ChevronRight, Phone, IndianRupee, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown, ChevronRight, Phone, IndianRupee, Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +18,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { format } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { WorkshopCallsDialog } from "@/components/WorkshopCallsDialog";
+import { WorkshopWhatsAppTab } from "@/components/workshops/WorkshopWhatsAppTab";
 import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
@@ -981,7 +983,19 @@ const Workshops = () => {
                       {isExpanded && (
                         <TableRow className="bg-muted/30 hover:bg-muted/30">
                           <TableCell colSpan={isManager ? 6 : 9} className="p-4">
-                            <div className="space-y-6">
+                            <Tabs defaultValue="stats" className="w-full">
+                              <TabsList className="mb-4">
+                                <TabsTrigger value="stats" className="flex items-center gap-2">
+                                  <Phone className="h-4 w-4" />
+                                  Call Statistics
+                                </TabsTrigger>
+                                <TabsTrigger value="whatsapp" className="flex items-center gap-2">
+                                  <MessageSquare className="h-4 w-4" />
+                                  WhatsApp
+                                </TabsTrigger>
+                              </TabsList>
+                              
+                              <TabsContent value="stats" className="space-y-6">
                               {/* Fresh Call Statistics */}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -1000,102 +1014,113 @@ const Workshops = () => {
                                     className="bg-background rounded-lg p-3 border cursor-pointer hover:border-green-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "converted"); }}
                                   >
-                                    <div className="text-2xl font-bold text-green-600">{workshop.converted_calls || 0}</div>
+                                    <div className="text-2xl font-bold text-green-600">{workshop.fresh_converted || 0}</div>
                                     <div className="text-xs text-muted-foreground">Converted</div>
                                   </div>
-                                  <div
+                                  <div 
                                     className="bg-background rounded-lg p-3 border cursor-pointer hover:border-red-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "not_converted"); }}
                                   >
-                                    <div className="text-2xl font-bold text-red-500">{workshop.not_converted_calls || 0}</div>
+                                    <div className="text-2xl font-bold text-red-600">{workshop.fresh_not_converted || 0}</div>
                                     <div className="text-xs text-muted-foreground">Not Converted</div>
                                   </div>
                                   <div 
-                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-yellow-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "remaining"); }}
                                   >
-                                    <div className="text-2xl font-bold text-blue-500">{workshop.remaining_calls || 0}</div>
+                                    <div className="text-2xl font-bold text-yellow-600">{workshop.fresh_remaining || 0}</div>
                                     <div className="text-xs text-muted-foreground">Remaining</div>
                                   </div>
                                   <div 
                                     className="bg-background rounded-lg p-3 border cursor-pointer hover:border-orange-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_remaining"); }}
                                   >
-                                    <div className="text-2xl font-bold text-orange-500">{workshop.rescheduled_remaining || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Resch. Remaining</div>
+                                    <div className="text-2xl font-bold text-orange-600">{workshop.fresh_rescheduled_remaining || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Reschedule (Upcoming)</div>
                                   </div>
                                   <div 
-                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-teal-400 hover:shadow-sm transition-all"
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-orange-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rescheduled_done"); }}
                                   >
-                                    <div className="text-2xl font-bold text-teal-500">{workshop.rescheduled_done || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Resch. Done</div>
+                                    <div className="text-2xl font-bold text-orange-500">{workshop.fresh_rescheduled_done || 0}</div>
+                                    <div className="text-xs text-muted-foreground">Reschedule (Done)</div>
                                   </div>
                                   <div 
-                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-purple-400 hover:shadow-sm transition-all"
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-blue-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "booking_amount"); }}
                                   >
-                                    <div className="text-2xl font-bold text-purple-600">{workshop.booking_amount_calls || 0}</div>
+                                    <div className="text-2xl font-bold text-blue-600">{workshop.fresh_booking_amount || 0}</div>
                                     <div className="text-xs text-muted-foreground">Booking Amount</div>
                                   </div>
                                   <div 
-                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    className="bg-background rounded-lg p-3 border cursor-pointer hover:border-gray-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "refunded"); }}
                                   >
-                                    <div className="text-2xl font-bold text-amber-600">{workshop.refunded_calls || 0}</div>
+                                    <div className="text-2xl font-bold text-gray-600">{workshop.refunded_calls || 0}</div>
                                     <div className="text-xs text-muted-foreground">Refunded</div>
                                   </div>
                                 </div>
                               </div>
                               
-                              {/* Rejoin Calls Section */}
+                              {/* Rejoin Calls Statistics */}
                               <div className="space-y-3">
                                 <div className="flex items-center gap-2 text-sm font-medium text-amber-600">
                                   <Phone className="h-4 w-4" />
-                                  Rejoin Calls (Originated Here, Paid in Later Workshop)
+                                  Rejoin Calls (Paid in Previous Workshop)
                                 </div>
-                                <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+                                <div className="grid grid-cols-3 md:grid-cols-7 gap-3">
                                   <div 
-                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border-2 border-amber-300 dark:border-amber-700 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
                                   >
-                                    <div className="text-2xl font-bold text-amber-700 dark:text-amber-300">{workshop.rejoin_sales_count || 0}</div>
-                                    <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">Total Rejoin</div>
+                                    <div className="text-2xl font-bold text-amber-600">{workshop.rejoin_converted || 0}</div>
+                                    <div className="text-xs text-amber-600">Converted</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                    <div className="text-lg font-bold text-green-600">{workshop.rejoin_converted || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Converted</div>
+                                  <div 
+                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-amber-600">{workshop.rejoin_not_converted || 0}</div>
+                                    <div className="text-xs text-amber-600">Not Converted</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                    <div className="text-lg font-bold text-red-500">{workshop.rejoin_not_converted || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Not Converted</div>
+                                  <div 
+                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-amber-600">{workshop.rejoin_remaining || 0}</div>
+                                    <div className="text-xs text-amber-600">Remaining</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                    <div className="text-lg font-bold text-blue-500">{workshop.rejoin_remaining || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Remaining</div>
+                                  <div 
+                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-amber-600">{workshop.rejoin_rescheduled_remaining || 0}</div>
+                                    <div className="text-xs text-amber-600">Reschedule (Upcoming)</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                    <div className="text-lg font-bold text-orange-500">{workshop.rejoin_rescheduled_remaining || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Resch. Remaining</div>
+                                  <div 
+                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-amber-600">{workshop.rejoin_rescheduled_done || 0}</div>
+                                    <div className="text-xs text-amber-600">Reschedule (Done)</div>
                                   </div>
-                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                    <div className="text-lg font-bold text-teal-500">{workshop.rejoin_rescheduled_done || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Resch. Done</div>
-                                  </div>
-                                  <div className="bg-background rounded-lg p-3 border border-amber-200">
-                                    <div className="text-lg font-bold text-purple-600">{workshop.rejoin_booking_amount || 0}</div>
-                                    <div className="text-xs text-muted-foreground">Booking Amount</div>
+                                  <div 
+                                    className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 cursor-pointer hover:border-amber-400 hover:shadow-sm transition-all"
+                                    onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "rejoin"); }}
+                                  >
+                                    <div className="text-2xl font-bold text-amber-600">{workshop.rejoin_booking_amount || 0}</div>
+                                    <div className="text-xs text-amber-600">Booking Amount</div>
                                   </div>
                                 </div>
                               </div>
-
-                              {/* Cross-Workshop Payments */}
+                              
+                              {/* Cross-Workshop Info */}
                               <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                                  <Phone className="h-4 w-4" />
-                                  Cross-Workshop Payments (Paid Here, Credited to Original Workshop)
+                                <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+                                  <IndianRupee className="h-4 w-4" />
+                                  Cross-Workshop Payments (Revenue counted at original workshop)
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 gap-3">
                                   <div 
                                     className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-slate-400 hover:shadow-sm transition-all"
                                     onClick={(e) => { e.stopPropagation(); openCallsDialog(workshop.title, "cross_workshop"); }}
@@ -1150,7 +1175,12 @@ const Workshops = () => {
                                   </div>
                                 </div>
                               )}
-                            </div>
+                              </TabsContent>
+                              
+                              <TabsContent value="whatsapp">
+                                <WorkshopWhatsAppTab workshopId={workshop.id} workshopTitle={workshop.title} />
+                              </TabsContent>
+                            </Tabs>
                           </TableCell>
                         </TableRow>
                       )}
