@@ -1,230 +1,203 @@
 
-
-# Add Organization Timezone Setting
+# Update All Date/Time Operations to Use Organization Timezone
 
 ## Overview
 
-Add a timezone setting at the organization level so that all time-related operations (workshop scheduling, notifications, etc.) use the organization's configured timezone instead of the browser's local timezone.
-
-**Example:** You're in Dubai (GMT+4) but want to schedule a workshop notification at 7 PM India Time (GMT+5:30). With this feature, the system will always use the organization's timezone (India), regardless of where you access the dashboard from.
+This plan will ensure **every** date and time displayed or calculated in the portal uses the organization's configured timezone (currently set to India IST) instead of the browser's local timezone.
 
 ---
 
-## Current Behavior
+## Current Status
 
-| Scenario | What Happens Now |
-|----------|------------------|
-| User in Dubai sets "7 PM" | Stored as 3 PM UTC (Dubai time) |
-| User in India sets "7 PM" | Stored as 1:30 PM UTC (India time) |
-
-This is inconsistent because the same "7 PM" results in different actual times.
-
----
-
-## New Behavior
-
-| Scenario | What Will Happen |
-|----------|------------------|
-| Org timezone: Asia/Kolkata (India) | |
-| User in Dubai sets "7 PM" | Stored as 1:30 PM UTC (India time) |
-| User in India sets "7 PM" | Stored as 1:30 PM UTC (India time) |
-
-All times are interpreted as the organization's timezone, ensuring consistency.
+| Area | Timezone Used |
+|------|---------------|
+| Workshop Notifications | Organization timezone (correct) |
+| Workshop Detail Sheet | Organization timezone (correct) |
+| Message Checkpoints | Organization timezone (correct) |
+| Settings Page | Organization timezone (correct) |
+| All Other Pages | Browser timezone (needs update) |
 
 ---
 
-## Implementation Steps
+## Files Requiring Updates
 
-### Step 1: Add Timezone Column to Organizations Table
+### High Priority - User-Facing Dates
 
-Add a new `timezone` column to the `organizations` table with a default of 'Asia/Kolkata'.
+| File | Lines | Current Code | Change Needed |
+|------|-------|--------------|---------------|
+| `src/pages/Workshops.tsx` | 964, 1255+ | `format(new Date(workshop.start_date), "MMM dd, yyyy")` | Use `formatInOrgTime` |
+| `src/pages/Batches.tsx` | 987, 2540, 2069, 2545-2547 | `format(new Date(batch.start_date), ...)` | Use `formatInOrgTime` |
+| `src/pages/DailyMoneyFlow.tsx` | 151-164, 219-278 | `format(new Date(), "yyyy-MM-dd")` | Use org timezone for "today" |
+| `src/pages/Calls.tsx` | 69-83, 462 | Date filter logic uses `new Date()` | Use org timezone |
+| `src/pages/CloserAssignedCalls.tsx` | 72-77, 180-232 | Call time checks use browser time | Use org timezone |
 
-```sql
-ALTER TABLE organizations 
-ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata';
-```
+### Medium Priority - Form Inputs
 
----
+| File | Lines | Change Needed |
+|------|-------|---------------|
+| `src/components/ScheduleCallDialog.tsx` | 116-117 | Format scheduled date in org timezone |
+| `src/components/RebookCallDialog.tsx` | 95-96, 129 | Format dates in org timezone |
+| `src/components/ReassignCallDialog.tsx` | 328 | Date selection logic |
+| `src/components/AddMoneyFlowDialog.tsx` | 56-59 | Today/yesterday logic |
 
-### Step 2: Update General Settings UI
+### Lower Priority - Display Only
 
-Add a timezone selector dropdown to the General Settings page.
-
-| Component | Description |
-|-----------|-------------|
-| `TimezoneSelect` | A reusable dropdown component with common timezones |
-| Display current timezone | Show the active timezone in the settings |
-| Save timezone | Update organization record when changed |
-
-**Common Timezones to Include:**
-- Asia/Kolkata (India - IST)
-- Asia/Dubai (UAE - GST)
-- America/New_York (Eastern US)
-- America/Los_Angeles (Pacific US)
-- Europe/London (UK - GMT/BST)
-- Asia/Singapore (Singapore)
-- Australia/Sydney (Australia)
+| File | Change Needed |
+|------|---------------|
+| `src/pages/settings/WhatsAppConnection.tsx` | Format last active time in org timezone |
+| `src/components/workshops/WorkshopWhatsAppTab.tsx` | Format scheduled message times |
+| `src/components/UpdateEmiDialog.tsx` | Format payment dates |
+| `src/pages/Funnels.tsx` | Format created_at dates |
 
 ---
 
-### Step 3: Create Timezone Utility Hook
+## Implementation Approach
 
-Create a new hook `useOrganizationTimezone` that provides:
+### Step 1: Create a Timezone Hook
+
+Create `useOrgTimezone` hook that provides ready-to-use functions bound to the current organization's timezone:
 
 ```typescript
-// Returns:
-{
-  timezone: 'Asia/Kolkata',      // Current org timezone
-  toOrgTime: (date) => Date,     // Convert UTC to org timezone
-  fromOrgTime: (date) => Date,   // Convert org timezone to UTC
-  formatInOrgTime: (date, format) => string  // Format date in org timezone
+// src/hooks/useOrgTimezone.ts
+export function useOrgTimezone() {
+  const { currentOrganization } = useOrganization();
+  const timezone = currentOrganization?.timezone || DEFAULT_TIMEZONE;
+  
+  return {
+    timezone,
+    // Get "today" in org timezone (for filters)
+    getToday: () => formatInOrgTime(new Date(), timezone, 'yyyy-MM-dd'),
+    // Format any date for display
+    format: (date: Date | string, formatStr: string) => 
+      formatInOrgTime(date, timezone, formatStr),
+    // Check if a date is "today" in org timezone
+    isToday: (date: Date | string) => {
+      const orgToday = formatInOrgTime(new Date(), timezone, 'yyyy-MM-dd');
+      const dateStr = formatInOrgTime(date, timezone, 'yyyy-MM-dd');
+      return orgToday === dateStr;
+    },
+  };
 }
 ```
 
----
+### Step 2: Update Date Filters
 
-### Step 4: Update Message Scheduling Logic
+Update pages that use "today", "yesterday", "tomorrow" logic:
 
-Modify `useWorkshopNotification.ts` to use the organization's timezone when calculating scheduled times.
-
-**Current Code:**
+**DailyMoneyFlow.tsx (line 151):**
 ```typescript
-// Line 262-265 - Uses browser timezone implicitly
-let scheduledFor = new Date(workshopDate);
-scheduledFor = setHours(scheduledFor, hours);
-scheduledFor = setMinutes(scheduledFor, minutes);
+// Before
+const today = format(new Date(), "yyyy-MM-dd");
+
+// After
+const { getToday } = useOrgTimezone();
+const today = getToday();
 ```
 
-**New Code:**
+**Calls.tsx (lines 69-83):**
 ```typescript
-// Convert workshop date to org timezone, set time, convert back to UTC
-const orgTimezone = organization.timezone || 'Asia/Kolkata';
-const workshopInOrgTz = toZonedTime(workshopDate, orgTimezone);
-let scheduledFor = setHours(workshopInOrgTz, hours);
-scheduledFor = setMinutes(scheduledFor, minutes);
-const scheduledForUTC = fromZonedTime(scheduledFor, orgTimezone);
+// Before
+const getSelectedDate = () => {
+  const today = new Date();
+  switch (dateFilter) {
+    case 'today':
+      return format(today, 'yyyy-MM-dd');
+    ...
+  }
+};
+
+// After
+const { timezone, format: formatOrg } = useOrgTimezone();
+const getSelectedDate = () => {
+  switch (dateFilter) {
+    case 'today':
+      return formatOrg(new Date(), 'yyyy-MM-dd');
+    ...
+  }
+};
 ```
 
----
+### Step 3: Update Date Display
 
-### Step 5: Update Organization Context
+Replace all `format(new Date(dateString), ...)` calls with `formatInOrgTime`:
 
-Extend the `useOrganization` hook to include the timezone in the organization data.
-
+**Workshops.tsx (line 964):**
 ```typescript
-interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  logo_url: string | null;
-  is_active: boolean;
-  timezone: string;  // NEW
-}
+// Before
+{workshop.start_date ? format(new Date(workshop.start_date), "MMM dd, yyyy") : "N/A"}
+
+// After
+{workshop.start_date ? formatInOrgTime(workshop.start_date, timezone, "MMM dd, yyyy") : "N/A"}
 ```
 
----
-
-### Step 6: Display Timezone in UI
-
-Add timezone indicator in relevant places:
-- Settings page shows current timezone
-- Workshop notification shows "Times shown in IST" or similar
-- Scheduled messages show times in org timezone
-
----
-
-## Files to Create/Modify
-
-| File | Action | Description |
-|------|--------|-------------|
-| Database Migration | Create | Add `timezone` column to `organizations` |
-| `src/lib/timezoneUtils.ts` | Create | Timezone conversion utilities |
-| `src/hooks/useOrganization.tsx` | Modify | Include timezone in Organization interface |
-| `src/pages/settings/GeneralSettings.tsx` | Modify | Add timezone selector dropdown |
-| `src/hooks/useWorkshopNotification.ts` | Modify | Use org timezone for scheduling |
-| `src/components/operations/MessageCheckpoints.tsx` | Modify | Display times in org timezone |
-
----
-
-## Technical Details
-
-### Timezone Library
-
-Use `date-fns-tz` for timezone handling:
-
-```bash
-# Already compatible with date-fns v3
-npm install date-fns-tz
-```
-
-Key functions:
-- `toZonedTime(date, timezone)` - Convert UTC to timezone
-- `fromZonedTime(date, timezone)` - Convert timezone to UTC
-- `formatInTimeZone(date, timezone, format)` - Format in specific timezone
-
----
-
-### Database Schema Change
-
-```sql
--- Migration
-ALTER TABLE organizations 
-ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata';
-
--- Update existing organizations to India timezone
-COMMENT ON COLUMN organizations.timezone IS 'IANA timezone identifier (e.g., Asia/Kolkata)';
-```
-
----
-
-### Timezone Selector Component
-
+**Batches.tsx (line 987, 2540):**
 ```typescript
-const COMMON_TIMEZONES = [
-  { value: 'Asia/Kolkata', label: 'India (IST) - UTC+5:30' },
-  { value: 'Asia/Dubai', label: 'Dubai (GST) - UTC+4' },
-  { value: 'America/New_York', label: 'New York (EST/EDT)' },
-  { value: 'America/Los_Angeles', label: 'Los Angeles (PST/PDT)' },
-  { value: 'Europe/London', label: 'London (GMT/BST)' },
-  { value: 'Asia/Singapore', label: 'Singapore (SGT) - UTC+8' },
-  { value: 'Australia/Sydney', label: 'Sydney (AEST/AEDT)' },
-];
+// Before
+{format(new Date(selectedBatch.start_date), "dd MMM yyyy")}
+
+// After  
+{formatInOrgTime(selectedBatch.start_date, timezone, "dd MMM yyyy")}
+```
+
+### Step 4: Update Time Calculations
+
+Update time-based logic (call status checks, etc.):
+
+**CloserAssignedCalls.tsx (lines 180-232):**
+```typescript
+// Before - Uses browser time
+const now = new Date();
+const callDateTime = new Date();
+callDateTime.setHours(hours, minutes, 0, 0);
+return now > callDateTime;
+
+// After - Uses org timezone
+const nowInOrg = toOrgTime(new Date(), timezone);
+const callDateTime = toOrgTime(new Date(dateStr), timezone);
+callDateTime.setHours(hours, minutes, 0, 0);
+return nowInOrg > callDateTime;
 ```
 
 ---
 
-## Data Flow After Implementation
+## Files to Modify
 
-```text
-User sets workshop time: 7:00 PM
-                  |
-                  v
-System reads org timezone: Asia/Kolkata
-                  |
-                  v
-Interpret as: 7:00 PM IST (UTC+5:30)
-                  |
-                  v
-Convert to UTC: 1:30 PM UTC
-                  |
-                  v
-Store in database: 2025-01-31T13:30:00Z
-                  |
-                  v
-Edge function triggers at: 1:30 PM UTC
-                  |
-                  v
-Message sent at: 7:00 PM India time
-```
+| File | Action |
+|------|--------|
+| `src/hooks/useOrgTimezone.ts` | Create - New hook |
+| `src/pages/Workshops.tsx` | Modify - Add org timezone formatting |
+| `src/pages/Batches.tsx` | Modify - Add org timezone formatting |
+| `src/pages/DailyMoneyFlow.tsx` | Modify - Update today/month logic |
+| `src/pages/Calls.tsx` | Modify - Update date filters |
+| `src/pages/CloserAssignedCalls.tsx` | Modify - Update time checks |
+| `src/components/ScheduleCallDialog.tsx` | Modify - Schedule in org timezone |
+| `src/components/RebookCallDialog.tsx` | Modify - Format dates |
+| `src/components/ReassignCallDialog.tsx` | Modify - Date logic |
+| `src/components/AddMoneyFlowDialog.tsx` | Modify - Today logic |
+| `src/components/workshops/WorkshopWhatsAppTab.tsx` | Modify - Format times |
+| `src/components/UpdateEmiDialog.tsx` | Modify - Payment dates |
+| `src/pages/settings/WhatsAppConnection.tsx` | Modify - Last active time |
+| `src/pages/Funnels.tsx` | Modify - Created dates |
 
 ---
 
 ## Testing Checklist
 
-1. Set organization timezone to India
-2. Create a workshop with 7 PM start time
-3. Run messaging to schedule notifications
-4. Verify scheduled times are stored correctly in UTC
-5. Verify messages are displayed in India time in the UI
-6. Change browser location (VPN/device settings) and verify times remain consistent
+After implementation:
+1. Set organization timezone to India (IST)
+2. Access from a browser in a different timezone (e.g., Dubai)
+3. Verify:
+   - Workshop dates show correctly
+   - Batch dates show correctly  
+   - "Today" in Daily Money Flow matches IST date
+   - Call appointments filter by IST date
+   - Scheduled notifications show IST times
+   - New call bookings are scheduled in IST
 
+---
+
+## Estimated Changes
+
+- **~14 files** to modify
+- **1 new hook** to create
+- All changes are display/calculation logic - no database changes needed
