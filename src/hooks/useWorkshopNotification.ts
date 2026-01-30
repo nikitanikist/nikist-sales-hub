@@ -286,10 +286,12 @@ export function useWorkshopNotification() {
       workshopId, 
       workshop,
       groupIds,
+      manualVariables = {},
     }: { 
       workshopId: string; 
       workshop: WorkshopWithDetails;
       groupIds: string[];
+      manualVariables?: Record<string, string>;
     }) => {
       if (!currentOrganization) throw new Error('No organization selected');
       if (!groupIds || groupIds.length === 0) throw new Error('No WhatsApp groups selected');
@@ -352,10 +354,18 @@ export function useWorkshopNotification() {
         
         // Apply template variables - format dates in org timezone
         const templateContent = step.template?.content || '';
-        const processedContent = templateContent
-          .replace(/{workshop_name}/g, workshop.title)
-          .replace(/{date}/g, format(workshopDateInOrgTz, 'MMMM d, yyyy'))
-          .replace(/{time}/g, format(workshopDateInOrgTz, 'h:mm a'));
+        let processedContent = templateContent
+          .replace(/{workshop_name}/gi, workshop.title)
+          .replace(/{date}/gi, format(workshopDateInOrgTz, 'MMMM d, yyyy'))
+          .replace(/{time}/gi, format(workshopDateInOrgTz, 'h:mm a'));
+        
+        // Apply manual variables
+        for (const [key, value] of Object.entries(manualVariables)) {
+          processedContent = processedContent.replace(
+            new RegExp(`\\{${key}\\}`, 'gi'),
+            value
+          );
+        }
         
         // Create a message for EACH selected group
         for (const groupId of groupIds) {
