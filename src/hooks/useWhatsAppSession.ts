@@ -337,26 +337,12 @@ export function useWhatsAppSession() {
     return response.data;
   }, []);
 
-  // Get QR code
-  const fetchQRCode = useCallback(async (sessionId: string) => {
-    try {
-      const data = await callVPSProxy('qr', { sessionId });
-      if (data.qrCode) {
-        setConnectionState(prev => ({
-          ...prev,
-          qrCode: data.qrCode,
-        }));
-      }
-    } catch (error) {
-      console.error('Failed to fetch QR code:', error);
-    }
-  }, [callVPSProxy]);
-
-  // Check status
+  // Check status (also extracts QR code from the same response since VPS doesn't have a separate /qr endpoint)
   const checkStatus = useCallback(async (sessionId: string) => {
     try {
       const data = await callVPSProxy('status', { sessionId });
       
+      // VPS returns { status: "...", qrCode?: "...", phoneNumber?: "..." }
       if (data.status === 'connected') {
         setConnectionState(prev => ({
           ...prev,
@@ -373,31 +359,37 @@ export function useWhatsAppSession() {
           isConnecting: false,
           status: data.status,
           error: data.error || null,
+          qrCode: null,
         }));
         setPollingInterval(null);
+      } else {
+        // Still connecting - extract QR code from the status response
+        setConnectionState(prev => ({
+          ...prev,
+          qrCode: data.qrCode || prev.qrCode,
+          status: 'connecting',
+        }));
       }
     } catch (error) {
       console.error('Failed to check status:', error);
     }
   }, [callVPSProxy, queryClient]);
 
-  // Polling effect
+  // Polling effect - only calls checkStatus (which now returns both status AND QR code)
   useEffect(() => {
     if (!pollingInterval || !connectionState.sessionId) return;
 
     const interval = setInterval(() => {
       if (connectionState.sessionId) {
-        fetchQRCode(connectionState.sessionId);
         checkStatus(connectionState.sessionId);
       }
     }, pollingInterval);
 
     // Initial fetch
-    fetchQRCode(connectionState.sessionId);
     checkStatus(connectionState.sessionId);
 
     return () => clearInterval(interval);
-  }, [pollingInterval, connectionState.sessionId, fetchQRCode, checkStatus]);
+  }, [pollingInterval, connectionState.sessionId, checkStatus]);
 
   // Cancel connection attempt
   const cancelConnection = useCallback(() => {

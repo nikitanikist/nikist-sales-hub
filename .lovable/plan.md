@@ -1,66 +1,35 @@
+# WhatsApp VPS Integration - FIXED ✅
 
+## Changes Made
 
-## Root Cause Identified
+### 1. Backend (`supabase/functions/vps-whatsapp-proxy/index.ts`)
+- ✅ Removed `qr` action from the interface (was calling non-existent `/qr/:sessionId` endpoint)
+- ✅ Removed `sync-groups` action (VPS doesn't have this endpoint)
+- ✅ Updated `status` action to extract `qrCode` from VPS response and store it in DB
+- ✅ Added `last_active_at` update when checking status
 
-Your VPS does **not** have a separate `/qr` endpoint. According to your VPS documentation:
+### 2. Frontend (`src/hooks/useWhatsAppSession.ts`)
+- ✅ Removed `fetchQRCode` function (was calling the invalid `qr` action)
+- ✅ Updated `checkStatus` to extract QR code from the status response
+- ✅ Polling now only calls `checkStatus` which handles both status AND QR
+
+## VPS Endpoints (Confirmed)
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | GET | `/health` | Health check |
-| POST | `/connect` | Create session (needs `{"sessionId": "xxx"}`) |
-| GET | `/status/:sessionId` | Get session status **& QR code** |
-| POST | `/send` | Send message |
+| POST | `/connect` | Create session with `{ sessionId: "wa_xxx" }` |
+| GET | `/status/:sessionId` | Get status **AND** QR code |
+| POST | `/send` | Send message to group |
+| POST | `/disconnect/:sessionId` | Disconnect session |
 
-The current code is calling `/qr/{sessionId}` which returns 404 because that endpoint does not exist. The QR code is returned **inside** the `/status/:sessionId` response.
-
----
-
-## What needs to change
-
-### 1. Remove the `qr` action from the backend function
-The `qr` action is invalid because the VPS doesn't have a `/qr` endpoint. We should remove it and rely solely on the `status` endpoint which returns both status and QR code.
-
-### 2. Update the frontend to only poll `/status`
-Instead of calling `qr` separately, the frontend should:
-- Call `status` which returns `{ status: "...", qrCode: "..." }`
-- Extract the QR code from the status response
-
-### 3. Fix the `sync-groups` endpoint (if needed)
-Your VPS may not have `/groups/sync/:sessionId`. If group sync is needed, we should confirm the correct endpoint or remove that feature.
-
----
-
-## Files to modify
-
-### Backend: `supabase/functions/vps-whatsapp-proxy/index.ts`
-- Remove the `case 'qr'` branch entirely
-- Update `case 'status'` to also return `qrCode` from VPS response
-
-### Frontend: `src/hooks/useWhatsAppSession.ts`
-- Remove the `fetchQRCode` function (it calls the non-existent `/qr` endpoint)
-- Update `checkStatus` to extract and set the QR code from the status response
-
----
-
-## Expected flow after fix
+## Expected Flow
 
 1. User clicks **Connect Device**
-2. Backend calls `POST /connect` with `{ sessionId: "wa_xxx" }`
-3. Frontend starts polling `status` action
-4. Backend calls `GET /status/wa_xxx`
-5. VPS returns `{ status: "qr_pending", qrCode: "data:image/..." }`
-6. Frontend displays the QR code
-7. User scans QR
-8. VPS returns `{ status: "connected", phoneNumber: "+91..." }`
-9. UI shows "Connected"
-
----
-
-## Technical summary
-
-| Current (broken) | Fixed |
-|------------------|-------|
-| `action: qr` → `GET /qr/{id}` → 404 | Removed |
-| `action: status` → no QR extraction | `action: status` → extract `qrCode` from response |
-| `fetchQRCode()` calls `qr` action | `checkStatus()` handles QR display |
-
+2. Frontend calls `connect` action → Backend calls `POST /connect`
+3. Frontend polls `status` action every 3 seconds
+4. Backend calls `GET /status/wa_xxx` → VPS returns `{ status: "qr_pending", qrCode: "data:image/..." }`
+5. Frontend displays the QR code from the response
+6. User scans QR with WhatsApp
+7. VPS returns `{ status: "connected", phoneNumber: "+91..." }`
+8. UI shows "Connected" ✅

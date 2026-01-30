@@ -96,7 +96,7 @@ async function getVpsSessionId(
 }
 
 interface VPSProxyRequest {
-  action: 'connect' | 'status' | 'qr' | 'disconnect' | 'sync-groups' | 'send' | 'health';
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health';
   sessionId?: string;
   organizationId?: string;
   groupId?: string;
@@ -201,9 +201,7 @@ Deno.serve(async (req) => {
       }
 
       case 'status':
-      case 'qr':
-      case 'disconnect':
-      case 'sync-groups': {
+      case 'disconnect': {
         if (!sessionId) {
           return new Response(
             JSON.stringify({ error: 'Session ID required' }),
@@ -224,16 +222,11 @@ Deno.serve(async (req) => {
         }
         
         if (action === 'status') {
+          // VPS /status endpoint returns both status AND qrCode
           vpsEndpoint = `/status/${vpsSessionIdForVps}`;
-          vpsMethod = 'GET';
-        } else if (action === 'qr') {
-          vpsEndpoint = `/qr/${vpsSessionIdForVps}`;
           vpsMethod = 'GET';
         } else if (action === 'disconnect') {
           vpsEndpoint = `/disconnect/${vpsSessionIdForVps}`;
-          vpsMethod = 'POST';
-        } else if (action === 'sync-groups') {
-          vpsEndpoint = `/groups/sync/${vpsSessionIdForVps}`;
           vpsMethod = 'POST';
         }
         break;
@@ -361,41 +354,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update session status for status check
+    // Update session status for status check (including QR code from VPS response)
     if (action === 'status' && isJson && localSessionIdForDb && organizationId) {
+      // VPS returns { status: "...", qrCode?: "...", phoneNumber?: "..." }
+      const updatePayload: Record<string, unknown> = {
+        status: responseData?.status || 'unknown',
+        phone_number: responseData?.phoneNumber || null,
+        last_active_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Store QR code if present (VPS returns qrCode when status is "qr_pending" or similar)
+      if (responseData?.qrCode) {
+        updatePayload.qr_code = responseData.qrCode;
+        // Set QR expiry (typically 60 seconds)
+        updatePayload.qr_expires_at = new Date(Date.now() + 60000).toISOString();
+      }
+      
       const { error: updateError } = await supabase
         .from('whatsapp_sessions')
-        .update({
-          status: responseData?.status || 'unknown',
-          phone_number: responseData?.phoneNumber || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', localSessionIdForDb);
 
       if (updateError) {
         console.error('Failed to update session status:', updateError);
-      }
-    }
-
-    // Store synced groups
-    if (action === 'sync-groups' && isJson && responseData?.groups && organizationId && localSessionIdForDb) {
-      const groups = responseData.groups.map((g: { id: string; name: string; participantCount?: number }) => ({
-        group_jid: g.id,
-        group_name: g.name,
-        organization_id: organizationId,
-        session_id: localSessionIdForDb, // Use local UUID, not VPS session ID
-        participant_count: g.participantCount || 0,
-        synced_at: new Date().toISOString(),
-      }));
-
-      if (groups.length > 0) {
-        const { error: groupsError } = await supabase
-          .from('whatsapp_groups')
-          .upsert(groups, { onConflict: 'group_jid,organization_id' });
-
-        if (groupsError) {
-          console.error('Failed to store groups:', groupsError);
-        }
       }
     }
 
