@@ -1,125 +1,57 @@
 
 
-# Fix Workshop Notification Page Issues
+# Add "Send Message Now" Feature to Workshop Notification
 
 ## Overview
 
-This plan addresses three bugs on the Workshop Notification page:
+This plan adds a second messaging option in the Workshop detail sheet. Currently, users can only "Run the Sequence" which schedules all messages. The new feature will allow users to:
 
-1. **Date Display Issue** - Workshop shows Feb 1 instead of Jan 31
-2. **Dropdown Cropping** - WhatsApp group dropdown is cropped/going upward
-3. **Group Selection Not Updating** - Shows "No group" after successful save
-
----
-
-## Issue 1: Date Display Shows Wrong Day
-
-### Root Cause
-
-The workshop "Test workshop" is stored in the database as `2026-01-31 20:02:00+00` (UTC). When displayed, the code uses:
-
-```typescript
-const workshopDate = new Date(workshop.start_date);
-format(workshopDate, 'MMM d, yyyy')
-```
-
-The user is likely in IST (UTC+5:30). When JavaScript parses the UTC timestamp, it converts to local time:
-- Jan 31, 20:02 UTC → Feb 1, 01:32 IST
-
-This causes the date to display as Feb 1 instead of Jan 31.
-
-### Solution
-
-Use `parseISO` from date-fns with timezone-aware formatting, or parse the date in a way that preserves the intended date. Since workshops are typically scheduled for a specific local date/time, we should display the date portion without timezone conversion.
-
-**File to modify:** `src/components/operations/WorkshopDetailSheet.tsx` and `src/pages/operations/WorkshopNotification.tsx`
-
-**Technical Change:**
-Replace:
-```typescript
-const workshopDate = new Date(workshop.start_date);
-```
-
-With:
-```typescript
-import { parseISO } from 'date-fns';
-// Use parseISO which handles ISO strings correctly
-const workshopDate = parseISO(workshop.start_date);
-```
-
-Additionally, for the table display, extract just the date portion to avoid timezone shifts:
-```typescript
-// Extract just the date part (YYYY-MM-DD) to prevent timezone shifting
-const dateOnly = workshop.start_date.split('T')[0];
-const workshopDate = new Date(dateOnly + 'T00:00:00');
-```
+1. **Run the Sequence** - Schedule all messages based on the template sequence (existing functionality)
+2. **Send Message Now** - Immediately send a single message by selecting a template
 
 ---
 
-## Issue 2: Dropdown Getting Cropped (Going Upward)
+## User Flow
 
-### Root Cause
-
-The Sheet component has `overflow-y-auto` on the content, but the SelectContent dropdown uses Radix's Popper which positions itself relative to the viewport. When there's limited space below, it flips upward but gets clipped by the sheet's overflow container.
-
-### Solution
-
-Add the `position="popper"` prop with `side="bottom"` to force the dropdown to position correctly within the scrollable container, and ensure proper z-index stacking.
-
-**File to modify:** `src/components/operations/WorkshopDetailSheet.tsx`
-
-**Technical Change:**
-Update all SelectContent components with:
-```tsx
-<SelectContent 
-  position="popper" 
-  side="bottom" 
-  align="start"
-  className="z-[100]"
->
+### Before (Current)
+```
+[Run the Messaging] button → Schedules all sequence messages
 ```
 
-This ensures dropdowns:
-1. Open downward (preferred)
-2. Use proper positioning within the container
-3. Have a high z-index to stay above other elements
+### After (New)
+```
+┌─────────────────────────────────────────────────┐
+│  Messaging Actions                               │
+│                                                  │
+│  ┌───────────────────────────────────────────┐  │
+│  │  📅 Run the Sequence                      │  │
+│  │  Schedules all messages for their times   │  │
+│  └───────────────────────────────────────────┘  │
+│                                                  │
+│  ┌───────────────────────────────────────────┐  │
+│  │  📤 Send Message Now                      │  │
+│  │  Sends a message immediately              │  │
+│  └───────────────────────────────────────────┘  │
+│                                                  │
+└─────────────────────────────────────────────────┘
+```
+
+When user clicks "Send Message Now":
+1. A dialog opens with a template dropdown
+2. User selects a template from the list
+3. User sees a preview of the message content
+4. User clicks "Send Now" button
+5. Message is sent immediately to the linked WhatsApp group
+6. Success/error toast notification appears
 
 ---
 
-## Issue 3: Group Selection Shows "No group" After Save
+## Files to Create
 
-### Root Cause
-
-When the user selects a group:
-1. `updateGroup` mutation is called → saves to database
-2. Mutation succeeds → toast shows "WhatsApp group linked"
-3. Query cache is invalidated
-4. BUT the `selectedWorkshop` state in WorkshopNotification.tsx is NOT updated
-
-The sheet is displaying data from the stale `selectedWorkshop` state, not the fresh data from the query.
-
-### Solution
-
-Update the `selectedWorkshop` state when the underlying data changes, or use the workshop data directly from the query results.
-
-**File to modify:** `src/pages/operations/WorkshopNotification.tsx`
-
-**Technical Change:**
-Add an effect to sync the selected workshop with the latest data from the query:
-
-```typescript
-// Keep selectedWorkshop in sync with fresh query data
-useEffect(() => {
-  if (selectedWorkshop && workshops.length > 0) {
-    const freshWorkshop = workshops.find(w => w.id === selectedWorkshop.id);
-    if (freshWorkshop && freshWorkshop !== selectedWorkshop) {
-      setSelectedWorkshop(freshWorkshop);
-    }
-  }
-}, [workshops, selectedWorkshop]);
-```
-
-This ensures when the query data updates after a mutation, the sheet displays the fresh data including the newly linked WhatsApp group.
+| File | Purpose |
+|------|---------|
+| `src/components/operations/SendMessageNowDialog.tsx` | Dialog component for template selection and sending |
+| `src/components/operations/MessagingActions.tsx` | New component with both action buttons |
 
 ---
 
@@ -127,67 +59,235 @@ This ensures when the query data updates after a mutation, the sheet displays th
 
 | File | Changes |
 |------|---------|
-| `src/components/operations/WorkshopDetailSheet.tsx` | Fix date parsing, fix dropdown positioning |
-| `src/pages/operations/WorkshopNotification.tsx` | Fix date parsing, sync selected workshop state |
+| `src/components/operations/WorkshopDetailSheet.tsx` | Replace `RunMessagingButton` with new `MessagingActions` |
+| `src/components/operations/index.ts` | Export new components |
+| `src/hooks/useWorkshopNotification.ts` | Add `sendMessageNow` mutation |
 
 ---
 
 ## Technical Details
 
-### WorkshopDetailSheet.tsx Changes
+### 1. SendMessageNowDialog.tsx (New Component)
 
-1. Add `parseISO` import from date-fns
-2. Change date parsing:
-   ```typescript
-   // Before
-   const workshopDate = new Date(workshop.start_date);
-   
-   // After - extract date portion to avoid timezone shift
-   const datePart = workshop.start_date.split('T')[0];
-   const workshopDate = new Date(datePart + 'T12:00:00');
-   ```
+```tsx
+interface SendMessageNowDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  workshopId: string;
+  workshopTitle: string;
+  workshopDate: Date;
+  groupId: string;
+  sessionId: string;
+  onSend: (params: SendNowParams) => void;
+  isSending: boolean;
+}
+```
 
-3. Update all three SelectContent components (Tag, Account, Group) with:
-   ```tsx
-   <SelectContent 
-     position="popper" 
-     side="bottom" 
-     align="start"
-     sideOffset={4}
-   >
-   ```
+**Features:**
+- Template dropdown to select from available templates
+- Message preview area showing the processed content (with variables replaced)
+- Cancel and Send Now buttons
+- Loading state while sending
+- Error handling
 
-### WorkshopNotification.tsx Changes
+**UI Layout:**
+```
+┌─────────────────────────────────────────────┐
+│ Send Message Now                        [X] │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Select Template                            │
+│  ┌─────────────────────────────────────┐   │
+│  │ [Choose a template...]          ▼   │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  Message Preview                            │
+│  ┌─────────────────────────────────────┐   │
+│  │ Welcome to {workshop_name}!         │   │
+│  │ Join us on {date} at {time}.        │   │
+│  │                                     │   │
+│  │ → Processed preview appears here    │   │
+│  └─────────────────────────────────────┘   │
+│                                             │
+│  ─────────────────────────────────────────  │
+│                                             │
+│                 [Cancel]  [📤 Send Now]    │
+│                                             │
+└─────────────────────────────────────────────┘
+```
 
-1. Fix date display in table (same approach)
-2. Add effect to sync selectedWorkshop:
-   ```typescript
-   useEffect(() => {
-     if (selectedWorkshop && workshops.length > 0) {
-       const freshData = workshops.find(w => w.id === selectedWorkshop.id);
-       if (freshData) {
-         setSelectedWorkshop(freshData);
-       }
-     }
-   }, [workshops]);
-   ```
+### 2. MessagingActions.tsx (New Component)
+
+Replaces `RunMessagingButton` with two action options:
+
+```tsx
+interface MessagingActionsProps {
+  workshop: WorkshopWithDetails;
+  onRunSequence: () => void;
+  onSendNow: () => void;
+  isRunningSequence: boolean;
+  isSendingNow: boolean;
+  hasGroup: boolean;
+  hasSequence: boolean;
+}
+```
+
+**UI Layout:**
+```tsx
+<div className="space-y-4">
+  <h3 className="text-sm font-medium">Messaging Actions</h3>
+  
+  {/* Run Sequence Button */}
+  <Button onClick={onRunSequence} disabled={!canRunSequence}>
+    <CalendarClock className="h-4 w-4 mr-2" />
+    Run the Sequence
+  </Button>
+  <p className="text-xs text-muted-foreground">
+    Schedules all messages for their designated times
+  </p>
+  
+  <Separator />
+  
+  {/* Send Now Button */}
+  <Button onClick={onSendNow} disabled={!hasGroup} variant="outline">
+    <Send className="h-4 w-4 mr-2" />
+    Send Message Now
+  </Button>
+  <p className="text-xs text-muted-foreground">
+    Send a single message immediately
+  </p>
+</div>
+```
+
+### 3. Hook Changes (useWorkshopNotification.ts)
+
+Add a new mutation for sending immediate messages:
+
+```typescript
+// Send a message immediately
+const sendMessageNowMutation = useMutation({
+  mutationFn: async ({
+    workshopId,
+    groupId,
+    sessionId,
+    templateId,
+    content,
+    mediaUrl,
+  }: {
+    workshopId: string;
+    groupId: string;
+    sessionId: string;
+    templateId: string;
+    content: string;
+    mediaUrl?: string | null;
+  }) => {
+    // Get the group JID from the database
+    const { data: group } = await supabase
+      .from('whatsapp_groups')
+      .select('group_jid')
+      .eq('id', groupId)
+      .single();
+    
+    if (!group?.group_jid) throw new Error('Group not found');
+    
+    // Call VPS proxy to send immediately
+    const { data, error } = await supabase.functions.invoke('vps-whatsapp-proxy', {
+      body: {
+        action: 'send',
+        sessionId,
+        groupId: group.group_jid,
+        message: content,
+        ...(mediaUrl && { mediaUrl }),
+      },
+    });
+    
+    if (error) throw error;
+    return data;
+  },
+  onSuccess: () => {
+    toast.success('Message sent successfully');
+  },
+  onError: (error: Error) => {
+    toast.error('Failed to send message', { description: error.message });
+  },
+});
+```
+
+### 4. WorkshopDetailSheet.tsx Changes
+
+Replace the current `RunMessagingButton` with `MessagingActions` and add state for the dialog:
+
+```tsx
+// Add state
+const [sendNowDialogOpen, setSendNowDialogOpen] = useState(false);
+
+// Replace RunMessagingButton with MessagingActions
+<MessagingActions
+  workshop={workshop}
+  onRunSequence={() => runMessaging({ workshopId: workshop.id, workshop })}
+  onSendNow={() => setSendNowDialogOpen(true)}
+  isRunningSequence={isRunningMessaging}
+  isSendingNow={isSendingNow}
+  hasGroup={!!workshop.whatsapp_group_id}
+  hasSequence={hasSequence}
+/>
+
+// Add dialog
+<SendMessageNowDialog
+  open={sendNowDialogOpen}
+  onOpenChange={setSendNowDialogOpen}
+  workshopId={workshop.id}
+  workshopTitle={workshop.title}
+  workshopDate={workshopDate}
+  groupId={workshop.whatsapp_group_id!}
+  sessionId={workshop.whatsapp_session_id!}
+  onSend={sendMessageNow}
+  isSending={isSendingNow}
+/>
+```
 
 ---
 
-## Expected Results After Fix
+## Dependencies
 
-1. **Date Display**: Workshop dates will show the correct date regardless of user's timezone (Jan 31 will show as Jan 31)
+The feature uses existing components and hooks:
+- `useMessageTemplates` - To fetch available templates
+- `useWorkshopNotification` - Extended with `sendMessageNow` mutation
+- VPS Proxy Edge Function - Already supports `send` action
 
-2. **Dropdown Position**: WhatsApp group dropdown will open downward properly without being cropped
+---
 
-3. **Group Selection**: After selecting a group, the dropdown will immediately show the selected group name instead of "No group"
+## Validation Requirements
+
+**Send Message Now is enabled when:**
+- WhatsApp account is selected (session_id exists)
+- WhatsApp group is linked (group_id exists)
+
+**Send Now button in dialog is enabled when:**
+- A template is selected
+- Not currently sending
+
+---
+
+## Error Handling
+
+1. **No group linked** → Button disabled with tooltip "Link a WhatsApp group first"
+2. **No account selected** → Button disabled with tooltip "Select a WhatsApp account first"
+3. **VPS error** → Toast notification with error details
+4. **Network error** → Toast notification with retry suggestion
 
 ---
 
 ## Testing Checklist
 
-- Workshop created on Jan 31 displays as Jan 31 (not Feb 1)
-- WhatsApp group dropdown opens downward and is fully visible
-- After selecting a group, the UI updates to show the selected group
-- All three issues work on both desktop and mobile views
+After implementation, verify:
+- "Send Message Now" button appears alongside "Run the Sequence"
+- Dialog opens when clicking "Send Message Now"
+- Templates load in the dropdown
+- Message preview updates when template is selected
+- Variables are replaced in preview ({workshop_name}, {date}, {time})
+- Send button works and message is delivered
+- Success toast appears after sending
+- Error handling works for edge cases
+- Buttons are properly disabled when prerequisites are missing
 
