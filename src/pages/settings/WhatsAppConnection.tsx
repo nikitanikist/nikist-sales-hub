@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity } from 'lucide-react';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2 } from 'lucide-react';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { format } from 'date-fns';
@@ -20,6 +20,8 @@ export function WhatsAppConnection() {
     disconnect,
     isDisconnecting,
     cancelConnection,
+    deleteSession,
+    isDeletingSession,
     testVpsConnection,
     isTestingVps,
   } = useWhatsAppSession();
@@ -236,9 +238,22 @@ export function WhatsAppConnection() {
                         </p>
                       </div>
                     </div>
-                    <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}>
-                      {session.status}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}>
+                        {session.status}
+                      </Badge>
+                      {session.status !== 'connected' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteSession(session.id)}
+                          disabled={isDeletingSession}
+                          className="h-8 w-8"
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
