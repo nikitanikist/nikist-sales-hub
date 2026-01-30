@@ -1,0 +1,245 @@
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare } from 'lucide-react';
+import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
+import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+export function WhatsAppConnection() {
+  const {
+    sessions,
+    sessionsLoading,
+    connectionState,
+    connect,
+    isConnecting,
+    disconnect,
+    isDisconnecting,
+    cancelConnection,
+  } = useWhatsAppSession();
+
+  const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+
+  const handleConnect = () => {
+    connect();
+    setQrDialogOpen(true);
+  };
+
+  const handleCancelConnection = () => {
+    cancelConnection();
+    setQrDialogOpen(false);
+  };
+
+  const connectedSessions = sessions?.filter(s => s.status === 'connected') || [];
+  const hasConnectedSession = connectedSessions.length > 0;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Smartphone className="h-5 w-5" />
+            WhatsApp Connection
+          </CardTitle>
+          <CardDescription>
+            Connect your WhatsApp device to send messages to workshop groups
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Connection Status */}
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className={`h-3 w-3 rounded-full ${hasConnectedSession ? 'bg-primary' : 'bg-muted-foreground'}`} />
+              <div>
+                <p className="font-medium">
+                  {hasConnectedSession ? 'Connected' : 'Not Connected'}
+                </p>
+                {hasConnectedSession && connectedSessions[0]?.phone_number && (
+                  <p className="text-sm text-muted-foreground">
+                    {connectedSessions[0].phone_number}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            {hasConnectedSession ? (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncGroups(connectedSessions[0].id)}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Sync Groups
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => disconnect(connectedSessions[0].id)}
+                  disabled={isDisconnecting}
+                >
+                  {isDisconnecting ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Unplug className="h-4 w-4 mr-2" />
+                  )}
+                  Disconnect
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={handleConnect} disabled={isConnecting}>
+                {isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <QrCode className="h-4 w-4 mr-2" />
+                )}
+                Connect Device
+              </Button>
+            )}
+          </div>
+
+          {/* Connected Sessions List */}
+          {sessionsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : sessions && sessions.length > 0 ? (
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-muted-foreground">Session History</h4>
+              <div className="space-y-2">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Smartphone className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">
+                          {session.phone_number || session.display_name || session.id.slice(0, 20) + '...'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Last active: {format(new Date(session.updated_at), 'PP p')}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}>
+                      {session.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {/* Synced Groups */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            WhatsApp Groups
+          </CardTitle>
+          <CardDescription>
+            Groups synced from your connected WhatsApp device
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {groups && groups.length > 0 ? (
+            <div className="space-y-2">
+              {groups.map((group) => (
+                <div
+                  key={group.id}
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium">{group.group_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {group.participant_count} participants
+                    </p>
+                  </div>
+                  {group.workshop_id ? (
+                    <Badge variant="secondary">Linked to Workshop</Badge>
+                  ) : (
+                    <Badge variant="outline">Not Linked</Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No groups synced yet</p>
+              <p className="text-sm">Connect your WhatsApp and click "Sync Groups"</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* QR Code Dialog */}
+      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Scan QR Code to Connect</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-6">
+            {connectionState.status === 'connecting' ? (
+              <>
+                {connectionState.qrCode ? (
+                  <div className="p-4 bg-background rounded-lg border">
+                    <img
+                      src={connectionState.qrCode}
+                      alt="WhatsApp QR Code"
+                      className="w-64 h-64"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <p className="text-muted-foreground">Generating QR code...</p>
+                  </div>
+                )}
+                <p className="mt-4 text-sm text-muted-foreground text-center">
+                  Open WhatsApp on your phone, go to Settings → Linked Devices → Link a Device
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={handleCancelConnection}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : connectionState.status === 'connected' ? (
+              <div className="text-center">
+                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Smartphone className="h-8 w-8 text-primary" />
+                </div>
+                <p className="font-medium">Connected Successfully!</p>
+                <Button className="mt-4" onClick={() => setQrDialogOpen(false)}>
+                  Done
+                </Button>
+              </div>
+            ) : connectionState.status === 'error' ? (
+              <div className="text-center">
+                <p className="text-destructive">{connectionState.error}</p>
+                <Button className="mt-4" onClick={handleCancelConnection}>
+                  Try Again
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
