@@ -64,18 +64,18 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
+      <SidebarHeader className="border-b border-sidebar-border p-4">
         {state === "expanded" ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Logo - prominent header display */}
             {isSuperAdmin ? (
-              <div className="flex items-center justify-center px-4 pt-6 pb-6">
-                <div className="p-4 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
-                  <Shield className="h-8 w-8 text-white" />
+              <div className="flex items-center justify-center">
+                <div className="p-3 bg-gradient-to-br from-primary to-[hsl(280,83%,58%)] rounded-xl shadow-md">
+                  <Shield className="h-6 w-6 text-white" />
                 </div>
               </div>
             ) : (
-              <div className="w-full px-3 py-5 flex items-center justify-center">
+              <div className="w-full flex items-center justify-center">
                 <img
                   src={logoImage}
                   alt="Logo"
@@ -84,7 +84,7 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
               </div>
             )}
             {/* Hide OrganizationSwitcher for Super Admins */}
-            {!isSuperAdmin && <div className="px-4 pb-4"><OrganizationSwitcher /></div>}
+            {!isSuperAdmin && <OrganizationSwitcher />}
           </div>
         ) : (
           <div className="flex justify-center">
