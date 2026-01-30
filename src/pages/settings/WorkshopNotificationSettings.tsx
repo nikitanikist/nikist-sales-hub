@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check } from 'lucide-react';
 import { useMessageTemplates, TEMPLATE_VARIABLES, CreateTemplateInput } from '@/hooks/useMessageTemplates';
 import { useTemplateSequences, CreateSequenceInput, CreateStepInput } from '@/hooks/useTemplateSequences';
 import { useWorkshopTags, TAG_COLORS, CreateTagInput } from '@/hooks/useWorkshopTags';
@@ -152,6 +152,7 @@ function SequenceEditorDialog({
   onAddStep,
   onDeleteStep,
   isSaving,
+  isAddingStep,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -161,12 +162,14 @@ function SequenceEditorDialog({
   onAddStep: (data: CreateStepInput) => Promise<any>;
   onDeleteStep: (stepId: string) => void;
   isSaving: boolean;
+  isAddingStep: boolean;
 }) {
   const [name, setName] = useState(sequence?.name || '');
   const [description, setDescription] = useState(sequence?.description || '');
   const [newStepTime, setNewStepTime] = useState('11:00');
   const [newStepTemplate, setNewStepTemplate] = useState('');
   const [newStepLabel, setNewStepLabel] = useState('');
+  const [showSaved, setShowSaved] = useState(false);
 
   // Sync state when sequence prop changes
   useEffect(() => {
@@ -181,6 +184,7 @@ function SequenceEditorDialog({
     setNewStepTime('11:00');
     setNewStepTemplate('');
     setNewStepLabel('');
+    setShowSaved(false);
   }, [sequence]);
 
   const handleSave = async () => {
@@ -209,6 +213,9 @@ function SequenceEditorDialog({
     setNewStepTime('11:00');
     setNewStepTemplate('');
     setNewStepLabel('');
+    // Show saved indicator
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
   };
 
   return (
@@ -217,7 +224,9 @@ function SequenceEditorDialog({
         <DialogHeader>
           <DialogTitle>{sequence ? 'Edit Sequence' : 'Create Sequence'}</DialogTitle>
           <DialogDescription>
-            Define when each message template should be sent.
+            {sequence 
+              ? 'Changes are saved automatically when you add or remove steps.'
+              : 'Define when each message template should be sent.'}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
@@ -228,6 +237,7 @@ function SequenceEditorDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Evening Workshop Sequence"
+                disabled={!!sequence}
               />
             </div>
             <div className="space-y-2">
@@ -236,6 +246,7 @@ function SequenceEditorDialog({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Brief description"
+                disabled={!!sequence}
               />
             </div>
           </div>
@@ -317,21 +328,39 @@ function SequenceEditorDialog({
                     placeholder="e.g., Morning"
                   />
                 </div>
-                <Button onClick={handleAddStep} size="icon">
-                  <Plus className="h-4 w-4" />
+                <Button onClick={handleAddStep} size="icon" disabled={isAddingStep}>
+                  {isAddingStep ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
+
+              {/* Saved indicator */}
+              {showSaved && (
+                <div className="flex items-center gap-2 text-sm text-success animate-in fade-in slide-in-from-bottom-2">
+                  <Check className="h-4 w-4" />
+                  <span>Step added and saved</span>
+                </div>
+              )}
             </>
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {sequence ? 'Save' : 'Create & Add Steps'}
-          </Button>
+          {sequence ? (
+            // When editing, just show a Done button since changes auto-save
+            <Button onClick={() => onOpenChange(false)}>
+              Done
+            </Button>
+          ) : (
+            // When creating, show Cancel and Create buttons
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create & Add Steps
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -475,7 +504,7 @@ export function WorkshopNotificationSettings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { templates, templatesLoading, deleteTemplate } = useMessageTemplates();
-  const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStep, isCreatingSequence } = useTemplateSequences();
+  const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStep, isCreatingSequence, isCreatingStep } = useTemplateSequences();
   const { tags, tagsLoading, createTag, updateTag, deleteTag, isCreating: isCreatingTag, isUpdating: isUpdatingTag } = useWorkshopTags();
 
   // Get initial tab from URL params
@@ -776,6 +805,7 @@ export function WorkshopNotificationSettings() {
             });
           }}
           isSaving={isCreatingSequence}
+          isAddingStep={isCreatingStep}
         />
 
         <TagEditorDialog
