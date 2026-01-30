@@ -511,6 +511,50 @@ export function useWorkshopNotification() {
     },
   });
 
+  // Delete a workshop and its related data
+  const deleteWorkshopMutation = useMutation({
+    mutationFn: async (workshopId: string) => {
+      // Delete scheduled messages first
+      const { error: messagesError } = await supabase
+        .from('scheduled_whatsapp_messages')
+        .delete()
+        .eq('workshop_id', workshopId);
+      
+      if (messagesError) throw messagesError;
+      
+      // Delete workshop-group links
+      const { error: groupsError } = await supabase
+        .from('workshop_whatsapp_groups')
+        .delete()
+        .eq('workshop_id', workshopId);
+      
+      if (groupsError) throw groupsError;
+      
+      // Delete sequence variables
+      const { error: varsError } = await supabase
+        .from('workshop_sequence_variables')
+        .delete()
+        .eq('workshop_id', workshopId);
+      
+      if (varsError) throw varsError;
+      
+      // Finally delete the workshop
+      const { error: workshopError } = await supabase
+        .from('workshops')
+        .delete()
+        .eq('id', workshopId);
+      
+      if (workshopError) throw workshopError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-notifications'] });
+      toast.success('Workshop deleted successfully');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to delete workshop', { description: error.message });
+    },
+  });
+
   return {
     workshops: workshops || [],
     workshopsLoading,
@@ -533,5 +577,7 @@ export function useWorkshopNotification() {
     isCancellingMessage: cancelMessageMutation.isPending,
     sendMessageNow: sendMessageNowMutation.mutateAsync,
     isSendingNow: sendMessageNowMutation.isPending,
+    deleteWorkshop: deleteWorkshopMutation.mutate,
+    isDeletingWorkshop: deleteWorkshopMutation.isPending,
   };
 }

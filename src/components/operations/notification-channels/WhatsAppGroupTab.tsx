@@ -10,6 +10,7 @@ import {
   Play,
   Settings2,
   Activity,
+  Trash2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import { WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { WorkshopTagBadge, WorkshopDetailSheet, TodaysWorkshopCard, MessagingProgressBanner } from '@/components/operations';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 
 // Helper to get actionable status badge
 function getStatusBadge(workshop: WorkshopWithDetails) {
@@ -91,6 +93,8 @@ interface WhatsAppGroupTabProps {
   subscribeToMessages: (workshopId: string) => () => void;
   useWorkshopMessages: (workshopId: string | null) => { data: any[] | undefined };
   isRunningMessaging: boolean;
+  onDeleteWorkshop?: (workshopId: string) => void;
+  isDeletingWorkshop?: boolean;
 }
 
 export function WhatsAppGroupTab({
@@ -100,12 +104,15 @@ export function WhatsAppGroupTab({
   subscribeToMessages,
   useWorkshopMessages,
   isRunningMessaging,
+  onDeleteWorkshop,
+  isDeletingWorkshop,
 }: WhatsAppGroupTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkshop, setSelectedWorkshop] = useState<WorkshopWithDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [activeProgressWorkshop, setActiveProgressWorkshop] = useState<WorkshopWithDetails | null>(null);
+  const [workshopToDelete, setWorkshopToDelete] = useState<WorkshopWithDetails | null>(null);
 
   // Subscribe to messages for the active progress workshop
   const { data: progressMessages } = useWorkshopMessages(activeProgressWorkshop?.id || null);
@@ -147,6 +154,13 @@ export function WhatsAppGroupTab({
     // We need to fetch the linked groups for this workshop
     // For quick action, we'll open the sheet instead since we need group selection
     handleViewWorkshop(workshop);
+  };
+
+  const handleConfirmDelete = () => {
+    if (workshopToDelete && onDeleteWorkshop) {
+      onDeleteWorkshop(workshopToDelete.id);
+      setWorkshopToDelete(null);
+    }
   };
 
   return (
@@ -297,6 +311,24 @@ export function WhatsAppGroupTab({
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+                        {onDeleteWorkshop && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setWorkshopToDelete(workshop);
+                                }}
+                                className="text-muted-foreground hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete workshop</TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -312,6 +344,16 @@ export function WhatsAppGroupTab({
         workshop={selectedWorkshop}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDeleteDialog
+        open={!!workshopToDelete}
+        onOpenChange={(open) => !open && setWorkshopToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Workshop"
+        description={`Are you sure you want to delete "${workshopToDelete?.title}"? This will also delete all scheduled messages and configurations for this workshop. This action cannot be undone.`}
+        isDeleting={isDeletingWorkshop}
       />
     </div>
   );

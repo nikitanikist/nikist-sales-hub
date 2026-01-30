@@ -12,6 +12,8 @@ export default function WorkshopNotification() {
     isRunningMessaging,
     useWorkshopMessages,
     subscribeToMessages,
+    deleteWorkshop,
+    isDeletingWorkshop,
   } = useWorkshopNotification();
 
   return (
@@ -54,6 +56,8 @@ export default function WorkshopNotification() {
             subscribeToMessages={subscribeToMessages}
             useWorkshopMessages={useWorkshopMessages}
             isRunningMessaging={isRunningMessaging}
+            onDeleteWorkshop={deleteWorkshop}
+            isDeletingWorkshop={isDeletingWorkshop}
           />
         </TabsContent>
 
