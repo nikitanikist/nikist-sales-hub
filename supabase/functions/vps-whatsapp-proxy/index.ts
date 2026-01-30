@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
         vpsMethod = 'POST';
         vpsBody = {
           sessionId: vpsSessionIdForVps,
-          groupId,
+          phone: groupId,  // VPS expects "phone" field for recipient (works for both individual and group chats)
           message,
           ...(mediaUrl && { mediaUrl }),
           ...(mediaType && { mediaType }),
