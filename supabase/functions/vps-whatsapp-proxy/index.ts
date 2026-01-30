@@ -378,6 +378,9 @@ Deno.serve(async (req) => {
 
     // Update session status for status check (including QR code from VPS response)
     if (action === 'status' && isJson && localSessionIdForDb && organizationId) {
+      // Log the full VPS response for debugging
+      console.log('VPS status response:', JSON.stringify(responseData, null, 2));
+      
       // Map VPS status values to database-compatible status values
       // VPS returns "qr" but database expects "qr_pending"
       const statusMap: Record<string, string> = {
@@ -388,8 +391,14 @@ Deno.serve(async (req) => {
       };
       
       // VPS returns { status: "...", qr?: "...", phoneNumber?: "..." }
+      // Some VPS implementations use "qrCode" instead of "qr"
       const vpsStatus = responseData?.status || 'unknown';
       const dbStatus = statusMap[vpsStatus] || vpsStatus;
+      
+      // Try multiple possible field names for QR code
+      const qrCodeValue = responseData?.qr || responseData?.qrCode || responseData?.qrcode || null;
+      
+      console.log(`VPS status: ${vpsStatus}, DB status: ${dbStatus}, QR present: ${!!qrCodeValue}, QR type: ${typeof qrCodeValue}`);
       
       const updatePayload: Record<string, unknown> = {
         status: dbStatus,
@@ -398,11 +407,12 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
       
-      // Store QR code if present - VPS returns "qr" field (not "qrCode")
-      if (responseData?.qr) {
-        updatePayload.qr_code = responseData.qr;
+      // Store QR code if present
+      if (qrCodeValue && typeof qrCodeValue === 'string') {
+        updatePayload.qr_code = qrCodeValue;
         // Set QR expiry (typically 60 seconds)
         updatePayload.qr_expires_at = new Date(Date.now() + 60000).toISOString();
+        console.log(`Storing QR code (length: ${qrCodeValue.length})`);
       }
       
       const { error: updateError } = await supabase
@@ -413,6 +423,16 @@ Deno.serve(async (req) => {
       if (updateError) {
         console.error('Failed to update session status:', updateError);
       }
+      
+      // Return enriched response with QR code (try multiple field names)
+      return new Response(
+        JSON.stringify({
+          ...responseData,
+          qr: qrCodeValue, // Ensure qr field is populated for frontend
+          sessionId: localSessionIdForDb,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Update session status after successful disconnect
