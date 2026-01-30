@@ -485,7 +485,7 @@ Deno.serve(async (req) => {
         const { error: upsertError } = await supabase
           .from('whatsapp_groups')
           .upsert(groupsToUpsert, { 
-            onConflict: 'group_jid,organization_id',
+            onConflict: 'session_id,group_jid',
             ignoreDuplicates: false 
           });
         
