@@ -1,158 +1,130 @@
 
-# Fix Workshop Date/Time to Always Use Organization Timezone (IST)
+## What’s actually happening (root cause)
 
-## The Problem
+Your workshop *is* being stored correctly as “Indian time”, but the “Workshop Notification” screen is *displaying* the date incorrectly.
 
-When you enter "1:00 AM January 31st" for a workshop, the system stores it incorrectly because:
+Here’s why:
 
-| Step | What Happens Now | What Should Happen |
-|------|------------------|-------------------|
-| You enter "1:00 AM Jan 31" | Stored as 1:00 AM UTC | Stored as 1:00 AM IST (which is 7:30 PM UTC Jan 30) |
-| System reads the date | Reads 1:00 AM UTC | Should read 1:00 AM IST |
-| Notifications scheduled | Based on wrong UTC time | Based on correct IST time |
+- The workshop start time is stored in the database in **UTC** (this is normal and correct).
+- Example: **Jan 31, 1:00 AM IST** equals **Jan 30, 7:30 PM UTC**.
+- So in the database the timestamp looks like it’s on **Jan 30** (UTC date), even though in IST it’s **Jan 31**.
 
-**Your Input = IST. Always. No matter where you are.**
+Now the bug:
+- The **/operations/workshop-notification** page currently does this:
+  - It takes `workshop.start_date`
+  - **splits the string** and keeps only the `"YYYY-MM-DD"` part (the UTC day)
+  - and shows that as the workshop date
 
----
+So for early-morning IST workshops (like 1 AM), it will wrongly show the **previous day** (Jan 30) because it’s literally using the UTC date part.
 
-## The Fix
+This is exactly in your code right now:
 
-### File: `src/pages/Workshops.tsx`
+- `src/pages/operations/WorkshopNotification.tsx`
+  - `const datePart = workshop.start_date.split('T')[0];`
+  - This guarantees the displayed day becomes the UTC day, not the IST day.
 
-#### Change 1: Convert dates when saving (lines 504-529)
+And the same “split datePart” logic exists in:
+- `src/components/operations/WorkshopDetailSheet.tsx`
 
-**Current code (broken):**
-```typescript
-const data = {
-  start_date: formData.get("start_date"),  // Sent as-is to database
-  end_date: formData.get("end_date"),      // Interpreted as UTC
-};
-```
-
-**Fixed code:**
-```typescript
-import { fromOrgTime } from "@/lib/timezoneUtils";
-
-const timezone = currentOrganization?.timezone || 'Asia/Kolkata';
-
-// User input is "2026-01-31T01:00" - this MEANS 1 AM IST
-const startDateInput = formData.get("start_date") as string;
-const endDateInput = formData.get("end_date") as string;
-
-// Create date objects from the input strings
-// Then convert from IST to UTC for storage
-const startDateUTC = fromOrgTime(new Date(startDateInput), timezone);
-const endDateUTC = fromOrgTime(new Date(endDateInput), timezone);
-
-const data = {
-  start_date: startDateUTC.toISOString(),  // Now correctly stored as UTC
-  end_date: endDateUTC.toISOString(),
-};
-```
-
-#### Change 2: Show correct time when editing (lines 654-671)
-
-**Current code (broken):**
-```typescript
-defaultValue={editingWorkshop?.start_date 
-  ? format(new Date(editingWorkshop.start_date), "yyyy-MM-dd'T'HH:mm") 
-  : ""}
-```
-
-This shows the stored UTC time in the browser's local timezone. Wrong!
-
-**Fixed code:**
-```typescript
-import { formatInOrgTime } from "@/lib/timezoneUtils";
-
-defaultValue={editingWorkshop?.start_date 
-  ? formatInOrgTime(editingWorkshop.start_date, timezone, "yyyy-MM-dd'T'HH:mm") 
-  : ""}
-```
-
-This converts stored UTC back to IST for display.
-
-#### Change 3: Add timezone label to form fields
-
-Add a visual indicator so users know times are in IST:
-
-```typescript
-<Label htmlFor="start_date">
-  Start Date & Time <span className="text-muted-foreground text-xs">(IST)</span>
-</Label>
-```
+That’s why you are seeing “30 January” in Operations even though you selected “31 January 1 AM IST”.
 
 ---
 
-## Data Flow After Fix
+## What we need to change (high level)
 
-```text
-You enter: "1:00 AM January 31st"
-       ↓
-System knows: Organization timezone = IST
-       ↓
-Interprets as: 1:00 AM IST on Jan 31
-       ↓
-Converts to UTC: 7:30 PM Jan 30 (UTC)
-       ↓
-Stores in database: 2026-01-30T19:30:00Z
-       ↓
-Notification system reads: 2026-01-30T19:30:00Z
-       ↓
-Calculates "11:26 PM" step: Jan 30 at 5:56 PM UTC = 11:26 PM IST Jan 30
-       ↓
-Message sends at correct time
+We must stop stripping the UTC date part and instead **format `start_date` in the organization timezone** when displaying it.
+
+So:
+- Display date in Workshop Notification table using **org timezone**
+- Display date in Workshop Detail Sheet using **org timezone**
+- (Optional but recommended) Fix “Send Message Now” preview so `{date}` / `{time}` also respect org timezone (right now it formats in browser timezone)
+
+No database changes needed.
+
+---
+
+## Implementation steps (code changes)
+
+### 1) Fix the Workshop Notification list date (the main thing you’re complaining about)
+**File:** `src/pages/operations/WorkshopNotification.tsx`
+
+Replace this whole block:
+
+```ts
+const datePart = workshop.start_date.split('T')[0];
+const workshopDate = new Date(datePart + 'T12:00:00');
+format(workshopDate, 'MMM d')
 ```
 
----
+with formatting that respects org timezone, e.g.:
 
-## Files to Modify
+- Use `orgTimezone` from `useWorkshopNotification()` (it already exists in that hook return)
+- Use `formatInOrgTime(workshop.start_date, orgTimezone, ...)`
 
-| File | Change |
-|------|--------|
-| `src/pages/Workshops.tsx` | Update `handleSubmit` to convert IST to UTC, update form `defaultValue` to show IST |
+Result: “Jan 31” will show correctly even if the stored UTC timestamp is Jan 30.
 
----
+### 2) Fix the Workshop Detail Sheet “Workshop Date” display
+**File:** `src/components/operations/WorkshopDetailSheet.tsx`
 
-## Technical Implementation
+Remove:
 
-```typescript
-// In handleSubmit function (line 504)
-const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  const formData = new FormData(e.currentTarget);
-  const timezone = currentOrganization?.timezone || 'Asia/Kolkata';
-  
-  // Get raw input strings
-  const startDateInput = formData.get("start_date") as string;
-  const endDateInput = formData.get("end_date") as string;
-  
-  // Convert from org timezone (IST) to UTC for storage
-  const startDateUTC = startDateInput 
-    ? fromOrgTime(new Date(startDateInput), timezone).toISOString() 
-    : null;
-  const endDateUTC = endDateInput 
-    ? fromOrgTime(new Date(endDateInput), timezone).toISOString() 
-    : null;
-  
-  const data = {
-    title: formData.get("title"),
-    description: formData.get("description"),
-    start_date: startDateUTC,
-    end_date: endDateUTC,
-    // ... rest of fields unchanged
-  };
-  
-  // ... rest of function unchanged
-};
+```ts
+const datePart = workshop.start_date.split('T')[0];
+const workshopDate = new Date(datePart + 'T12:00:00');
 ```
 
+and display directly from `workshop.start_date` using `formatInOrgTime(..., orgTimezone, ...)`.
+
+This ensures the date inside the “View” sheet matches the actual IST date.
+
+### 3) (Recommended) Fix “Send Message Now” template preview timezone
+**File:** `src/components/operations/SendMessageNowDialog.tsx`
+
+Right now it does:
+
+```ts
+format(workshopDate, 'MMMM d, yyyy')
+format(workshopDate, 'h:mm a')
+```
+
+That uses browser timezone.
+
+To keep everything consistent with “Org is IST always”, we should:
+- Pass `timezone` (org timezone) to the dialog (new prop), OR pass the raw `start_date` string
+- Format using `formatInOrgTime(..., timezone, ...)`
+
+This prevents template previews showing the wrong date/time when you’re outside India.
+
+### 4) (Quick audit) Ensure no other “split('T')[0]” is used for workshop dates
+We already searched and found only these two places:
+- `src/pages/operations/WorkshopNotification.tsx`
+- `src/components/operations/WorkshopDetailSheet.tsx`
+
+So fixing these two will address your “Jan 30 instead of Jan 31” problem in Operations.
+
 ---
 
-## Verification Steps
+## How we’ll verify (what you should see after the fix)
 
-After implementation:
-1. Create a new workshop with time "1:00 AM Jan 31"
-2. Check database - should show `2026-01-30T19:30:00+00` (7:30 PM UTC = 1 AM IST)
-3. Edit the workshop - form should show "1:00 AM Jan 31"
-4. Run messaging sequence - notifications should schedule based on correct date
+Using your example:
+- You create: **Jan 31, 1:00 AM IST**
+- Database stores: **Jan 30, 19:30 UTC** (expected)
+- Workshop Notification page should display: **Jan 31** (IST day)
+- Workshop Detail Sheet should display: **Jan 31** (IST day)
+- (If we do step #3) Send Message Now preview should also show **Jan 31, 1:00 AM** (IST)
+
+---
+
+## Why this bug appeared now
+
+The “split datePart” trick was originally added to avoid timezone shifting *when treating workshops as date-only events*.
+
+But now that workshops are real timestamps stored in UTC (which is correct), stripping the time is the wrong approach because it throws away the timezone conversion step that makes UTC display correctly as IST.
+
+This is why you’re seeing the day mismatch specifically for workshops around midnight / early morning.
+
+---
+
+## No backend/schema changes
+
+This is 100% frontend rendering logic. Existing workshops will immediately display correctly once the formatting is fixed.
