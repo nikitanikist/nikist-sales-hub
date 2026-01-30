@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Search, RefreshCw, Eye, CheckCircle2, Circle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,16 @@ export default function WorkshopNotification() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkshop, setSelectedWorkshop] = useState<WorkshopWithDetails | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Keep selectedWorkshop in sync with fresh query data after mutations
+  useEffect(() => {
+    if (selectedWorkshop && workshops.length > 0) {
+      const freshData = workshops.find(w => w.id === selectedWorkshop.id);
+      if (freshData) {
+        setSelectedWorkshop(freshData);
+      }
+    }
+  }, [workshops]);
 
   // Filter workshops by search query
   const filteredWorkshops = workshops.filter((w) =>
@@ -85,12 +95,21 @@ export default function WorkshopNotification() {
                   <TableRow key={workshop.id}>
                     <TableCell className="font-medium">
                       <div>
-                        <div className="font-medium">
-                          {format(new Date(workshop.start_date), 'MMM d')}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {format(new Date(workshop.start_date), 'yyyy')}
-                        </div>
+                        {(() => {
+                          // Extract date portion to prevent timezone shifting
+                          const datePart = workshop.start_date.split('T')[0];
+                          const workshopDate = new Date(datePart + 'T12:00:00');
+                          return (
+                            <>
+                              <div className="font-medium">
+                                {format(workshopDate, 'MMM d')}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {format(workshopDate, 'yyyy')}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell>
