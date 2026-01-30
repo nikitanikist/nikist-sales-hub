@@ -96,7 +96,7 @@ async function getVpsSessionId(
 }
 
 interface VPSProxyRequest {
-  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health';
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups';
   sessionId?: string;
   organizationId?: string;
   groupId?: string;
@@ -265,6 +265,28 @@ Deno.serve(async (req) => {
         vpsMethod = 'GET';
         break;
 
+      case 'sync-groups': {
+        if (!sessionId || !organizationId) {
+          return new Response(
+            JSON.stringify({ error: 'Session ID and Organization ID are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        localSessionIdForDb = sessionId;
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
+        }
+        
+        // Call VPS to get groups
+        vpsEndpoint = `/groups/${vpsSessionIdForVps}`;
+        vpsMethod = 'GET';
+        break;
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action', hint: `Unknown action: ${action}` }),
@@ -391,6 +413,54 @@ Deno.serve(async (req) => {
       if (updateError) {
         console.error('Failed to update session status:', updateError);
       }
+    }
+
+    // Store groups for sync-groups action
+    if (action === 'sync-groups' && isJson && localSessionIdForDb && organizationId) {
+      const vpsGroups = responseData?.groups || responseData || [];
+      
+      if (Array.isArray(vpsGroups) && vpsGroups.length > 0) {
+        // Upsert groups into database
+        const groupsToUpsert = vpsGroups.map((g: any) => ({
+          organization_id: organizationId,
+          session_id: localSessionIdForDb,
+          group_jid: g.id || g.jid || g.groupId,
+          group_name: g.name || g.subject || 'Unknown Group',
+          participant_count: g.participants?.length || g.size || 0,
+          is_active: true,
+          synced_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
+        
+        const { error: upsertError } = await supabase
+          .from('whatsapp_groups')
+          .upsert(groupsToUpsert, { 
+            onConflict: 'group_jid,organization_id',
+            ignoreDuplicates: false 
+          });
+        
+        if (upsertError) {
+          console.error('Failed to upsert groups:', upsertError);
+        } else {
+          console.log(`Synced ${groupsToUpsert.length} groups`);
+        }
+        
+        // Return groups count to frontend
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            groups: groupsToUpsert,
+            count: groupsToUpsert.length 
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // No groups found
+      return new Response(
+        JSON.stringify({ success: true, groups: [], count: 0 }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     return new Response(
