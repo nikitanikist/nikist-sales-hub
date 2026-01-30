@@ -75,11 +75,11 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 </div>
               </div>
             ) : (
-              <div className="w-full px-4 pt-6 pb-6 flex items-center justify-center">
+              <div className="w-full px-4 pt-4 pb-4 flex items-center justify-center overflow-hidden">
                 <img
                   src={logoImage}
                   alt="Logo"
-                  className="w-full max-w-[200px] h-auto object-contain"
+                  className="w-full max-w-[200px] h-auto object-cover scale-[1.8]"
                 />
               </div>
             )}
