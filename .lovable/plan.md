@@ -1,81 +1,177 @@
 
-# Fix: Update Database Status After WhatsApp Disconnect
+# Fix: VPS Not Returning QR Code Data in Status Response
 
-## Problem Identified
+## Root Cause Identified
 
-When you click "Disconnect", the edge function successfully calls the VPS disconnect endpoint, but **it never updates the database status to "disconnected"**. The UI shows "Connected" because:
-
-1. The frontend reads session status from the `whatsapp_sessions` table
-2. After disconnect, the database still has `status: 'connected'`
-3. The session query returns the stale "connected" status
-
-## Root Cause
-
-In `supabase/functions/vps-whatsapp-proxy/index.ts`, the disconnect action (lines 203-231) only calls the VPS but does not update the database. Compare to the `status` action which has explicit DB update logic (lines 380-416).
-
-## Solution
-
-Add database status update logic after a successful VPS disconnect call, similar to how the `status` action works.
-
----
-
-## File to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/vps-whatsapp-proxy/index.ts` | Add DB update after successful disconnect |
-
----
-
-## Technical Implementation
-
-After the VPS response is received (around line 349), add a new block to handle the `disconnect` action:
-
-```typescript
-// Update session status after successful disconnect
-if (action === 'disconnect' && localSessionIdForDb && organizationId) {
-  const { error: updateError } = await supabase
-    .from('whatsapp_sessions')
-    .update({
-      status: 'disconnected',
-      phone_number: null,
-      qr_code: null,
-      qr_expires_at: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', localSessionIdForDb);
-
-  if (updateError) {
-    console.error('Failed to update session status after disconnect:', updateError);
-  } else {
-    console.log(`Session ${localSessionIdForDb} marked as disconnected`);
-  }
-
-  // Return success to frontend
-  return new Response(
-    JSON.stringify({ 
-      success: true, 
-      status: 'disconnected',
-      sessionId: localSessionIdForDb 
-    }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+Based on the edge function logs, your VPS returns:
+```json
+{
+  "sessionId": "wa_xxx",
+  "status": "qr",
+  "phoneNumber": null,
+  "hasQR": true
 }
 ```
 
-This code will:
-1. Update the session status to `'disconnected'` in the database
-2. Clear the phone number and QR code fields
-3. Update the `updated_at` timestamp
-4. Return a success response to the frontend
+The issue is that `hasQR: true` indicates a QR code was generated, but **the actual QR code data is missing** from the response. The VPS is not including the `qr` field with the base64-encoded QR image.
 
 ---
 
-## Expected Behavior After Fix
+## Solution: Update VPS to Include QR Code in Status Response
 
-1. User clicks "Disconnect"
-2. Edge function calls VPS `POST /disconnect/wa_xxx`
-3. VPS returns success
-4. **NEW: Edge function updates database status to 'disconnected'**
-5. Frontend invalidates queries and refetches
-6. UI shows "Not Connected" status
+Since you can modify the VPS, the fix needs to happen there. Your Baileys service generates the QR code but doesn't store/return it in the `/status/:sessionId` endpoint response.
+
+### Required VPS Change
+
+In your VPS Baileys service (likely `src/baileys.ts` or `src/server.ts`), update the session state to store the QR code and return it in the status endpoint:
+
+```text
++--------------------+       +--------------------+
+|  Current Behavior  |       |   Expected Change  |
++--------------------+       +--------------------+
+| /status returns:   |  -->  | /status returns:   |
+| { hasQR: true }    |       | { qr: "data:..." } |
++--------------------+       +--------------------+
+```
+
+### VPS Code Changes Required
+
+**1. Update Session Interface (add qr field)**
+```javascript
+// In your baileys.ts or wherever Session is defined
+interface Session {
+  socket: WASocket | null;
+  qr: string | null;        // <-- Add this field
+  status: 'disconnected' | 'connecting' | 'connected' | 'qr';
+  phoneNumber?: string;
+  sessionPath: string;
+}
+```
+
+**2. Store QR Code When Generated**
+
+In the `connection.update` event handler:
+```javascript
+socket.ev.on('connection.update', async (update) => {
+  const { connection, lastDisconnect, qr } = update;
+
+  if (qr) {
+    // Convert QR string to base64 data URL for frontend display
+    const QRCode = require('qrcode');
+    const qrDataUrl = await QRCode.toDataURL(qr);
+    session.qr = qrDataUrl;       // <-- Store it in session
+    session.status = 'qr';
+    console.log('[' + sessionId + '] QR code stored');
+  }
+  // ... rest of handler
+});
+```
+
+**3. Return QR Code in Status Endpoint**
+
+```javascript
+// In your Express routes (e.g., server.ts or index.ts)
+app.get('/status/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const session = sessions.get(sessionId);
+  
+  if (!session) {
+    return res.json({ 
+      status: 'disconnected', 
+      sessionId,
+      phoneNumber: null 
+    });
+  }
+  
+  res.json({
+    sessionId,
+    status: session.status,
+    phoneNumber: session.phoneNumber || null,
+    qr: session.qr || null,    // <-- Include QR code in response
+  });
+});
+```
+
+---
+
+## Complete VPS Fix for Your Developer
+
+Share this complete snippet with your developer:
+
+```javascript
+// src/baileys.ts - Session interface update
+interface Session {
+  socket: WASocket | null;
+  qr: string | null;
+  status: 'disconnected' | 'connecting' | 'connected' | 'qr';
+  phoneNumber?: string;
+  sessionPath: string;
+}
+
+// When creating session, initialize qr as null
+const session: Session = {
+  socket: null,
+  qr: null,
+  status: 'connecting',
+  sessionPath: sessionPath
+};
+
+// In connection.update handler, store QR code
+socket.ev.on('connection.update', async (update) => {
+  const { connection, lastDisconnect, qr } = update;
+  
+  if (qr) {
+    const QRCode = require('qrcode');
+    try {
+      const qrDataUrl = await QRCode.toDataURL(qr);
+      session.qr = qrDataUrl;
+      session.status = 'qr';
+      console.log('[' + sessionId + '] QR code stored, length: ' + qrDataUrl.length);
+    } catch (e) {
+      console.error('[' + sessionId + '] Failed to generate QR:', e);
+    }
+  }
+  
+  // When connected, clear QR
+  if (connection === 'open') {
+    session.qr = null;
+    session.status = 'connected';
+    session.phoneNumber = socket.user?.id?.split(':')[0];
+  }
+  
+  // When disconnected, clear QR
+  if (connection === 'close') {
+    session.qr = null;
+    // ... rest of disconnect handling
+  }
+});
+```
+
+---
+
+## No Lovable Changes Required
+
+The edge function and frontend are already correctly coded to:
+1. Check for `data.qr` in the status response (line 371 in useWhatsAppSession.ts)
+2. Display `connectionState.qrCode` in the dialog (line 317-324 in WhatsAppConnection.tsx)
+
+Once your VPS returns the actual QR code in the `qr` field, it will work automatically.
+
+---
+
+## Testing After VPS Fix
+
+After your developer updates the VPS:
+
+1. Restart the VPS service: `pm2 restart whatsapp-service`
+2. In Lovable, click "Connect Device"
+3. The QR code should appear in the popup
+
+The edge function logs should change from:
+```
+hasQR: true  (no qr field)
+```
+To:
+```
+qr: "data:image/png;base64,..."
+```
