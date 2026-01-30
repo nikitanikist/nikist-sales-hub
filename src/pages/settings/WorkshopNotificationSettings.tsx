@@ -306,7 +306,7 @@ function TagEditorDialog({
   const [name, setName] = useState(tag?.name || '');
   const [color, setColor] = useState(tag?.color || TAG_COLORS[0].value);
   const [description, setDescription] = useState(tag?.description || '');
-  const [sequenceId, setSequenceId] = useState(tag?.template_sequence_id || '');
+  const [sequenceId, setSequenceId] = useState(tag?.template_sequence_id || '_none');
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -318,7 +318,7 @@ function TagEditorDialog({
       name,
       color,
       description,
-      template_sequence_id: sequenceId || null,
+      template_sequence_id: sequenceId === '_none' ? null : sequenceId,
     });
   };
 
@@ -364,7 +364,7 @@ function TagEditorDialog({
                 <SelectValue placeholder="Select sequence..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No sequence</SelectItem>
+                <SelectItem value="_none">No sequence</SelectItem>
                 {sequences.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
