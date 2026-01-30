@@ -1,531 +1,434 @@
 
-# Workshop Notification - Multi-Channel Architecture Implementation Plan
 
-## Executive Summary
+# Workshop-Specific Template Variable Input System
 
-Transform the Workshop Notification page from a single-channel WhatsApp Groups system into a professional **multi-channel notification platform** with 4 distinct channels: WhatsApp Group (existing), WhatsApp Personal (AiSensy), SMS (Fast2SMS), and IVR Calls.
+## Problem Statement
 
----
+When running a message sequence for a workshop, templates may contain variables like `{zoom_link}` or `{whatsapp_group_link}` that are **not** auto-fillable. Currently, these variables are sent as literal text (e.g., the message shows "{zoom_link}" instead of an actual link).
 
-## Current State Analysis
+### Current State
 
-### Existing Implementation
+**Auto-filled variables** (lines 354-358 in `useWorkshopNotification.ts`):
+- `{workshop_name}` - Resolved from `workshop.title`
+- `{date}` - Resolved from `workshop.start_date` formatted as "MMMM d, yyyy"
+- `{time}` - Resolved from `workshop.start_date` formatted as "h:mm a"
 
-| Component | Location | Status |
-|-----------|----------|--------|
-| Workshop Notification Page | `src/pages/operations/WorkshopNotification.tsx` | WhatsApp Groups only |
-| Detail Sheet | `src/components/operations/WorkshopDetailSheet.tsx` | Full-featured |
-| Settings Page | `src/pages/settings/WorkshopNotificationSettings.tsx` | Templates, Sequences, Tags |
-| Hook | `src/hooks/useWorkshopNotification.ts` | VPS Baileys integration |
-| Integration Config | `organization_integrations` table | AiSensy already supported |
+**Manual variables** (not currently handled):
+- `{zoom_link}` - Needs user input
+- `{whatsapp_group_link}` - Needs user input
+- Any other custom variables users might add
 
-### Key Findings
+### Your Requirement
 
-1. **AiSensy is already integrated** in edge functions (`rebook-call`, `reassign-call`) for 1:1 call notifications
-2. **Lead data** is accessible via `lead_assignments` -> `leads` join (includes `phone`, `email`, `contact_name`)
-3. **organization_integrations** table already supports storing API keys with JSONB config
-4. **No existing tables** for SMS/IVR broadcasts - need to create
-
----
-
-## Architecture Design
-
-### Tab Structure
-
-```
-WorkshopNotification.tsx
-├── PageIntro (existing)
-├── TodaysWorkshopCard (existing, shared)
-├── Tabs
-│   ├── WhatsApp Group (extracted from current page)
-│   ├── WhatsApp Personal (new - AiSensy)
-│   ├── SMS (new - Fast2SMS)
-│   └── IVR Call (new - placeholder)
-```
-
-### Component Architecture
-
-```
-src/components/operations/notification-channels/
-├── index.ts                    (exports)
-├── WhatsAppGroupTab.tsx        (extract from current page)
-├── WhatsAppPersonalTab.tsx     (new)
-├── SmsTab.tsx                  (new)
-├── IvrCallTab.tsx              (new)
-├── ChannelStatusCard.tsx       (reusable integration status)
-├── RecipientSummary.tsx        (reusable recipient count component)
-└── BroadcastHistoryTable.tsx   (reusable history table)
-```
+1. When clicking "Run Sequence", scan all templates in the sequence
+2. Detect variables that require manual input
+3. Show a dialog asking for those values
+4. Save values **per workshop** (not globally)
+5. Use those values consistently across all messages in that run
+6. Next workshop needs fresh input (different Zoom links, etc.)
 
 ---
 
-## Phase 1: Page Refactoring (Tab Structure)
+## Solution Architecture
 
-### Files to Modify
+### User Flow
 
-**1. `src/pages/operations/WorkshopNotification.tsx`**
-
-Wrap existing content in Tabs component:
-
-```tsx
-// Add imports
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, MessageCircle, Smartphone, Phone } from 'lucide-react';
-
-// Tab structure
-<Tabs defaultValue="whatsapp-group" className="space-y-6">
-  <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
-    <TabsTrigger value="whatsapp-group" className="gap-2">
-      <Users className="h-4 w-4" />
-      <span className="hidden sm:inline">WhatsApp Group</span>
-      <span className="sm:hidden">Groups</span>
-    </TabsTrigger>
-    <TabsTrigger value="whatsapp-personal" className="gap-2">
-      <MessageCircle className="h-4 w-4" />
-      <span className="hidden sm:inline">WhatsApp Personal</span>
-      <span className="sm:hidden">Personal</span>
-    </TabsTrigger>
-    <TabsTrigger value="sms" className="gap-2">
-      <Smartphone className="h-4 w-4" />
-      <span>SMS</span>
-    </TabsTrigger>
-    <TabsTrigger value="ivr" className="gap-2">
-      <Phone className="h-4 w-4" />
-      <span className="hidden sm:inline">IVR Call</span>
-      <span className="sm:hidden">IVR</span>
-    </TabsTrigger>
-  </TabsList>
-  
-  <TabsContent value="whatsapp-group">
-    {/* Existing WhatsApp Group content moves here */}
-  </TabsContent>
-  
-  <TabsContent value="whatsapp-personal">
-    <ComingSoonPlaceholder channel="WhatsApp Personal" provider="AiSensy" />
-  </TabsContent>
-  
-  <TabsContent value="sms">
-    <ComingSoonPlaceholder channel="SMS" provider="Fast2SMS" />
-  </TabsContent>
-  
-  <TabsContent value="ivr">
-    <ComingSoonPlaceholder channel="IVR Call" provider="TBD" />
-  </TabsContent>
-</Tabs>
 ```
-
-**2. Create `src/components/operations/notification-channels/ComingSoonPlaceholder.tsx`**
-
-A reusable placeholder for channels not yet implemented:
-
-```tsx
-interface Props {
-  channel: string;
-  provider: string;
-  icon?: React.ComponentType<{ className?: string }>;
-}
-
-export function ComingSoonPlaceholder({ channel, provider, icon: Icon }: Props) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
-        {Icon ? <Icon className="h-8 w-8 text-muted-foreground" /> : <Settings2 className="h-8 w-8 text-muted-foreground" />}
-      </div>
-      <h3 className="text-lg font-semibold">{channel} Notifications</h3>
-      <p className="text-sm text-muted-foreground mt-2 max-w-md">
-        Send individual {channel.toLowerCase()} notifications to workshop registrants via {provider}.
-      </p>
-      <Badge variant="secondary" className="mt-4">Coming Soon</Badge>
-    </div>
-  );
-}
+User clicks "Run Sequence"
+       ↓
+┌─────────────────────────────────────────────┐
+│  System scans sequence templates for        │
+│  {variable} patterns                        │
+└─────────────────────────────────────────────┘
+       ↓
+┌─────────────────────────────────────────────┐
+│  If manual variables found, show dialog:    │
+│                                             │
+│  ┌────────────────────────────────────────┐ │
+│  │ Crypto Wealth Masterclass - Variables  │ │
+│  │                                        │ │
+│  │ Auto-filled (read-only):               │ │
+│  │ • Workshop Name: Crypto Wealth...      │ │
+│  │ • Date: January 30, 2026               │ │
+│  │ • Time: 7:00 PM                        │ │
+│  │                                        │ │
+│  │ Please fill in:                        │ │
+│  │ • Zoom Link: [________________]        │ │
+│  │ • WhatsApp Group Link: [______]        │ │
+│  │                                        │ │
+│  │ [Cancel]         [Save & Run Sequence] │ │
+│  └────────────────────────────────────────┘ │
+└─────────────────────────────────────────────┘
+       ↓
+┌─────────────────────────────────────────────┐
+│  Save variables to workshop_sequence_vars   │
+│  table (workshop_id + variable_key + value) │
+└─────────────────────────────────────────────┘
+       ↓
+┌─────────────────────────────────────────────┐
+│  Schedule messages with all variables       │
+│  replaced (both auto-filled and manual)     │
+└─────────────────────────────────────────────┘
 ```
-
-**3. Update `src/components/operations/index.ts`**
-
-Add new exports for channel components.
 
 ---
 
-## Phase 2: WhatsApp Personal (AiSensy Integration)
+## Database Design
 
-### Database Schema
+### New Table: `workshop_sequence_variables`
 
-Create new tables for tracking personal message broadcasts:
+Stores manual variable values per workshop:
 
 ```sql
--- Broadcast tracking table
-CREATE TABLE whatsapp_personal_broadcasts (
+CREATE TABLE workshop_sequence_variables (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   workshop_id UUID NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
-  template_name TEXT NOT NULL,           -- AiSensy template name
-  total_recipients INTEGER NOT NULL DEFAULT 0,
-  sent_count INTEGER DEFAULT 0,
-  failed_count INTEGER DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'failed', 'cancelled')),
-  created_by UUID REFERENCES auth.users(id),
+  variable_key TEXT NOT NULL,      -- e.g., "zoom_link"
+  variable_value TEXT NOT NULL,    -- e.g., "https://zoom.us/j/123456"
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Unique constraint: one value per variable per workshop
+  UNIQUE(workshop_id, variable_key)
 );
 
--- Individual message tracking
-CREATE TABLE whatsapp_personal_messages (
+-- RLS policies
+ALTER TABLE workshop_sequence_variables ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view variables in their org"
+ON workshop_sequence_variables FOR SELECT
+USING (
+  organization_id = ANY(get_user_organization_ids()) 
+  OR is_super_admin(auth.uid())
+);
+
+CREATE POLICY "Admins can manage variables in their org"
+ON workshop_sequence_variables FOR ALL
+USING (
+  (organization_id = ANY(get_user_organization_ids()) 
+   AND (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager')))
+  OR is_super_admin(auth.uid())
+);
+```
+
+### Why This Design?
+
+| Consideration | Decision |
+|---------------|----------|
+| **Scope** | Variables are stored per `workshop_id`, not per sequence or globally |
+| **Reusability** | If a user runs the sequence again for the same workshop, values are pre-filled |
+| **Independence** | Different workshops have completely separate variable values |
+| **Cleanup** | When workshop is deleted, variables are cascade deleted |
+
+---
+
+## Implementation Plan
+
+### Phase 1: Variable Detection Utility
+
+**New file: `src/lib/templateVariables.ts`**
+
+```typescript
+// Known auto-filled variables
+export const AUTO_FILLED_VARIABLES = ['workshop_name', 'date', 'time'];
+
+// Extract all {variable} patterns from template content
+export function extractVariables(content: string): string[] {
+  const regex = /\{([a-z_]+)\}/gi;
+  const matches = content.match(regex) || [];
+  // Remove braces and deduplicate
+  return [...new Set(matches.map(m => m.slice(1, -1).toLowerCase()))];
+}
+
+// Separate variables into auto-filled and manual
+export function categorizeVariables(allVariables: string[]) {
+  const autoFilled = allVariables.filter(v => AUTO_FILLED_VARIABLES.includes(v));
+  const manual = allVariables.filter(v => !AUTO_FILLED_VARIABLES.includes(v));
+  return { autoFilled, manual };
+}
+
+// Extract from all templates in a sequence
+export function extractSequenceVariables(steps: Array<{ template?: { content: string } | null }>) {
+  const allVars = new Set<string>();
+  steps.forEach(step => {
+    if (step.template?.content) {
+      extractVariables(step.template.content).forEach(v => allVars.add(v));
+    }
+  });
+  return categorizeVariables([...allVars]);
+}
+```
+
+### Phase 2: Database Table Creation
+
+**Migration: Create `workshop_sequence_variables` table**
+
+```sql
+-- Create table for storing workshop-specific variable values
+CREATE TABLE IF NOT EXISTS workshop_sequence_variables (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  broadcast_id UUID NOT NULL REFERENCES whatsapp_personal_broadcasts(id) ON DELETE CASCADE,
-  lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
-  phone_number TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'delivered', 'read', 'failed')),
-  aisensy_response JSONB,
-  error_message TEXT,
-  sent_at TIMESTAMPTZ,
-  delivered_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  workshop_id UUID NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
+  variable_key TEXT NOT NULL,
+  variable_value TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(workshop_id, variable_key)
 );
 
 -- Enable RLS
-ALTER TABLE whatsapp_personal_broadcasts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE whatsapp_personal_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workshop_sequence_variables ENABLE ROW LEVEL SECURITY;
 
--- RLS policies for broadcasts
-CREATE POLICY "Users can view broadcasts in their org" ON whatsapp_personal_broadcasts
-  FOR SELECT USING (organization_id = ANY(get_user_organization_ids()) OR is_super_admin(auth.uid()));
+-- RLS policies
+CREATE POLICY "Users can view variables in their org"
+ON workshop_sequence_variables FOR SELECT
+USING (
+  organization_id = ANY(get_user_organization_ids()) 
+  OR is_super_admin(auth.uid())
+);
 
-CREATE POLICY "Admins can manage broadcasts in their org" ON whatsapp_personal_broadcasts
-  FOR ALL USING (
-    (organization_id = ANY(get_user_organization_ids()) AND 
-     (has_role(auth.uid(), 'admin') OR has_role(auth.uid(), 'manager')))
-    OR is_super_admin(auth.uid())
-  );
+CREATE POLICY "Admins can manage variables in their org"
+ON workshop_sequence_variables FOR ALL
+USING (
+  (organization_id = ANY(get_user_organization_ids()) 
+   AND (has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))
+  OR is_super_admin(auth.uid())
+);
 
--- RLS policies for messages (view via broadcast)
-CREATE POLICY "Users can view messages for broadcasts in their org" ON whatsapp_personal_messages
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM whatsapp_personal_broadcasts b 
-      WHERE b.id = broadcast_id 
-      AND (b.organization_id = ANY(get_user_organization_ids()) OR is_super_admin(auth.uid()))
-    )
-  );
+-- Enable realtime for live updates
+ALTER PUBLICATION supabase_realtime ADD TABLE workshop_sequence_variables;
 ```
 
-### New Files
+### Phase 3: Variable Input Dialog
 
-**1. `src/hooks/useWhatsAppPersonal.ts`**
+**New file: `src/components/operations/SequenceVariablesDialog.tsx`**
 
-```tsx
-// Hook for WhatsApp Personal (AiSensy) integration
-// - Fetch integration status from organization_integrations
-// - Get workshop recipients with phone numbers
-// - Create and manage broadcasts
-// - Call edge function to send via AiSensy
+A dialog component that:
+
+1. Receives the list of manual variables needed
+2. Shows auto-filled values as read-only (for context)
+3. Provides input fields for each manual variable
+4. Pre-fills from existing saved values if available
+5. Validates all required fields are filled
+6. Returns the complete variable map on submit
+
+**UI Structure:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Configure Message Variables                             │
+│ Workshop: Crypto Wealth Masterclass - Jan 30            │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ Auto-filled (from workshop data):                       │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ Workshop Name   Crypto Wealth Masterclass           │ │
+│ │ Date            January 30, 2026                    │ │
+│ │ Time            7:00 PM                             │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ Enter values for these variables:                       │
+│                                                         │
+│ Zoom Link *                                             │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ https://zoom.us/j/...                               │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ WhatsApp Group Link *                                   │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ https://chat.whatsapp.com/...                       │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ ℹ️ These values will be used for all messages in this   │
+│    sequence for this workshop only.                     │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│                      [Cancel]   [Save & Run Sequence]   │
+└─────────────────────────────────────────────────────────┘
 ```
 
-**2. `src/components/operations/notification-channels/WhatsAppPersonalTab.tsx`**
+### Phase 4: Hook for Variable Management
 
-UI for sending individual WhatsApp messages:
-- Integration status card (shows if AiSensy is configured)
-- Workshop selector dropdown
-- Recipient summary (total, with phone, missing phone)
-- Template selector (AiSensy template names)
-- Preview area
-- Send button with confirmation
-- Broadcast history table
-
-**3. `supabase/functions/send-aisensy-broadcast/index.ts`**
-
-Edge function to:
-- Accept broadcast request with workshop_id and template_name
-- Fetch recipients from lead_assignments + leads
-- Create broadcast and message records
-- Send to AiSensy API in batches
-- Update status as messages are sent
-
-### AiSensy Integration Details
-
-Based on existing code patterns:
+**New file: `src/hooks/useSequenceVariables.ts`**
 
 ```typescript
-// AiSensy API call pattern (from existing edge functions)
-const payload = {
-  apiKey: aisensyApiKey,
-  campaignName: templateName,
-  destination: phoneNumber,
-  userName: leadName,
-  source: aisensySource,
-  templateParams: [...],
+// Hook to manage workshop-specific sequence variables
+export function useSequenceVariables(workshopId: string | null) {
+  // Fetch saved variables for this workshop
+  const { data: savedVariables, isLoading } = useQuery({...});
+  
+  // Save/update variables mutation
+  const saveVariables = useMutation({
+    mutationFn: async (variables: Record<string, string>) => {
+      // Upsert each variable
+      for (const [key, value] of Object.entries(variables)) {
+        await supabase
+          .from('workshop_sequence_variables')
+          .upsert({
+            organization_id,
+            workshop_id: workshopId,
+            variable_key: key,
+            variable_value: value,
+          }, { onConflict: 'workshop_id,variable_key' });
+      }
+    }
+  });
+  
+  return { savedVariables, isLoading, saveVariables };
+}
+```
+
+### Phase 5: Update Run Messaging Flow
+
+**Modify: `src/components/operations/WorkshopDetailSheet.tsx`**
+
+Update the "Run Sequence" button flow:
+
+```typescript
+// State for variable dialog
+const [variablesDialogOpen, setVariablesDialogOpen] = useState(false);
+const [pendingRunData, setPendingRunData] = useState<{
+  workshopId: string;
+  workshop: WorkshopWithDetails;
+  groupIds: string[];
+  manualVariables: string[];
+} | null>(null);
+
+// Modified run sequence handler
+const handleRunSequence = async () => {
+  // 1. Fetch sequence and extract variables
+  const { autoFilled, manual } = await extractSequenceVariablesForWorkshop(workshop);
+  
+  // 2. If manual variables needed, show dialog
+  if (manual.length > 0) {
+    setPendingRunData({ workshopId, workshop, groupIds, manualVariables: manual });
+    setVariablesDialogOpen(true);
+    return;
+  }
+  
+  // 3. If no manual variables, run directly
+  runMessaging({ workshopId, workshop, groupIds, variables: {} });
 };
 
-await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(payload),
-});
+// Handle dialog submission
+const handleVariablesSaved = (variables: Record<string, string>) => {
+  if (pendingRunData) {
+    runMessaging({
+      ...pendingRunData,
+      variables,
+    });
+    setVariablesDialogOpen(false);
+    setPendingRunData(null);
+  }
+};
 ```
 
----
+### Phase 6: Update Message Scheduling Logic
 
-## Phase 3: SMS Notifications (Fast2SMS)
+**Modify: `src/hooks/useWorkshopNotification.ts`**
 
-### Database Schema
-
-```sql
--- SMS broadcast tracking
-CREATE TABLE sms_broadcasts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  workshop_id UUID NOT NULL REFERENCES workshops(id) ON DELETE CASCADE,
-  message_content TEXT NOT NULL,
-  sender_id TEXT,                        -- DLT sender ID
-  template_id TEXT,                      -- DLT template ID
-  message_type TEXT DEFAULT 'transactional',
-  total_recipients INTEGER NOT NULL DEFAULT 0,
-  sent_count INTEGER DEFAULT 0,
-  failed_count INTEGER DEFAULT 0,
-  cost_per_sms DECIMAL(10,4),
-  total_cost DECIMAL(10,2),
-  status TEXT NOT NULL DEFAULT 'pending',
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
-);
-
--- Individual SMS tracking
-CREATE TABLE sms_messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  broadcast_id UUID NOT NULL REFERENCES sms_broadcasts(id) ON DELETE CASCADE,
-  lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
-  phone_number TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending',
-  provider_message_id TEXT,              -- Fast2SMS message ID
-  error_message TEXT,
-  sent_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- RLS policies similar to whatsapp_personal tables
-```
-
-### New Files
-
-**1. `src/hooks/useSmsNotification.ts`**
-**2. `src/components/operations/notification-channels/SmsTab.tsx`**
-**3. `supabase/functions/send-sms-broadcast/index.ts`**
-
-### Fast2SMS Integration
+Update `runMessagingMutation` to accept and use manual variables:
 
 ```typescript
-// Fast2SMS API pattern
-const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
-  method: 'POST',
-  headers: {
-    'authorization': apiKey,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    route: 'dlt',                        // or 'v3' for promotional
-    sender_id: senderId,
-    message: messageId,                  // DLT template ID
-    variables_values: variableValues,
-    flash: 0,
-    numbers: phoneNumbers.join(','),
-  }),
-});
-```
-
----
-
-## Phase 4: IVR Calling (Future)
-
-### Placeholder Implementation
-
-Create `IvrCallTab.tsx` with:
-- "Coming Soon" status
-- Provider selection research notes
-- Basic UI structure for future implementation
-
-### Potential Providers
-
-- Exotel
-- Knowlarity
-- Ozonetel
-- MyOperator
-
----
-
-## Settings Page Enhancements
-
-### Add Integration Configuration
-
-Update `src/pages/settings/WorkshopNotificationSettings.tsx` to include additional tabs or sections:
-
-1. **WhatsApp Group Settings** (existing - VPS connection)
-2. **WhatsApp Personal (AiSensy)** - API key, source, templates
-3. **SMS (Fast2SMS)** - API key, sender IDs, DLT templates
-4. **IVR** - Future placeholder
-
-### Integration Settings Component
-
-```tsx
-// Add to settings tabs
-<TabsTrigger value="integrations" className="gap-2">
-  <Settings2 className="h-4 w-4" />
-  Integrations
-</TabsTrigger>
-
-<TabsContent value="integrations">
-  <div className="space-y-6">
-    {/* AiSensy Config */}
-    <IntegrationConfigCard
-      title="WhatsApp Personal (AiSensy)"
-      description="Send individual WhatsApp messages to registrants"
-      integrationType="aisensy_personal"
-      fields={[
-        { key: 'api_key', label: 'API Key', secret: true },
-        { key: 'source', label: 'Source Number' },
-      ]}
-    />
+// Updated mutation function signature
+mutationFn: async ({ 
+  workshopId, 
+  workshop,
+  groupIds,
+  variables = {}, // NEW: Manual variables passed from dialog
+}: { 
+  workshopId: string; 
+  workshop: WorkshopWithDetails;
+  groupIds: string[];
+  variables?: Record<string, string>; // NEW
+}) => {
+  // ... existing code ...
+  
+  // Enhanced variable replacement
+  const processedContent = templateContent
+    // Auto-filled variables
+    .replace(/{workshop_name}/g, workshop.title)
+    .replace(/{date}/g, format(workshopDateInOrgTz, 'MMMM d, yyyy'))
+    .replace(/{time}/g, format(workshopDateInOrgTz, 'h:mm a'))
+    // Manual variables from user input
+    .replace(/{zoom_link}/g, variables.zoom_link || '{zoom_link}')
+    .replace(/{whatsapp_group_link}/g, variables.whatsapp_group_link || '{whatsapp_group_link}');
     
-    {/* Fast2SMS Config */}
-    <IntegrationConfigCard
-      title="SMS (Fast2SMS)"
-      description="Send SMS notifications to registrants"
-      integrationType="fast2sms"
-      fields={[
-        { key: 'api_key', label: 'API Key', secret: true },
-        { key: 'sender_id', label: 'Sender ID (DLT)' },
-      ]}
-    />
-  </div>
-</TabsContent>
+  // Or use a more generic approach:
+  let processedContent = templateContent;
+  for (const [key, value] of Object.entries(variables)) {
+    processedContent = processedContent.replace(
+      new RegExp(`\\{${key}\\}`, 'gi'),
+      value
+    );
+  }
 ```
 
 ---
 
-## Reusable Components
-
-### 1. ChannelStatusCard
-
-Displays integration status for any channel:
-
-```tsx
-interface ChannelStatusCardProps {
-  title: string;
-  isConfigured: boolean;
-  statusDetails?: string;          // e.g., "Balance: ₹2,450"
-  onConfigure: () => void;
-}
-```
-
-### 2. RecipientSummary
-
-Shows recipient breakdown for any channel:
-
-```tsx
-interface RecipientSummaryProps {
-  total: number;
-  withPhone: number;
-  missingPhone: number;
-  withEmail?: number;
-  missingEmail?: number;
-}
-```
-
-### 3. BroadcastHistoryTable
-
-Reusable table for broadcast history:
-
-```tsx
-interface BroadcastHistoryProps {
-  broadcasts: Array<{
-    id: string;
-    date: string;
-    workshopTitle: string;
-    templateName: string;
-    sentCount: number;
-    totalCount: number;
-    status: string;
-  }>;
-  isLoading: boolean;
-}
-```
-
----
-
-## File Summary
-
-### New Files to Create
+## Files to Create
 
 | File | Purpose |
 |------|---------|
-| `src/components/operations/notification-channels/index.ts` | Barrel exports |
-| `src/components/operations/notification-channels/WhatsAppGroupTab.tsx` | Extract existing functionality |
-| `src/components/operations/notification-channels/WhatsAppPersonalTab.tsx` | AiSensy UI |
-| `src/components/operations/notification-channels/SmsTab.tsx` | Fast2SMS UI |
-| `src/components/operations/notification-channels/IvrCallTab.tsx` | Placeholder |
-| `src/components/operations/notification-channels/ChannelStatusCard.tsx` | Reusable status |
-| `src/components/operations/notification-channels/RecipientSummary.tsx` | Reusable recipients |
-| `src/components/operations/notification-channels/BroadcastHistoryTable.tsx` | Reusable history |
-| `src/components/operations/notification-channels/ComingSoonPlaceholder.tsx` | Placeholder UI |
-| `src/hooks/useWhatsAppPersonal.ts` | AiSensy hook |
-| `src/hooks/useSmsNotification.ts` | Fast2SMS hook |
-| `src/hooks/useWorkshopRecipients.ts` | Shared recipient fetching |
-| `supabase/functions/send-aisensy-broadcast/index.ts` | AiSensy edge function |
-| `supabase/functions/send-sms-broadcast/index.ts` | Fast2SMS edge function |
+| `src/lib/templateVariables.ts` | Variable extraction and categorization utilities |
+| `src/hooks/useSequenceVariables.ts` | Hook for fetching/saving workshop variables |
+| `src/components/operations/SequenceVariablesDialog.tsx` | Dialog UI for variable input |
 
-### Files to Modify
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/operations/WorkshopNotification.tsx` | Add tabs wrapper |
-| `src/components/operations/index.ts` | Add new exports |
-| `src/pages/settings/WorkshopNotificationSettings.tsx` | Add integrations tab |
+| `src/hooks/useWorkshopNotification.ts` | Accept variables param, apply to all messages |
+| `src/components/operations/WorkshopDetailSheet.tsx` | Add variable dialog flow before running sequence |
+| `src/components/operations/MessagingActions.tsx` | Pass through updated handler |
+| `src/components/operations/notification-channels/WhatsAppGroupTab.tsx` | Integrate with new flow |
+| `src/hooks/useMessageTemplates.ts` | Update `TEMPLATE_VARIABLES` with new variable types |
 
 ---
 
-## Implementation Priority
+## Variable Display Formatting
 
-### Phase 1 (Immediate)
-1. Add tab structure to WorkshopNotification.tsx
-2. Create placeholder components for other channels
-3. Extract existing WhatsApp Group content into tab
+For better UX, convert snake_case variable keys to human-readable labels:
 
-### Phase 2 (WhatsApp Personal)
-1. Create database tables
-2. Build useWhatsAppPersonal hook
-3. Create WhatsAppPersonalTab UI
-4. Build send-aisensy-broadcast edge function
-5. Add AiSensy config to settings
+```typescript
+const VARIABLE_LABELS: Record<string, string> = {
+  'zoom_link': 'Zoom Meeting Link',
+  'whatsapp_group_link': 'WhatsApp Group Invite Link',
+  'youtube_link': 'YouTube Live Link',
+  'telegram_link': 'Telegram Group Link',
+  // Add more as needed
+};
 
-### Phase 3 (SMS)
-1. Create database tables
-2. Build useSmsNotification hook
-3. Create SmsTab UI
-4. Build send-sms-broadcast edge function
-5. Add Fast2SMS config to settings
-
-### Phase 4 (IVR - Future)
-1. Research providers
-2. Build placeholder UI
-3. Implement when provider selected
+function getVariableLabel(key: string): string {
+  return VARIABLE_LABELS[key] || 
+    key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+```
 
 ---
 
-## Testing Checklist
+## Edge Cases Handled
 
-After Phase 1:
-- [ ] Tab navigation works
-- [ ] WhatsApp Group functionality unchanged
-- [ ] Placeholders display correctly
-- [ ] Mobile responsive
+| Scenario | Behavior |
+|----------|----------|
+| No manual variables in sequence | Skip dialog, run directly |
+| Same workshop run again | Pre-fill from saved values |
+| Different workshop | Fresh empty inputs |
+| User cancels dialog | Don't run sequence |
+| Partial input | Validation prevents submission |
+| Template updated after save | Re-scan for new variables |
 
-After Phase 2:
-- [ ] AiSensy config saves correctly
-- [ ] Recipients load for selected workshop
-- [ ] Broadcast creates and tracks correctly
-- [ ] Messages appear in WhatsApp
+---
 
-After Phase 3:
-- [ ] Fast2SMS config saves correctly
-- [ ] SMS sends successfully
-- [ ] Delivery status updates
+## Summary
+
+This implementation creates a robust system where:
+
+1. **Detection**: Automatically scans templates for `{variable}` patterns
+2. **Categorization**: Separates auto-filled (workshop_name, date, time) from manual variables
+3. **Input Dialog**: Shows when manual variables are found, with pre-fill for repeat runs
+4. **Workshop Scope**: Values are tied to `workshop_id`, ensuring different workshops have independent values
+5. **Consistency**: All messages in a sequence use the same variable values
+6. **Persistence**: Values are saved to database for future reference and re-runs
+
