@@ -7,7 +7,8 @@ interface MessagingActionsProps {
   onSendNow: () => void;
   isRunningSequence: boolean;
   isSendingNow: boolean;
-  hasGroup: boolean;
+  hasGroups: boolean;
+  groupCount: number;
   hasSession: boolean;
   hasSequence: boolean;
 }
@@ -17,23 +18,24 @@ export function MessagingActions({
   onSendNow,
   isRunningSequence,
   isSendingNow,
-  hasGroup,
+  hasGroups,
+  groupCount,
   hasSession,
   hasSequence,
 }: MessagingActionsProps) {
-  const canRunSequence = hasGroup && hasSequence && !isRunningSequence && !isSendingNow;
-  const canSendNow = hasGroup && hasSession && !isRunningSequence && !isSendingNow;
+  const canRunSequence = hasGroups && hasSequence && !isRunningSequence && !isSendingNow;
+  const canSendNow = hasGroups && hasSession && !isRunningSequence && !isSendingNow;
 
   // Helper for disabled reason
   const getSequenceDisabledReason = () => {
-    if (!hasGroup) return 'Link a WhatsApp group first';
+    if (!hasGroups) return 'Select at least one WhatsApp group';
     if (!hasSequence) return 'Assign a tag with a template sequence first';
     return '';
   };
 
   const getSendNowDisabledReason = () => {
     if (!hasSession) return 'Select a WhatsApp account first';
-    if (!hasGroup) return 'Link a WhatsApp group first';
+    if (!hasGroups) return 'Select at least one WhatsApp group';
     return '';
   };
 
@@ -57,12 +59,12 @@ export function MessagingActions({
           ) : (
             <>
               <CalendarClock className="h-4 w-4" />
-              Run the Sequence
+              Run the Sequence {groupCount > 1 ? `(${groupCount} groups)` : ''}
             </>
           )}
         </Button>
         <p className="text-xs text-muted-foreground text-center">
-          {getSequenceDisabledReason() || 'Schedules all messages for their designated times'}
+          {getSequenceDisabledReason() || `Schedules all messages for ${groupCount} group${groupCount !== 1 ? 's' : ''}`}
         </p>
       </div>
 

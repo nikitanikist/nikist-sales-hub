@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 
-interface WhatsAppGroup {
+export interface WhatsAppGroup {
   id: string;
   group_jid: string;
   group_name: string;
@@ -13,6 +13,7 @@ interface WhatsAppGroup {
   workshop_id: string | null;
   synced_at: string;
   is_active: boolean;
+  is_admin: boolean;
 }
 
 interface VpsErrorResponse {

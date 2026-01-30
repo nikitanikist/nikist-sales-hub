@@ -469,18 +469,62 @@ Deno.serve(async (req) => {
     if (action === 'sync-groups' && isJson && localSessionIdForDb && organizationId) {
       const vpsGroups = responseData?.groups || responseData || [];
       
+      // Get the connected phone number from session to determine admin status
+      const { data: sessionData } = await supabase
+        .from('whatsapp_sessions')
+        .select('phone_number, session_data')
+        .eq('id', localSessionIdForDb)
+        .single();
+      
+      const myPhoneNumber = sessionData?.phone_number;
+      const vpsSessionId = (sessionData?.session_data as any)?.vps_session_id;
+      
       if (Array.isArray(vpsGroups) && vpsGroups.length > 0) {
         // Upsert groups into database
-        const groupsToUpsert = vpsGroups.map((g: any) => ({
-          organization_id: organizationId,
-          session_id: localSessionIdForDb,
-          group_jid: g.id || g.jid || g.groupId,
-          group_name: g.name || g.subject || 'Unknown Group',
-          participant_count: g.participants?.length || g.size || 0,
-          is_active: true,
-          synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }));
+        const groupsToUpsert = vpsGroups.map((g: any) => {
+          // Check if the connected session user is admin
+          // Baileys returns participants with admin status (admin, superadmin, or isAdmin flag)
+          let isAdmin = false;
+          
+          if (g.participants && Array.isArray(g.participants)) {
+            // Try to find myself in the participants list
+            // My JID could be in format: phone@s.whatsapp.net or just the phone number
+            const myParticipant = g.participants.find((p: any) => {
+              const participantId = p.id || p.jid || '';
+              // Check various formats
+              return (
+                (myPhoneNumber && participantId.includes(myPhoneNumber)) ||
+                (vpsSessionId && participantId.includes(vpsSessionId.replace('wa_', '')))
+              );
+            });
+            
+            if (myParticipant) {
+              // Check various admin flag formats from Baileys
+              isAdmin = 
+                myParticipant.admin === 'admin' ||
+                myParticipant.admin === 'superadmin' ||
+                myParticipant.isAdmin === true ||
+                myParticipant.isSuperAdmin === true;
+            }
+          }
+          
+          // Also check if the VPS returns isAdmin directly on the group object
+          if (g.isAdmin === true || g.iAmAdmin === true) {
+            isAdmin = true;
+          }
+          
+          return {
+            organization_id: organizationId,
+            session_id: localSessionIdForDb,
+            group_jid: g.id || g.jid || g.groupId,
+            group_name: g.name || g.subject || 'Unknown Group',
+            participant_count: g.participants?.length || g.size || 0,
+            is_active: true,
+            is_admin: isAdmin,
+            synced_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        });
         
         const { error: upsertError } = await supabase
           .from('whatsapp_groups')

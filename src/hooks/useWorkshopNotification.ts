@@ -126,6 +126,25 @@ export function useWorkshopNotification() {
     });
   };
 
+  // Fetch linked groups for a specific workshop from junction table
+  const useWorkshopGroups = (workshopId: string | null) => {
+    return useQuery({
+      queryKey: ['workshop-whatsapp-groups', workshopId],
+      queryFn: async () => {
+        if (!workshopId) return [];
+        
+        const { data, error } = await supabase
+          .from('workshop_whatsapp_groups')
+          .select('id, group_id, created_at')
+          .eq('workshop_id', workshopId);
+
+        if (error) throw error;
+        return data;
+      },
+      enabled: !!workshopId,
+    });
+  };
+
   // Subscribe to real-time updates for a workshop's messages
   const subscribeToMessages = (workshopId: string) => {
     const channel = supabase
@@ -186,7 +205,7 @@ export function useWorkshopNotification() {
     },
   });
 
-  // Update workshop WhatsApp group
+  // Update workshop WhatsApp group (legacy - single group)
   const updateGroupMutation = useMutation({
     mutationFn: async ({ workshopId, groupId }: { workshopId: string; groupId: string | null }) => {
       const { error } = await supabase
@@ -211,17 +230,73 @@ export function useWorkshopNotification() {
     },
   });
 
-  // Run the messaging - schedule all messages based on tag's sequence
+  // Update workshop WhatsApp groups (multi-group via junction table)
+  const updateGroupsMutation = useMutation({
+    mutationFn: async ({ workshopId, groupIds }: { workshopId: string; groupIds: string[] }) => {
+      if (!currentOrganization) throw new Error('No organization selected');
+      
+      // Delete existing links for this workshop
+      const { error: deleteError } = await supabase
+        .from('workshop_whatsapp_groups')
+        .delete()
+        .eq('workshop_id', workshopId);
+      
+      if (deleteError) throw deleteError;
+      
+      // Insert new links
+      if (groupIds.length > 0) {
+        const linksToInsert = groupIds.map(groupId => ({
+          workshop_id: workshopId,
+          group_id: groupId,
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('workshop_whatsapp_groups')
+          .insert(linksToInsert);
+        
+        if (insertError) throw insertError;
+      }
+      
+      // Also update the legacy whatsapp_group_id field for backwards compatibility
+      // Use the first selected group
+      const { error: updateError } = await supabase
+        .from('workshops')
+        .update({ 
+          whatsapp_group_id: groupIds[0] || null,
+          automation_status: {
+            whatsapp_group_linked: groupIds.length > 0,
+            messages_scheduled: false,
+          },
+        })
+        .eq('id', workshopId);
+      
+      if (updateError) throw updateError;
+      
+      return { groupCount: groupIds.length };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['workshop-whatsapp-groups'] });
+      toast.success(`${data.groupCount} group${data.groupCount !== 1 ? 's' : ''} linked`);
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to link groups', { description: error.message });
+    },
+  });
+
+  // Run the messaging - schedule all messages based on tag's sequence for multiple groups
   const runMessagingMutation = useMutation({
     mutationFn: async ({ 
       workshopId, 
-      workshop 
+      workshop,
+      groupIds,
     }: { 
       workshopId: string; 
       workshop: WorkshopWithDetails;
+      groupIds: string[];
     }) => {
       if (!currentOrganization) throw new Error('No organization selected');
-      if (!workshop.whatsapp_group_id) throw new Error('No WhatsApp group linked');
+      if (!groupIds || groupIds.length === 0) throw new Error('No WhatsApp groups selected');
       if (!workshop.tag?.template_sequence_id) throw new Error('No template sequence assigned to the tag');
       
       // Fetch the sequence with steps
@@ -241,29 +316,28 @@ export function useWorkshopNotification() {
       if (!sequenceData?.steps?.length) throw new Error('Sequence has no steps configured');
       
       // Parse workshop date - interpret as org timezone
-      // Workshop start_date is stored as a date string (YYYY-MM-DD) 
-      // We need to treat it as a date in the organization's timezone
       const workshopDateStr = workshop.start_date;
       const workshopDateInOrgTz = toZonedTime(new Date(workshopDateStr), orgTimezone);
       
       const now = new Date();
       
       // Check for existing scheduled messages to avoid duplicates
+      // Now we check per group
       const { data: existingMessages } = await supabase
         .from('scheduled_whatsapp_messages')
-        .select('message_type')
+        .select('message_type, group_id')
         .eq('workshop_id', workshopId)
         .in('status', ['pending', 'sending']);
       
-      const existingTypes = new Set((existingMessages || []).map(m => m.message_type));
+      // Create a set of existing type+group combinations
+      const existingCombos = new Set(
+        (existingMessages || []).map(m => `${m.message_type}|${m.group_id}`)
+      );
       
-      // Create scheduled messages for each step
+      // Create scheduled messages for each step for each group
       const messagesToCreate = [];
       for (const step of sequenceData.steps) {
         const typeKey = step.time_label || `step_${step.step_order}`;
-        
-        // Skip if already scheduled
-        if (existingTypes.has(typeKey)) continue;
         
         // Parse send_time (format: "HH:MM:SS")
         const [hours, minutes, seconds] = step.send_time.split(':').map(Number);
@@ -287,16 +361,22 @@ export function useWorkshopNotification() {
           .replace(/{date}/g, format(workshopDateInOrgTz, 'MMMM d, yyyy'))
           .replace(/{time}/g, format(workshopDateInOrgTz, 'h:mm a'));
         
-        messagesToCreate.push({
-          organization_id: currentOrganization.id,
-          group_id: workshop.whatsapp_group_id,
-          workshop_id: workshopId,
-          message_type: typeKey,
-          message_content: processedContent,
-          media_url: step.template?.media_url || null,
-          scheduled_for: scheduledForUTC.toISOString(),
-          status: 'pending' as const,
-        });
+        // Create a message for EACH selected group
+        for (const groupId of groupIds) {
+          // Skip if already scheduled for this group
+          if (existingCombos.has(`${typeKey}|${groupId}`)) continue;
+          
+          messagesToCreate.push({
+            organization_id: currentOrganization.id,
+            group_id: groupId,
+            workshop_id: workshopId,
+            message_type: typeKey,
+            message_content: processedContent,
+            media_url: step.template?.media_url || null,
+            scheduled_for: scheduledForUTC.toISOString(),
+            status: 'pending' as const,
+          });
+        }
       }
       
       if (messagesToCreate.length === 0) {
@@ -321,12 +401,12 @@ export function useWorkshopNotification() {
         })
         .eq('id', workshopId);
       
-      return { scheduled: messagesToCreate.length };
+      return { scheduled: messagesToCreate.length, groupCount: groupIds.length };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['workshop-notifications'] });
       queryClient.invalidateQueries({ queryKey: ['workshop-messages'] });
-      toast.success(`Scheduled ${data.scheduled} messages`);
+      toast.success(`Scheduled ${data.scheduled} messages across ${data.groupCount} group${data.groupCount !== 1 ? 's' : ''}`);
     },
     onError: (error: Error) => {
       toast.error('Failed to schedule messages', { description: error.message });
@@ -427,6 +507,7 @@ export function useWorkshopNotification() {
     error,
     orgTimezone,
     useWorkshopMessages,
+    useWorkshopGroups,
     subscribeToMessages,
     updateTag: updateTagMutation.mutate,
     isUpdatingTag: updateTagMutation.isPending,
@@ -434,6 +515,8 @@ export function useWorkshopNotification() {
     isUpdatingSession: updateSessionMutation.isPending,
     updateGroup: updateGroupMutation.mutate,
     isUpdatingGroup: updateGroupMutation.isPending,
+    updateGroups: updateGroupsMutation.mutate,
+    isUpdatingGroups: updateGroupsMutation.isPending,
     runMessaging: runMessagingMutation.mutate,
     isRunningMessaging: runMessagingMutation.isPending,
     cancelMessage: cancelMessageMutation.mutate,

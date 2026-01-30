@@ -20,6 +20,7 @@ interface SendMessageNowDialogProps {
     mediaUrl: string | null;
   }) => void;
   isSending: boolean;
+  groupCount?: number;
 }
 
 export function SendMessageNowDialog({
@@ -30,6 +31,7 @@ export function SendMessageNowDialog({
   timezone,
   onSend,
   isSending,
+  groupCount = 1,
 }: SendMessageNowDialogProps) {
   const { templates, templatesLoading } = useMessageTemplates();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -141,7 +143,7 @@ export function SendMessageNowDialog({
             ) : (
               <>
                 <Send className="h-4 w-4 mr-2" />
-                Send Now
+                Send Now {groupCount > 1 ? `(${groupCount} groups)` : ''}
               </>
             )}
           </Button>
