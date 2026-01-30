@@ -15,7 +15,7 @@ import { ROUTE_TO_PERMISSION, PermissionKey } from "@/lib/permissions";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { OrganizationProvider, useOrganization } from "@/hooks/useOrganization";
 import { supabase } from "@/integrations/supabase/client";
-import logoVideo from "@/assets/logo.mp4";
+import logoImage from "@/assets/logo.png";
 // Icon mapping for dynamic cohort types
 const iconMap: Record<string, typeof LayoutDashboard> = {
   Users: Users,
@@ -73,14 +73,11 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 <Shield className="h-8 w-8 text-white" />
               </div>
             ) : (
-              <div className="w-full h-12 rounded-lg overflow-hidden">
-                <video
-                  src={logoVideo}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="w-full h-auto object-cover object-bottom scale-[2] translate-y-[25%]"
+              <div className="w-full px-2">
+                <img
+                  src={logoImage}
+                  alt="Logo"
+                  className="w-full h-auto object-contain"
                 />
               </div>
             )}
@@ -94,14 +91,11 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
                 <Shield className="h-4 w-4 text-white" />
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-lg overflow-hidden">
-                <video
-                  src={logoVideo}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
+              <div className="w-8 h-8">
+                <img
+                  src={logoImage}
+                  alt="Logo"
+                  className="w-full h-full object-contain"
                 />
               </div>
             )}
@@ -431,14 +425,11 @@ const AppLayoutContent = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-xl overflow-hidden shadow-lg">
-            <video
-              src={logoVideo}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover"
+          <div className="w-16 h-16">
+            <img
+              src={logoImage}
+              alt="Loading..."
+              className="w-full h-full object-contain"
             />
           </div>
           <div className="skeleton-shimmer h-4 w-24 rounded" />
