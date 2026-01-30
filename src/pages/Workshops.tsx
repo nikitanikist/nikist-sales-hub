@@ -993,7 +993,10 @@ const Workshops = () => {
                         <TableCell>
                           <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                            {workshop.start_date ? formatOrg(workshop.start_date, "MMM dd, yyyy") : "N/A"}
+                            <div>
+                              <div>{workshop.start_date ? formatOrg(workshop.start_date, "MMM dd, yyyy") : "N/A"}</div>
+                              <div className="text-xs text-muted-foreground">{workshop.start_date ? formatOrg(workshop.start_date, "h:mm a") : ""}</div>
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">{workshop.title}</TableCell>
@@ -1279,7 +1282,10 @@ const Workshops = () => {
                           <p className="font-medium truncate">{workshop.title}</p>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                             <Calendar className="h-3 w-3" />
-                            {workshop.start_date ? format(new Date(workshop.start_date), "MMM dd, yyyy") : "N/A"}
+                            <div>
+                              {workshop.start_date ? formatOrg(workshop.start_date, "MMM dd, yyyy") : "N/A"}
+                              {workshop.start_date && <span className="ml-1">• {formatOrg(workshop.start_date, "h:mm a")}</span>}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

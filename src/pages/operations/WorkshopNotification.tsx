@@ -96,7 +96,7 @@ export default function WorkshopNotification() {
                     <TableCell className="font-medium">
                       <div>
                         <div className="font-medium">
-                          {formatInOrgTime(workshop.start_date, orgTimezone, 'MMM d')}
+                          {formatInOrgTime(workshop.start_date, orgTimezone, 'MMM d, h:mm a')}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {formatInOrgTime(workshop.start_date, orgTimezone, 'yyyy')}
