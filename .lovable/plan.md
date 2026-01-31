@@ -1,215 +1,181 @@
 
+# Fix: Sequence Step Inline Editing - Exit Edit Mode After Save
 
-# Fix: Sequence Step Editor - Improve UX and Fix Duplicate Key Issues
+## Problem Summary
 
-## Problems Identified
+When editing a sequence step:
+1. User clicks the edit icon (pencil) on a step row
+2. Row enters edit mode with time, template, and label fields
+3. User makes changes and clicks the green checkmark (save)
+4. Toast shows "Step updated" BUT the row **stays in edit mode**
+5. The green checkmark remains instead of reverting to the pencil icon
+6. After refreshing, changes may or may not be persisted
 
-| Issue | Description | Root Cause |
-|-------|-------------|------------|
-| Cannot edit step time/template | No edit functionality for existing steps | Missing inline edit UI |
-| "Duplicate key violation" error | After delete + add same step | Unique constraint on `(sequence_id, step_order)` + stale step_order calculation |
-| Must delete entire sequence | Workaround for above issues | Poor error recovery |
-| Steps not reordered after delete | Gaps in step_order values | Missing reorder logic after delete |
+Additionally, the cancel button shows a Trash icon which is confusing (looks like delete).
 
-## Technical Root Cause
+## Root Cause Analysis
 
-The database has a **unique constraint** on `(sequence_id, step_order)`:
-```sql
-CREATE UNIQUE INDEX template_sequence_steps_sequence_id_step_order_key 
-ON public.template_sequence_steps USING btree (sequence_id, step_order)
-```
+Looking at the code in `WorkshopNotificationSettings.tsx`:
 
-When adding a step, the code calculates:
 ```typescript
-step_order: (sequence.steps?.length || 0) + 1
-```
-
-This can collide with existing step_order values if:
-1. The local state is stale
-2. Steps were deleted but DB still has gaps
-
-## Solution Overview
-
-1. **Add inline editing for existing steps** - Allow changing time, template, and label directly in the table row
-2. **Fix step_order calculation** - Use `MAX(step_order) + 1` instead of array length
-3. **Reorder steps after delete** - Recalculate step_order values after deletion
-4. **Await delete completion** - Wait for delete mutation before allowing new inserts
-5. **Better error messages** - Show helpful guidance instead of raw DB errors
-
----
-
-## Implementation Plan
-
-### Step 1: Update the Hook (useTemplateSequences.ts)
-
-**A. Fix step_order calculation**
-
-Add a helper function to get the next step_order:
-```typescript
-const getNextStepOrder = (steps: TemplateSequenceStep[]): number => {
-  if (!steps || steps.length === 0) return 1;
-  return Math.max(...steps.map(s => s.step_order)) + 1;
+const handleSaveEdit = async () => {
+  if (!editingStepId) return;
+  try {
+    await onUpdateStep({...});
+    setEditingStepId(null);  // Should exit edit mode
+  } catch (error) {
+    // Error handled by mutation - but editingStepId is NOT reset!
+  }
 };
 ```
 
-**B. Add step reordering after delete**
+**Issue 1**: If `onUpdateStep` throws an error, `setEditingStepId(null)` is never called, leaving the row stuck in edit mode.
 
-After deleting a step, renumber remaining steps to prevent gaps:
-```typescript
-// In deleteStepMutation.onSuccess:
-// Recalculate step_order for remaining steps
-```
+**Issue 2**: The cancel button uses a Trash icon (`<Trash2 />`) which is confusing - users expect a cancel/X icon.
 
-**C. Update step mutation for inline editing**
+**Issue 3**: There's a potential race condition where the `useEffect` that watches `sequence` changes may interfere with the manual `setEditingStepId(null)` call.
 
-Ensure `updateStep` properly handles time and template changes.
+## Solution
 
----
+### 1. Always Exit Edit Mode After Save Attempt
 
-### Step 2: Update SequenceEditorDialog Component
-
-**A. Add inline edit mode for each step**
-
-Replace static display with editable fields:
-
-| Before | After |
-|--------|-------|
-| Static time text | Time input (editable on click) |
-| Static template name | Template dropdown (editable on click) |
-| Delete button only | Edit + Delete buttons |
-
-**B. Use proper step_order when adding**
-
-Pass the calculated step_order from parent that uses `getNextStepOrder()`.
-
-**C. Await delete before allowing add**
+Move `setEditingStepId(null)` to a `finally` block so it always runs:
 
 ```typescript
-const handleDeleteStep = async (stepId: string) => {
-  await deleteStep(stepId); // Wait for completion
-  // Then refresh data before allowing new adds
+const handleSaveEdit = async () => {
+  if (!editingStepId) return;
+  try {
+    await onUpdateStep({...});
+    // Success toast is handled by mutation
+  } catch (error) {
+    // Error toast is handled by mutation
+  } finally {
+    // Always exit edit mode, regardless of success/failure
+    setEditingStepId(null);
+    setEditingValues({ send_time: '', template_id: '', time_label: '' });
+  }
 };
 ```
 
----
+### 2. Fix Cancel Button Icon
 
-### Step 3: UI Changes to SequenceEditorDialog
+Replace the confusing Trash icon with an X icon for the cancel action:
 
-**Current table row (read-only):**
-```
-| 11:00 | Morning Reminder | Morning | [Delete] |
-```
-
-**New table row (inline editable):**
-```
-| [Time Input] | [Template Dropdown] | [Label Input] | [Save] [Delete] |
-```
-
-**Detailed changes:**
-
-1. Each row becomes an inline form with:
-   - Time picker (type="time")
-   - Template select dropdown
-   - Label text input
-   - Save button (appears when changed)
-   - Delete button
-
-2. Track which row is being edited via state
-3. Show "Saving..." indicator during update
-
----
-
-### Step 4: Improve Error Handling
-
-Replace cryptic "duplicate key value violation" with:
 ```typescript
-if (error.message.includes('duplicate key')) {
-  toast.error('This slot is already taken. Please wait and try again.');
-} else {
-  toast.error('Failed to add step', { description: error.message });
-}
+// Current (confusing):
+<Trash2 className="h-4 w-4 text-muted-foreground" />
+
+// Fixed:
+<X className="h-4 w-4 text-muted-foreground" />
+```
+
+### 3. Remove Redundant Reset from useEffect
+
+The `useEffect` that watches `sequence` should NOT reset `editingStepId` unconditionally, as this can cause issues. Instead, only reset on dialog open/close:
+
+```typescript
+useEffect(() => {
+  if (sequence) {
+    setName(sequence.name || '');
+    setDescription(sequence.description || '');
+  } else {
+    setName('');
+    setDescription('');
+  }
+  setNewStepTime('11:00');
+  setNewStepTemplate('');
+  setNewStepLabel('');
+  setShowSaved(false);
+  // DON'T reset editingStepId here - let handleSaveEdit control it
+}, [sequence]);
+
+// Add separate effect for dialog close
+useEffect(() => {
+  if (!open) {
+    setEditingStepId(null);
+    setEditingValues({ send_time: '', template_id: '', time_label: '' });
+  }
+}, [open]);
 ```
 
 ---
 
 ## Files to Change
 
-| File | Changes |
-|------|---------|
-| `src/hooks/useTemplateSequences.ts` | Add `getNextStepOrder`, fix delete to reorder, improve error messages |
-| `src/pages/settings/WorkshopNotificationSettings.tsx` | Add inline editing UI, proper async handling, better UX |
+| File | Change |
+|------|--------|
+| `src/pages/settings/WorkshopNotificationSettings.tsx` | Fix handleSaveEdit, fix cancel icon, improve useEffect logic |
 
 ---
 
-## Technical Details
+## Detailed Code Changes
 
-### useTemplateSequences.ts Changes
+### SequenceEditorDialog Component
 
+**A. Add X icon import:**
 ```typescript
-// Add reorder function
-const reorderStepsAfterDelete = async (sequenceId: string, deletedOrder: number) => {
-  // Get all steps with order > deletedOrder and decrement their order
-  const { data: stepsToUpdate } = await supabase
-    .from('template_sequence_steps')
-    .select('id, step_order')
-    .eq('sequence_id', sequenceId)
-    .gt('step_order', deletedOrder)
-    .order('step_order', { ascending: true });
-  
-  if (stepsToUpdate && stepsToUpdate.length > 0) {
-    for (const step of stepsToUpdate) {
-      await supabase
-        .from('template_sequence_steps')
-        .update({ step_order: step.step_order - 1 })
-        .eq('id', step.id);
-    }
+import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check, X } from 'lucide-react';
+```
+
+**B. Fix handleSaveEdit function:**
+```typescript
+const handleSaveEdit = async () => {
+  if (!editingStepId) return;
+  try {
+    await onUpdateStep({
+      id: editingStepId,
+      send_time: editingValues.send_time + ':00',
+      template_id: editingValues.template_id,
+      time_label: editingValues.time_label || undefined,
+    });
+  } catch (error) {
+    // Error toast is shown by mutation
+  } finally {
+    // Always exit edit mode
+    setEditingStepId(null);
+    setEditingValues({ send_time: '', template_id: '', time_label: '' });
   }
 };
 ```
 
-### SequenceEditorDialog UI Changes
-
-Add state for editing:
+**C. Fix cancel button icon:**
 ```typescript
-const [editingStepId, setEditingStepId] = useState<string | null>(null);
-const [editingValues, setEditingValues] = useState<{
-  send_time: string;
-  template_id: string;
-  time_label: string;
-}>({ send_time: '', template_id: '', time_label: '' });
+<Button
+  variant="ghost"
+  size="icon"
+  className="h-8 w-8"
+  onClick={cancelEditing}
+  disabled={isUpdatingStep}
+>
+  <X className="h-4 w-4 text-muted-foreground" />
+</Button>
 ```
 
-Table row becomes:
-```tsx
-{editingStepId === step.id ? (
-  // Editable row
-  <>
-    <TableCell>
-      <Input type="time" value={editingValues.send_time} onChange={...} />
-    </TableCell>
-    <TableCell>
-      <Select value={editingValues.template_id} onValueChange={...}>...</Select>
-    </TableCell>
-    <TableCell>
-      <Input value={editingValues.time_label} onChange={...} />
-    </TableCell>
-    <TableCell>
-      <Button onClick={handleSaveEdit}>Save</Button>
-      <Button onClick={() => setEditingStepId(null)}>Cancel</Button>
-    </TableCell>
-  </>
-) : (
-  // Read-only row with edit button
-  <>
-    <TableCell>{step.send_time?.slice(0, 5)}</TableCell>
-    <TableCell>{step.template?.name}</TableCell>
-    <TableCell>{step.time_label || '—'}</TableCell>
-    <TableCell>
-      <Button onClick={() => startEditing(step)}><Edit2 /></Button>
-      <Button onClick={() => handleDelete(step)}><Trash2 /></Button>
-    </TableCell>
-  </>
-)}
+**D. Improve useEffect logic:**
+```typescript
+// Sync name/description when sequence changes
+useEffect(() => {
+  if (sequence) {
+    setName(sequence.name || '');
+    setDescription(sequence.description || '');
+  } else {
+    setName('');
+    setDescription('');
+  }
+  setNewStepTime('11:00');
+  setNewStepTemplate('');
+  setNewStepLabel('');
+  setShowSaved(false);
+  // Remove editingStepId reset from here
+}, [sequence]);
+
+// Reset edit state when dialog closes
+useEffect(() => {
+  if (!open) {
+    setEditingStepId(null);
+    setEditingValues({ send_time: '', template_id: '', time_label: '' });
+  }
+}, [open]);
 ```
 
 ---
@@ -217,9 +183,8 @@ Table row becomes:
 ## Expected Outcome
 
 After implementation:
-1. Users can click on any step to edit time, template, or label inline
-2. No more "duplicate key" errors when adding steps after deletion
-3. Step order is automatically maintained without gaps
-4. Clear feedback when saving changes
-5. Proper async handling prevents race conditions
-
+1. Clicking the green checkmark (save) will always exit edit mode, whether the save succeeds or fails
+2. If save fails, user will see an error toast and can click edit again to retry
+3. The cancel button will show an X icon instead of a trash icon
+4. Edit state properly resets when the dialog is closed
+5. No more "stuck" edit mode after saving changes
