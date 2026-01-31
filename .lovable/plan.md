@@ -1,96 +1,249 @@
 
-# Fix: Template Save Redirects to Wrong Tab
 
-## Problem
+# Fix: Sequence Steps Table Not Updating in Real-Time After Adding a Step
 
-After saving a new template in the Template Editor, the user is redirected to the **General** settings tab instead of the **Templates** tab. This forces users to manually navigate back to templates when they want to add more.
+## Problem Summary
 
-## Root Cause
+When adding a new step to a sequence:
+1. User selects a time, template, and optionally a label
+2. User clicks the "+" button
+3. The step is successfully saved to the database
+4. The steps table does **NOT** immediately show the new step
+5. User must close the dialog and reopen it to see the newly added step
 
-The navigation flow has a **two-level tab problem**:
+This is a poor UX - users expect to see their changes immediately.
 
-1. **TemplateEditor.tsx** navigates to `/settings?tab=templates` after saving
-2. **OrganizationSettings.tsx** has nested tabs:
-   - **Main tabs**: General, Modules, Integrations, Team, **Notifications**
-   - **Inside Notifications tab**: Templates, Sequences, Tags
-3. The main tabs use `defaultValue="general"` and **ignore the URL query parameter**
-4. So `?tab=templates` is never read by the parent, and it always shows "General"
+## Root Cause Analysis
 
+Looking at the code in `WorkshopNotificationSettings.tsx` (lines 925-941):
+
+```typescript
+onAddStep={async (data) => {
+  await createStep(data);
+  // Refresh sequence data
+  const { data: updated } = await import('@/integrations/supabase/client').then(m => 
+    m.supabase
+      .from('template_sequences')
+      .select(`*, steps:template_sequence_steps(*, template:whatsapp_message_templates(id, name))`)
+      .eq('id', editingSequence.id)
+      .single()
+  );
+  if (updated) {
+    setEditingSequence({...});
+  }
+}}
 ```
-OrganizationSettings
-├── General ← Always opens here (defaultValue="general")
-├── Modules
-├── Integrations
-├── Team
-└── Notifications
-    ├── Templates ← Where user WANTS to go
-    ├── Sequences
-    └── Tags
-```
+
+**Potential Issues:**
+
+| Issue | Description |
+|-------|-------------|
+| Dynamic Import Timing | Using `import()` syntax can cause unexpected timing issues in async flows |
+| Missing await | The Promise chain may not properly wait for state updates |
+| Query inconsistency | The SELECT query fetches `id, name` but the dialog may need `content, media_url` for consistency |
+
+The most likely issue is the **dynamic import pattern** (`await import(...).then(m => m.supabase...)`). This pattern:
+1. Adds unnecessary complexity
+2. Can cause race conditions between the import and the query
+3. Is harder to debug
 
 ## Solution
 
-Update **OrganizationSettings.tsx** to:
-1. Read the `tab` query parameter from the URL
-2. If `tab` is `templates`, `sequences`, or `tags`, automatically switch to the "notifications" main tab
-3. Pass the sub-tab value down to `WorkshopNotificationSettings`
+**Simplify the refresh logic by using the `supabase` client directly** (it's already imported at the top of the file through the hook).
+
+Instead of dynamic imports, we should:
+1. Call `queryClient.invalidateQueries` to refresh the sequence data in the background
+2. Use a dedicated refetch function or manually update the `editingSequence` state using the already-imported supabase client
+
+**Recommended Approach:**
+
+Option A: Use the `useSequence` hook from `useTemplateSequences` to manage the editing sequence state reactively
+- This would make the dialog automatically update when the query cache is invalidated
+- Cleaner separation of concerns
+
+Option B: Fix the current pattern by using the supabase client directly without dynamic import
+- Less refactoring
+- Still requires manual state updates
+
+I recommend **Option A** for a more robust solution.
+
+---
+
+## Implementation Plan
+
+### Step 1: Modify WorkshopNotificationSettings to Use the Hook's `useSequence`
+
+Currently the component uses a local `editingSequence` state. Instead, we should:
+
+1. Store just the `editingSequenceId` in local state
+2. Use the `useSequence(editingSequenceId)` hook to get reactive data
+3. The hook already invalidates queries on add/delete/update, so the dialog will auto-refresh
+
+```typescript
+// Current approach (problematic)
+const [editingSequence, setEditingSequence] = useState<any>(null);
+
+// New approach (reactive)
+const [editingSequenceId, setEditingSequenceId] = useState<string | null>(null);
+const { data: editingSequence } = useSequence(editingSequenceId);
+```
+
+### Step 2: Simplify the onAddStep Handler
+
+Remove the manual refresh logic since the hook will automatically refetch:
+
+```typescript
+// Current (complex)
+onAddStep={async (data) => {
+  await createStep(data);
+  // Long manual refresh code...
+}}
+
+// New (simple)
+onAddStep={async (data) => {
+  await createStep(data);
+  // Hook automatically invalidates and refetches!
+}}
+```
+
+### Step 3: Update Dialog Open/Close Logic
+
+```typescript
+// When opening edit dialog
+onClick={() => { 
+  setEditingSequenceId(s.id);  // Just set the ID
+  setSequenceDialogOpen(true); 
+}}
+
+// When closing
+onOpenChange={(open) => {
+  setSequenceDialogOpen(open);
+  if (!open) setEditingSequenceId(null);
+}}
+```
+
+---
 
 ## Files to Change
 
-| File | Change |
-|------|--------|
-| `src/pages/OrganizationSettings.tsx` | Read URL params and set correct default tab |
+| File | Changes |
+|------|---------|
+| `src/hooks/useTemplateSequences.ts` | Ensure `useSequence` is exported properly (already done) |
+| `src/pages/settings/WorkshopNotificationSettings.tsx` | Replace `editingSequence` state with hook-based reactive approach |
 
-## Implementation Details
+---
 
-### OrganizationSettings.tsx Changes
+## Detailed Code Changes
 
-**Add imports:**
+### WorkshopNotificationSettings.tsx
+
+**A. Update imports:**
 ```typescript
-import { useSearchParams } from "react-router-dom";
+const { 
+  sequences, 
+  sequencesLoading, 
+  createSequence, 
+  deleteSequence, 
+  createStep, 
+  deleteStepAsync, 
+  updateStepAsync, 
+  isCreatingSequence, 
+  isCreatingStep, 
+  isUpdatingStep,
+  useSequence  // Add this
+} = useTemplateSequences();
 ```
 
-**Read URL params and determine correct main tab:**
+**B. Replace editingSequence state with ID-based reactive hook:**
 ```typescript
-const [searchParams] = useSearchParams();
-const urlTab = searchParams.get('tab');
+// Replace this:
+const [editingSequence, setEditingSequence] = useState<any>(null);
 
-// Map sub-tabs to their parent main tab
-const getMainTab = (urlTab: string | null): string => {
-  // If url tab is templates, sequences, or tags → go to notifications
-  if (urlTab && ['templates', 'sequences', 'tags'].includes(urlTab)) {
-    return 'notifications';
+// With this:
+const [editingSequenceId, setEditingSequenceId] = useState<string | null>(null);
+const { data: editingSequence, isLoading: isLoadingEditingSequence } = useSequence(editingSequenceId);
+```
+
+**C. Update dialog trigger:**
+```typescript
+// When clicking edit button on a sequence row
+onClick={() => { 
+  setEditingSequenceId(s.id); 
+  setSequenceDialogOpen(true); 
+}}
+
+// When creating new sequence
+onClick={() => { 
+  setEditingSequenceId(null); 
+  setSequenceDialogOpen(true); 
+}}
+```
+
+**D. Simplify onSave handler:**
+```typescript
+onSave={async (data) => {
+  if (data.id) {
+    // Existing sequence - handled by hook
+  } else {
+    // New sequence - set the ID to start editing
+    const newSeq = await createSequence(data);
+    setEditingSequenceId(newSeq.id);
   }
-  // Otherwise check if it's a valid main tab
-  const mainTabs = ['general', 'modules', 'integrations', 'team', 'notifications'];
-  if (urlTab && mainTabs.includes(urlTab)) {
-    return urlTab;
-  }
-  return 'general';
-};
-
-const defaultMainTab = getMainTab(urlTab);
+}}
 ```
 
-**Update the Tabs component:**
+**E. Simplify onAddStep handler (remove manual refresh):**
 ```typescript
-<Tabs defaultValue={defaultMainTab} className="space-y-4">
+onAddStep={async (data) => {
+  await createStep(data);
+  // No manual refresh needed - hook invalidates queries automatically
+}}
 ```
 
-## User Experience After Fix
+**F. Simplify onDeleteStep and onUpdateStep handlers:**
+```typescript
+onDeleteStep={async (stepId, sequenceId, stepOrder) => {
+  await deleteStepAsync({ stepId, sequenceId, stepOrder });
+  // No manual refresh needed
+}}
 
-1. User creates a new template and clicks "Create Template"
-2. Template is saved successfully
-3. User is redirected to `/settings?tab=templates`
-4. OrganizationSettings sees `tab=templates`
-5. Main tabs open on "Notifications" (since templates is inside notifications)
-6. WorkshopNotificationSettings reads `tab=templates` and shows Templates sub-tab
-7. User lands directly on the Templates tab, ready to create another
+onUpdateStep={async (data) => {
+  await updateStepAsync(data);
+  // No manual refresh needed
+}}
+```
 
-## Verification
+**G. Reset ID when closing dialog:**
+```typescript
+onOpenChange={(open) => {
+  setSequenceDialogOpen(open);
+  if (!open) {
+    setEditingSequenceId(null);
+  }
+}}
+```
 
-After the fix, verify by:
-1. Creating a new template
-2. Confirming redirect lands on the Templates tab
-3. Testing that direct URL `/settings?tab=sequences` works correctly
-4. Testing that `/settings?tab=general` still works as expected
+---
+
+## Technical Note: Why This Works
+
+The `useSequence` hook (lines 122-150 in `useTemplateSequences.ts`) uses React Query with the key `['template-sequence', sequenceId]`.
+
+When `createStep`, `deleteStep`, or `updateStep` mutations complete, they call:
+```typescript
+queryClient.invalidateQueries({ queryKey: ['template-sequence'] });
+```
+
+This automatically triggers a refetch of the sequence data, and since we're using the hook in the component, React will re-render with the updated data.
+
+---
+
+## Expected Outcome
+
+After implementation:
+1. User adds a step via the "+" button
+2. The step mutation completes and invalidates the query
+3. React Query automatically refetches the sequence with its updated steps
+4. The table immediately shows the new step without closing/reopening the dialog
+5. Same behavior for editing and deleting steps
+
