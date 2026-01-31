@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -15,6 +16,19 @@ import { WorkshopNotificationSettings } from "@/pages/settings/WorkshopNotificat
 import { PageIntro } from "@/components/PageIntro";
 import { CloserAssignments } from "@/components/settings/CloserAssignments";
 
+// Map sub-tabs to their parent main tab
+const getMainTab = (urlTab: string | null): string => {
+  // If url tab is templates, sequences, or tags → go to notifications
+  if (urlTab && ['templates', 'sequences', 'tags'].includes(urlTab)) {
+    return 'notifications';
+  }
+  // Otherwise check if it's a valid main tab
+  const mainTabs = ['general', 'modules', 'integrations', 'team', 'notifications'];
+  if (urlTab && mainTabs.includes(urlTab)) {
+    return urlTab;
+  }
+  return 'general';
+};
 interface IntegrationConfig {
   [key: string]: string | boolean | undefined;
 }
@@ -28,6 +42,10 @@ interface Integration {
 }
 
 const OrganizationSettings = () => {
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const defaultMainTab = getMainTab(urlTab);
+  
   const { currentOrganization } = useOrganization();
   const { isSuperAdmin } = useUserRole();
   const queryClient = useQueryClient();
@@ -184,7 +202,7 @@ const OrganizationSettings = () => {
         variant="violet"
       />
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue={defaultMainTab} className="space-y-4">
         <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="general" className="gap-2">
             <Building2 className="h-4 w-4" />
