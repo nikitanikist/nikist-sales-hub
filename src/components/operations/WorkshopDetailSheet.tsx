@@ -450,6 +450,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
               groupCount={selectedGroupIds.length}
               hasSession={!!workshop.whatsapp_session_id}
               hasSequence={hasSequence}
+              messages={messages}
             />
           </div>
         </SheetFooter>

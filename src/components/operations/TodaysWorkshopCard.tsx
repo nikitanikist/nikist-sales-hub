@@ -7,15 +7,14 @@ import {
   CalendarClock, 
   Users, 
   AlertCircle, 
-  Play, 
-  Settings2,
   CheckCircle2,
   ChevronRight,
 } from 'lucide-react';
-import { WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
+import { WorkshopWithDetails, ScheduledMessage } from '@/hooks/useWorkshopNotification';
 import { WorkshopTagBadge } from './WorkshopTagBadge';
+import { SequenceProgressButton } from './SequenceProgressButton';
 import { formatInOrgTime } from '@/lib/timezoneUtils';
-import { toZonedTime, format as formatTz } from 'date-fns-tz';
+import { toZonedTime } from 'date-fns-tz';
 import { isSameDay } from 'date-fns';
 
 interface TodaysWorkshopCardProps {
@@ -23,6 +22,8 @@ interface TodaysWorkshopCardProps {
   orgTimezone: string;
   onQuickSetup: (workshop: WorkshopWithDetails) => void;
   onRunSequence: (workshop: WorkshopWithDetails) => void;
+  subscribeToMessages?: (workshopId: string) => () => void;
+  useWorkshopMessages?: (workshopId: string | null) => { data: ScheduledMessage[] | undefined };
 }
 
 function calculateProgress(workshop: WorkshopWithDetails): {
@@ -46,7 +47,9 @@ export function TodaysWorkshopCard({
   workshops, 
   orgTimezone, 
   onQuickSetup, 
-  onRunSequence 
+  onRunSequence,
+  subscribeToMessages,
+  useWorkshopMessages,
 }: TodaysWorkshopCardProps) {
   // Filter to today's workshops in org timezone
   const todayWorkshops = useMemo(() => {
@@ -136,23 +139,15 @@ export function TodaysWorkshopCard({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 pt-1">
-          {isReady ? (
-            <Button 
-              onClick={() => onRunSequence(workshop)} 
-              className="flex-1 gap-2"
-            >
-              <Play className="h-4 w-4" />
-              Run Sequence
-            </Button>
-          ) : (
-            <Button 
-              onClick={() => onQuickSetup(workshop)} 
-              className="flex-1 gap-2"
-            >
-              <Settings2 className="h-4 w-4" />
-              Complete Setup
-            </Button>
-          )}
+          <SequenceProgressButton
+            workshopId={workshop.id}
+            isSetupComplete={isReady}
+            onRun={() => onRunSequence(workshop)}
+            onSetup={() => onQuickSetup(workshop)}
+            subscribeToMessages={subscribeToMessages}
+            useWorkshopMessages={useWorkshopMessages}
+            className="flex-1"
+          />
           <Button 
             variant="outline" 
             onClick={() => onQuickSetup(workshop)}
