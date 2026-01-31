@@ -1,113 +1,182 @@
 
-# Fix: Default Workshop Time Should Be 7:00 PM IST
 
-## Problem Identified
+# Dynamic Progress Button for Workshop Notification Sequence
 
-When new workshops are auto-created via TagMango webhook, the time is being set incorrectly:
+## Overview
 
-| Workshop | Current UTC | Displayed in IST | Expected IST |
-|----------|-------------|------------------|--------------|
-| 31st January | 16:00:00+00 | 9:30 PM | **7:00 PM** |
-| 30th January | 17:30:00+00 | 11:00 PM | **7:00 PM** |
-| 1st February | 12:00:00+00 | 5:30 PM | **7:00 PM** |
+Replace the static "Run Sequence" button with a dynamic progress button that shows real-time message delivery status. The button will change color (green for progress, red for errors) and display a progress counter (e.g., "1/8 sent").
 
-**Root Cause Location:** `supabase/functions/ingest-tagmango/index.ts` (lines 88-98)
+## Current Architecture
 
-```typescript
-// CURRENT CODE - WRONG
-const tentativeDate = new Date(year, month, day, 12, 0, 0); // "Noon IST" ← Not actually IST!
-return new Date(year, month, day, 12, 0, 0);
-```
+The Workshop Notification page has three places where the "Run Sequence" button appears:
+1. **Today's Workshop Card** - Hero card at the top for today's workshop
+2. **Table Actions** - "Run" button in each workshop row
+3. **Detail Sheet Footer** - "Run the Sequence" button in the side panel
 
-**Why it's wrong:**
-1. `new Date(year, month, day, 12, 0, 0)` creates a date in the **server's timezone (UTC)**, not IST
-2. The comment says "Noon IST" but it's actually setting noon UTC
-3. When converted to IST, 12:00 UTC = 5:30 PM IST (not noon, not 7 PM)
-4. There's no logic to use the organization's configured default_workshop_time
-
----
+All three need to be enhanced with the new progress tracking behavior.
 
 ## Solution
 
-Update the `parseDateFromWorkshopName` function to:
-1. Set the time to **19:00 IST** (7:00 PM) which is the expected workshop time
-2. Convert properly to UTC for storage: 19:00 IST = 13:30 UTC
+### 1. Create New SequenceProgressButton Component
 
-**Changed code:**
+A new reusable component that:
+- Shows different states: idle, scheduling, running (with progress), completed, error
+- Displays progress counter like "3/8 sent"
+- Uses green color when messages are being sent
+- Uses red color when any message has failed
+- Subscribes to real-time message updates
+
+**File:** `src/components/operations/SequenceProgressButton.tsx`
+
+**States and Appearance:**
+
+| State | Color | Content |
+|-------|-------|---------|
+| Idle (no messages) | Primary (purple) | "Run Sequence" |
+| Scheduling | Primary (purple) | Spinner + "Scheduling..." |
+| Running (progress) | Green (success) | "3/8 sent" with mini progress bar |
+| Completed | Green (success) | Checkmark + "8/8 sent" |
+| Has Errors | Red (destructive) | "5/8 sent · 2 failed" |
+
+### 2. Track Messages Per Workshop
+
+Need to fetch and subscribe to messages for each workshop that has scheduled messages. 
+
+**Logic:**
 ```typescript
-// Create date at 7:00 PM IST (19:00 IST = 13:30 UTC)
-// IST is UTC+5:30, so 19:00 IST = 13:30 UTC
-const istHour = 19; // 7 PM IST
-const utcHour = istHour - 5; // 13 (accounting for +5 hours)
-const utcMinute = 30; // accounting for +30 minutes (subtract from IST)
+const stats = {
+  total: messages.length,
+  sent: messages.filter(m => m.status === 'sent').length,
+  failed: messages.filter(m => m.status === 'failed').length,
+  pending: messages.filter(m => m.status === 'pending').length,
+  sending: messages.filter(m => m.status === 'sending').length,
+};
 
-return new Date(Date.UTC(year, month, day, 13, 30, 0));
+const hasActiveSequence = stats.total > 0 && (stats.pending > 0 || stats.sending > 0);
+const hasFailures = stats.failed > 0;
+const isComplete = stats.total > 0 && stats.pending === 0 && stats.sending === 0;
 ```
+
+### 3. Update Affected Components
+
+**A. WhatsAppGroupTab.tsx (Table Actions)**
+
+Replace the current "Run" button with `SequenceProgressButton`:
+- Pass workshop ID to the button
+- The button will internally subscribe to message updates
+- Show progress for workshops with active sequences
+
+**B. TodaysWorkshopCard.tsx (Hero Card)**
+
+Replace the current "Run Sequence" button with `SequenceProgressButton`:
+- Same behavior as table
+- Larger visual prominence for the hero section
+
+**C. MessagingActions.tsx (Detail Sheet)**
+
+The button in the detail sheet should also show progress:
+- Since the sheet already subscribes to messages, pass the messages as props
+- The button shows real-time progress
+
+### 4. Visual Design
+
+**Idle State (Purple/Primary):**
+```
++---------------------------+
+|  ▶  Run Sequence          |
++---------------------------+
+```
+
+**Scheduling State (Purple, Loading):**
+```
++---------------------------+
+|  ⟳  Scheduling...         |
++---------------------------+
+```
+
+**Running State (Green with Progress):**
+```
++---------------------------+
+|  ███░░░░░  3/8 sent       |
++---------------------------+
+```
+
+**Completed State (Green with Checkmark):**
+```
++---------------------------+
+|  ✓  8/8 sent              |
++---------------------------+
+```
+
+**Error State (Red):**
+```
++---------------------------+
+|  ⚠  5/8 sent · 2 failed   |
++---------------------------+
+```
+
+---
+
+## Implementation Steps
+
+| Step | File | Change |
+|------|------|--------|
+| 1 | `src/components/operations/SequenceProgressButton.tsx` | Create new component with all states |
+| 2 | `src/components/operations/index.ts` | Export the new component |
+| 3 | `src/components/operations/notification-channels/WhatsAppGroupTab.tsx` | Replace "Run" button with `SequenceProgressButton` |
+| 4 | `src/components/operations/TodaysWorkshopCard.tsx` | Replace "Run Sequence" button with `SequenceProgressButton` |
+| 5 | `src/components/operations/MessagingActions.tsx` | Add progress display to "Run the Sequence" button |
 
 ---
 
 ## Technical Details
 
-### File to Change
-`supabase/functions/ingest-tagmango/index.ts`
-
-### Specific Changes
-
-**Lines 86-98: Update the date creation logic**
+### SequenceProgressButton Props
 
 ```typescript
-// OLD (lines 86-98):
-const tentativeDate = new Date(year, month, day, 12, 0, 0); // Noon IST
-
-const twoMonthsAgo = new Date(now);
-twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-
-if (tentativeDate < twoMonthsAgo) {
-  year++;
+interface SequenceProgressButtonProps {
+  workshopId: string;
+  workshop: WorkshopWithDetails;
+  groupIds: string[];
+  isSetupComplete: boolean;
+  onRun: () => void;
+  isScheduling?: boolean;
+  // Optional: pass messages if parent already subscribes
+  messages?: ScheduledMessage[];
+  subscribeToMessages?: (workshopId: string) => () => void;
+  variant?: 'default' | 'compact';
 }
-
-return new Date(year, month, day, 12, 0, 0);
 ```
 
+### Real-time Updates
+
+The component will use:
 ```typescript
-// NEW:
-// Default workshop time: 7:00 PM IST = 13:30 UTC
-// IST is UTC+5:30, so 19:00 IST = 19:00 - 5:30 = 13:30 UTC
-const defaultWorkshopTimeUtcHour = 13;
-const defaultWorkshopTimeUtcMinute = 30;
+useEffect(() => {
+  if (!workshopId || !subscribeToMessages) return;
+  return subscribeToMessages(workshopId);
+}, [workshopId, subscribeToMessages]);
+```
 
-const tentativeDate = new Date(Date.UTC(year, month, day, defaultWorkshopTimeUtcHour, defaultWorkshopTimeUtcMinute, 0));
+### Button Variant Classes
 
-const twoMonthsAgo = new Date(now);
-twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-
-if (tentativeDate < twoMonthsAgo) {
-  year++;
-}
-
-return new Date(Date.UTC(year, month, day, defaultWorkshopTimeUtcHour, defaultWorkshopTimeUtcMinute, 0));
+```typescript
+const buttonClasses = cn(
+  'w-full gap-2',
+  hasActiveSequence && !hasFailures && 'bg-emerald-500 hover:bg-emerald-600',
+  hasFailures && 'bg-destructive hover:bg-destructive/90',
+);
 ```
 
 ---
 
-## Verification
+## User Experience Flow
 
-After the fix, new workshops will have:
-- **Stored in DB**: `2026-02-01 13:30:00+00` (UTC)
-- **Displayed in IST**: `7:00 PM` ✓
+1. User clicks "Run Sequence" on any workshop
+2. Button shows "Scheduling..." with spinner
+3. Once scheduled, button turns **green** and shows "0/8 sent"
+4. As messages are sent, counter updates: "1/8", "2/8", etc.
+5. If a message fails, button turns **red** showing "3/8 sent · 1 failed"
+6. When complete, button shows checkmark + "8/8 sent"
+7. User can click the button again to view details (opens sheet)
 
----
-
-## Impact
-
-| Scope | Details |
-|-------|---------|
-| New workshops | Will be created with 7:00 PM IST default time |
-| Existing workshops | No change (would need manual fix or data migration) |
-| Deployment | Edge function auto-deploys |
-
----
-
-## Optional: Fix Existing Workshops
-
-If you want to fix the existing workshops that have wrong times, I can also provide a SQL query to update them to 7:00 PM IST. Let me know after approving this plan.
