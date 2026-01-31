@@ -796,15 +796,15 @@ export function WorkshopNotificationSettings() {
                         <TableCell className="font-medium">{s.name}</TableCell>
                         <TableCell>
                           <div className="flex gap-1 flex-wrap">
-                            {(s.steps || []).slice(0, 4).map((step: any) => (
+                            {(s.steps || []).slice(0, 8).map((step: any) => (
                               <Badge key={step.id} variant="secondary" className="text-xs">
                                 <Clock className="h-3 w-3 mr-1" />
                                 {step.send_time?.slice(0, 5)}
                               </Badge>
                             ))}
-                            {(s.steps || []).length > 4 && (
+                            {(s.steps || []).length > 8 && (
                               <Badge variant="secondary" className="text-xs">
-                                +{(s.steps || []).length - 4}
+                                +{(s.steps || []).length - 8}
                               </Badge>
                             )}
                             {(s.steps || []).length === 0 && (
