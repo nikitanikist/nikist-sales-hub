@@ -1,182 +1,225 @@
 
 
-# Dynamic Progress Button for Workshop Notification Sequence
+# Fix: Sequence Step Editor - Improve UX and Fix Duplicate Key Issues
 
-## Overview
+## Problems Identified
 
-Replace the static "Run Sequence" button with a dynamic progress button that shows real-time message delivery status. The button will change color (green for progress, red for errors) and display a progress counter (e.g., "1/8 sent").
+| Issue | Description | Root Cause |
+|-------|-------------|------------|
+| Cannot edit step time/template | No edit functionality for existing steps | Missing inline edit UI |
+| "Duplicate key violation" error | After delete + add same step | Unique constraint on `(sequence_id, step_order)` + stale step_order calculation |
+| Must delete entire sequence | Workaround for above issues | Poor error recovery |
+| Steps not reordered after delete | Gaps in step_order values | Missing reorder logic after delete |
 
-## Current Architecture
+## Technical Root Cause
 
-The Workshop Notification page has three places where the "Run Sequence" button appears:
-1. **Today's Workshop Card** - Hero card at the top for today's workshop
-2. **Table Actions** - "Run" button in each workshop row
-3. **Detail Sheet Footer** - "Run the Sequence" button in the side panel
+The database has a **unique constraint** on `(sequence_id, step_order)`:
+```sql
+CREATE UNIQUE INDEX template_sequence_steps_sequence_id_step_order_key 
+ON public.template_sequence_steps USING btree (sequence_id, step_order)
+```
 
-All three need to be enhanced with the new progress tracking behavior.
-
-## Solution
-
-### 1. Create New SequenceProgressButton Component
-
-A new reusable component that:
-- Shows different states: idle, scheduling, running (with progress), completed, error
-- Displays progress counter like "3/8 sent"
-- Uses green color when messages are being sent
-- Uses red color when any message has failed
-- Subscribes to real-time message updates
-
-**File:** `src/components/operations/SequenceProgressButton.tsx`
-
-**States and Appearance:**
-
-| State | Color | Content |
-|-------|-------|---------|
-| Idle (no messages) | Primary (purple) | "Run Sequence" |
-| Scheduling | Primary (purple) | Spinner + "Scheduling..." |
-| Running (progress) | Green (success) | "3/8 sent" with mini progress bar |
-| Completed | Green (success) | Checkmark + "8/8 sent" |
-| Has Errors | Red (destructive) | "5/8 sent · 2 failed" |
-
-### 2. Track Messages Per Workshop
-
-Need to fetch and subscribe to messages for each workshop that has scheduled messages. 
-
-**Logic:**
+When adding a step, the code calculates:
 ```typescript
-const stats = {
-  total: messages.length,
-  sent: messages.filter(m => m.status === 'sent').length,
-  failed: messages.filter(m => m.status === 'failed').length,
-  pending: messages.filter(m => m.status === 'pending').length,
-  sending: messages.filter(m => m.status === 'sending').length,
+step_order: (sequence.steps?.length || 0) + 1
+```
+
+This can collide with existing step_order values if:
+1. The local state is stale
+2. Steps were deleted but DB still has gaps
+
+## Solution Overview
+
+1. **Add inline editing for existing steps** - Allow changing time, template, and label directly in the table row
+2. **Fix step_order calculation** - Use `MAX(step_order) + 1` instead of array length
+3. **Reorder steps after delete** - Recalculate step_order values after deletion
+4. **Await delete completion** - Wait for delete mutation before allowing new inserts
+5. **Better error messages** - Show helpful guidance instead of raw DB errors
+
+---
+
+## Implementation Plan
+
+### Step 1: Update the Hook (useTemplateSequences.ts)
+
+**A. Fix step_order calculation**
+
+Add a helper function to get the next step_order:
+```typescript
+const getNextStepOrder = (steps: TemplateSequenceStep[]): number => {
+  if (!steps || steps.length === 0) return 1;
+  return Math.max(...steps.map(s => s.step_order)) + 1;
 };
-
-const hasActiveSequence = stats.total > 0 && (stats.pending > 0 || stats.sending > 0);
-const hasFailures = stats.failed > 0;
-const isComplete = stats.total > 0 && stats.pending === 0 && stats.sending === 0;
 ```
 
-### 3. Update Affected Components
+**B. Add step reordering after delete**
 
-**A. WhatsAppGroupTab.tsx (Table Actions)**
-
-Replace the current "Run" button with `SequenceProgressButton`:
-- Pass workshop ID to the button
-- The button will internally subscribe to message updates
-- Show progress for workshops with active sequences
-
-**B. TodaysWorkshopCard.tsx (Hero Card)**
-
-Replace the current "Run Sequence" button with `SequenceProgressButton`:
-- Same behavior as table
-- Larger visual prominence for the hero section
-
-**C. MessagingActions.tsx (Detail Sheet)**
-
-The button in the detail sheet should also show progress:
-- Since the sheet already subscribes to messages, pass the messages as props
-- The button shows real-time progress
-
-### 4. Visual Design
-
-**Idle State (Purple/Primary):**
-```
-+---------------------------+
-|  ▶  Run Sequence          |
-+---------------------------+
+After deleting a step, renumber remaining steps to prevent gaps:
+```typescript
+// In deleteStepMutation.onSuccess:
+// Recalculate step_order for remaining steps
 ```
 
-**Scheduling State (Purple, Loading):**
-```
-+---------------------------+
-|  ⟳  Scheduling...         |
-+---------------------------+
-```
+**C. Update step mutation for inline editing**
 
-**Running State (Green with Progress):**
-```
-+---------------------------+
-|  ███░░░░░  3/8 sent       |
-+---------------------------+
-```
+Ensure `updateStep` properly handles time and template changes.
 
-**Completed State (Green with Checkmark):**
-```
-+---------------------------+
-|  ✓  8/8 sent              |
-+---------------------------+
-```
+---
 
-**Error State (Red):**
-```
-+---------------------------+
-|  ⚠  5/8 sent · 2 failed   |
-+---------------------------+
+### Step 2: Update SequenceEditorDialog Component
+
+**A. Add inline edit mode for each step**
+
+Replace static display with editable fields:
+
+| Before | After |
+|--------|-------|
+| Static time text | Time input (editable on click) |
+| Static template name | Template dropdown (editable on click) |
+| Delete button only | Edit + Delete buttons |
+
+**B. Use proper step_order when adding**
+
+Pass the calculated step_order from parent that uses `getNextStepOrder()`.
+
+**C. Await delete before allowing add**
+
+```typescript
+const handleDeleteStep = async (stepId: string) => {
+  await deleteStep(stepId); // Wait for completion
+  // Then refresh data before allowing new adds
+};
 ```
 
 ---
 
-## Implementation Steps
+### Step 3: UI Changes to SequenceEditorDialog
 
-| Step | File | Change |
-|------|------|--------|
-| 1 | `src/components/operations/SequenceProgressButton.tsx` | Create new component with all states |
-| 2 | `src/components/operations/index.ts` | Export the new component |
-| 3 | `src/components/operations/notification-channels/WhatsAppGroupTab.tsx` | Replace "Run" button with `SequenceProgressButton` |
-| 4 | `src/components/operations/TodaysWorkshopCard.tsx` | Replace "Run Sequence" button with `SequenceProgressButton` |
-| 5 | `src/components/operations/MessagingActions.tsx` | Add progress display to "Run the Sequence" button |
+**Current table row (read-only):**
+```
+| 11:00 | Morning Reminder | Morning | [Delete] |
+```
+
+**New table row (inline editable):**
+```
+| [Time Input] | [Template Dropdown] | [Label Input] | [Save] [Delete] |
+```
+
+**Detailed changes:**
+
+1. Each row becomes an inline form with:
+   - Time picker (type="time")
+   - Template select dropdown
+   - Label text input
+   - Save button (appears when changed)
+   - Delete button
+
+2. Track which row is being edited via state
+3. Show "Saving..." indicator during update
+
+---
+
+### Step 4: Improve Error Handling
+
+Replace cryptic "duplicate key value violation" with:
+```typescript
+if (error.message.includes('duplicate key')) {
+  toast.error('This slot is already taken. Please wait and try again.');
+} else {
+  toast.error('Failed to add step', { description: error.message });
+}
+```
+
+---
+
+## Files to Change
+
+| File | Changes |
+|------|---------|
+| `src/hooks/useTemplateSequences.ts` | Add `getNextStepOrder`, fix delete to reorder, improve error messages |
+| `src/pages/settings/WorkshopNotificationSettings.tsx` | Add inline editing UI, proper async handling, better UX |
 
 ---
 
 ## Technical Details
 
-### SequenceProgressButton Props
+### useTemplateSequences.ts Changes
 
 ```typescript
-interface SequenceProgressButtonProps {
-  workshopId: string;
-  workshop: WorkshopWithDetails;
-  groupIds: string[];
-  isSetupComplete: boolean;
-  onRun: () => void;
-  isScheduling?: boolean;
-  // Optional: pass messages if parent already subscribes
-  messages?: ScheduledMessage[];
-  subscribeToMessages?: (workshopId: string) => () => void;
-  variant?: 'default' | 'compact';
-}
+// Add reorder function
+const reorderStepsAfterDelete = async (sequenceId: string, deletedOrder: number) => {
+  // Get all steps with order > deletedOrder and decrement their order
+  const { data: stepsToUpdate } = await supabase
+    .from('template_sequence_steps')
+    .select('id, step_order')
+    .eq('sequence_id', sequenceId)
+    .gt('step_order', deletedOrder)
+    .order('step_order', { ascending: true });
+  
+  if (stepsToUpdate && stepsToUpdate.length > 0) {
+    for (const step of stepsToUpdate) {
+      await supabase
+        .from('template_sequence_steps')
+        .update({ step_order: step.step_order - 1 })
+        .eq('id', step.id);
+    }
+  }
+};
 ```
 
-### Real-time Updates
+### SequenceEditorDialog UI Changes
 
-The component will use:
+Add state for editing:
 ```typescript
-useEffect(() => {
-  if (!workshopId || !subscribeToMessages) return;
-  return subscribeToMessages(workshopId);
-}, [workshopId, subscribeToMessages]);
+const [editingStepId, setEditingStepId] = useState<string | null>(null);
+const [editingValues, setEditingValues] = useState<{
+  send_time: string;
+  template_id: string;
+  time_label: string;
+}>({ send_time: '', template_id: '', time_label: '' });
 ```
 
-### Button Variant Classes
-
-```typescript
-const buttonClasses = cn(
-  'w-full gap-2',
-  hasActiveSequence && !hasFailures && 'bg-emerald-500 hover:bg-emerald-600',
-  hasFailures && 'bg-destructive hover:bg-destructive/90',
-);
+Table row becomes:
+```tsx
+{editingStepId === step.id ? (
+  // Editable row
+  <>
+    <TableCell>
+      <Input type="time" value={editingValues.send_time} onChange={...} />
+    </TableCell>
+    <TableCell>
+      <Select value={editingValues.template_id} onValueChange={...}>...</Select>
+    </TableCell>
+    <TableCell>
+      <Input value={editingValues.time_label} onChange={...} />
+    </TableCell>
+    <TableCell>
+      <Button onClick={handleSaveEdit}>Save</Button>
+      <Button onClick={() => setEditingStepId(null)}>Cancel</Button>
+    </TableCell>
+  </>
+) : (
+  // Read-only row with edit button
+  <>
+    <TableCell>{step.send_time?.slice(0, 5)}</TableCell>
+    <TableCell>{step.template?.name}</TableCell>
+    <TableCell>{step.time_label || '—'}</TableCell>
+    <TableCell>
+      <Button onClick={() => startEditing(step)}><Edit2 /></Button>
+      <Button onClick={() => handleDelete(step)}><Trash2 /></Button>
+    </TableCell>
+  </>
+)}
 ```
 
 ---
 
-## User Experience Flow
+## Expected Outcome
 
-1. User clicks "Run Sequence" on any workshop
-2. Button shows "Scheduling..." with spinner
-3. Once scheduled, button turns **green** and shows "0/8 sent"
-4. As messages are sent, counter updates: "1/8", "2/8", etc.
-5. If a message fails, button turns **red** showing "3/8 sent · 1 failed"
-6. When complete, button shows checkmark + "8/8 sent"
-7. User can click the button again to view details (opens sheet)
+After implementation:
+1. Users can click on any step to edit time, template, or label inline
+2. No more "duplicate key" errors when adding steps after deletion
+3. Step order is automatically maintained without gaps
+4. Clear feedback when saving changes
+5. Proper async handling prevents race conditions
 
