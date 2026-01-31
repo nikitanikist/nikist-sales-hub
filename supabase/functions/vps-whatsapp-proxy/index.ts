@@ -566,7 +566,9 @@ Deno.serve(async (req) => {
             session_id: localSessionIdForDb,
             group_jid: g.id || g.jid || g.groupId,
             group_name: g.name || g.subject || 'Unknown Group',
-            participant_count: g.participants?.length || g.size || 0,
+            participant_count: Array.isArray(g.participants) 
+              ? g.participants.length 
+              : (g.participants || g.participantsCount || g.size || 0),
             is_active: true,
             is_admin: isAdmin,
             synced_at: new Date().toISOString(),
