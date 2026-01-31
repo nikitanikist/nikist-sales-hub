@@ -52,6 +52,39 @@ export interface UpdateStepInput extends Partial<Omit<CreateStepInput, 'sequence
   id: string;
 }
 
+// Helper to get next step_order based on MAX existing order
+export function getNextStepOrder(steps: TemplateSequenceStep[] | undefined): number {
+  if (!steps || steps.length === 0) return 1;
+  return Math.max(...steps.map(s => s.step_order)) + 1;
+}
+
+// Helper to reorder steps after deletion
+async function reorderStepsAfterDelete(sequenceId: string, deletedOrder: number) {
+  const { data: stepsToUpdate } = await supabase
+    .from('template_sequence_steps')
+    .select('id, step_order')
+    .eq('sequence_id', sequenceId)
+    .gt('step_order', deletedOrder)
+    .order('step_order', { ascending: true });
+
+  if (stepsToUpdate && stepsToUpdate.length > 0) {
+    for (const step of stepsToUpdate) {
+      await supabase
+        .from('template_sequence_steps')
+        .update({ step_order: step.step_order - 1 })
+        .eq('id', step.id);
+    }
+  }
+}
+
+// Format duplicate key error into user-friendly message
+function formatStepError(error: Error): string {
+  if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
+    return 'This time slot conflicts with an existing step. Please wait a moment and try again.';
+  }
+  return error.message;
+}
+
 export function useTemplateSequences() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
@@ -210,7 +243,7 @@ export function useTemplateSequences() {
       queryClient.invalidateQueries({ queryKey: ['template-sequence'] });
     },
     onError: (error: Error) => {
-      toast.error('Failed to add step', { description: error.message });
+      toast.error('Failed to add step', { description: formatStepError(error) });
     },
   });
 
@@ -232,25 +265,30 @@ export function useTemplateSequences() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['template-sequences'] });
       queryClient.invalidateQueries({ queryKey: ['template-sequence'] });
+      toast.success('Step updated');
     },
     onError: (error: Error) => {
-      toast.error('Failed to update step', { description: error.message });
+      toast.error('Failed to update step', { description: formatStepError(error) });
     },
   });
 
-  // Delete step
+  // Delete step with reordering
   const deleteStepMutation = useMutation({
-    mutationFn: async (stepId: string) => {
+    mutationFn: async ({ stepId, sequenceId, stepOrder }: { stepId: string; sequenceId: string; stepOrder: number }) => {
       const { error } = await supabase
         .from('template_sequence_steps')
         .delete()
         .eq('id', stepId);
 
       if (error) throw error;
+
+      // Reorder remaining steps to close the gap
+      await reorderStepsAfterDelete(sequenceId, stepOrder);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['template-sequences'] });
       queryClient.invalidateQueries({ queryKey: ['template-sequence'] });
+      toast.success('Step removed');
     },
     onError: (error: Error) => {
       toast.error('Failed to remove step', { description: error.message });
@@ -262,6 +300,7 @@ export function useTemplateSequences() {
     sequencesLoading,
     error,
     useSequence,
+    getNextStepOrder,
     // Sequence CRUD
     createSequence: createSequenceMutation.mutateAsync,
     isCreatingSequence: createSequenceMutation.isPending,
@@ -273,8 +312,9 @@ export function useTemplateSequences() {
     createStep: createStepMutation.mutateAsync,
     isCreatingStep: createStepMutation.isPending,
     updateStep: updateStepMutation.mutate,
+    updateStepAsync: updateStepMutation.mutateAsync,
     isUpdatingStep: updateStepMutation.isPending,
-    deleteStep: deleteStepMutation.mutate,
+    deleteStepAsync: deleteStepMutation.mutateAsync,
     isDeletingStep: deleteStepMutation.isPending,
   };
 }
