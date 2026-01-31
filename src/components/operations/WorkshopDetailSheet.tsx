@@ -223,16 +223,16 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-lg flex flex-col p-0">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b">
-          <SheetTitle className="text-left pr-8 line-clamp-2">{workshop.title}</SheetTitle>
-          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+      <SheetContent className="w-full sm:max-w-lg flex flex-col p-0">
+        <SheetHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b">
+          <SheetTitle className="text-left pr-8 line-clamp-2 text-base sm:text-lg">{workshop.title}</SheetTitle>
+          <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5" />
             {formatInOrgTime(workshop.start_date, orgTimezone, 'EEEE, MMM d · h:mm a')}
           </p>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-3 py-2">
+        <div className="flex-1 overflow-y-auto px-2 sm:px-3 py-2">
           {/* Overview Section */}
           <CollapsibleSection
             id="overview"
@@ -243,7 +243,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
             isExpanded={expandedSections.has('overview')}
             onToggle={toggleSection('overview')}
           >
-            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
               <div>
                 <p className="text-xs text-muted-foreground">Workshop Date</p>
                 <p className="text-sm font-medium">
@@ -439,7 +439,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
         </div>
 
         {/* Sticky Footer with Messaging Actions */}
-        <SheetFooter className="border-t bg-background px-6 py-4 mt-auto">
+        <SheetFooter className="border-t bg-background px-4 sm:px-6 py-3 sm:py-4 mt-auto">
           <div className="w-full">
             <MessagingActions
               onRunSequence={handleRunSequence}

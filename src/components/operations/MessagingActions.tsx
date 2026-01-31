@@ -85,7 +85,7 @@ export function MessagingActions({
     // Currently scheduling
     if (isRunningSequence) {
       return (
-        <Button disabled className="w-full gap-2" size="lg">
+        <Button disabled className="w-full gap-2" size="default">
           <Loader2 className="h-4 w-4 animate-spin" />
           Scheduling...
         </Button>
@@ -100,7 +100,7 @@ export function MessagingActions({
           className={cn(
             'w-full gap-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground'
           )}
-          size="lg"
+          size="default"
         >
           <AlertCircle className="h-4 w-4" />
           {stats.sent}/{totalActiveMessages} sent · {stats.failed} failed
@@ -119,7 +119,7 @@ export function MessagingActions({
               ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground' 
               : 'bg-emerald-500 hover:bg-emerald-600 text-white'
           )}
-          size="lg"
+          size="default"
         >
           {/* Background progress bar */}
           <div 
@@ -148,7 +148,7 @@ export function MessagingActions({
         <Button
           onClick={onRunSequence}
           className="w-full gap-2 bg-emerald-500 hover:bg-emerald-600 text-white"
-          size="lg"
+          size="default"
         >
           <CheckCircle2 className="h-4 w-4" />
           {stats.sent}/{totalActiveMessages} sent
@@ -162,10 +162,12 @@ export function MessagingActions({
         onClick={onRunSequence}
         disabled={!canRunSequence}
         className="w-full gap-2"
-        size="lg"
+        size="default"
       >
         <CalendarClock className="h-4 w-4" />
-        Run the Sequence {groupCount > 1 ? `(${groupCount} groups)` : ''}
+        <span className="truncate">
+          Run Sequence {groupCount > 1 ? `(${groupCount} groups)` : ''}
+        </span>
       </Button>
     );
   };
@@ -185,27 +187,27 @@ export function MessagingActions({
   };
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-medium">Messaging Actions</h3>
+    <div className="space-y-3 sm:space-y-4">
+      <h3 className="text-sm font-medium hidden sm:block">Messaging Actions</h3>
       
       {/* Run Sequence */}
-      <div className="space-y-2">
+      <div className="space-y-1.5 sm:space-y-2">
         {renderSequenceButton()}
-        <p className="text-xs text-muted-foreground text-center">
+        <p className="text-[11px] sm:text-xs text-muted-foreground text-center line-clamp-1">
           {getSequenceHelperText()}
         </p>
       </div>
 
-      <Separator />
+      <Separator className="hidden sm:block" />
 
       {/* Send Now */}
-      <div className="space-y-2">
+      <div className="space-y-1.5 sm:space-y-2">
         <Button
           onClick={onSendNow}
           disabled={!canSendNow}
           variant="outline"
           className="w-full gap-2"
-          size="lg"
+          size="default"
         >
           {isSendingNow ? (
             <>
@@ -219,7 +221,7 @@ export function MessagingActions({
             </>
           )}
         </Button>
-        <p className="text-xs text-muted-foreground text-center">
+        <p className="text-[11px] sm:text-xs text-muted-foreground text-center hidden sm:block">
           {getSendNowDisabledReason() || 'Send a single message immediately'}
         </p>
       </div>

@@ -145,7 +145,7 @@ export function MultiGroupSelect({
             </div>
           </div>
           
-          <ScrollArea className="h-[220px]">
+          <ScrollArea className="h-[180px] sm:h-[220px]">
             <div className="p-2 space-y-1">
               {filteredGroups.length === 0 ? (
                 <div className="text-sm text-muted-foreground py-4 text-center">
