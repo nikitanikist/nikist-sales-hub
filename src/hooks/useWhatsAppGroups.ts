@@ -71,21 +71,29 @@ export function useWhatsAppGroups() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
 
-  // Fetch all groups for the organization
+  // Fetch all groups for the organization (only from connected sessions)
   const { data: groups, isLoading: groupsLoading } = useQuery({
     queryKey: ['whatsapp-groups', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
       
+      // Join with whatsapp_sessions to only get groups from connected sessions
+      // This is defense-in-depth to prevent showing stale groups
       const { data, error } = await supabase
         .from('whatsapp_groups')
-        .select('*')
+        .select(`
+          *,
+          session:whatsapp_sessions!inner(status)
+        `)
         .eq('organization_id', currentOrganization.id)
         .eq('is_active', true)
+        .eq('session.status', 'connected')
         .order('group_name', { ascending: true });
 
       if (error) throw error;
-      return data as WhatsAppGroup[];
+      
+      // Map back to WhatsAppGroup type (strip session relation)
+      return (data || []).map(({ session, ...group }) => group) as WhatsAppGroup[];
     },
     enabled: !!currentOrganization,
   });

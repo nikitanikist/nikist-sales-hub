@@ -454,6 +454,18 @@ Deno.serve(async (req) => {
         console.log(`Session ${localSessionIdForDb} marked as disconnected`);
       }
 
+      // Also deactivate all groups belonging to this session
+      const { error: groupDeactivateError } = await supabase
+        .from('whatsapp_groups')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('session_id', localSessionIdForDb);
+
+      if (groupDeactivateError) {
+        console.error('Failed to deactivate groups after disconnect:', groupDeactivateError);
+      } else {
+        console.log(`Groups for session ${localSessionIdForDb} marked as inactive`);
+      }
+
       // Return success to frontend
       return new Response(
         JSON.stringify({ 
@@ -480,6 +492,29 @@ Deno.serve(async (req) => {
       const vpsSessionId = (sessionData?.session_data as any)?.vps_session_id;
       
       if (Array.isArray(vpsGroups) && vpsGroups.length > 0) {
+        // First, deactivate groups from OTHER disconnected sessions in this org
+        // This ensures we don't show stale groups from old/disconnected sessions
+        const { data: disconnectedSessions } = await supabase
+          .from('whatsapp_sessions')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('status', 'disconnected');
+
+        if (disconnectedSessions && disconnectedSessions.length > 0) {
+          const disconnectedSessionIds = disconnectedSessions.map(s => s.id);
+          const { error: deactivateError } = await supabase
+            .from('whatsapp_groups')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('organization_id', organizationId)
+            .in('session_id', disconnectedSessionIds);
+
+          if (deactivateError) {
+            console.error('Failed to deactivate groups from disconnected sessions:', deactivateError);
+          } else {
+            console.log(`Deactivated groups from ${disconnectedSessionIds.length} disconnected sessions`);
+          }
+        }
+
         // Upsert groups into database
         const groupsToUpsert = vpsGroups.map((g: any) => {
           // Check if the connected session user is admin
