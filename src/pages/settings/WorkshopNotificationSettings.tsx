@@ -151,8 +151,10 @@ function SequenceEditorDialog({
   onSave,
   onAddStep,
   onDeleteStep,
+  onUpdateStep,
   isSaving,
   isAddingStep,
+  isUpdatingStep,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -160,9 +162,11 @@ function SequenceEditorDialog({
   templates: Array<{ id: string; name: string }>;
   onSave: (data: CreateSequenceInput & { id?: string }) => Promise<any>;
   onAddStep: (data: CreateStepInput) => Promise<any>;
-  onDeleteStep: (stepId: string) => void;
+  onDeleteStep: (stepId: string, sequenceId: string, stepOrder: number) => Promise<void>;
+  onUpdateStep: (data: { id: string; send_time?: string; template_id?: string; time_label?: string }) => Promise<any>;
   isSaving: boolean;
   isAddingStep: boolean;
+  isUpdatingStep: boolean;
 }) {
   const [name, setName] = useState(sequence?.name || '');
   const [description, setDescription] = useState(sequence?.description || '');
@@ -170,6 +174,15 @@ function SequenceEditorDialog({
   const [newStepTemplate, setNewStepTemplate] = useState('');
   const [newStepLabel, setNewStepLabel] = useState('');
   const [showSaved, setShowSaved] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Inline editing state
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [editingValues, setEditingValues] = useState<{
+    send_time: string;
+    template_id: string;
+    time_label: string;
+  }>({ send_time: '', template_id: '', time_label: '' });
 
   // Sync state when sequence prop changes
   useEffect(() => {
@@ -185,6 +198,7 @@ function SequenceEditorDialog({
     setNewStepTemplate('');
     setNewStepLabel('');
     setShowSaved(false);
+    setEditingStepId(null);
   }, [sequence]);
 
   const handleSave = async () => {
@@ -198,6 +212,12 @@ function SequenceEditorDialog({
     }
   };
 
+  // Calculate next step order based on MAX
+  const getNextOrder = () => {
+    if (!sequence?.steps || sequence.steps.length === 0) return 1;
+    return Math.max(...sequence.steps.map((s: any) => s.step_order)) + 1;
+  };
+
   const handleAddStep = async () => {
     if (!sequence?.id || !newStepTemplate) {
       toast.error('Please select a template');
@@ -208,7 +228,7 @@ function SequenceEditorDialog({
       template_id: newStepTemplate,
       send_time: newStepTime + ':00',
       time_label: newStepLabel || undefined,
-      step_order: (sequence.steps?.length || 0) + 1,
+      step_order: getNextOrder(),
     });
     setNewStepTime('11:00');
     setNewStepTemplate('');
@@ -218,6 +238,45 @@ function SequenceEditorDialog({
     setTimeout(() => setShowSaved(false), 2000);
   };
 
+  const handleDeleteStep = async (stepId: string, stepOrder: number) => {
+    if (!sequence?.id) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteStep(stepId, sequence.id, stepOrder);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const startEditing = (step: any) => {
+    setEditingStepId(step.id);
+    setEditingValues({
+      send_time: step.send_time?.slice(0, 5) || '',
+      template_id: step.template_id || '',
+      time_label: step.time_label || '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingStepId) return;
+    try {
+      await onUpdateStep({
+        id: editingStepId,
+        send_time: editingValues.send_time + ':00',
+        template_id: editingValues.template_id,
+        time_label: editingValues.time_label || undefined,
+      });
+      setEditingStepId(null);
+    } catch (error) {
+      // Error handled by mutation
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditingStepId(null);
+    setEditingValues({ send_time: '', template_id: '', time_label: '' });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -225,7 +284,7 @@ function SequenceEditorDialog({
           <DialogTitle>{sequence ? 'Edit Sequence' : 'Create Sequence'}</DialogTitle>
           <DialogDescription>
             {sequence 
-              ? 'Changes are saved automatically when you add or remove steps.'
+              ? 'Click on a step to edit it. Changes are saved when you click Save.'
               : 'Define when each message template should be sent.'}
           </DialogDescription>
         </DialogHeader>
@@ -257,31 +316,103 @@ function SequenceEditorDialog({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-24">Time</TableHead>
+                      <TableHead className="w-28">Time</TableHead>
                       <TableHead>Template</TableHead>
-                      <TableHead>Label</TableHead>
-                      <TableHead className="w-16"></TableHead>
+                      <TableHead className="w-32">Label</TableHead>
+                      <TableHead className="w-24"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(sequence.steps || []).map((step: any) => (
                       <TableRow key={step.id}>
-                        <TableCell className="font-mono">
-                          {step.send_time?.slice(0, 5)}
-                        </TableCell>
-                        <TableCell>{step.template?.name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {step.time_label || '—'}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onDeleteStep(step.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+                        {editingStepId === step.id ? (
+                          <>
+                            <TableCell>
+                              <Input
+                                type="time"
+                                value={editingValues.send_time}
+                                onChange={(e) => setEditingValues(prev => ({ ...prev, send_time: e.target.value }))}
+                                className="w-24 h-8"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Select value={editingValues.template_id} onValueChange={(v) => setEditingValues(prev => ({ ...prev, template_id: v }))}>
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {templates.map((t) => (
+                                    <SelectItem key={t.id} value={t.id}>
+                                      {t.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={editingValues.time_label}
+                                onChange={(e) => setEditingValues(prev => ({ ...prev, time_label: e.target.value }))}
+                                placeholder="Label"
+                                className="h-8"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={handleSaveEdit}
+                                  disabled={isUpdatingStep}
+                                >
+                                  {isUpdatingStep ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-success" />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={cancelEditing}
+                                  disabled={isUpdatingStep}
+                                >
+                                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell className="font-mono">
+                              {step.send_time?.slice(0, 5)}
+                            </TableCell>
+                            <TableCell>{step.template?.name || '—'}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {step.time_label || '—'}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => startEditing(step)}
+                                  disabled={isDeleting}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleDeleteStep(step.id, step.step_order)}
+                                  disabled={isDeleting}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </>
+                        )}
                       </TableRow>
                     ))}
                     {(sequence.steps || []).length === 0 && (
@@ -328,7 +459,7 @@ function SequenceEditorDialog({
                     placeholder="e.g., Morning"
                   />
                 </div>
-                <Button onClick={handleAddStep} size="icon" disabled={isAddingStep}>
+                <Button onClick={handleAddStep} size="icon" disabled={isAddingStep || isDeleting}>
                   {isAddingStep ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
               </div>
@@ -504,7 +635,7 @@ export function WorkshopNotificationSettings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { templates, templatesLoading, deleteTemplate } = useMessageTemplates();
-  const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStep, isCreatingSequence, isCreatingStep } = useTemplateSequences();
+  const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStepAsync, updateStepAsync, isCreatingSequence, isCreatingStep, isUpdatingStep } = useTemplateSequences();
   const { tags, tagsLoading, createTag, updateTag, deleteTag, isCreating: isCreatingTag, isUpdating: isUpdatingTag } = useWorkshopTags();
 
   // Get initial tab from URL params
@@ -797,15 +928,43 @@ export function WorkshopNotificationSettings() {
               });
             }
           }}
-          onDeleteStep={async (stepId) => {
-            deleteStep(stepId);
-            setEditingSequence({
-              ...editingSequence,
-              steps: (editingSequence.steps || []).filter((s: any) => s.id !== stepId)
-            });
+          onDeleteStep={async (stepId, sequenceId, stepOrder) => {
+            await deleteStepAsync({ stepId, sequenceId, stepOrder });
+            // Refresh sequence data after delete
+            const { data: updated } = await import('@/integrations/supabase/client').then(m => 
+              m.supabase
+                .from('template_sequences')
+                .select(`*, steps:template_sequence_steps(*, template:whatsapp_message_templates(id, name))`)
+                .eq('id', editingSequence.id)
+                .single()
+            );
+            if (updated) {
+              setEditingSequence({
+                ...updated,
+                steps: (updated.steps || []).sort((a: any, b: any) => a.step_order - b.step_order)
+              });
+            }
+          }}
+          onUpdateStep={async (data) => {
+            await updateStepAsync(data);
+            // Refresh sequence data after update
+            const { data: updated } = await import('@/integrations/supabase/client').then(m => 
+              m.supabase
+                .from('template_sequences')
+                .select(`*, steps:template_sequence_steps(*, template:whatsapp_message_templates(id, name))`)
+                .eq('id', editingSequence.id)
+                .single()
+            );
+            if (updated) {
+              setEditingSequence({
+                ...updated,
+                steps: (updated.steps || []).sort((a: any, b: any) => a.step_order - b.step_order)
+              });
+            }
           }}
           isSaving={isCreatingSequence}
           isAddingStep={isCreatingStep}
+          isUpdatingStep={isUpdatingStep}
         />
 
         <TagEditorDialog
