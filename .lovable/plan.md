@@ -1,82 +1,62 @@
 
 
-# Fix: Show Group IDs to Distinguish Same-Name Groups
+# Fix: Sync Groups Should Replace, Not Append
 
-## Problem Identified
-After investigating the database, the "duplicates" you're seeing are actually **different WhatsApp groups with identical names**. Each group has a unique ID (JID) from WhatsApp - for example:
-- "10th August <> Ethical Hacking & Bug Hunting Masterclass" - JID ending in `...144910`
-- "10th August <> Ethical Hacking & Bug Hunting Masterclass" - JID ending in `...421925`
-
-These are real, separate groups on WhatsApp that happen to share the same name.
+## Problem
+The VPS now returns 68 groups (down from 135), but the portal still shows 135 because:
+- Current logic uses **upsert** which only adds/updates groups
+- Groups that no longer exist on WhatsApp are **never removed** from the database
+- Result: stale "ghost" groups accumulate over time
 
 ## Solution
-Based on your preference, I'll always display a short group identifier under every group name so you can tell them apart.
-
-## Visual Result
-
-**Before (confusing):**
-```
-○ 10th August <> Ethical Hacking & Bug Hunting Masterclass
-   👥 0 members
-
-○ 10th August <> Ethical Hacking & Bug Hunting Masterclass
-   👥 0 members
-```
-
-**After (clear):**
-```
-○ 10th August <> Ethical Hacking & Bug Hunting Masterclass
-   👥 0 members · #144910
-
-○ 10th August <> Ethical Hacking & Bug Hunting Masterclass
-   👥 0 members · #421925
-```
+Before upserting new groups, **delete all existing groups for this session** first. This ensures the database exactly mirrors what VPS returns.
 
 ## Changes Required
 
-### 1. Update MultiGroupSelect Component
-**File:** `src/components/operations/MultiGroupSelect.tsx`
+### File: `supabase/functions/vps-whatsapp-proxy/index.ts`
 
-- Extract last 6 digits from `group_jid` as a short identifier
-- Display the ID after the member count: `👥 0 members · #144910`
-- Use a muted color for the ID to keep focus on the group name
+**Location:** Inside the `sync-groups` handler (around line 494)
 
-### 2. Update Linked Groups Summary (Optional Enhancement)
-**File:** `src/components/operations/WorkshopDetailSheet.tsx`
+**Before the upsert loop, add:**
+```typescript
+// Delete all existing groups for this session before fresh insert
+// This ensures we don't have stale groups that no longer exist on WhatsApp
+await supabase
+  .from('whatsapp_groups')
+  .delete()
+  .eq('session_id', localSessionIdForDb);
+```
 
-- In the "Groups Linked" summary section, also show the short ID when listing selected groups
-- This helps confirm you've selected the right group when names are identical
+**Why this works:**
+1. Deletes all groups for the current session (clean slate)
+2. Then inserts fresh groups from VPS (exactly 68)
+3. Database now matches VPS exactly
+
+**Alternative (update-based):**
+```typescript
+// Mark all groups for this session as inactive first
+await supabase
+  .from('whatsapp_groups')
+  .update({ is_active: false })
+  .eq('session_id', localSessionIdForDb);
+
+// Then upsert sets is_active: true only for groups that exist
+```
+
+I'll use the delete approach as it's cleaner and avoids accumulating inactive records.
 
 ---
 
-## Technical Details
+## Implementation
 
-### Short ID Extraction
-```typescript
-// Extract last 6 chars from JID (before @g.us)
-// "120363301378144910@g.us" → "144910"
-const shortId = group.group_jid.split('@')[0].slice(-6);
-```
+| Step | Description |
+|------|-------------|
+| 1 | Add delete statement before the upsert loop in sync-groups handler |
+| 2 | Deploy edge function |
+| 3 | Re-sync groups - should show exactly 68 |
 
-### Updated GroupItem Display
-```
-┌────────────────────────────────────────────────────┐
-│ ○ 10th August <> Ethical Hacking...               │
-│   👥 0 members · #144910                           │
-└────────────────────────────────────────────────────┘
-```
-
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `src/components/operations/MultiGroupSelect.tsx` | Add short ID display in GroupItem component |
-| `src/components/operations/WorkshopDetailSheet.tsx` | Add short ID in linked groups summary |
-
-## Implementation Steps
-
-1. Update `GroupItem` component to extract and display short JID
-2. Style the ID in a muted color with a `#` prefix for clarity
-3. Update the linked groups summary to include the short ID
-4. Test that groups with identical names are now distinguishable
+## Expected Result
+- After sync, group count will match VPS exactly (68)
+- No more stale/orphaned groups in database
+- Future syncs will always be accurate
 
