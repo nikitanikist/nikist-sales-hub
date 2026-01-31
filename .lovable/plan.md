@@ -1,91 +1,113 @@
 
 
-# Replace Logo Image with Animated Text Logo
+# Fix Duplicate WhatsApp Groups After Linking New Number
 
-## Overview
-Remove the current PNG logo image and replace it with a stylish text-based logo reading "tagfunnel.ai" that features modern typography and a subtle animation effect.
+## Problem Summary
+After connecting a new WhatsApp number, you see duplicate groups (e.g., the same group appearing 2-3 times) because:
+- Groups from old/disconnected WhatsApp sessions remain active in the database
+- The sync creates new group entries for the new session
+- All groups are fetched regardless of session status
 
-## What Will Change
+## Solution Overview
+When a WhatsApp session is disconnected (or a new one is connected), mark all groups from old/disconnected sessions as inactive. This ensures only groups from the currently connected session are displayed.
 
-### Visual Design
-- **Text**: "tagfunnel.ai" displayed as styled text
-- **Typography**: Bold, modern font with the "tag" part in one style and "funnel.ai" potentially with a gradient or accent
-- **Animation**: Subtle shimmer/glow effect that runs on page load and optionally on hover
-- **Spacing**: Consistent 20px padding above and below, centered horizontally
+## Changes Required
 
-### Design Concept
-```
-┌─────────────────────────┐
-│                         │  <- ~20px padding
-│     tagfunnel.ai        │  <- Gradient text with shimmer animation
-│                         │  <- ~20px padding
-├─────────────────────────┤
-│ Organization Switcher   │
-├─────────────────────────┤
-│ Dashboard               │
-└─────────────────────────┘
-```
+### 1. Deactivate Old Session Groups on Disconnect
+**File:** `supabase/functions/vps-whatsapp-proxy/index.ts`
 
-## Implementation Steps
+When processing a disconnect action, also mark that session's groups as inactive:
+- After updating session status to 'disconnected'
+- Set `is_active = false` for all groups belonging to that session
 
-1. **Remove the logo image import** from AppLayout.tsx
+### 2. Deactivate Old Groups Before Syncing New Session  
+**File:** `supabase/functions/vps-whatsapp-proxy/index.ts`
 
-2. **Create a new TextLogo component** with:
-   - "tag" in white/light color
-   - "funnel" with a gradient effect (violet to purple, matching brand)
-   - ".ai" in a lighter accent color
-   - Animated shimmer effect on load
-   - Optional subtle hover glow
+When syncing groups for a session:
+- First, mark groups from **other** sessions in the same organization as inactive (optional - only if they belong to disconnected sessions)
+- Then upsert the new groups as active
 
-3. **Update the sidebar header** to use the new text component instead of the `<img>` tag
+### 3. Filter by Connected Session in Hook (Defense in Depth)
+**File:** `src/hooks/useWhatsAppGroups.ts`
 
-4. **Add a custom animation** to the CSS for the shimmer/glow effect
+Update the query to only fetch groups from connected sessions:
+- Join with `whatsapp_sessions` table
+- Filter by `session.status = 'connected'` OR by a specific session_id
 
-5. **Handle collapsed sidebar state** - show just a "T" or funnel icon when sidebar is collapsed
+### 4. One-Time Data Cleanup
+Run a database cleanup to fix existing duplicate data:
+- Mark groups from disconnected sessions as `is_active = false`
 
 ---
 
 ## Technical Details
 
-### New CSS Animation (in index.css)
-A shimmer animation that creates a subtle light sweep across the text:
-- Gradient overlay that moves from left to right
-- Runs once on mount with a slight delay
-- Optional: repeats on hover
-
-### TextLogo Component Structure
-```text
-<div className="logo-container">
-  <span className="tag-part">tag</span>
-  <span className="funnel-part gradient-text">funnel</span>
-  <span className="ai-part">.ai</span>
-</div>
+### Database Cleanup Query (One-time Fix)
+```sql
+-- Mark groups from disconnected sessions as inactive
+UPDATE whatsapp_groups 
+SET is_active = false, updated_at = now()
+WHERE session_id IN (
+  SELECT id FROM whatsapp_sessions 
+  WHERE status = 'disconnected'
+);
 ```
 
-### Styling Approach
-- Use the existing `gradient-text` utility class for the gradient effect
-- Font: Inter (already imported), weight 700-800 for boldness
-- Size: Approximately 20-24px to fill the space appropriately
-- Colors: White for "tag", gradient violet-purple for "funnel", muted for ".ai"
+### Edge Function: Disconnect Handler Enhancement
+Add after session status update:
+```typescript
+// Also deactivate groups for this session
+await supabase
+  .from('whatsapp_groups')
+  .update({ is_active: false, updated_at: new Date().toISOString() })
+  .eq('session_id', localSessionIdForDb);
+```
 
-### Files to Modify
+### Edge Function: Sync Groups Enhancement
+Add before upserting new groups:
+```typescript
+// Deactivate groups from disconnected sessions in this org
+await supabase
+  .from('whatsapp_groups')
+  .update({ is_active: false })
+  .eq('organization_id', organizationId)
+  .neq('session_id', localSessionIdForDb)
+  .in('session_id', (
+    // Subquery for disconnected sessions - done via separate query
+    disconnectedSessionIds
+  ));
+```
 
-| File | Changes |
-|------|---------|
-| `src/components/AppLayout.tsx` | Remove image import, add TextLogo component inline or as separate component |
-| `src/index.css` | Add new `@keyframes logo-shimmer` animation |
-| `tailwind.config.ts` | Add the shimmer animation to the config |
+### Hook Query Enhancement
+Update `useWhatsAppGroups.ts`:
+```typescript
+const { data, error } = await supabase
+  .from('whatsapp_groups')
+  .select(`
+    *,
+    session:whatsapp_sessions!inner(status)
+  `)
+  .eq('organization_id', currentOrganization.id)
+  .eq('is_active', true)
+  .eq('session.status', 'connected')  // Only from connected sessions
+  .order('group_name', { ascending: true });
+```
 
-### Animation Options
+---
 
-**Option A: Shimmer Effect**
-A light sweep that moves across the text once on load, creating a premium feel.
+## Implementation Steps
 
-**Option B: Subtle Glow Pulse**
-The gradient portion gently pulses with a soft glow effect.
+| Step | Description |
+|------|-------------|
+| 1 | Run one-time cleanup query to fix existing data |
+| 2 | Update disconnect handler in edge function |
+| 3 | Update sync-groups handler in edge function |
+| 4 | Update `useWhatsAppGroups` hook to join with sessions |
+| 5 | Deploy edge function changes |
+| 6 | Test by syncing groups - should see no duplicates |
 
-**Option C: Letter-by-letter fade in**
-Each letter fades in sequentially for a dynamic entrance.
-
-The plan will implement Option A (shimmer) as it's the most polished and professional-looking while being subtle enough not to distract.
+## Expected Result
+- Only groups from the currently connected WhatsApp number will be displayed
+- Switching to a different number will automatically update the available groups
+- No manual cleanup needed going forward
 
