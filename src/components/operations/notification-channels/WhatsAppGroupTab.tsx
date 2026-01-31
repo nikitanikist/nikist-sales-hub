@@ -16,8 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/skeletons';
-import { WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
-import { WorkshopTagBadge, WorkshopDetailSheet, TodaysWorkshopCard, MessagingProgressBanner } from '@/components/operations';
+import { WorkshopWithDetails, ScheduledMessage } from '@/hooks/useWorkshopNotification';
+import { WorkshopTagBadge, WorkshopDetailSheet, TodaysWorkshopCard, MessagingProgressBanner, SequenceProgressButton } from '@/components/operations';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
@@ -91,7 +91,7 @@ interface WhatsAppGroupTabProps {
   workshopsLoading: boolean;
   orgTimezone: string;
   subscribeToMessages: (workshopId: string) => () => void;
-  useWorkshopMessages: (workshopId: string | null) => { data: any[] | undefined };
+  useWorkshopMessages: (workshopId: string | null) => { data: ScheduledMessage[] | undefined };
   isRunningMessaging: boolean;
   onDeleteWorkshop?: (workshopId: string) => void;
   isDeletingWorkshop?: boolean;
@@ -187,6 +187,8 @@ export function WhatsAppGroupTab({
           orgTimezone={orgTimezone}
           onQuickSetup={handleViewWorkshop}
           onRunSequence={handleRunSequence}
+          subscribeToMessages={subscribeToMessages}
+          useWorkshopMessages={useWorkshopMessages}
         />
       )}
 
@@ -270,40 +272,15 @@ export function WhatsAppGroupTab({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        {setupComplete ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                className="gap-1"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRunSequence(workshop);
-                                }}
-                              >
-                                <Play className="h-3.5 w-3.5" />
-                                Run
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Run message sequence</TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-1"
-                                onClick={() => handleViewWorkshop(workshop)}
-                              >
-                                <Settings2 className="h-3.5 w-3.5" />
-                                Setup
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Complete setup</TooltipContent>
-                          </Tooltip>
-                        )}
+                        <SequenceProgressButton
+                          workshopId={workshop.id}
+                          isSetupComplete={setupComplete}
+                          onRun={() => handleRunSequence(workshop)}
+                          onSetup={() => handleViewWorkshop(workshop)}
+                          subscribeToMessages={subscribeToMessages}
+                          useWorkshopMessages={useWorkshopMessages}
+                          variant="compact"
+                        />
                         <Button
                           variant="ghost"
                           size="sm"
