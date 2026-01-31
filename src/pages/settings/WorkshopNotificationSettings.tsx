@@ -646,15 +646,16 @@ export function WorkshopNotificationSettings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { templates, templatesLoading, deleteTemplate } = useMessageTemplates();
-  const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStepAsync, updateStepAsync, isCreatingSequence, isCreatingStep, isUpdatingStep } = useTemplateSequences();
+  const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStepAsync, updateStepAsync, isCreatingSequence, isCreatingStep, isUpdatingStep, useSequence } = useTemplateSequences();
   const { tags, tagsLoading, createTag, updateTag, deleteTag, isCreating: isCreatingTag, isUpdating: isUpdatingTag } = useWorkshopTags();
 
   // Get initial tab from URL params
   const initialTab = searchParams.get('tab') || 'templates';
 
-  // Sequence dialog state
+  // Sequence dialog state - use ID-based approach for reactive updates
   const [sequenceDialogOpen, setSequenceDialogOpen] = useState(false);
-  const [editingSequence, setEditingSequence] = useState<any>(null);
+  const [editingSequenceId, setEditingSequenceId] = useState<string | null>(null);
+  const { data: editingSequence, isLoading: isLoadingEditingSequence } = useSequence(editingSequenceId);
 
   // Tag dialog state
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -762,7 +763,7 @@ export function WorkshopNotificationSettings() {
               <p className="text-sm text-muted-foreground">
                 Define message schedules with specific times.
               </p>
-              <Button onClick={() => { setEditingSequence(null); setSequenceDialogOpen(true); }}>
+              <Button onClick={() => { setEditingSequenceId(null); setSequenceDialogOpen(true); }}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Sequence
               </Button>
@@ -816,7 +817,7 @@ export function WorkshopNotificationSettings() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => { setEditingSequence(s); setSequenceDialogOpen(true); }}
+                              onClick={() => { setEditingSequenceId(s.id); setSequenceDialogOpen(true); }}
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
@@ -910,68 +911,33 @@ export function WorkshopNotificationSettings() {
 
         <SequenceEditorDialog
           open={sequenceDialogOpen}
-          onOpenChange={setSequenceDialogOpen}
+          onOpenChange={(open) => {
+            setSequenceDialogOpen(open);
+            if (!open) {
+              setEditingSequenceId(null);
+            }
+          }}
           sequence={editingSequence}
           templates={templates}
           onSave={async (data) => {
             if (data.id) {
-              // For existing sequence, just refresh
-              setEditingSequence({ ...editingSequence, name: data.name, description: data.description });
+              // Existing sequence - hook will handle refresh automatically
             } else {
               const newSeq = await createSequence(data);
-              setEditingSequence(newSeq);
+              setEditingSequenceId(newSeq.id);
             }
           }}
           onAddStep={async (data) => {
             await createStep(data);
-            // Refresh sequence data
-            const { data: updated } = await import('@/integrations/supabase/client').then(m => 
-              m.supabase
-                .from('template_sequences')
-                .select(`*, steps:template_sequence_steps(*, template:whatsapp_message_templates(id, name))`)
-                .eq('id', editingSequence.id)
-                .single()
-            );
-            if (updated) {
-              setEditingSequence({
-                ...updated,
-                steps: (updated.steps || []).sort((a: any, b: any) => a.step_order - b.step_order)
-              });
-            }
+            // Hook automatically invalidates and refetches - no manual refresh needed
           }}
           onDeleteStep={async (stepId, sequenceId, stepOrder) => {
             await deleteStepAsync({ stepId, sequenceId, stepOrder });
-            // Refresh sequence data after delete
-            const { data: updated } = await import('@/integrations/supabase/client').then(m => 
-              m.supabase
-                .from('template_sequences')
-                .select(`*, steps:template_sequence_steps(*, template:whatsapp_message_templates(id, name))`)
-                .eq('id', editingSequence.id)
-                .single()
-            );
-            if (updated) {
-              setEditingSequence({
-                ...updated,
-                steps: (updated.steps || []).sort((a: any, b: any) => a.step_order - b.step_order)
-              });
-            }
+            // Hook automatically invalidates and refetches - no manual refresh needed
           }}
           onUpdateStep={async (data) => {
             await updateStepAsync(data);
-            // Refresh sequence data after update
-            const { data: updated } = await import('@/integrations/supabase/client').then(m => 
-              m.supabase
-                .from('template_sequences')
-                .select(`*, steps:template_sequence_steps(*, template:whatsapp_message_templates(id, name))`)
-                .eq('id', editingSequence.id)
-                .single()
-            );
-            if (updated) {
-              setEditingSequence({
-                ...updated,
-                steps: (updated.steps || []).sort((a: any, b: any) => a.step_order - b.step_order)
-              });
-            }
+            // Hook automatically invalidates and refetches - no manual refresh needed
           }}
           isSaving={isCreatingSequence}
           isAddingStep={isCreatingStep}
