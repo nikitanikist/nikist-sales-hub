@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check, X } from 'lucide-react';
 import { useMessageTemplates, TEMPLATE_VARIABLES, CreateTemplateInput } from '@/hooks/useMessageTemplates';
 import { useTemplateSequences, CreateSequenceInput, CreateStepInput } from '@/hooks/useTemplateSequences';
 import { useWorkshopTags, TAG_COLORS, CreateTagInput } from '@/hooks/useWorkshopTags';
@@ -198,8 +198,16 @@ function SequenceEditorDialog({
     setNewStepTemplate('');
     setNewStepLabel('');
     setShowSaved(false);
-    setEditingStepId(null);
+    // Don't reset editingStepId here - let handleSaveEdit control it
   }, [sequence]);
+
+  // Reset edit state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setEditingStepId(null);
+      setEditingValues({ send_time: '', template_id: '', time_label: '' });
+    }
+  }, [open]);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -266,9 +274,12 @@ function SequenceEditorDialog({
         template_id: editingValues.template_id,
         time_label: editingValues.time_label || undefined,
       });
-      setEditingStepId(null);
     } catch (error) {
       // Error handled by mutation
+    } finally {
+      // Always exit edit mode, regardless of success/failure
+      setEditingStepId(null);
+      setEditingValues({ send_time: '', template_id: '', time_label: '' });
     }
   };
 
@@ -375,7 +386,7 @@ function SequenceEditorDialog({
                                   onClick={cancelEditing}
                                   disabled={isUpdatingStep}
                                 >
-                                  <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                  <X className="h-4 w-4 text-muted-foreground" />
                                 </Button>
                               </div>
                             </TableCell>
