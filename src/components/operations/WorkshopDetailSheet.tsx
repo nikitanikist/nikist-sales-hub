@@ -390,12 +390,15 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                   <div className="space-y-1">
                     {selectedGroupIds.slice(0, 3).map(id => {
                       const group = sessionGroups.find(g => g.id === id);
-                      return group ? (
-                        <div key={id} className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Users className="h-3 w-3" />
-                          {group.group_name}
+                      if (!group) return null;
+                      const shortId = group.group_jid.split('@')[0].slice(-6);
+                      return (
+                        <div key={id} className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <Users className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{group.group_name}</span>
+                          <span className="text-muted-foreground/60 font-mono flex-shrink-0">#{shortId}</span>
                         </div>
-                      ) : null;
+                      );
                     })}
                     {selectedGroupIds.length > 3 && (
                       <div className="text-xs text-muted-foreground">

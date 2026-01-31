@@ -185,6 +185,10 @@ interface GroupItemProps {
 }
 
 function GroupItem({ group, isSelected, onToggle, disabled }: GroupItemProps) {
+  // Extract last 6 chars from JID as short identifier
+  // e.g., "120363301378144910@g.us" → "144910"
+  const shortId = group.group_jid.split('@')[0].slice(-6);
+  
   return (
     <div
       className={cn(
@@ -205,9 +209,11 @@ function GroupItem({ group, isSelected, onToggle, disabled }: GroupItemProps) {
         <span className="text-sm font-medium truncate block">
           {group.group_name}
         </span>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Users className="h-3 w-3" />
-          {group.participant_count} members
+          <span>{group.participant_count} members</span>
+          <span className="text-muted-foreground/60">·</span>
+          <span className="font-mono text-muted-foreground/60">#{shortId}</span>
         </div>
       </div>
     </div>
