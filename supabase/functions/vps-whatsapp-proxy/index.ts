@@ -515,7 +515,20 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Upsert groups into database
+        // Delete all existing groups for THIS session before fresh insert
+        // This ensures we don't have stale groups that no longer exist on WhatsApp
+        const { error: deleteError } = await supabase
+          .from('whatsapp_groups')
+          .delete()
+          .eq('session_id', localSessionIdForDb);
+
+        if (deleteError) {
+          console.error('Failed to delete old groups before sync:', deleteError);
+        } else {
+          console.log(`Deleted old groups for session ${localSessionIdForDb} before fresh sync`);
+        }
+
+        // Insert fresh groups from VPS
         const groupsToUpsert = vpsGroups.map((g: any) => {
           // Check if the connected session user is admin
           // Baileys returns participants with admin status (admin, superadmin, or isAdmin flag)
