@@ -17,7 +17,7 @@ export default function WorkshopNotification() {
   } = useWorkshopNotification();
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
       <PageIntro
         icon={Activity}
         tagline="Operations"
@@ -25,26 +25,23 @@ export default function WorkshopNotification() {
         variant="violet"
       />
 
-      <Tabs defaultValue="whatsapp-group" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid h-auto">
-          <TabsTrigger value="whatsapp-group" className="gap-2 py-2.5">
+      <Tabs defaultValue="whatsapp-group" className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid h-auto gap-0.5 sm:gap-1">
+          <TabsTrigger value="whatsapp-group" className="gap-1 sm:gap-2 py-2 sm:py-2.5 px-1.5 sm:px-3 flex-col sm:flex-row">
             <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">WhatsApp Group</span>
-            <span className="sm:hidden">Groups</span>
+            <span className="text-[10px] sm:text-sm">Groups</span>
           </TabsTrigger>
-          <TabsTrigger value="whatsapp-personal" className="gap-2 py-2.5">
+          <TabsTrigger value="whatsapp-personal" className="gap-1 sm:gap-2 py-2 sm:py-2.5 px-1.5 sm:px-3 flex-col sm:flex-row">
             <MessageCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">WhatsApp Personal</span>
-            <span className="sm:hidden">Personal</span>
+            <span className="text-[10px] sm:text-sm">Personal</span>
           </TabsTrigger>
-          <TabsTrigger value="sms" className="gap-2 py-2.5">
+          <TabsTrigger value="sms" className="gap-1 sm:gap-2 py-2 sm:py-2.5 px-1.5 sm:px-3 flex-col sm:flex-row">
             <Smartphone className="h-4 w-4" />
-            <span>SMS</span>
+            <span className="text-[10px] sm:text-sm">SMS</span>
           </TabsTrigger>
-          <TabsTrigger value="ivr" className="gap-2 py-2.5">
+          <TabsTrigger value="ivr" className="gap-1 sm:gap-2 py-2 sm:py-2.5 px-1.5 sm:px-3 flex-col sm:flex-row">
             <Phone className="h-4 w-4" />
-            <span className="hidden sm:inline">IVR Call</span>
-            <span className="sm:hidden">IVR</span>
+            <span className="text-[10px] sm:text-sm">IVR</span>
           </TabsTrigger>
         </TabsList>
 
