@@ -84,8 +84,12 @@ const parseDateFromWorkshopName = (workshopName: string): Date | null => {
   const now = new Date();
   let year = now.getFullYear();
   
-  // Create date in IST timezone
-  const tentativeDate = new Date(year, month, day, 12, 0, 0); // Noon IST
+  // Default workshop time: 7:00 PM IST = 13:30 UTC
+  // IST is UTC+5:30, so 19:00 IST = 19:00 - 5:30 = 13:30 UTC
+  const defaultWorkshopTimeUtcHour = 13;
+  const defaultWorkshopTimeUtcMinute = 30;
+  
+  const tentativeDate = new Date(Date.UTC(year, month, day, defaultWorkshopTimeUtcHour, defaultWorkshopTimeUtcMinute, 0));
   
   // If the date is more than 2 months in the past, assume next year
   const twoMonthsAgo = new Date(now);
@@ -95,7 +99,7 @@ const parseDateFromWorkshopName = (workshopName: string): Date | null => {
     year++;
   }
   
-  return new Date(year, month, day, 12, 0, 0);
+  return new Date(Date.UTC(year, month, day, defaultWorkshopTimeUtcHour, defaultWorkshopTimeUtcMinute, 0));
 };
 
 Deno.serve(async (req) => {
