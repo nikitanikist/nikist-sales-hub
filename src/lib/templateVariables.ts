@@ -77,3 +77,43 @@ export function replaceVariables(
   }
   return result;
 }
+
+/**
+ * Extract all variables from SMS sequence steps (which use {key, label} format)
+ */
+export function extractSMSSequenceVariables(
+  steps: Array<{ template?: { variables: Array<{ key: string; label: string }> | null } | null }>
+): {
+  autoFilled: Array<{ key: string; label: string }>;
+  manual: Array<{ key: string; label: string }>;
+} {
+  const allVarsMap = new Map<string, { key: string; label: string }>();
+  
+  steps.forEach(step => {
+    const vars = step.template?.variables;
+    if (vars && Array.isArray(vars)) {
+      vars.forEach(v => {
+        if (v.key && !allVarsMap.has(v.key)) {
+          allVarsMap.set(v.key, v);
+        }
+      });
+    }
+  });
+
+  const allVars = Array.from(allVarsMap.values());
+  
+  // Auto-filled: common variables like name (per-registrant), workshop_name, date, time
+  const autoFilledKeys = ['name', 'workshop_name', 'date', 'time'];
+  const autoFilled = allVars.filter(v => 
+    autoFilledKeys.includes(v.key) || 
+    v.label?.toLowerCase().includes('name') ||
+    v.label?.toLowerCase().includes('date') ||
+    v.label?.toLowerCase().includes('time')
+  );
+  
+  // Manual: everything else (zoom links, whatsapp group links, etc.)
+  const autoFilledKeySet = new Set(autoFilled.map(v => v.key));
+  const manual = allVars.filter(v => !autoFilledKeySet.has(v.key));
+  
+  return { autoFilled, manual };
+}

@@ -10,22 +10,24 @@ import {
   Activity,
   Calendar,
   Smartphone,
-  AlertCircle,
   Clock,
   XCircle,
   Loader2,
   Settings2,
+  Send,
+  RefreshCw,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableSkeleton, MobileCardSkeleton } from '@/components/skeletons';
-import { WorkshopTagBadge } from '@/components/operations';
+import { WorkshopTagBadge, SMSSequenceVariablesDialog, SendSMSNowDialog } from '@/components/operations';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
 import { useSMSNotification, useWorkshopSMSMessages, ScheduledSMSMessage } from '@/hooks/useSMSNotification';
 import { useSMSSequences } from '@/hooks/useSMSSequences';
+import { extractSMSSequenceVariables } from '@/lib/templateVariables';
+import { supabase } from '@/integrations/supabase/client';
 
 // Extended workshop type for SMS
 interface WorkshopWithSMS {
@@ -60,8 +62,8 @@ function MessageStatusIcon({ status }: { status: string }) {
 }
 
 // Get status badge for SMS setup
-function getStatusBadge(workshop: WorkshopWithSMS, hasScheduledMessages: boolean) {
-  if (hasScheduledMessages) {
+function getStatusBadge(workshop: WorkshopWithSMS, hasPendingMessages: boolean) {
+  if (hasPendingMessages) {
     return (
       <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800">
         <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -185,11 +187,13 @@ function WorkshopSMSPanel({
   workshop,
   orgTimezone,
   onRunSequence,
+  onSendNow,
   isRunning,
 }: {
   workshop: WorkshopWithSMS;
   orgTimezone: string;
   onRunSequence: () => void;
+  onSendNow: () => void;
   isRunning: boolean;
 }) {
   const { data: messages = [], isLoading } = useWorkshopSMSMessages(workshop.id);
@@ -203,7 +207,10 @@ function WorkshopSMSPanel({
 
   const sequence = sequences.find(s => s.id === workshop.tag?.sms_sequence_id);
   const setupComplete = isSetupComplete(workshop);
-  const hasScheduled = messages.some(m => m.status === 'pending' || m.status === 'sent');
+  
+  // Check message states separately
+  const hasPendingMessages = messages.some(m => m.status === 'pending');
+  const hasSentMessages = messages.some(m => m.status === 'sent');
 
   return (
     <Card className="p-4 space-y-4">
@@ -246,28 +253,43 @@ function WorkshopSMSPanel({
 
       {/* Actions */}
       {setupComplete ? (
-        <Button
-          onClick={onRunSequence}
-          disabled={isRunning || hasScheduled}
-          className="w-full gap-2"
-        >
-          {isRunning ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Scheduling...
-            </>
-          ) : hasScheduled ? (
-            <>
-              <CheckCircle2 className="h-4 w-4" />
-              Already Scheduled
-            </>
-          ) : (
-            <>
-              <Play className="h-4 w-4" />
-              Run SMS Sequence
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={onRunSequence}
+            disabled={isRunning || hasPendingMessages}
+            className="flex-1 gap-2"
+          >
+            {isRunning ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Scheduling...
+              </>
+            ) : hasPendingMessages ? (
+              <>
+                <CheckCircle2 className="h-4 w-4" />
+                Already Scheduled
+              </>
+            ) : hasSentMessages ? (
+              <>
+                <RefreshCw className="h-4 w-4" />
+                Run Again
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4" />
+                Run SMS Sequence
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onSendNow}
+            className="gap-2"
+          >
+            <Send className="h-4 w-4" />
+            Send Now
+          </Button>
+        </div>
       ) : (
         <Button variant="outline" asChild className="w-full gap-2">
           <Link to="/settings?tab=notifications">
@@ -302,27 +324,103 @@ interface SMSTabProps {
 export function SMSTab({ workshops, workshopsLoading, orgTimezone }: SMSTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkshop, setSelectedWorkshop] = useState<WorkshopWithSMS | null>(null);
-  const { runSMSSequence, isRunningSMSSequence } = useSMSNotification();
+  const [variablesDialogOpen, setVariablesDialogOpen] = useState(false);
+  const [sendNowDialogOpen, setSendNowDialogOpen] = useState(false);
+  const [manualVariables, setManualVariables] = useState<Array<{ key: string; label: string }>>([]);
+  
+  const { runSMSSequence, isRunningSMSSequence, sendSMSNow, isSendingSMSNow, getWorkshopRegistrantsWithPhone } = useSMSNotification();
+  const [recipientCount, setRecipientCount] = useState(0);
 
   // Filter workshops
   const filteredWorkshops = workshops.filter((w) =>
     w.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Get message counts for status badges
-  const { data: allMessages = [] } = useWorkshopSMSMessages(selectedWorkshop?.id || null);
+  // Fetch recipient count when workshop changes
+  useEffect(() => {
+    if (selectedWorkshop) {
+      getWorkshopRegistrantsWithPhone(selectedWorkshop.id)
+        .then(r => setRecipientCount(r.length))
+        .catch(() => setRecipientCount(0));
+    }
+  }, [selectedWorkshop?.id]);
 
   const handleRunSequence = async (workshop: WorkshopWithSMS) => {
+    if (!workshop.tag?.sms_sequence_id) return;
+
+    try {
+      // Fetch the sequence steps to check for manual variables
+      const { data: sequenceData } = await supabase
+        .from('sms_sequences')
+        .select(`
+          steps:sms_sequence_steps(
+            template:sms_templates(variables)
+          )
+        `)
+        .eq('id', workshop.tag.sms_sequence_id)
+        .single();
+
+      const steps = sequenceData?.steps?.map((s: { template: { variables: unknown } | null }) => ({
+        template: s.template ? { 
+          variables: Array.isArray(s.template.variables) 
+            ? s.template.variables as Array<{ key: string; label: string }>
+            : [] 
+        } : null
+      })) || [];
+
+      const { manual } = extractSMSSequenceVariables(steps);
+
+      if (manual.length > 0) {
+        // Show variables dialog if there are manual variables
+        setManualVariables(manual);
+        setVariablesDialogOpen(true);
+      } else {
+        // Run directly if no manual variables
+        await runSMSSequence({
+          workshopId: workshop.id,
+          workshop: {
+            id: workshop.id,
+            title: workshop.title,
+            start_date: workshop.start_date,
+            tag: workshop.tag,
+          },
+        });
+      }
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleVariablesSubmit = async (variables: Record<string, string>) => {
+    if (!selectedWorkshop) return;
+
     try {
       await runSMSSequence({
-        workshopId: workshop.id,
+        workshopId: selectedWorkshop.id,
         workshop: {
-          id: workshop.id,
-          title: workshop.title,
-          start_date: workshop.start_date,
-          tag: workshop.tag,
+          id: selectedWorkshop.id,
+          title: selectedWorkshop.title,
+          start_date: selectedWorkshop.start_date,
+          tag: selectedWorkshop.tag,
         },
+        manualVariables: variables,
       });
+      setVariablesDialogOpen(false);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleSendNow = async (params: { templateId: string; variableValues: Record<string, string> }) => {
+    if (!selectedWorkshop) return;
+
+    try {
+      await sendSMSNow({
+        workshopId: selectedWorkshop.id,
+        templateId: params.templateId,
+        variableValues: params.variableValues,
+      });
+      setSendNowDialogOpen(false);
     } catch {
       // Error handled by mutation
     }
@@ -436,6 +534,7 @@ export function SMSTab({ workshops, workshopsLoading, orgTimezone }: SMSTabProps
                 workshop={selectedWorkshop}
                 orgTimezone={orgTimezone}
                 onRunSequence={() => handleRunSequence(selectedWorkshop)}
+                onSendNow={() => setSendNowDialogOpen(true)}
                 isRunning={isRunningSMSSequence}
               />
             ) : (
@@ -448,6 +547,34 @@ export function SMSTab({ workshops, workshopsLoading, orgTimezone }: SMSTabProps
             )}
           </div>
         </div>
+      )}
+
+      {/* Variables Dialog */}
+      {selectedWorkshop && (
+        <SMSSequenceVariablesDialog
+          open={variablesDialogOpen}
+          onOpenChange={setVariablesDialogOpen}
+          workshopTitle={selectedWorkshop.title}
+          workshopStartDate={selectedWorkshop.start_date}
+          timezone={orgTimezone}
+          manualVariables={manualVariables}
+          onSubmit={handleVariablesSubmit}
+          isSubmitting={isRunningSMSSequence}
+        />
+      )}
+
+      {/* Send Now Dialog */}
+      {selectedWorkshop && (
+        <SendSMSNowDialog
+          open={sendNowDialogOpen}
+          onOpenChange={setSendNowDialogOpen}
+          workshopTitle={selectedWorkshop.title}
+          workshopStartDate={selectedWorkshop.start_date}
+          timezone={orgTimezone}
+          onSend={handleSendNow}
+          isSending={isSendingSMSNow}
+          recipientCount={recipientCount}
+        />
       )}
     </div>
   );

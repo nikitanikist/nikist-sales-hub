@@ -270,6 +270,62 @@ export function useSMSNotification() {
     },
   });
 
+  // Send SMS now (immediate scheduling for next cron run)
+  const sendSMSNowMutation = useMutation({
+    mutationFn: async ({
+      workshopId,
+      templateId,
+      variableValues,
+    }: {
+      workshopId: string;
+      templateId: string;
+      variableValues: Record<string, string>;
+    }) => {
+      if (!currentOrganization) throw new Error('No organization selected');
+
+      // Get registrants with phone numbers
+      const registrants = await getWorkshopRegistrantsWithPhone(workshopId);
+      if (registrants.length === 0) {
+        throw new Error('No registrants with phone numbers found');
+      }
+
+      // Create messages scheduled for now
+      const now = new Date().toISOString();
+      const messagesToCreate = registrants.map((lead: { id: string; contact_name: string }) => {
+        // Add per-lead variables
+        const leadVariables = { ...variableValues };
+        if ('name' in variableValues || !leadVariables.name) {
+          leadVariables.name = lead.contact_name || 'there';
+        }
+
+        return {
+          organization_id: currentOrganization.id,
+          workshop_id: workshopId,
+          lead_id: lead.id,
+          template_id: templateId,
+          variable_values: leadVariables,
+          scheduled_for: now,
+          status: 'pending' as const,
+        };
+      });
+
+      const { error } = await supabase
+        .from('scheduled_sms_messages')
+        .insert(messagesToCreate);
+
+      if (error) throw error;
+
+      return { scheduled: messagesToCreate.length };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-sms-messages'] });
+      toast.success(`Scheduled ${data.scheduled} SMS messages for immediate delivery`);
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to send SMS', { description: error.message });
+    },
+  });
+
   return {
     orgTimezone,
     subscribeToSMSMessages,
@@ -279,5 +335,7 @@ export function useSMSNotification() {
     isRunningSMSSequence: runSMSSequenceMutation.isPending,
     cancelSMS: cancelSMSMutation.mutate,
     isCancellingSMS: cancelSMSMutation.isPending,
+    sendSMSNow: sendSMSNowMutation.mutateAsync,
+    isSendingSMSNow: sendSMSNowMutation.isPending,
   };
 }

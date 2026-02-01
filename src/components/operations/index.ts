@@ -10,3 +10,5 @@ export { MultiGroupSelect } from './MultiGroupSelect';
 export { MessagingProgressBanner } from './MessagingProgressBanner';
 export { SequenceVariablesDialog } from './SequenceVariablesDialog';
 export { SequenceProgressButton } from './SequenceProgressButton';
+export { SMSSequenceVariablesDialog } from './SMSSequenceVariablesDialog';
+export { SendSMSNowDialog } from './SendSMSNowDialog';
