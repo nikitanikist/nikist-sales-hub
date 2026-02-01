@@ -4,7 +4,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock, Plus, Link2, Copy, ExternalLink, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
@@ -48,6 +50,8 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     useWorkshopGroups: useFetchWorkshopGroups,
     subscribeToMessages,
     orgTimezone,
+    createCommunity,
+    isCreatingCommunity,
   } = useWorkshopNotification();
   
   const { tags } = useWorkshopTags();
@@ -379,7 +383,36 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                 sessionId={selectedSessionId}
               />
 
-              {/* Show linked groups summary */}
+              {/* Create WhatsApp Group Button - show when session selected but no groups linked */}
+              {selectedSessionId && selectedGroupIds.length === 0 && (
+                <div className="p-3 border border-dashed border-muted-foreground/30 rounded-lg">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                    <Info className="h-4 w-4" />
+                    <span>No WhatsApp group linked to this workshop</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={() => createCommunity({ workshopId: workshop.id, workshopTitle: workshop.title })}
+                    disabled={isCreatingCommunity}
+                  >
+                    {isCreatingCommunity ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" />
+                        Create WhatsApp Group
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Show linked groups summary with invite links */}
               {selectedGroupIds.length > 0 && (
                 <div className="p-3 bg-muted/50 rounded-lg">
                   <div className="flex items-center gap-2 mb-2">
@@ -387,16 +420,50 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                       {selectedGroupIds.length} Group{selectedGroupIds.length !== 1 ? 's' : ''} Linked
                     </Badge>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {selectedGroupIds.slice(0, 3).map(id => {
                       const group = sessionGroups.find(g => g.id === id);
                       if (!group) return null;
                       const shortId = group.group_jid.split('@')[0].slice(-6);
                       return (
-                        <div key={id} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Users className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{group.group_name}</span>
-                          <span className="text-muted-foreground/60 font-mono flex-shrink-0">#{shortId}</span>
+                        <div key={id} className="space-y-1">
+                          <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <Users className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{group.group_name}</span>
+                            <span className="text-muted-foreground/60 font-mono flex-shrink-0">#{shortId}</span>
+                          </div>
+                          {group.invite_link && (
+                            <div className="flex items-center gap-1 ml-4">
+                              <Link2 className="h-3 w-3 text-muted-foreground/60" />
+                              <a 
+                                href={group.invite_link} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline truncate max-w-[180px]"
+                              >
+                                {group.invite_link.replace('https://chat.whatsapp.com/', '')}
+                              </a>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(group.invite_link!);
+                                  toast.success('Invite link copied');
+                                }}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                              <a
+                                href={group.invite_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="h-5 w-5 p-0 inline-flex items-center justify-center hover:bg-muted rounded"
+                              >
+                                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                              </a>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -407,6 +474,29 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* Create additional group button when groups already exist */}
+              {selectedSessionId && selectedGroupIds.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => createCommunity({ workshopId: workshop.id, workshopTitle: workshop.title })}
+                  disabled={isCreatingCommunity}
+                >
+                  {isCreatingCommunity ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" />
+                      Create Additional Group
+                    </>
+                  )}
+                </Button>
               )}
             </div>
           </CollapsibleSection>

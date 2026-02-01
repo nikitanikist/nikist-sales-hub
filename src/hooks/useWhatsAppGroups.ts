@@ -14,6 +14,7 @@ export interface WhatsAppGroup {
   synced_at: string;
   is_active: boolean;
   is_admin: boolean;
+  invite_link: string | null;
 }
 
 interface VpsErrorResponse {
@@ -82,7 +83,8 @@ export function useWhatsAppGroups() {
       const { data, error } = await supabase
         .from('whatsapp_groups')
         .select(`
-          *,
+          id, group_jid, group_name, organization_id, session_id, participant_count,
+          workshop_id, synced_at, is_active, is_admin, invite_link,
           session:whatsapp_sessions!inner(status)
         `)
         .eq('organization_id', currentOrganization.id)
