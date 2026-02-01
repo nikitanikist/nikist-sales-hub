@@ -908,6 +908,67 @@ export type Database = {
           },
         ]
       }
+      dynamic_links: {
+        Row: {
+          click_count: number
+          created_at: string
+          created_by: string | null
+          destination_url: string | null
+          id: string
+          is_active: boolean
+          organization_id: string
+          slug: string
+          updated_at: string
+          whatsapp_group_id: string | null
+        }
+        Insert: {
+          click_count?: number
+          created_at?: string
+          created_by?: string | null
+          destination_url?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          slug: string
+          updated_at?: string
+          whatsapp_group_id?: string | null
+        }
+        Update: {
+          click_count?: number
+          created_at?: string
+          created_by?: string | null
+          destination_url?: string | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          slug?: string
+          updated_at?: string
+          whatsapp_group_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dynamic_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dynamic_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dynamic_links_whatsapp_group_id_fkey"
+            columns: ["whatsapp_group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emi_payments: {
         Row: {
           amount: number
@@ -3221,6 +3282,13 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_link_click: {
+        Args: { link_slug: string }
+        Returns: {
+          destination_url: string
+          invite_link: string
+        }[]
       }
       is_org_admin: {
         Args: { _org_id: string; _user_id: string }

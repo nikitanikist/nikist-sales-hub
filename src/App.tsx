@@ -27,6 +27,8 @@ import CohortPage from "./pages/CohortPage";
 import ManageCohorts from "./pages/ManageCohorts";
 import OrganizationSettings from "./pages/OrganizationSettings";
 import { WorkshopNotification } from "./pages/operations";
+import DynamicLinks from "./pages/operations/DynamicLinks";
+import LinkRedirect from "./pages/operations/LinkRedirect";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
@@ -45,6 +47,8 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/install" element={<Install />} />
+            {/* Public redirect route - no auth required */}
+            <Route path="/link/:slug" element={<LinkRedirect />} />
             <Route element={<AppLayout />}>
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/leads" element={<Leads />} />
@@ -62,6 +66,7 @@ const App = () => (
               <Route path="/daily-money-flow" element={<ModuleGuard moduleSlug="daily-money-flow"><DailyMoneyFlow /></ModuleGuard>} />
               <Route path="/workshops" element={<ModuleGuard moduleSlug="workshops"><Workshops /></ModuleGuard>} />
               <Route path="/operations/workshop-notification" element={<ModuleGuard moduleSlug="workshops"><WorkshopNotification /></ModuleGuard>} />
+              <Route path="/operations/dynamic-links" element={<ProtectedRoute><DynamicLinks /></ProtectedRoute>} />
               <Route path="/sales" element={<Sales />} />
               <Route path="/funnels" element={<Funnels />} />
               <Route path="/products" element={<Products />} />
