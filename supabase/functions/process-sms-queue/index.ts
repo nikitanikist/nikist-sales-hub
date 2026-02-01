@@ -25,6 +25,7 @@ interface Lead {
 interface SMSTemplate {
   id: string;
   dlt_template_id: string;
+  content_preview: string;
   variables: { key: string; label: string }[] | null;
 }
 
@@ -44,24 +45,32 @@ function formatPhoneForIndia(phone: string): string {
   return cleaned.slice(-10);
 }
 
-// Build pipe-separated variable values string for Fast2SMS DLT route
-function buildVariableValues(
+// Build full message by replacing {#var#} placeholders with actual values
+function buildMessageWithVariables(
   template: SMSTemplate,
   variableValues: Record<string, string> | null
 ): string {
-  if (!template.variables || template.variables.length === 0) {
-    return '';
+  let message = template.content_preview;
+  
+  if (!template.variables || template.variables.length === 0 || !variableValues) {
+    return message;
   }
   
-  // Sort by key (var1, var2, etc.) and map to values
+  // Sort variables by key (var1, var2, etc.) to replace in order
   const sortedVars = [...template.variables].sort((a, b) => {
     const aNum = parseInt(a.key.replace('var', '')) || 0;
     const bNum = parseInt(b.key.replace('var', '')) || 0;
     return aNum - bNum;
   });
   
-  const values = sortedVars.map(v => variableValues?.[v.key] || '');
-  return values.join('|');
+  // Replace each {#var#} placeholder in order with the corresponding value
+  for (const v of sortedVars) {
+    const value = variableValues[v.key] || '';
+    // Replace the first occurrence of {#var#}
+    message = message.replace('{#var#}', value);
+  }
+  
+  return message;
 }
 
 Deno.serve(async (req) => {
@@ -72,11 +81,12 @@ Deno.serve(async (req) => {
   try {
     const FAST2SMS_API_KEY = Deno.env.get('FAST2SMS_API_KEY');
     const FAST2SMS_SENDER_ID = Deno.env.get('FAST2SMS_SENDER_ID');
+    const FAST2SMS_ENTITY_ID = Deno.env.get('FAST2SMS_ENTITY_ID');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    if (!FAST2SMS_API_KEY || !FAST2SMS_SENDER_ID) {
-      console.error('Missing Fast2SMS configuration');
+    if (!FAST2SMS_API_KEY || !FAST2SMS_SENDER_ID || !FAST2SMS_ENTITY_ID) {
+      console.error('Missing Fast2SMS configuration (API_KEY, SENDER_ID, or ENTITY_ID)');
       return new Response(
         JSON.stringify({ error: 'Fast2SMS not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -118,7 +128,7 @@ Deno.serve(async (req) => {
 
     const [leadsResult, templatesResult] = await Promise.all([
       supabase.from('leads').select('id, phone').in('id', leadIds),
-      supabase.from('sms_templates').select('id, dlt_template_id, variables').in('id', templateIds),
+      supabase.from('sms_templates').select('id, dlt_template_id, content_preview, variables').in('id', templateIds),
     ]);
 
     const leadsMap = new Map<string, Lead>();
@@ -140,29 +150,32 @@ Deno.serve(async (req) => {
           throw new Error('Template not found');
         }
 
+        if (!template.content_preview) {
+          throw new Error('Template has no content_preview');
+        }
+
         const phoneNumber = formatPhoneForIndia(lead.phone);
         if (phoneNumber.length !== 10) {
           throw new Error(`Invalid phone number: ${phoneNumber}`);
         }
 
-        const variablesValues = buildVariableValues(template, msg.variable_values);
+        // Build full message with variables substituted
+        const fullMessage = buildMessageWithVariables(template, msg.variable_values);
 
-        // Call Fast2SMS DLT API
-        const fast2smsBody: Record<string, string> = {
-          route: 'dlt',
+        // Call Fast2SMS DLT Manual API
+        const fast2smsBody = {
+          route: 'dlt_manual',
           sender_id: FAST2SMS_SENDER_ID,
-          message: template.dlt_template_id,
+          entity_id: FAST2SMS_ENTITY_ID,
+          template_id: template.dlt_template_id,
+          message: fullMessage,
           numbers: phoneNumber,
+          flash: '0',
         };
-
-        // Only include variables_values if there are variables
-        if (variablesValues) {
-          fast2smsBody.variables_values = variablesValues;
-        }
 
         console.log(`Sending SMS ${msg.id} to ${phoneNumber}:`, {
           templateId: template.dlt_template_id,
-          variables: variablesValues,
+          message: fullMessage,
         });
 
         const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
