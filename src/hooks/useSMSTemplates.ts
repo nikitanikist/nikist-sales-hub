@@ -157,6 +157,34 @@ export function useSMSTemplates() {
     },
   });
 
+  // Bulk create templates for import
+  const bulkCreateMutation = useMutation({
+    mutationFn: async (inputTemplates: CreateSMSTemplateInput[]) => {
+      if (!currentOrganization) throw new Error('No organization selected');
+      
+      const { data, error } = await supabase
+        .from('sms_templates')
+        .insert(inputTemplates.map(t => ({
+          organization_id: currentOrganization.id,
+          dlt_template_id: t.dlt_template_id,
+          name: t.name,
+          content_preview: t.content_preview,
+          variables: (t.variables || []) as unknown as Json,
+        })))
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['sms-templates'] });
+      toast.success(`${data.length} SMS templates imported successfully`);
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to import templates', { description: error.message });
+    },
+  });
+
   return {
     templates: templates || [],
     templatesLoading,
@@ -168,5 +196,7 @@ export function useSMSTemplates() {
     isUpdating: updateMutation.isPending,
     deleteTemplate: deleteMutation.mutate,
     isDeleting: deleteMutation.isPending,
+    bulkCreateTemplates: bulkCreateMutation.mutateAsync,
+    isBulkCreating: bulkCreateMutation.isPending,
   };
 }
