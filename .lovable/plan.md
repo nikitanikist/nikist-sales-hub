@@ -1,212 +1,157 @@
 
-# Fix SMS Sequence Variables & Add Test Message Feature
 
-## Problems Identified
+# Fix SMS Sending: Switch to DLT Manual API
 
-1. **Run Sequence skips variable input** - When clicking "Run Sequence" for SMS, it immediately schedules all messages without prompting for dynamic variables (Zoom link, WhatsApp group link, etc.)
+## Problem Summary
 
-2. **Cancel doesn't reflect properly** - After cancelling SMS notifications, the button still shows "Already Scheduled" instead of allowing to run again
+The SMS test message failed with error: `"Invalid Message ID (or Template, Entity ID)"`
 
-3. **No "Send Message Now" for testing** - WhatsApp has this feature but SMS doesn't, making it hard to test before running the full sequence
+**Root Cause:** The edge function uses `route: 'dlt'` which expects Fast2SMS's internal 6-digit Message ID (assigned when templates are registered in their DLT Manager portal). The current implementation passes the TRAI DLT Template ID (19-digit number like `1207174549154211511`), which Fast2SMS doesn't recognize.
 
-## Solution Overview
+## Solution
 
-```text
-Current SMS Flow:
-Click Run Sequence → Messages Immediately Scheduled (No variable prompt!)
+Switch from `route: 'dlt'` to `route: 'dlt_manual'` which allows sending DLT SMS by passing:
+- Your TRAI Entity ID
+- The TRAI DLT Template ID  
+- The full message text with variables substituted
+- The sender ID (header)
 
-New SMS Flow:
-Click Run Sequence → Check for manual variables
-                   ↓
-         ┌─ No variables needed ─→ Schedule messages
-         └─ Variables found ────→ Show Variables Dialog
-                                         ↓
-                                  Enter values
-                                         ↓
-                                  Save & Schedule
-```
+This bypasses Fast2SMS's DLT Manager entirely and works with the DLT IDs you already have.
 
 ---
 
-## Technical Changes
+## Implementation
 
-### 1. Create SMS Variables Dialog Component
+### Step 1: Add Entity ID Secret
 
-**New File:** `src/components/operations/SMSSequenceVariablesDialog.tsx`
+A new environment secret is needed:
+- **FAST2SMS_ENTITY_ID**: Your TRAI-registered Entity ID (also called Principal Entity ID)
 
-A dialog specifically for SMS template variables that:
-- Displays all manual variables from the sequence's SMS templates
-- Shows auto-filled values (workshop name, date, time)
-- Requires all fields to be filled before proceeding
-- Saves variables to database for this workshop
+### Step 2: Update the SMS Template Table
 
-### 2. Update SMSTab to Show Variables Dialog
+Add a column to store the actual message content (not just preview). This is needed because `dlt_manual` route requires the full message text.
 
-**File:** `src/components/operations/notification-channels/SMSTab.tsx`
+Actually, the `content_preview` field already contains the full template text, so we can use that.
+
+### Step 3: Update Edge Function
+
+**File:** `supabase/functions/process-sms-queue/index.ts`
 
 Changes:
-- Add state for variables dialog
-- Before running sequence, fetch SMS sequence steps and extract all variables
-- If manual variables exist, open the dialog instead of running immediately
-- Pass variable values to the `runSMSSequence` function
+1. Add `FAST2SMS_ENTITY_ID` environment variable
+2. Fetch template `content_preview` in addition to `dlt_template_id`
+3. Switch route from `dlt` to `dlt_manual`
+4. Build the full message by replacing `{#var#}` placeholders with actual values
+5. Pass all required parameters for the manual route
 
-### 3. Fix Cancel State Display
-
-**File:** `src/components/operations/notification-channels/SMSTab.tsx`
-
-The `hasScheduled` check currently includes `sent` messages, so even after cancelling all pending messages, the button shows "Already Scheduled" if any were previously sent.
-
-Change:
-```typescript
-// Current (incorrect)
-const hasScheduled = messages.some(m => m.status === 'pending' || m.status === 'sent');
-
-// Fixed (only check pending)
-const hasPendingMessages = messages.some(m => m.status === 'pending');
-const hasAnyScheduled = messages.some(m => m.status === 'pending' || m.status === 'sent');
+**New API call structure:**
+```javascript
+const fast2smsBody = {
+  route: 'dlt_manual',
+  sender_id: FAST2SMS_SENDER_ID,      // e.g., "NIKIST"
+  message: messageWithVariables,       // Full message text with vars replaced
+  entity_id: FAST2SMS_ENTITY_ID,      // TRAI Entity ID
+  template_id: template.dlt_template_id, // TRAI DLT Template ID
+  numbers: phoneNumber,
+  flash: '0'
+};
 ```
 
-Show different states:
-- Has pending → "Already Scheduled" (disabled)
-- No pending but has sent → "Add More Messages" or "Run Again"  
-- Nothing → "Run SMS Sequence"
+### Step 4: Update SMS Template Query
 
-### 4. Create Send SMS Now Dialog
-
-**New File:** `src/components/operations/SendSMSNowDialog.tsx`
-
-Similar to `SendMessageNowDialog` for WhatsApp but for SMS:
-- Select an SMS template from the list
-- Enter values for template variables
-- Preview the final message with variables replaced
-- Send immediately to all registrants with phone numbers
-
-### 5. Add Send Now Mutation to Hook
-
-**File:** `src/hooks/useSMSNotification.ts`
-
-Add new mutation:
+Fetch `content_preview` field to get the full message text:
 ```typescript
-sendSMSNow: async ({ workshopId, templateId, variableValues }) => {
-  // Get registrants with phone numbers
-  // Create scheduled_sms_messages with scheduled_for = now
-  // They will be picked up by the next cron run
+const templatesResult = await supabase
+  .from('sms_templates')
+  .select('id, dlt_template_id, variables, content_preview')  // Add content_preview
+  .in('id', templateIds);
+```
+
+### Step 5: Build Message with Variables
+
+Create a function to replace `{#var#}` placeholders:
+```typescript
+function buildMessageWithVariables(
+  contentTemplate: string,
+  variableValues: Record<string, string> | null,
+  variables: { key: string; label: string }[] | null
+): string {
+  let message = contentTemplate;
+  
+  if (variables && variableValues) {
+    // Sort variables by key (var1, var2, etc.)
+    const sortedVars = [...variables].sort((a, b) => {
+      const aNum = parseInt(a.key.replace('var', '')) || 0;
+      const bNum = parseInt(b.key.replace('var', '')) || 0;
+      return aNum - bNum;
+    });
+    
+    // Replace each {#var#} with the corresponding value
+    for (const v of sortedVars) {
+      const value = variableValues[v.key] || '';
+      message = message.replace('{#var#}', value);
+    }
+  }
+  
+  return message;
 }
 ```
 
-### 6. Extract Variables from SMS Templates
+---
 
-**File:** `src/lib/templateVariables.ts` (or new function)
+## Required Environment Secret
 
-SMS templates store variables as `{ key, label }` array, not extracted from content. Need helper:
-```typescript
-function extractSMSSequenceVariables(
-  steps: Array<{ template?: { variables: Array<{ key: string; label: string }> } | null }>
-): { autoFilled: string[]; manual: string[] }
+You'll need to add your TRAI Entity ID as a secret:
+
+| Secret Name | Description |
+|-------------|-------------|
+| FAST2SMS_ENTITY_ID | Your DLT-registered Principal Entity ID from TRAI |
+
+---
+
+## Technical Details
+
+### Current (Broken) Implementation
+```javascript
+{
+  route: 'dlt',
+  sender_id: 'NIKIST',
+  message: '1207174549154211511',     // ❌ Wrong - Fast2SMS expects 6-digit internal ID
+  variables_values: 'amit|crypto...',
+  numbers: '9457263922'
+}
+```
+
+### Fixed Implementation
+```javascript
+{
+  route: 'dlt_manual',
+  sender_id: 'NIKIST',
+  entity_id: '1201159547823456789',   // ✅ TRAI Entity ID
+  template_id: '1207174549154211511', // ✅ TRAI DLT Template ID
+  message: 'Hi amit, Your session crypto masterclass is scheduled for today at 7pm. Join WhatsApp for zoom link: https://...\n\n-Nikist School',  // ✅ Full message
+  numbers: '9457263922',
+  flash: '0'
+}
 ```
 
 ---
 
-## UI Changes Summary
+## Files to Modify
 
-### WorkshopSMSPanel Updates
-
-```text
-┌──────────────────────────────────────────┐
-│  Workshop Title                    [Tag] │
-│  Mon, Feb 2 · 7:00 PM                    │
-├──────────────────────────────────────────┤
-│  Tag: Crypto insider workshop            │
-│  SMS Sequence: Insider crypto (4 msgs)   │
-│  Registrations: 206                      │
-├──────────────────────────────────────────┤
-│  [Run SMS Sequence]  [Send Test SMS]     │  ← New test button
-├──────────────────────────────────────────┤
-│  Message Checkpoints:                    │
-│  ○ 12:00 PM - 0/206 sent    [Cancel All] │
-│  ○ 4:00 PM  - 0/206 sent    [Cancel All] │
-│  ...                                     │
-│                                          │
-│  [Run Sequence Again]  ← If all cancelled│
-└──────────────────────────────────────────┘
-```
-
-### New SMS Variables Dialog
-
-```text
-┌────────────────────────────────────────────┐
-│  Configure SMS Variables                   │
-│  Crypto Wealth Masterclass                 │
-├────────────────────────────────────────────┤
-│  ✓ Auto-filled from workshop data          │
-│  ┌────────────────────────────────────┐    │
-│  │ Workshop Name: Crypto Wealth...    │    │
-│  │ Date: February 2, 2025             │    │
-│  │ Time: 7:00 PM                      │    │
-│  └────────────────────────────────────┘    │
-│                                            │
-│  Enter values for these variables:         │
-│                                            │
-│  Zoom Link *                               │
-│  ┌────────────────────────────────────┐    │
-│  │ https://zoom.us/j/...              │    │
-│  └────────────────────────────────────┘    │
-│                                            │
-│  WhatsApp Group Link *                     │
-│  ┌────────────────────────────────────┐    │
-│  │ https://chat.whatsapp.com/...      │    │
-│  └────────────────────────────────────┘    │
-│                                            │
-│  ℹ Values used for all SMS in sequence     │
-├────────────────────────────────────────────┤
-│              [Cancel] [Save & Run]         │
-└────────────────────────────────────────────┘
-```
+| File | Change |
+|------|--------|
+| `supabase/functions/process-sms-queue/index.ts` | Switch to `dlt_manual` route with proper parameters |
+| Environment Secrets | Add `FAST2SMS_ENTITY_ID` |
 
 ---
 
-## Implementation Steps
+## Summary
 
-1. **Create helper to extract SMS template variables**
-   - Add function in `templateVariables.ts` for SMS variable extraction
+The fix requires:
+1. Adding your TRAI Entity ID as a secret
+2. Updating the edge function to use `dlt_manual` route
+3. Building the full message text by substituting variables into the template
 
-2. **Create SMSSequenceVariablesDialog component**
-   - Similar to existing `SequenceVariablesDialog`
-   - Works with SMS template variable format `{ key, label }`
+After this change, SMS will be sent using the DLT template IDs you already have imported, without needing to manually register each template in Fast2SMS's portal.
 
-3. **Update SMSTab with variable dialog flow**
-   - Add dialog state management
-   - Fetch sequence steps before running
-   - Extract and categorize variables
-   - Show dialog if manual variables exist
-
-4. **Fix cancel state logic**
-   - Separate `hasPending` from `hasAny`
-   - Allow re-running if no pending messages
-
-5. **Create SendSMSNowDialog component**
-   - Template selection dropdown
-   - Variable inputs based on template
-   - Preview with variables replaced
-   - Send button
-
-6. **Add sendSMSNow mutation**
-   - Create messages with current timestamp
-   - Will be sent on next cron execution
-
-7. **Integrate Send Now into SMSTab**
-   - Add "Send Test SMS" button next to Run Sequence
-   - Open SendSMSNowDialog
-
----
-
-## Files Summary
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `src/lib/templateVariables.ts` | Modify | Add SMS variable extraction helper |
-| `src/components/operations/SMSSequenceVariablesDialog.tsx` | Create | Dialog for SMS variable input |
-| `src/components/operations/SendSMSNowDialog.tsx` | Create | Dialog for sending test SMS |
-| `src/components/operations/notification-channels/SMSTab.tsx` | Modify | Add variable flow, fix cancel state, add send now |
-| `src/hooks/useSMSNotification.ts` | Modify | Add sendSMSNow mutation |
-| `src/components/operations/index.ts` | Modify | Export new components |
