@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check, X, MessageSquare } from 'lucide-react';
 import { useMessageTemplates, TEMPLATE_VARIABLES, CreateTemplateInput } from '@/hooks/useMessageTemplates';
 import { useTemplateSequences, CreateSequenceInput, CreateStepInput } from '@/hooks/useTemplateSequences';
 import { useWorkshopTags, TAG_COLORS, CreateTagInput } from '@/hooks/useWorkshopTags';
+import { useSMSTemplates, CreateSMSTemplateInput, SMSTemplateVariable } from '@/hooks/useSMSTemplates';
+import { useSMSSequences, CreateSMSSequenceInput, CreateSMSStepInput } from '@/hooks/useSMSSequences';
 import { WorkshopTagBadge } from '@/components/operations';
 import { toast } from 'sonner';
 
@@ -515,13 +517,15 @@ function TagEditorDialog({
   onOpenChange,
   tag,
   sequences,
+  smsSequences,
   onSave,
   isSaving,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  tag?: { id: string; name: string; color?: string | null; description?: string | null; template_sequence_id?: string | null } | null;
+  tag?: { id: string; name: string; color?: string | null; description?: string | null; template_sequence_id?: string | null; sms_sequence_id?: string | null } | null;
   sequences: Array<{ id: string; name: string }>;
+  smsSequences: Array<{ id: string; name: string }>;
   onSave: (data: CreateTagInput & { id?: string }) => void;
   isSaving: boolean;
 }) {
@@ -529,6 +533,7 @@ function TagEditorDialog({
   const [color, setColor] = useState(tag?.color || TAG_COLORS[0].value);
   const [description, setDescription] = useState(tag?.description || '');
   const [sequenceId, setSequenceId] = useState(tag?.template_sequence_id || '_none');
+  const [smsSequenceId, setSmsSequenceId] = useState(tag?.sms_sequence_id || '_none');
 
   // Sync state when tag prop changes
   useEffect(() => {
@@ -537,11 +542,13 @@ function TagEditorDialog({
       setColor(tag.color || TAG_COLORS[0].value);
       setDescription(tag.description || '');
       setSequenceId(tag.template_sequence_id || '_none');
+      setSmsSequenceId(tag.sms_sequence_id || '_none');
     } else {
       setName('');
       setColor(TAG_COLORS[0].value);
       setDescription('');
       setSequenceId('_none');
+      setSmsSequenceId('_none');
     }
   }, [tag]);
 
@@ -556,6 +563,7 @@ function TagEditorDialog({
       color,
       description,
       template_sequence_id: sequenceId === '_none' ? null : sequenceId,
+      sms_sequence_id: smsSequenceId === '_none' ? null : smsSequenceId,
     });
   };
 
@@ -595,7 +603,7 @@ function TagEditorDialog({
             </div>
           </div>
           <div className="space-y-2">
-            <Label>Template Sequence</Label>
+            <Label>WhatsApp Sequence</Label>
             <Select value={sequenceId} onValueChange={setSequenceId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select sequence..." />
@@ -603,6 +611,22 @@ function TagEditorDialog({
               <SelectContent>
                 <SelectItem value="_none">No sequence</SelectItem>
                 {sequences.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>SMS Sequence</Label>
+            <Select value={smsSequenceId} onValueChange={setSmsSequenceId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select SMS sequence..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">No SMS sequence</SelectItem>
+                {smsSequences.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
                   </SelectItem>
@@ -641,6 +665,491 @@ function TagEditorDialog({
   );
 }
 
+// SMS Template Editor Dialog
+function SMSTemplateEditorDialog({
+  open,
+  onOpenChange,
+  template,
+  onSave,
+  isSaving,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  template?: { id: string; dlt_template_id: string; name: string; content_preview: string; variables: SMSTemplateVariable[] } | null;
+  onSave: (data: CreateSMSTemplateInput & { id?: string }) => void;
+  isSaving: boolean;
+}) {
+  const [dltTemplateId, setDltTemplateId] = useState(template?.dlt_template_id || '');
+  const [name, setName] = useState(template?.name || '');
+  const [contentPreview, setContentPreview] = useState(template?.content_preview || '');
+  const [variablesText, setVariablesText] = useState('');
+
+  // Sync state when template prop changes
+  useEffect(() => {
+    if (template) {
+      setDltTemplateId(template.dlt_template_id || '');
+      setName(template.name || '');
+      setContentPreview(template.content_preview || '');
+      // Convert variables array to text format
+      setVariablesText(
+        template.variables?.map(v => `${v.key}=${v.label}`).join(', ') || ''
+      );
+    } else {
+      setDltTemplateId('');
+      setName('');
+      setContentPreview('');
+      setVariablesText('');
+    }
+  }, [template]);
+
+  // Parse variables from text format: "var1=Name, var2=Workshop"
+  const parseVariables = (): SMSTemplateVariable[] => {
+    if (!variablesText.trim()) return [];
+    return variablesText.split(',').map(v => {
+      const [key, label] = v.trim().split('=');
+      return { key: key?.trim() || '', label: label?.trim() || key?.trim() || '' };
+    }).filter(v => v.key);
+  };
+
+  const handleSave = () => {
+    if (!dltTemplateId.trim() || !name.trim() || !contentPreview.trim()) {
+      toast.error('DLT Template ID, name, and content are required');
+      return;
+    }
+    onSave({
+      id: template?.id,
+      dlt_template_id: dltTemplateId,
+      name,
+      content_preview: contentPreview,
+      variables: parseVariables(),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{template ? 'Edit SMS Template' : 'Add SMS Template'}</DialogTitle>
+          <DialogDescription>
+            Add a pre-approved DLT template from Fast2SMS for SMS notifications.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>DLT Template ID</Label>
+            <Input
+              value={dltTemplateId}
+              onChange={(e) => setDltTemplateId(e.target.value)}
+              placeholder="e.g., 1707168640039182925"
+            />
+            <p className="text-xs text-muted-foreground">
+              The numeric template ID from your Fast2SMS DLT templates.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Template Name</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Morning Reminder"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Template Content</Label>
+            <Textarea
+              value={contentPreview}
+              onChange={(e) => setContentPreview(e.target.value)}
+              placeholder="Dear {#var1#}, reminder for {#var2#} at {#var3#}..."
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              The exact template text with DLT variables like {'{#var1#}'}, {'{#var2#}'}.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label>Variable Labels</Label>
+            <Input
+              value={variablesText}
+              onChange={(e) => setVariablesText(e.target.value)}
+              placeholder="var1=Customer Name, var2=Workshop Name, var3=Time"
+            />
+            <p className="text-xs text-muted-foreground">
+              Define what each variable represents (comma-separated).
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {template ? 'Update' : 'Add Template'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// SMS Sequence Editor Dialog
+function SMSSequenceEditorDialog({
+  open,
+  onOpenChange,
+  sequence,
+  templates,
+  onSave,
+  onAddStep,
+  onDeleteStep,
+  onUpdateStep,
+  isSaving,
+  isAddingStep,
+  isUpdatingStep,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sequence?: { id: string; name: string; description?: string | null; steps?: any[] } | null;
+  templates: Array<{ id: string; name: string }>;
+  onSave: (data: CreateSMSSequenceInput & { id?: string }) => Promise<any>;
+  onAddStep: (data: CreateSMSStepInput) => Promise<any>;
+  onDeleteStep: (stepId: string, sequenceId: string, stepOrder: number) => Promise<void>;
+  onUpdateStep: (data: { id: string; send_time?: string; template_id?: string; time_label?: string }) => Promise<any>;
+  isSaving: boolean;
+  isAddingStep: boolean;
+  isUpdatingStep: boolean;
+}) {
+  const [name, setName] = useState(sequence?.name || '');
+  const [description, setDescription] = useState(sequence?.description || '');
+  const [newStepTime, setNewStepTime] = useState('11:00');
+  const [newStepTemplate, setNewStepTemplate] = useState('');
+  const [newStepLabel, setNewStepLabel] = useState('');
+  const [showSaved, setShowSaved] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Inline editing state
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [editingValues, setEditingValues] = useState<{
+    send_time: string;
+    template_id: string;
+    time_label: string;
+  }>({ send_time: '', template_id: '', time_label: '' });
+
+  // Sync state when sequence prop changes
+  useEffect(() => {
+    if (sequence) {
+      setName(sequence.name || '');
+      setDescription(sequence.description || '');
+    } else {
+      setName('');
+      setDescription('');
+    }
+    setNewStepTime('11:00');
+    setNewStepTemplate('');
+    setNewStepLabel('');
+    setShowSaved(false);
+  }, [sequence]);
+
+  // Reset edit state when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setEditingStepId(null);
+      setEditingValues({ send_time: '', template_id: '', time_label: '' });
+    }
+  }, [open]);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast.error('Name is required');
+      return;
+    }
+    await onSave({ id: sequence?.id, name, description });
+    if (!sequence) {
+      onOpenChange(false);
+    }
+  };
+
+  // Calculate next step order based on MAX
+  const getNextOrder = () => {
+    if (!sequence?.steps || sequence.steps.length === 0) return 1;
+    return Math.max(...sequence.steps.map((s: any) => s.step_order)) + 1;
+  };
+
+  const handleAddStep = async () => {
+    if (!sequence?.id || !newStepTemplate) {
+      toast.error('Please select a template');
+      return;
+    }
+    await onAddStep({
+      sequence_id: sequence.id,
+      template_id: newStepTemplate,
+      send_time: newStepTime + ':00',
+      time_label: newStepLabel || undefined,
+      step_order: getNextOrder(),
+    });
+    setNewStepTime('11:00');
+    setNewStepTemplate('');
+    setNewStepLabel('');
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
+  };
+
+  const handleDeleteStep = async (stepId: string, stepOrder: number) => {
+    if (!sequence?.id) return;
+    setIsDeleting(true);
+    try {
+      await onDeleteStep(stepId, sequence.id, stepOrder);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const startEditing = (step: any) => {
+    setEditingStepId(step.id);
+    setEditingValues({
+      send_time: step.send_time?.slice(0, 5) || '',
+      template_id: step.template_id || '',
+      time_label: step.time_label || '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingStepId) return;
+    try {
+      await onUpdateStep({
+        id: editingStepId,
+        send_time: editingValues.send_time + ':00',
+        template_id: editingValues.template_id,
+        time_label: editingValues.time_label || undefined,
+      });
+    } finally {
+      setEditingStepId(null);
+      setEditingValues({ send_time: '', template_id: '', time_label: '' });
+    }
+  };
+
+  const cancelEditing = () => {
+    setEditingStepId(null);
+    setEditingValues({ send_time: '', template_id: '', time_label: '' });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{sequence ? 'Edit SMS Sequence' : 'Create SMS Sequence'}</DialogTitle>
+          <DialogDescription>
+            {sequence 
+              ? 'Click on a step to edit it. Changes are saved when you click Save.'
+              : 'Define when each SMS template should be sent.'}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Sequence Name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Evening Workshop SMS"
+                disabled={!!sequence}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Brief description"
+                disabled={!!sequence}
+              />
+            </div>
+          </div>
+
+          {sequence && (
+            <>
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-28">Time</TableHead>
+                      <TableHead>Template</TableHead>
+                      <TableHead className="w-32">Label</TableHead>
+                      <TableHead className="w-24"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(sequence.steps || []).map((step: any) => (
+                      <TableRow key={step.id}>
+                        {editingStepId === step.id ? (
+                          <>
+                            <TableCell>
+                              <Input
+                                type="time"
+                                value={editingValues.send_time}
+                                onChange={(e) => setEditingValues(prev => ({ ...prev, send_time: e.target.value }))}
+                                className="w-24 h-8"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Select value={editingValues.template_id} onValueChange={(v) => setEditingValues(prev => ({ ...prev, template_id: v }))}>
+                                <SelectTrigger className="h-8">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {templates.map((t) => (
+                                    <SelectItem key={t.id} value={t.id}>
+                                      {t.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={editingValues.time_label}
+                                onChange={(e) => setEditingValues(prev => ({ ...prev, time_label: e.target.value }))}
+                                placeholder="Label"
+                                className="h-8"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={handleSaveEdit}
+                                  disabled={isUpdatingStep}
+                                >
+                                  {isUpdatingStep ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-success" />}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={cancelEditing}
+                                  disabled={isUpdatingStep}
+                                >
+                                  <X className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </>
+                        ) : (
+                          <>
+                            <TableCell className="font-mono">
+                              {step.send_time?.slice(0, 5)}
+                            </TableCell>
+                            <TableCell>{step.template?.name || '—'}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {step.time_label || '—'}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => startEditing(step)}
+                                  disabled={isDeleting}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleDeleteStep(step.id, step.step_order)}
+                                  disabled={isDeleting}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </>
+                        )}
+                      </TableRow>
+                    ))}
+                    {(sequence.steps || []).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                          No steps added yet
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="flex gap-2 items-end">
+                <div className="space-y-2">
+                  <Label className="text-xs">Time</Label>
+                  <Input
+                    type="time"
+                    value={newStepTime}
+                    onChange={(e) => setNewStepTime(e.target.value)}
+                    className="w-28"
+                  />
+                </div>
+                <div className="space-y-2 flex-1">
+                  <Label className="text-xs">Template</Label>
+                  <Select value={newStepTemplate} onValueChange={setNewStepTemplate}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 w-36">
+                  <Label className="text-xs">Label (optional)</Label>
+                  <Input
+                    value={newStepLabel}
+                    onChange={(e) => setNewStepLabel(e.target.value)}
+                    placeholder="e.g., Morning"
+                  />
+                </div>
+                <Button onClick={handleAddStep} size="icon" disabled={isAddingStep || isDeleting}>
+                  {isAddingStep ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                </Button>
+              </div>
+
+              {showSaved && (
+                <div className="flex items-center gap-2 text-sm text-success animate-in fade-in slide-in-from-bottom-2">
+                  <Check className="h-4 w-4" />
+                  <span>Step added and saved</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <DialogFooter>
+          {sequence ? (
+            <Button onClick={() => onOpenChange(false)}>
+              Done
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create & Add Steps
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Main Settings Component
 export function WorkshopNotificationSettings() {
   const navigate = useNavigate();
@@ -648,6 +1157,31 @@ export function WorkshopNotificationSettings() {
   const { templates, templatesLoading, deleteTemplate } = useMessageTemplates();
   const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStepAsync, updateStepAsync, isCreatingSequence, isCreatingStep, isUpdatingStep, useSequence } = useTemplateSequences();
   const { tags, tagsLoading, createTag, updateTag, deleteTag, setDefaultTag, isCreating: isCreatingTag, isUpdating: isUpdatingTag, isSettingDefault } = useWorkshopTags();
+  
+  // SMS hooks
+  const { 
+    templates: smsTemplates, 
+    templatesLoading: smsTemplatesLoading, 
+    createTemplate: createSMSTemplate, 
+    updateTemplate: updateSMSTemplate,
+    deleteTemplate: deleteSMSTemplate,
+    isCreating: isCreatingSMSTemplate, 
+    isUpdating: isUpdatingSMSTemplate 
+  } = useSMSTemplates();
+  
+  const { 
+    sequences: smsSequences, 
+    sequencesLoading: smsSequencesLoading, 
+    createSequence: createSMSSequence, 
+    deleteSequence: deleteSMSSequence,
+    createStep: createSMSStep, 
+    deleteStepAsync: deleteSMSStepAsync, 
+    updateStepAsync: updateSMSStepAsync, 
+    isCreatingSequence: isCreatingSMSSequence, 
+    isCreatingStep: isCreatingSMSStep, 
+    isUpdatingStep: isUpdatingSMSStep,
+    useSequence: useSMSSequence 
+  } = useSMSSequences();
 
   // Get initial tab from URL params
   const initialTab = searchParams.get('tab') || 'templates';
@@ -661,6 +1195,15 @@ export function WorkshopNotificationSettings() {
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<any>(null);
 
+  // SMS Template dialog state
+  const [smsTemplateDialogOpen, setSmsTemplateDialogOpen] = useState(false);
+  const [editingSMSTemplate, setEditingSMSTemplate] = useState<any>(null);
+
+  // SMS Sequence dialog state
+  const [smsSequenceDialogOpen, setSmsSequenceDialogOpen] = useState(false);
+  const [editingSMSSequenceId, setEditingSMSSequenceId] = useState<string | null>(null);
+  const { data: editingSMSSequence } = useSMSSequence(editingSMSSequenceId);
+
   return (
     <Card>
       <CardHeader>
@@ -671,7 +1214,7 @@ export function WorkshopNotificationSettings() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue={initialTab} className="space-y-4">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="templates" className="gap-2">
               <FileText className="h-4 w-4" />
               Templates
@@ -683,6 +1226,14 @@ export function WorkshopNotificationSettings() {
             <TabsTrigger value="tags" className="gap-2">
               <Tag className="h-4 w-4" />
               Tags
+            </TabsTrigger>
+            <TabsTrigger value="sms-templates" className="gap-2">
+              <MessageSquare className="h-4 w-4" />
+              SMS Templates
+            </TabsTrigger>
+            <TabsTrigger value="sms-sequences" className="gap-2">
+              <ListOrdered className="h-4 w-4" />
+              SMS Sequences
             </TabsTrigger>
           </TabsList>
 
@@ -928,6 +1479,137 @@ export function WorkshopNotificationSettings() {
               </Table>
             </div>
           </TabsContent>
+
+          {/* SMS Templates Tab */}
+          <TabsContent value="sms-templates" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                Add pre-approved DLT templates from Fast2SMS for SMS notifications.
+              </p>
+              <Button onClick={() => { setEditingSMSTemplate(null); setSmsTemplateDialogOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Template
+              </Button>
+            </div>
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>DLT ID</TableHead>
+                    <TableHead>Preview</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {smsTemplatesLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ) : smsTemplates.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        No SMS templates yet
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    smsTemplates.map((t) => (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-medium">{t.name}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{t.dlt_template_id}</TableCell>
+                        <TableCell className="text-muted-foreground max-w-xs truncate">
+                          {t.content_preview.slice(0, 60)}{t.content_preview.length > 60 ? '...' : ''}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingSMSTemplate(t); setSmsTemplateDialogOpen(true); }}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => deleteSMSTemplate(t.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
+
+          {/* SMS Sequences Tab */}
+          <TabsContent value="sms-sequences" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                Define SMS message schedules with specific times.
+              </p>
+              <Button onClick={() => { setEditingSMSSequenceId(null); setSmsSequenceDialogOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Sequence
+              </Button>
+            </div>
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Steps</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {smsSequencesLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ) : smsSequences.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        No SMS sequences yet
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    smsSequences.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell className="font-medium">{s.name}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 flex-wrap">
+                            {(s.steps || []).slice(0, 8).map((step: any) => (
+                              <Badge key={step.id} variant="secondary" className="text-xs">
+                                <Clock className="h-3 w-3 mr-1" />
+                                {step.send_time?.slice(0, 5)}
+                              </Badge>
+                            ))}
+                            {(s.steps || []).length > 8 && (
+                              <Badge variant="secondary" className="text-xs">+{(s.steps || []).length - 8}</Badge>
+                            )}
+                            {(s.steps || []).length === 0 && (
+                              <span className="text-muted-foreground text-xs">No steps</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => { setEditingSMSSequenceId(s.id); setSmsSequenceDialogOpen(true); }}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => deleteSMSSequence(s.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* Dialogs */}
@@ -972,6 +1654,7 @@ export function WorkshopNotificationSettings() {
           onOpenChange={setTagDialogOpen}
           tag={editingTag}
           sequences={sequences}
+          smsSequences={smsSequences}
           onSave={(data) => {
             if (data.id) {
               updateTag({ id: data.id, ...data });
@@ -981,6 +1664,52 @@ export function WorkshopNotificationSettings() {
             setTagDialogOpen(false);
           }}
           isSaving={isCreatingTag || isUpdatingTag}
+        />
+
+        <SMSTemplateEditorDialog
+          open={smsTemplateDialogOpen}
+          onOpenChange={(open) => {
+            setSmsTemplateDialogOpen(open);
+            if (!open) setEditingSMSTemplate(null);
+          }}
+          template={editingSMSTemplate}
+          onSave={(data) => {
+            if (data.id) {
+              updateSMSTemplate({ id: data.id, ...data });
+            } else {
+              createSMSTemplate(data);
+            }
+            setSmsTemplateDialogOpen(false);
+          }}
+          isSaving={isCreatingSMSTemplate || isUpdatingSMSTemplate}
+        />
+
+        <SMSSequenceEditorDialog
+          open={smsSequenceDialogOpen}
+          onOpenChange={(open) => {
+            setSmsSequenceDialogOpen(open);
+            if (!open) setEditingSMSSequenceId(null);
+          }}
+          sequence={editingSMSSequence}
+          templates={smsTemplates}
+          onSave={async (data) => {
+            if (!data.id) {
+              const newSeq = await createSMSSequence(data);
+              setEditingSMSSequenceId(newSeq.id);
+            }
+          }}
+          onAddStep={async (data) => {
+            await createSMSStep(data);
+          }}
+          onDeleteStep={async (stepId, sequenceId, stepOrder) => {
+            await deleteSMSStepAsync({ stepId, sequenceId, stepOrder });
+          }}
+          onUpdateStep={async (data) => {
+            await updateSMSStepAsync(data);
+          }}
+          isSaving={isCreatingSMSSequence}
+          isAddingStep={isCreatingSMSStep}
+          isUpdatingStep={isUpdatingSMSStep}
         />
       </CardContent>
     </Card>
