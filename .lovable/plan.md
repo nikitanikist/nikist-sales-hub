@@ -1,144 +1,119 @@
 
 
-# Improved UX: Auto-Fetch Invite Link on Group Selection
+# Fix: Auto-Fetch Invite Link Resets Form State
 
-## Current Problem
+## Problem Identified
 
-1. **Manual button clicks**: User has to click "Get Link" button for each group without an invite link
-2. **Button cropping**: The "Get Link" button text is getting cut off due to space constraints
-3. **Clunky experience**: Too many steps to select a group
+After selecting a WhatsApp group and auto-fetching its invite link, the form state is unexpectedly reset:
+- Switches back to "Custom URL" mode
+- Clears the selected group
+- Nothing appears to work
 
-## Proposed Solution
+## Root Cause
 
-Replace the list-based selection with a simple **Select dropdown**. When user selects a group:
-- If it already has an invite link → just select it (done!)
-- If it doesn't have an invite link → automatically fetch it in the background, show a loading indicator, and once fetched, it's ready
+In `CreateLinkDialog.tsx`, the form reset `useEffect` (lines 48-77) includes `groups` in its dependency array:
 
-## New UX Flow
-
-```
-Select Group                                      [Sync Groups]
-┌──────────────────────────────────────────────────────────────┐
-│  Choose a group...                                       ▼   │
-└──────────────────────────────────────────────────────────────┘
-
-[Dropdown opens]
-┌──────────────────────────────────────────────────────────────┐
-│  🟢 Crypto Masterclass <> 1st February          👥 230  ✓    │
-│  🟢 test amit                                   👥 1         │
-│  ⚪ 10th August <> Ethical Hacking             👥 112       │  ← no invite link yet
-│  ⚪ 12th October (FB) <> Ethical Hacking       👥 99        │
-└──────────────────────────────────────────────────────────────┘
-
-[User selects "10th August <> Ethical Hacking" which has no invite link]
-
-Select Group                                      [Sync Groups]
-┌──────────────────────────────────────────────────────────────┐
-│  🔄 10th August <> Ethical Hacking... (fetching link)        │  ← auto-fetching
-└──────────────────────────────────────────────────────────────┘
-
-[After fetch completes]
-
-Select Group                                      [Sync Groups]
-┌──────────────────────────────────────────────────────────────┐
-│  🟢 10th August <> Ethical Hacking & Bug Hunting        ✓    │  ← ready!
-└──────────────────────────────────────────────────────────────┘
+```tsx
+useEffect(() => {
+  if (open) {
+    if (editingLink) {
+      // ... editing logic
+    } else {
+      setDestinationType('url');    // Resets to URL mode!
+      setSelectedGroupId(null);      // Clears group selection!
+    }
+  }
+}, [open, editingLink, groups]);   // groups dependency causes re-run!
 ```
 
-## Technical Implementation
+**Flow that causes the bug:**
+1. User selects a group without invite link
+2. Auto-fetch triggers `fetchInviteLink()`
+3. On success, `queryClient.invalidateQueries()` refetches groups
+4. `groups` reference changes, triggering the useEffect
+5. Since `editingLink` is `null` (creating new), form resets to defaults
+6. User sees "Custom URL" selected and no group chosen
+
+## Solution
+
+Remove `groups` from the dependency array of the form reset effect. The effect should only run when:
+- `open` changes (dialog opens/closes)
+- `editingLink` changes (switching between create/edit mode)
+
+The `groups` dependency was likely added to set the session when editing an existing link (line 58-61), but this can be handled separately or by checking if we're already initialized.
+
+## Implementation
 
 ### File: `src/components/operations/CreateLinkDialog.tsx`
 
-**1. Replace ScrollArea list with Select component**
+**Change 1: Split the effect - remove groups from reset effect**
 
-Replace the current `ScrollArea` with groups list (lines 343-399) with a `Select` component:
-
-| Current | New |
-|---------|-----|
-| `<ScrollArea>` with group buttons | `<Select>` dropdown with all groups |
-| Manual "Get Link" button | Auto-fetch on selection |
-| Two sections (ready/need link) | Single list, visual indicator for status |
-
-**2. Add auto-fetch logic when selecting a group**
-
-Create a new handler `handleGroupSelect(groupId)`:
-- Find the selected group
-- If `invite_link` exists → just set `selectedGroupId`
-- If `invite_link` is `null` → call `fetchInviteLink()` automatically, show loading state
-
-**3. Track fetching state for selected group**
-
-- Use `isFetchingInviteLink` and `fetchingInviteLinkGroupId` from the hook
-- Show a spinner in the Select trigger when fetching
-
-**4. Update selected group after invite link is fetched**
-
-- After successful fetch, the hook already invalidates queries
-- The group will automatically have `invite_link` populated
-- UI updates automatically via React Query
-
-**5. Clean up unused components**
-
-- Remove `GroupItem` component (no longer needed)
-- Remove `GroupItemWithFetch` component (no longer needed)
-- Simplify the code significantly
-
-### Code Changes Summary
-
-| Location | Change |
-|----------|--------|
-| Lines 343-399 | Replace `ScrollArea` + group items with `<Select>` dropdown |
-| Lines 96-105 | Update `handleFetchInviteLink` → new `handleGroupSelect` with auto-fetch |
-| Lines 427-521 | Remove `GroupItem` and `GroupItemWithFetch` components |
-| Add | Loading state in Select trigger when fetching |
-| Add | Visual indicator (🟢/⚪) in dropdown items showing link status |
-
-### Select Dropdown Design
-
+Current (lines 48-77):
 ```tsx
-<Select
-  value={selectedGroupId || ''}
-  onValueChange={handleGroupSelect}
-  disabled={isFetchingInviteLink}
->
-  <SelectTrigger>
-    {isFetchingInviteLink && fetchingInviteLinkGroupId === selectedGroupId ? (
-      <div className="flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span>Fetching invite link...</span>
-      </div>
-    ) : (
-      <SelectValue placeholder="Choose a group..." />
-    )}
-  </SelectTrigger>
-  <SelectContent>
-    {filteredGroups.map((group) => (
-      <SelectItem key={group.id} value={group.id}>
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${group.invite_link ? 'bg-green-500' : 'bg-gray-300'}`} />
-          <span>{group.group_name}</span>
-          <span className="text-xs text-muted-foreground ml-auto">
-            👥 {group.participant_count}
-          </span>
-        </div>
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
+useEffect(() => {
+  if (open) {
+    if (editingLink) {
+      // ... sets editing state including looking up group's session
+    } else {
+      setSlug('');
+      setDestinationType('url');
+      // ...
+    }
+  }
+}, [open, editingLink, groups]); // ← groups causes bug
 ```
 
-## Benefits
+Updated:
+```tsx
+useEffect(() => {
+  if (open) {
+    if (editingLink) {
+      setSlug(editingLink.slug);
+      if (editingLink.whatsapp_group_id) {
+        setDestinationType('whatsapp');
+        setSelectedGroupId(editingLink.whatsapp_group_id);
+        setDestinationUrl('');
+      } else {
+        setDestinationType('url');
+        setDestinationUrl(editingLink.destination_url || '');
+        setSelectedGroupId(null);
+      }
+    } else {
+      setSlug('');
+      setDestinationType('url');
+      setDestinationUrl('');
+      setSelectedGroupId(null);
+    }
+    setGroupSearch('');
+    setError(null);
+  }
+}, [open, editingLink]); // ← Remove groups dependency
+```
 
-| Before | After |
-|--------|-------|
-| Scroll through list, find group, click "Get Link" button, wait, then select | Just select from dropdown - link fetched automatically |
-| Button text cropping | No buttons needed |
-| Two separate sections | Single clean dropdown |
-| Multiple clicks | One click to select |
+**Change 2: Add separate effect for setting session when editing**
+
+This handles the case where we need to look up the group's session when editing:
+
+```tsx
+// Separate effect to set session ID when editing a WhatsApp group link
+useEffect(() => {
+  if (open && editingLink?.whatsapp_group_id && groups) {
+    const group = groups.find(g => g.id === editingLink.whatsapp_group_id);
+    if (group && !selectedSessionId) {
+      setSelectedSessionId(group.session_id);
+    }
+  }
+}, [open, editingLink, groups, selectedSessionId]);
+```
+
+## Summary of Changes
+
+| Change | Purpose |
+|--------|---------|
+| Remove `groups` from reset effect dependency | Prevent form reset when groups refetch after invite link fetch |
+| Add separate effect for editing session lookup | Preserve the functionality of finding the session for an existing link |
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/components/operations/CreateLinkDialog.tsx` | Replace list with Select, add auto-fetch on selection, remove unused components |
+- `src/components/operations/CreateLinkDialog.tsx`
 
