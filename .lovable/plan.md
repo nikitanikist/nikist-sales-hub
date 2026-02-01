@@ -1,94 +1,230 @@
 
 
-# Enable Multiple WhatsApp Account Connections
+# Dynamic Links (URL Redirection System)
 
-## Summary
-
-The system architecture already supports multiple WhatsApp sessions with role designation:
-- **Community Creation**: Uses `organizations.community_session_id` (the dropdown you mentioned)
-- **Message Sending**: Uses the session that owns each group (`whatsapp_groups.session_id`)
-
-The only fix needed is the UI, which incorrectly hides the "Connect Device" button after the first connection.
+Replace Shivani's manual Hostinger workflow with an in-app link management system.
 
 ---
 
-## Current UI Problem
+## Overview
 
-In `WhatsAppConnection.tsx` lines 247-286:
+Create a self-service Dynamic Links feature that lets your team:
+1. Create permanent links like `app.tagfunnel.ai/link/whatsapp-group`
+2. Change where these links point (WhatsApp group, external URL) anytime
+3. Track how many people clicked each link
+
+---
+
+## User Flow
 
 ```text
-if (hasConnectedSession) {
-  → Show Sync/Disconnect for first session only
-} else {
-  → Show Connect Device button
-}
+1. Shivani goes to Operations → Dynamic Links
+2. Clicks "Create Link"
+3. Enters slug: "whatsapp-group" → Preview shows: yourapp.com/link/whatsapp-group
+4. Chooses destination:
+   - Option A: Paste any URL manually
+   - Option B: Select WhatsApp Group from synced list → Auto-uses invite link
+5. Saves link
+
+When workshop changes:
+1. Opens existing link
+2. Clicks "Change Destination"
+3. Selects new WhatsApp group
+4. Saves → All users now redirected to new group
 ```
 
-This prevents adding a second WhatsApp account.
+---
+
+## Database Schema
+
+### New Table: `dynamic_links`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | uuid | Primary key |
+| organization_id | uuid | Multi-tenant isolation |
+| slug | text | URL path (e.g., "whatsapp-group") |
+| destination_url | text | Where to redirect (manual URL) |
+| whatsapp_group_id | uuid | FK to whatsapp_groups (optional) |
+| click_count | integer | Total clicks (default 0) |
+| is_active | boolean | Enable/disable link |
+| created_by | uuid | Who created it |
+| created_at | timestamp | Creation time |
+| updated_at | timestamp | Last modified |
+
+**Constraints:**
+- Unique on (organization_id, slug) - prevents duplicate slugs per org
+- Either destination_url OR whatsapp_group_id must be set (not both)
+
+**RLS Policies:**
+- SELECT: Users in organization can view
+- INSERT/UPDATE: Admins and managers can manage
+- DELETE: Admins only
 
 ---
 
-## Proposed UI Layout
+## Architecture
+
+### How Redirection Works
 
 ```text
-┌─ WhatsApp Connections ──────────────────────────────────┐
+User visits: nikist-sales-hub.lovable.app/link/whatsapp-group
+                           ↓
+       React Router catches /link/:slug route
+                           ↓
+       LinkRedirect page fetches destination from DB
+                           ↓
+       Increments click_count atomically
+                           ↓
+       Redirects browser to destination URL
+```
+
+**Note:** This works on your custom domain automatically once connected. The same code handles both `nikist-sales-hub.lovable.app/link/...` and `app.tagfunnel.ai/link/...`.
+
+---
+
+## UI Design
+
+### Operations Menu Addition
+
+```text
+Operations
+├── Workshop Notification
+└── Dynamic Links  ← NEW
+```
+
+### Dynamic Links Page
+
+```text
+┌─ Dynamic Links ────────────────────────────────────────────┐
+│                                                             │
+│ Create shareable links that you can update anytime.        │
+│ Perfect for WhatsApp group invites that change each        │
+│ workshop.                                                   │
+│                                                             │
+│ [ + Create New Link ]                                       │
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐│
+│ │ /link/whatsapp-group                                    ││
+│ │ → 🟢 WhatsApp: "Free Crypto Workshop - Jan 30"          ││
+│ │                                                          ││
+│ │ Clicks: 847  •  Created 2 days ago                      ││
+│ │                        [Copy Link] [Edit] [Delete]       ││
+│ └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│ ┌─────────────────────────────────────────────────────────┐│
+│ │ /link/telegram                                          ││
+│ │ → 🔗 https://t.me/nikistchannel                         ││
+│ │                                                          ││
+│ │ Clicks: 234  •  Created 1 week ago                      ││
+│ │                        [Copy Link] [Edit] [Delete]       ││
+│ └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Create/Edit Link Dialog
+
+```text
+┌─ Create Dynamic Link ───────────────────────────────────┐
 │                                                          │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ ● 919289630962                                      │ │
-│ │   Last active: Feb 1, 2026                          │ │
-│ │                     [Sync Groups] [Disconnect]      │ │
-│ └─────────────────────────────────────────────────────┘ │
+│ Link Slug                                                │
+│ ┌──────────────────────────────────────────────────────┐│
+│ │ whatsapp-group                                       ││
+│ └──────────────────────────────────────────────────────┘│
+│ yourapp.com/link/whatsapp-group                          │
 │                                                          │
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ ● 918765432100                                      │ │
-│ │   Last active: Feb 1, 2026                          │ │
-│ │                     [Sync Groups] [Disconnect]      │ │
-│ └─────────────────────────────────────────────────────┘ │
+│ ─────────────────────────────────────────────────────── │
 │                                                          │
-│ [ + Connect Another WhatsApp ]  ← Always visible        │
+│ Destination Type                                         │
+│ ○ WhatsApp Group (select from synced groups)            │
+│ ● Custom URL                                             │
 │                                                          │
+│ ┌──────────────────────────────────────────────────────┐│
+│ │ https://example.com/...                              ││
+│ └──────────────────────────────────────────────────────┘│
+│                                                          │
+│ OR                                                       │
+│                                                          │
+│ Select WhatsApp Group                                    │
+│ ┌──────────────────────────────────────────────────────┐│
+│ │ 🔍 Search groups...                                  ││
+│ ├──────────────────────────────────────────────────────┤│
+│ │ ⭐ Today's Workshop                                  ││
+│ │   🟢 Free Crypto Workshop - Feb 1 (invite link ✓)   ││
+│ ├──────────────────────────────────────────────────────┤│
+│ │ All Groups                                           ││
+│ │   🟢 Free Crypto Workshop - Jan 30 (invite link ✓)  ││
+│ │   ⚪ Marketing Team (no invite link)                 ││
+│ └──────────────────────────────────────────────────────┘│
+│                                                          │
+│                              [Cancel] [Save Link]        │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Implementation Changes
+## Files to Create/Modify
 
-### File: `src/pages/settings/WhatsAppConnection.tsx`
-
-| Change | Description |
-|--------|-------------|
-| Always show connect button | Remove conditional that hides button when a session exists |
-| List all connected sessions | Replace single-session display with `.map()` over all `connectedSessions` |
-| Per-session actions | Each session card gets its own Sync Groups + Disconnect buttons |
-| Rename button | "Connect Another WhatsApp" to clarify multi-account support |
-| Session History section | Only show disconnected sessions (not active ones duplicated) |
-
-### Code Changes
-
-**Lines 232-286** - Replace the single-session status display with:
-
-1. **Connected Sessions List**: Loop through all `connectedSessions` with individual cards
-2. **Add WhatsApp Button**: Always visible below the list
-3. **Filter Session History**: Only show sessions that are NOT connected
-
----
-
-## WhatsApp Groups Enhancement (Optional)
-
-Currently groups are displayed without indicating which account owns them. Consider adding the session phone number to each group row for clarity when multiple accounts are connected.
-
----
-
-## No Database Changes Required
-
-The `whatsapp_sessions` table already supports multiple sessions per organization. The "Community Creation Settings" dropdown already lists all connected sessions, confirming the architecture is in place.
-
----
-
-## Files to Modify
+### New Files
 
 | File | Purpose |
 |------|---------|
-| `src/pages/settings/WhatsAppConnection.tsx` | Restructure UI to display all connected sessions with individual controls |
+| `src/pages/operations/DynamicLinks.tsx` | Main page with link list |
+| `src/pages/operations/LinkRedirect.tsx` | Redirect handler (public, no auth) |
+| `src/components/operations/CreateLinkDialog.tsx` | Create/edit link form |
+| `src/components/operations/LinkCard.tsx` | Individual link display |
+| `src/hooks/useDynamicLinks.ts` | Data fetching and mutations |
+
+### Modified Files
+
+| File | Changes |
+|------|---------|
+| `src/App.tsx` | Add `/link/:slug` route (public) and `/operations/dynamic-links` route |
+| `src/pages/operations/index.ts` | Export DynamicLinks component |
+| `src/components/AppLayout.tsx` | Add "Dynamic Links" to Operations menu |
+
+---
+
+## Implementation Phases
+
+### Phase 1: Database Setup
+- Create `dynamic_links` table with RLS policies
+- Add unique constraint on (organization_id, slug)
+
+### Phase 2: Redirect Handler
+- Create public `/link/:slug` route
+- Fetch destination, increment click count, redirect
+- Show "Link not found" page for invalid slugs
+
+### Phase 3: Management UI
+- Dynamic Links page under Operations
+- Create/Edit dialog with WhatsApp group selection
+- Copy link functionality
+- Click count display
+
+### Phase 4: Navigation
+- Add to Operations submenu
+- Add permissions check (admin/manager only for editing)
+
+---
+
+## Edge Cases Handled
+
+| Scenario | Behavior |
+|----------|----------|
+| Slug already exists | Show error "This slug is already in use" |
+| WhatsApp group has no invite link | Disable selection, show "Fetch invite link first" |
+| Link is disabled | Show "This link is currently inactive" page |
+| Organization deleted | Links become orphaned (handled by cascade) |
+| Invalid characters in slug | Validate: only lowercase letters, numbers, hyphens |
+
+---
+
+## Custom Domain Note
+
+Once you connect `app.tagfunnel.ai` to your Lovable project (via Settings → Domains), all `/link/...` URLs will automatically work on both:
+- `nikist-sales-hub.lovable.app/link/whatsapp-group`
+- `app.tagfunnel.ai/link/whatsapp-group`
+
+No code changes needed - React Router handles the paths regardless of domain.
 
