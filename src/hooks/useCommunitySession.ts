@@ -65,7 +65,7 @@ export function useCommunitySession() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-session"] });
+      queryClient.invalidateQueries({ queryKey: ["community-session", currentOrganization?.id] });
       toast.success("Community creation number updated");
     },
     onError: (error: any) => {
