@@ -1,124 +1,100 @@
 
 
-# Improve Dynamic Links Dialog - WhatsApp Session Selection
+# Fix Dynamic Links Dialog UI
 
-## Problem Summary
+## Problem
 
-The current Create Link dialog shows all WhatsApp groups from all connected accounts at once. You can't:
-- Choose which WhatsApp number's groups to see
-- Sync groups on demand from the dialog
-- Know which account a group belongs to
+The Create Dynamic Link popup is too small for its content. As seen in your screenshot:
+- Text is cut off on the left edge
+- The popup doesn't expand to fit the WhatsApp selection content
+- Groups list feels cramped
+- Overall layout looks squeezed
 
 ---
 
-## Proposed User Flow
+## Solution
+
+Make the dialog responsive and properly sized:
+
+### Width Changes
+
+| Current | Fixed |
+|---------|-------|
+| `sm:max-w-lg` (512px fixed) | `sm:max-w-xl` (576px) or `sm:max-w-2xl` (672px) |
+
+### Height & Scroll Changes
+
+| Current | Fixed |
+|---------|-------|
+| Fixed `h-52` groups list | Dynamic height with `max-h-64` |
+| `max-h-[90vh]` on dialog | Keep, but improve internal spacing |
+
+### Improved Layout
 
 ```text
-┌─ Create Dynamic Link ───────────────────────────────────────┐
-│                                                              │
-│ Link Slug                                                    │
-│ ┌──────────────────────────────────────────────────────────┐│
-│ │ whatsapp-group                                           ││
-│ └──────────────────────────────────────────────────────────┘│
-│ nikist-sales-hub.lovable.app/link/whatsapp-group            │
-│                                                              │
-│ ─────────────────────────────────────────────────────────── │
-│                                                              │
-│ Destination Type                                             │
-│   [Custom URL]  [WhatsApp Group ✓]                          │
-│                                                              │
-│ ─────────────────────────────────────────────────────────── │
-│                                                              │
-│ Step 1: Select WhatsApp Account                              │
-│ ┌──────────────────────────────────────────────────────────┐│
-│ │ 🟢 919289630962                                      ▼   ││
-│ └──────────────────────────────────────────────────────────┘│
-│                                                              │
-│ Step 2: Select Group from this Account          [Sync Now]   │
-│ ┌──────────────────────────────────────────────────────────┐│
-│ │ 🔍 Search groups...                                      ││
-│ ├──────────────────────────────────────────────────────────┤│
-│ │ ✓ Has invite link (can be used for redirection)          ││
-│ │   🟢 Crypto Masterclass <> 1st February          230     ││
-│ │   🟢 test amit                                   1       ││
-│ │   🟢 Malasi amit workshop                        1       ││
-│ ├──────────────────────────────────────────────────────────┤│
-│ │ ⚠ No invite link (sync to fetch)                         ││
-│ │   ⚪ Python Career Blueprint - 29th June          45     ││
-│ │   ⚪ Ethical Hacking - 14th August               120     ││
-│ └──────────────────────────────────────────────────────────┘│
-│                                                              │
-│                                  [Cancel] [Create Link]      │
-└──────────────────────────────────────────────────────────────┘
+┌─ Create Dynamic Link ──────────────────────────────────────────────┐
+│                                                                      │
+│ Create a permanent link that redirects to any destination.          │
+│                                                                      │
+│ Link Slug                                                            │
+│ ┌──────────────────────────────────────────────────────────────────┐│
+│ │ whatsapp-group                                                   ││
+│ └──────────────────────────────────────────────────────────────────┘│
+│ 📋 nikist-sales-hub.lovable.app/link/whatsapp-group                 │
+│                                                                      │
+│ ────────────────────────────────────────────────────────────────────│
+│                                                                      │
+│ Destination Type                                                     │
+│                                                                      │
+│   ┌──────────────────────┐  ┌──────────────────────┐                │
+│   │     🔗               │  │     💬               │                │
+│   │   Custom URL         │  │  WhatsApp Group ✓    │                │
+│   └──────────────────────┘  └──────────────────────┘                │
+│                                                                      │
+│ ────────────────────────────────────────────────────────────────────│
+│                                                                      │
+│ Select WhatsApp Account                                              │
+│ ┌──────────────────────────────────────────────────────────────────┐│
+│ │ 🟢 919289630962                                              ▼   ││
+│ └──────────────────────────────────────────────────────────────────┘│
+│                                                                      │
+│ Select Group                                          [Sync Groups]  │
+│ ┌──────────────────────────────────────────────────────────────────┐│
+│ │ 🔍 Search groups...                                              ││
+│ └──────────────────────────────────────────────────────────────────┘│
+│ ┌──────────────────────────────────────────────────────────────────┐│
+│ │ ✓ Has invite link (7)                                            ││
+│ │ ┌────────────────────────────────────────────────────────────┐   ││
+│ │ │ 🟢 Crypto Masterclass <> 1st February              👥 230  │   ││
+│ │ │ 🟢 test amit                                       👥 1    │   ││
+│ │ │ 🟢 Malasi amit workshop                            👥 1    │   ││
+│ │ └────────────────────────────────────────────────────────────┘   ││
+│ │                                                                  ││
+│ │ ⚠ No invite link (sync to fetch)                                ││
+│ │   ⚪ Old workshop group                               👥 45      ││
+│ └──────────────────────────────────────────────────────────────────┘│
+│                                                                      │
+│                                         [Cancel]    [Create Link]    │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Implementation Changes
+## Specific CSS/Layout Fixes
 
 ### File: `src/components/operations/CreateLinkDialog.tsx`
 
-#### Current Issues
-1. Uses `useWhatsAppGroups()` which fetches all groups without session context
-2. No session selector dropdown
-3. No sync button for selected session
+| Line | Current | Fixed |
+|------|---------|-------|
+| 194 | `className="sm:max-w-lg max-h-[90vh] overflow-y-auto"` | `className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"` |
+| 333 | `<ScrollArea className="h-52 rounded-md border">` | `<ScrollArea className="h-auto max-h-64 rounded-md border">` |
 
-#### Changes Required
+### Additional Improvements
 
-| Change | Description |
-|--------|-------------|
-| Add session selector | Dropdown with connected WhatsApp accounts (phone numbers) |
-| Pass session context to groups | Filter groups by selected `session_id` |
-| Add Sync button | Next to session dropdown to refresh groups for that account |
-| Improve group list UI | Clear separation between groups with/without invite links |
-| Show "No account" state | If no WhatsApp accounts are connected, show helpful message |
-
-#### New Component Structure
-
-```text
-CreateLinkDialog
-├── Slug Input (unchanged)
-├── Destination Type Toggle (unchanged)
-├── [If WhatsApp selected]
-│   ├── Session Selector Dropdown
-│   │   └── List of connected sessions with phone numbers
-│   ├── Sync Button (triggers syncGroups for selected session)
-│   └── Groups List (filtered by selected session)
-│       ├── Groups with invite links (selectable)
-│       └── Groups without invite links (disabled + tooltip)
-└── Footer Actions (unchanged)
-```
-
----
-
-## Data Flow
-
-### Current
-```text
-useWhatsAppGroups() → Returns ALL groups from ALL connected sessions
-```
-
-### Proposed
-```text
-useWhatsAppSession() → Get list of connected sessions
-                           ↓
-User selects session → Filter groups by session_id
-                           ↓
-useWhatsAppGroups().syncGroups(sessionId) → Sync specific session
-```
-
-The `useWhatsAppGroups` hook already supports filtering by session - we just need to use it properly.
-
----
-
-## UI Improvements
-
-| Current | Improved |
-|---------|----------|
-| Shows all groups mixed together | Grouped by WhatsApp account |
-| No way to sync from dialog | "Sync Now" button per account |
-| Unclear which groups can be used | Clear separation: with/without invite links |
-| Groups without invite link can be clicked (confusing) | Disabled with explanation tooltip |
+1. **Better URL preview** - Make it non-truncating, with smaller font
+2. **Cleaner step labels** - Remove "Step 1/2" prefix, just use clear headings
+3. **Group items** - More padding for easier clicking
+4. **Responsive type cards** - Slightly smaller on mobile
 
 ---
 
@@ -126,16 +102,5 @@ The `useWhatsAppGroups` hook already supports filtering by session - we just nee
 
 | File | Changes |
 |------|---------|
-| `src/components/operations/CreateLinkDialog.tsx` | Add session selector, sync button, improve group list |
-
----
-
-## Edge Cases Handled
-
-| Scenario | Behavior |
-|----------|----------|
-| No WhatsApp accounts connected | Show message: "Connect a WhatsApp account first in Settings" |
-| Session has no groups | Show "No groups found. Click Sync to fetch." |
-| Groups without invite links | Show as disabled with tooltip explaining why |
-| Only one session connected | Auto-select it, but still show dropdown for clarity |
+| `src/components/operations/CreateLinkDialog.tsx` | Increase dialog width, improve spacing, dynamic group list height |
 
