@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link as LinkIcon, MessageCircle, Search, Check, AlertCircle, RefreshCw, Users } from 'lucide-react';
+import { Link as LinkIcon, MessageCircle, Search, Check, AlertCircle, RefreshCw, Users, LinkIcon as GetLinkIcon, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ type DestinationType = 'url' | 'whatsapp';
 
 export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLinkDialogProps) {
   const { createLink, isCreating, updateLink, isUpdating } = useDynamicLinks();
-  const { groups, groupsLoading, syncGroups, isSyncing } = useWhatsAppGroups();
+  const { groups, groupsLoading, syncGroups, isSyncing, fetchInviteLink, isFetchingInviteLink, fetchingInviteLinkGroupId } = useWhatsAppGroups();
   const { sessions, sessionsLoading } = useWhatsAppSession();
 
   // Form state
@@ -89,8 +89,20 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
     });
   }, [groups, selectedSessionId, groupSearch]);
 
-  // Only show groups with invite links (usable for redirection)
-  const usableGroups = filteredGroups.filter(g => g.invite_link);
+  // Separate groups with and without invite links
+  const groupsWithInvite = filteredGroups.filter(g => g.invite_link);
+  const groupsWithoutInvite = filteredGroups.filter(g => !g.invite_link);
+
+  // Handler for fetching invite link on-demand
+  const handleFetchInviteLink = (group: WhatsAppGroup) => {
+    if (selectedSessionId) {
+      fetchInviteLink({
+        sessionId: selectedSessionId,
+        groupId: group.id,
+        groupJid: group.group_jid,
+      });
+    }
+  };
 
   // Get session display info
   const getSessionDisplayName = (session: { phone_number: string | null; display_name: string | null }) => {
@@ -334,29 +346,51 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                       <div className="p-4 text-center text-muted-foreground">
                         Loading groups...
                       </div>
-                    ) : usableGroups.length === 0 ? (
+                    ) : filteredGroups.length === 0 ? (
                       <div className="p-4 text-center text-muted-foreground">
                         {groupSearch 
                           ? 'No groups match your search.'
-                          : filteredGroups.length > 0 
-                            ? 'No groups with invite links. Click "Sync Groups" to fetch invite links.'
-                            : 'No groups found. Click "Sync Groups" to fetch.'}
+                          : 'No groups found. Click "Sync Groups" to fetch.'}
                       </div>
                     ) : (
                       <div className="p-2 space-y-1">
-                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                          <Check className="h-3 w-3 text-green-500" />
-                          Available Groups ({usableGroups.length})
-                        </div>
-                        {usableGroups.map((group) => (
-                          <GroupItem
-                            key={group.id}
-                            group={group}
-                            isSelected={selectedGroupId === group.id}
-                            onSelect={() => setSelectedGroupId(group.id)}
-                            hasInviteLink={true}
-                          />
-                        ))}
+                        {/* Groups with invite links - selectable */}
+                        {groupsWithInvite.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                              <Check className="h-3 w-3 text-green-500" />
+                              Ready ({groupsWithInvite.length})
+                            </div>
+                            {groupsWithInvite.map((group) => (
+                              <GroupItem
+                                key={group.id}
+                                group={group}
+                                isSelected={selectedGroupId === group.id}
+                                onSelect={() => setSelectedGroupId(group.id)}
+                                hasInviteLink={true}
+                              />
+                            ))}
+                          </>
+                        )}
+                        
+                        {/* Groups without invite links - need to fetch */}
+                        {groupsWithoutInvite.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5 border-t mt-2 pt-2">
+                              <AlertCircle className="h-3 w-3 text-yellow-500" />
+                              Need invite link ({groupsWithoutInvite.length})
+                            </div>
+                            {groupsWithoutInvite.map((group) => (
+                              <GroupItemWithFetch
+                                key={group.id}
+                                group={group}
+                                isSelected={selectedGroupId === group.id}
+                                onFetchInviteLink={() => handleFetchInviteLink(group)}
+                                isFetching={isFetchingInviteLink && fetchingInviteLinkGroupId === group.id}
+                              />
+                            ))}
+                          </>
+                        )}
                       </div>
                     )}
                   </ScrollArea>
@@ -425,5 +459,60 @@ function GroupItem({ group, isSelected, onSelect, hasInviteLink, disabled }: Gro
         {isSelected && <Check className="h-4 w-4 text-primary" />}
       </div>
     </button>
+  );
+}
+
+// Group item component with fetch invite link button
+interface GroupItemWithFetchProps {
+  group: WhatsAppGroup;
+  isSelected: boolean;
+  onFetchInviteLink: () => void;
+  isFetching: boolean;
+}
+
+function GroupItemWithFetch({ group, isSelected, onFetchInviteLink, isFetching }: GroupItemWithFetchProps) {
+  return (
+    <div
+      className={`
+        w-full flex items-center justify-between p-3 rounded-md text-sm
+        bg-muted/50 border border-transparent
+      `}
+    >
+      <div className="flex items-center gap-2 min-w-0">
+        <MessageCircle className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        <span className="truncate text-muted-foreground">{group.group_name}</span>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {group.participant_count > 0 && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Users className="h-3 w-3" />
+            <span>{group.participant_count}</span>
+          </div>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFetchInviteLink();
+          }}
+          disabled={isFetching}
+          className="h-7 text-xs"
+        >
+          {isFetching ? (
+            <>
+              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              Fetching...
+            </>
+          ) : (
+            <>
+              <GetLinkIcon className="h-3 w-3 mr-1" />
+              Get Link
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
   );
 }
