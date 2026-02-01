@@ -51,26 +51,28 @@ Deno.serve(async (req) => {
 
     console.log(`Creating WhatsApp community for workshop: ${workshopName} (${workshopId})`);
 
-    // Step 1: Get the organization's community_session_id
+    // Step 1: Get the workshop details including tag_id
     let orgId = organizationId;
+    let workshopTagId: string | null = null;
+    let workshopStartDate: string | null = null;
     
-    if (!orgId) {
-      // If no organizationId provided, get it from the workshop
-      const { data: workshop, error: workshopError } = await supabase
-        .from('workshops')
-        .select('organization_id')
-        .eq('id', workshopId)
-        .single();
+    const { data: workshop, error: workshopError } = await supabase
+      .from('workshops')
+      .select('organization_id, tag_id, start_date')
+      .eq('id', workshopId)
+      .single();
 
-      if (workshopError || !workshop) {
-        console.error('Failed to get workshop organization:', workshopError);
-        return new Response(
-          JSON.stringify({ error: 'Workshop not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      orgId = workshop.organization_id;
+    if (workshopError || !workshop) {
+      console.error('Failed to get workshop:', workshopError);
+      return new Response(
+        JSON.stringify({ error: 'Workshop not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+    
+    orgId = workshop.organization_id;
+    workshopTagId = workshop.tag_id;
+    workshopStartDate = workshop.start_date;
 
     // Get community session ID from organization
     const { data: org, error: orgError } = await supabase
@@ -145,25 +147,93 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step 3: Call VPS /create-community endpoint
+    // Step 3: Look up community template for this workshop's tag
+    let communityDescription = `Community for ${workshopName}`;
+    let profilePictureUrl: string | null = null;
+    
+    if (workshopTagId) {
+      console.log('Fetching community template for tag:', workshopTagId);
+      const { data: template, error: templateError } = await supabase
+        .from('community_templates')
+        .select('*')
+        .eq('tag_id', workshopTagId)
+        .maybeSingle();
+      
+      if (templateError) {
+        console.error('Error fetching community template:', templateError);
+      } else if (template) {
+        console.log('Found community template:', template.id);
+        
+        // Parse template variables
+        let parsedDescription = template.description_template;
+        
+        // Extract workshop_title and workshop_date from workshop name
+        let workshopTitle = workshopName;
+        let workshopDate = '';
+        
+        if (workshopName.includes('<>')) {
+          const parts = workshopName.split('<>');
+          workshopTitle = parts[0].trim();
+          workshopDate = parts[1]?.trim() || '';
+        }
+        
+        // Format start time (default 7:00 PM IST)
+        let startTime = '7:00 PM IST';
+        if (workshopStartDate) {
+          try {
+            const date = new Date(workshopStartDate);
+            const hours = date.getUTCHours() + 5; // Convert to IST (UTC+5:30)
+            const adjustedHours = hours % 24;
+            const minutes = (date.getUTCMinutes() + 30) % 60;
+            const period = adjustedHours >= 12 ? 'PM' : 'AM';
+            const displayHours = adjustedHours > 12 ? adjustedHours - 12 : adjustedHours || 12;
+            startTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${period} IST`;
+          } catch (e) {
+            console.error('Error formatting start time:', e);
+          }
+        }
+        
+        // Replace variables
+        parsedDescription = parsedDescription
+          .replace(/{workshop_name}/g, workshopName)
+          .replace(/{workshop_title}/g, workshopTitle)
+          .replace(/{workshop_date}/g, workshopDate)
+          .replace(/{start_time}/g, startTime);
+        
+        communityDescription = parsedDescription;
+        profilePictureUrl = template.profile_picture_url;
+        
+        console.log('Parsed community description:', communityDescription);
+      }
+    }
+
+    // Step 4: Call VPS /create-community endpoint
     console.log(`Calling VPS /create-community with session: ${vpsSessionId}`);
     
     const vpsUrl = VPS_URL.endsWith('/') ? VPS_URL.slice(0, -1) : VPS_URL;
+    const vpsPayload: Record<string, unknown> = {
+      sessionId: vpsSessionId,
+      name: workshopName,
+      description: communityDescription,
+      settings: {
+        announcement: true,  // Only admins can send messages
+        restrict: true,      // Only admins can edit settings
+      },
+    };
+    
+    // Add profile picture if available (VPS needs to support this)
+    if (profilePictureUrl) {
+      vpsPayload.profilePictureUrl = profilePictureUrl;
+      console.log('Including profile picture URL:', profilePictureUrl);
+    }
+    
     const vpsResponse = await fetch(`${vpsUrl}/create-community`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': VPS_API_KEY,
       },
-      body: JSON.stringify({
-        sessionId: vpsSessionId,
-        name: workshopName,
-        description: `Community for ${workshopName}`,
-        settings: {
-          announcement: true,  // Only admins can send messages
-          restrict: true,      // Only admins can edit settings
-        },
-      }),
+      body: JSON.stringify(vpsPayload),
     });
 
     const vpsResult = await vpsResponse.json();
