@@ -593,6 +593,11 @@ Deno.serve(async (req) => {
             isAdmin = true;
           }
           
+          // Extract invite link from various possible fields
+          const inviteLink = g.inviteLink || g.invite_link || g.inviteCode 
+            ? (g.inviteLink || g.invite_link || `https://chat.whatsapp.com/${g.inviteCode}`)
+            : null;
+          
           return {
             organization_id: organizationId,
             session_id: localSessionIdForDb,
@@ -603,6 +608,7 @@ Deno.serve(async (req) => {
               : (g.participants || g.participantsCount || g.size || 0),
             is_active: true,
             is_admin: isAdmin,
+            invite_link: inviteLink,
             synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
