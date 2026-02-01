@@ -189,6 +189,42 @@ export function useWhatsAppGroups() {
   // Get unlinked groups
   const unlinkedGroups = groups?.filter(g => !g.workshop_id) || [];
 
+  // Fetch invite link for a specific group
+  const fetchInviteLinkMutation = useMutation({
+    mutationFn: async ({ sessionId, groupId, groupJid }: { 
+      sessionId: string; 
+      groupId: string;
+      groupJid: string;
+    }) => {
+      const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
+        body: {
+          action: 'get-invite-link',
+          sessionId,
+          groupJid,
+          organizationId: currentOrganization?.id,
+        },
+      });
+
+      if (response.error) {
+        const errorData = await parseInvokeError(response.error, (response as any).response);
+        throw new Error(errorData.error || 'Failed to fetch invite link');
+      }
+      
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Could not get invite link');
+      }
+      
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups', currentOrganization?.id] });
+      toast.success('Invite link fetched');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to get invite link');
+    },
+  });
+
   return {
     groups,
     groupsLoading,
@@ -198,5 +234,8 @@ export function useWhatsAppGroups() {
     isLinking: linkToWorkshopMutation.isPending,
     getWorkshopGroups,
     unlinkedGroups,
+    fetchInviteLink: fetchInviteLinkMutation.mutate,
+    isFetchingInviteLink: fetchInviteLinkMutation.isPending,
+    fetchingInviteLinkGroupId: fetchInviteLinkMutation.variables?.groupId,
   };
 }
