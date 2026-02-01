@@ -2373,6 +2373,86 @@ export type Database = {
           },
         ]
       }
+      scheduled_sms_messages: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          fast2sms_request_id: string | null
+          id: string
+          lead_id: string
+          message_type: string | null
+          organization_id: string
+          retry_count: number | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          template_id: string
+          variable_values: Json | null
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          fast2sms_request_id?: string | null
+          id?: string
+          lead_id: string
+          message_type?: string | null
+          organization_id: string
+          retry_count?: number | null
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          template_id: string
+          variable_values?: Json | null
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          fast2sms_request_id?: string | null
+          id?: string
+          lead_id?: string
+          message_type?: string | null
+          organization_id?: string
+          retry_count?: number | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          template_id?: string
+          variable_values?: Json | null
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_sms_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_sms_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_sms_messages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "sms_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_sms_messages_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_whatsapp_messages: {
         Row: {
           created_at: string
@@ -2452,6 +2532,130 @@ export type Database = {
             columns: ["workshop_id"]
             isOneToOne: false
             referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_sequence_steps: {
+        Row: {
+          created_at: string
+          id: string
+          send_time: string
+          sequence_id: string
+          step_order: number
+          template_id: string
+          time_label: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          send_time: string
+          sequence_id: string
+          step_order: number
+          template_id: string
+          time_label?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          send_time?: string
+          sequence_id?: string
+          step_order?: number
+          template_id?: string
+          time_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "sms_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_sequence_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "sms_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_sequences: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_templates: {
+        Row: {
+          content_preview: string
+          created_at: string
+          dlt_template_id: string
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          updated_at: string
+          variables: Json | null
+        }
+        Insert: {
+          content_preview: string
+          created_at?: string
+          dlt_template_id: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id: string
+          updated_at?: string
+          variables?: Json | null
+        }
+        Update: {
+          content_preview?: string
+          created_at?: string
+          dlt_template_id?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string
+          updated_at?: string
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2921,6 +3125,7 @@ export type Database = {
           is_default: boolean | null
           name: string
           organization_id: string
+          sms_sequence_id: string | null
           template_sequence_id: string | null
           updated_at: string
         }
@@ -2932,6 +3137,7 @@ export type Database = {
           is_default?: boolean | null
           name: string
           organization_id: string
+          sms_sequence_id?: string | null
           template_sequence_id?: string | null
           updated_at?: string
         }
@@ -2943,6 +3149,7 @@ export type Database = {
           is_default?: boolean | null
           name?: string
           organization_id?: string
+          sms_sequence_id?: string | null
           template_sequence_id?: string | null
           updated_at?: string
         }
@@ -2952,6 +3159,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_tags_sms_sequence_id_fkey"
+            columns: ["sms_sequence_id"]
+            isOneToOne: false
+            referencedRelation: "sms_sequences"
             referencedColumns: ["id"]
           },
           {

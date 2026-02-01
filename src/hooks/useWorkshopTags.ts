@@ -10,11 +10,16 @@ export interface WorkshopTag {
   color: string | null;
   description: string | null;
   template_sequence_id: string | null;
+  sms_sequence_id: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
   // Joined data
   template_sequence?: {
+    id: string;
+    name: string;
+  } | null;
+  sms_sequence?: {
     id: string;
     name: string;
   } | null;
@@ -25,6 +30,7 @@ export interface CreateTagInput {
   color?: string;
   description?: string;
   template_sequence_id?: string | null;
+  sms_sequence_id?: string | null;
 }
 
 export interface UpdateTagInput extends Partial<CreateTagInput> {
@@ -56,7 +62,8 @@ export function useWorkshopTags() {
         .from('workshop_tags')
         .select(`
           *,
-          template_sequence:template_sequences(id, name)
+          template_sequence:template_sequences(id, name),
+          sms_sequence:sms_sequences(id, name)
         `)
         .eq('organization_id', currentOrganization.id)
         .order('name', { ascending: true });
@@ -80,6 +87,7 @@ export function useWorkshopTags() {
           color: input.color || '#8B5CF6',
           description: input.description || null,
           template_sequence_id: input.template_sequence_id || null,
+          sms_sequence_id: input.sms_sequence_id || null,
         })
         .select()
         .single();
