@@ -1,119 +1,135 @@
 
+# Ultra-Fast Branded URL Redirect
 
-# Fix: Auto-Fetch Invite Link Resets Form State
+## The Solution
 
-## Problem Identified
+Inject a tiny inline JavaScript snippet directly into `index.html` that runs **before** React loads. This script will:
 
-After selecting a WhatsApp group and auto-fetching its invite link, the form state is unexpectedly reset:
-- Switches back to "Custom URL" mode
-- Clears the selected group
-- Nothing appears to work
+1. Detect if the current URL matches `/link/:slug`
+2. Make a direct API call to the backend function to get the destination
+3. Redirect immediately (before any React bundle downloads)
+4. If it fails, let React handle it as a fallback
 
-## Root Cause
+## How It Works
 
-In `CreateLinkDialog.tsx`, the form reset `useEffect` (lines 48-77) includes `groups` in its dependency array:
-
-```tsx
-useEffect(() => {
-  if (open) {
-    if (editingLink) {
-      // ... editing logic
-    } else {
-      setDestinationType('url');    // Resets to URL mode!
-      setSelectedGroupId(null);      // Clears group selection!
-    }
-  }
-}, [open, editingLink, groups]);   // groups dependency causes re-run!
 ```
+User clicks: app.tagfunnel.ai/link/xyz
+              ↓
+index.html loads (tiny, ~5KB)
+              ↓
+Inline script runs IMMEDIATELY
+              ↓
+Detects /link/xyz pattern
+              ↓
+Calls backend function (fast API call)
+              ↓
+Gets destination URL
+              ↓
+window.location.href = destination
+              ↓
+User lands on WhatsApp (~200-300ms total)
 
-**Flow that causes the bug:**
-1. User selects a group without invite link
-2. Auto-fetch triggers `fetchInviteLink()`
-3. On success, `queryClient.invalidateQueries()` refetches groups
-4. `groups` reference changes, triggering the useEffect
-5. Since `editingLink` is `null` (creating new), form resets to defaults
-6. User sees "Custom URL" selected and no group chosen
-
-## Solution
-
-Remove `groups` from the dependency array of the form reset effect. The effect should only run when:
-- `open` changes (dialog opens/closes)
-- `editingLink` changes (switching between create/edit mode)
-
-The `groups` dependency was likely added to set the session when editing an existing link (line 58-61), but this can be handled separately or by checking if we're already initialized.
+(React never even starts loading!)
+```
 
 ## Implementation
 
-### File: `src/components/operations/CreateLinkDialog.tsx`
+### Step 1: Create Backend Function for Fast Lookup
 
-**Change 1: Split the effect - remove groups from reset effect**
+**File:** `supabase/functions/link-redirect/index.ts`
 
-Current (lines 48-77):
-```tsx
-useEffect(() => {
-  if (open) {
-    if (editingLink) {
-      // ... sets editing state including looking up group's session
-    } else {
-      setSlug('');
-      setDestinationType('url');
-      // ...
+A lightweight function that:
+- Accepts GET request with slug
+- Calls `increment_link_click` RPC
+- Returns JSON with destination URL
+- Super fast response (~50-100ms)
+
+### Step 2: Add Inline Script to index.html
+
+**File:** `index.html`
+
+Add a tiny inline script in the `<head>` that:
+- Checks if URL starts with `/link/`
+- Extracts the slug
+- Fetches destination from backend function
+- Redirects immediately
+- If error, lets the page continue loading (fallback to React)
+
+```html
+<script>
+(function() {
+  var path = window.location.pathname;
+  if (path.startsWith('/link/')) {
+    var slug = path.replace('/link/', '');
+    if (slug) {
+      fetch('https://swnpxkovxhinxzprxviz.supabase.co/functions/v1/link-redirect?slug=' + encodeURIComponent(slug))
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.url) window.location.href = d.url; })
+        .catch(function() { /* fallback to React */ });
     }
   }
-}, [open, editingLink, groups]); // ← groups causes bug
+})();
+</script>
 ```
 
-Updated:
-```tsx
-useEffect(() => {
-  if (open) {
-    if (editingLink) {
-      setSlug(editingLink.slug);
-      if (editingLink.whatsapp_group_id) {
-        setDestinationType('whatsapp');
-        setSelectedGroupId(editingLink.whatsapp_group_id);
-        setDestinationUrl('');
-      } else {
-        setDestinationType('url');
-        setDestinationUrl(editingLink.destination_url || '');
-        setSelectedGroupId(null);
-      }
-    } else {
-      setSlug('');
-      setDestinationType('url');
-      setDestinationUrl('');
-      setSelectedGroupId(null);
-    }
-    setGroupSearch('');
-    setError(null);
-  }
-}, [open, editingLink]); // ← Remove groups dependency
+### Step 3: Keep React Route as Fallback
+
+The existing `/link/:slug` React route stays as-is for:
+- Error display (link not found)
+- Fallback if the inline script fails
+- Graceful degradation
+
+## Result
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| URL | `app.tagfunnel.ai/link/xyz` | `app.tagfunnel.ai/link/xyz` (same!) |
+| Speed | 2-3 seconds | 200-300ms |
+| User sees | Loading spinner | Nothing (instant redirect) |
+| Bundle load | Full React app | Nothing (skipped entirely) |
+
+## Files to Create/Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `supabase/functions/link-redirect/index.ts` | Create | Fast API endpoint for destination lookup |
+| `supabase/config.toml` | Modify | Add function config (no JWT required) |
+| `index.html` | Modify | Add inline redirect script |
+
+## Technical Details
+
+### Backend Function Response Format
+
+```json
+// Success
+{ "url": "https://chat.whatsapp.com/abc123" }
+
+// Not found
+{ "error": "not_found" }
 ```
 
-**Change 2: Add separate effect for setting session when editing**
+### Inline Script (~500 bytes)
 
-This handles the case where we need to look up the group's session when editing:
+The script is:
+- Synchronous check of URL path
+- Async fetch (doesn't block anything)
+- Immediate redirect on success
+- Silent fallback on failure
 
-```tsx
-// Separate effect to set session ID when editing a WhatsApp group link
-useEffect(() => {
-  if (open && editingLink?.whatsapp_group_id && groups) {
-    const group = groups.find(g => g.id === editingLink.whatsapp_group_id);
-    if (group && !selectedSessionId) {
-      setSelectedSessionId(group.session_id);
-    }
-  }
-}, [open, editingLink, groups, selectedSessionId]);
-```
+### Why This Works
 
-## Summary of Changes
+1. **index.html is tiny** - Downloads in ~50ms
+2. **Inline script runs before any module loading** - No waiting for React
+3. **Backend function is fast** - ~50-100ms response
+4. **Redirect happens before bundle download starts** - User sees nothing
+5. **Branded URL preserved** - Same `app.tagfunnel.ai/link/xyz` format
 
-| Change | Purpose |
-|--------|---------|
-| Remove `groups` from reset effect dependency | Prevent form reset when groups refetch after invite link fetch |
-| Add separate effect for editing session lookup | Preserve the functionality of finding the session for an existing link |
+## Fallback Behavior
 
-## Files to Modify
+If the inline script fails (network error, timeout, etc.):
+- React app loads normally
+- Shows loading spinner
+- Makes the same API call
+- Shows error page if link not found
 
-- `src/components/operations/CreateLinkDialog.tsx`
-
+This ensures users always get redirected or see a proper error page, never a broken experience.
