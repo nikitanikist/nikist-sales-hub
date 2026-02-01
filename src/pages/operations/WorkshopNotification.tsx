@@ -2,7 +2,7 @@ import { Activity, Users, MessageCircle, Smartphone, Phone } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageIntro } from '@/components/PageIntro';
 import { useWorkshopNotification } from '@/hooks/useWorkshopNotification';
-import { WhatsAppGroupTab, ComingSoonPlaceholder } from '@/components/operations/notification-channels';
+import { WhatsAppGroupTab, ComingSoonPlaceholder, SMSTab } from '@/components/operations/notification-channels';
 
 export default function WorkshopNotification() {
   const { 
@@ -14,6 +14,15 @@ export default function WorkshopNotification() {
     deleteWorkshop,
     isDeletingWorkshop,
   } = useWorkshopNotification();
+
+  // Transform workshops to include sms_sequence_id from tag for SMSTab
+  const workshopsWithSMS = workshops.map(w => ({
+    ...w,
+    tag: w.tag ? {
+      ...w.tag,
+      sms_sequence_id: (w.tag as { sms_sequence_id?: string | null }).sms_sequence_id || null,
+    } : null,
+  }));
 
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
@@ -66,11 +75,10 @@ export default function WorkshopNotification() {
         </TabsContent>
 
         <TabsContent value="sms">
-          <ComingSoonPlaceholder
-            channel="SMS"
-            provider="Fast2SMS"
-            icon={Smartphone}
-            description="Send SMS notifications to workshop registrants. Ideal for users who may not have WhatsApp."
+          <SMSTab
+            workshops={workshopsWithSMS}
+            workshopsLoading={workshopsLoading}
+            orgTimezone={orgTimezone}
           />
         </TabsContent>
 
