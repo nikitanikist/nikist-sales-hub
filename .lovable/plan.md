@@ -1,100 +1,90 @@
 
 
-# Fix Dynamic Links Dialog UI
+# Fix Group List: Hide Unusable Groups & Fix Scrolling
 
-## Problem
+## Problems Identified
 
-The Create Dynamic Link popup is too small for its content. As seen in your screenshot:
-- Text is cut off on the left edge
-- The popup doesn't expand to fit the WhatsApp selection content
-- Groups list feels cramped
-- Overall layout looks squeezed
+### Issue 1: Inactive/Unusable Groups Showing
+Groups without invite links cannot be used for redirection, so there's no point showing them in the selection list. They just clutter the UI.
+
+### Issue 2: Scroll Not Working
+When you try to scroll the group list, the entire dialog scrolls instead. This happens because:
+- `ScrollArea` with `h-auto max-h-64` doesn't create a proper scroll context
+- Radix ScrollArea needs a fixed height on the container for scrolling to work
+- The Viewport inside has `h-full` but with `h-auto` parent, it expands instead of scrolling
 
 ---
 
 ## Solution
 
-Make the dialog responsive and properly sized:
+### Fix 1: Only Show Groups with Invite Links
+Remove the "No invite link" section entirely. Only display groups that can actually be selected and used.
 
-### Width Changes
-
-| Current | Fixed |
-|---------|-------|
-| `sm:max-w-lg` (512px fixed) | `sm:max-w-xl` (576px) or `sm:max-w-2xl` (672px) |
-
-### Height & Scroll Changes
-
-| Current | Fixed |
-|---------|-------|
-| Fixed `h-52` groups list | Dynamic height with `max-h-64` |
-| `max-h-[90vh]` on dialog | Keep, but improve internal spacing |
-
-### Improved Layout
-
+**Before:**
 ```text
-┌─ Create Dynamic Link ──────────────────────────────────────────────┐
-│                                                                      │
-│ Create a permanent link that redirects to any destination.          │
-│                                                                      │
-│ Link Slug                                                            │
-│ ┌──────────────────────────────────────────────────────────────────┐│
-│ │ whatsapp-group                                                   ││
-│ └──────────────────────────────────────────────────────────────────┘│
-│ 📋 nikist-sales-hub.lovable.app/link/whatsapp-group                 │
-│                                                                      │
-│ ────────────────────────────────────────────────────────────────────│
-│                                                                      │
-│ Destination Type                                                     │
-│                                                                      │
-│   ┌──────────────────────┐  ┌──────────────────────┐                │
-│   │     🔗               │  │     💬               │                │
-│   │   Custom URL         │  │  WhatsApp Group ✓    │                │
-│   └──────────────────────┘  └──────────────────────┘                │
-│                                                                      │
-│ ────────────────────────────────────────────────────────────────────│
-│                                                                      │
-│ Select WhatsApp Account                                              │
-│ ┌──────────────────────────────────────────────────────────────────┐│
-│ │ 🟢 919289630962                                              ▼   ││
-│ └──────────────────────────────────────────────────────────────────┘│
-│                                                                      │
-│ Select Group                                          [Sync Groups]  │
-│ ┌──────────────────────────────────────────────────────────────────┐│
-│ │ 🔍 Search groups...                                              ││
-│ └──────────────────────────────────────────────────────────────────┘│
-│ ┌──────────────────────────────────────────────────────────────────┐│
-│ │ ✓ Has invite link (7)                                            ││
-│ │ ┌────────────────────────────────────────────────────────────┐   ││
-│ │ │ 🟢 Crypto Masterclass <> 1st February              👥 230  │   ││
-│ │ │ 🟢 test amit                                       👥 1    │   ││
-│ │ │ 🟢 Malasi amit workshop                            👥 1    │   ││
-│ │ └────────────────────────────────────────────────────────────┘   ││
-│ │                                                                  ││
-│ │ ⚠ No invite link (sync to fetch)                                ││
-│ │   ⚪ Old workshop group                               👥 45      ││
-│ └──────────────────────────────────────────────────────────────────┘│
-│                                                                      │
-│                                         [Cancel]    [Create Link]    │
-└──────────────────────────────────────────────────────────────────────┘
+✓ Has invite link (7)
+   Crypto Masterclass <> 1st February
+   test amit
+   
+⚠ No invite link (3)         ← REMOVE THIS ENTIRE SECTION
+   Old workshop group
 ```
+
+**After:**
+```text
+Available Groups (7)
+   Crypto Masterclass <> 1st February
+   test amit
+   Malasi amit workshop
+```
+
+If there are groups but none have invite links, show a helpful message: "No groups with invite links. Click Sync Groups to fetch invite links."
+
+### Fix 2: Fix ScrollArea Height
+Change from dynamic height to fixed height for proper scrolling:
+
+| Current (Broken) | Fixed |
+|------------------|-------|
+| `h-auto max-h-64` | `h-64` (fixed 256px) |
+
+This ensures:
+- ScrollArea has a fixed boundary
+- Viewport can scroll within that boundary
+- Mouse wheel events stay within the group list
 
 ---
 
-## Specific CSS/Layout Fixes
+## Code Changes
 
 ### File: `src/components/operations/CreateLinkDialog.tsx`
 
-| Line | Current | Fixed |
-|------|---------|-------|
-| 194 | `className="sm:max-w-lg max-h-[90vh] overflow-y-auto"` | `className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"` |
-| 333 | `<ScrollArea className="h-52 rounded-md border">` | `<ScrollArea className="h-auto max-h-64 rounded-md border">` |
+| Location | Change |
+|----------|--------|
+| Line 94 | Remove `groupsWithoutInvite` - no longer needed |
+| Line 333 | Change `h-auto max-h-64` to `h-64` |
+| Lines 346-393 | Simplify to only show `groupsWithInvite`, remove "No invite link" section |
+| Empty state | Update message when no groups have invite links |
 
-### Additional Improvements
+---
 
-1. **Better URL preview** - Make it non-truncating, with smaller font
-2. **Cleaner step labels** - Remove "Step 1/2" prefix, just use clear headings
-3. **Group items** - More padding for easier clicking
-4. **Responsive type cards** - Slightly smaller on mobile
+## Updated Group List UI
+
+```text
+Select Group                                      [Sync Groups]
+┌──────────────────────────────────────────────────────────────┐
+│ 🔍 Search groups...                                          │
+└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Available Groups (7)                                        │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ 🟢 Crypto Masterclass <> 1st February          👥 230  │  │
+│  │ 🟢 test amit                                   👥 1    │  │◀── Now scrollable!
+│  │ 🟢 Malasi amit workshop                        👥 1    │  │
+│  │ 🟢 Workshop Feb 2                              👥 156  │  │
+│  │ 🟢 Trading Group                               👥 89   │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -102,5 +92,5 @@ Make the dialog responsive and properly sized:
 
 | File | Changes |
 |------|---------|
-| `src/components/operations/CreateLinkDialog.tsx` | Increase dialog width, improve spacing, dynamic group list height |
+| `src/components/operations/CreateLinkDialog.tsx` | Fix ScrollArea height, remove unusable groups section |
 
