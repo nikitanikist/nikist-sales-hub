@@ -54,11 +54,6 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
           setDestinationType('whatsapp');
           setSelectedGroupId(editingLink.whatsapp_group_id);
           setDestinationUrl('');
-          // Find and set the session for the group
-          const group = groups?.find(g => g.id === editingLink.whatsapp_group_id);
-          if (group) {
-            setSelectedSessionId(group.session_id);
-          }
         } else {
           setDestinationType('url');
           setDestinationUrl(editingLink.destination_url || '');
@@ -74,7 +69,17 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
       setGroupSearch('');
       setError(null);
     }
-  }, [open, editingLink, groups]);
+  }, [open, editingLink]);
+
+  // Separate effect to set session ID when editing a WhatsApp group link
+  useEffect(() => {
+    if (open && editingLink?.whatsapp_group_id && groups) {
+      const group = groups.find(g => g.id === editingLink.whatsapp_group_id);
+      if (group && !selectedSessionId) {
+        setSelectedSessionId(group.session_id);
+      }
+    }
+  }, [open, editingLink, groups, selectedSessionId]);
 
   // Filter groups based on selected session and search
   const filteredGroups = useMemo(() => {
