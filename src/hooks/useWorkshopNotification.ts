@@ -42,6 +42,7 @@ export interface WorkshopWithDetails {
     name: string;
     color: string;
     template_sequence_id: string | null;
+    sms_sequence_id: string | null;
   } | null;
   whatsapp_group?: {
     id: string;
@@ -69,7 +70,7 @@ export function useWorkshopNotification() {
         .from('workshops')
         .select(`
           id, title, start_date, organization_id, tag_id, whatsapp_group_id, whatsapp_session_id, automation_status,
-          tag:workshop_tags(id, name, color, template_sequence_id),
+          tag:workshop_tags(id, name, color, template_sequence_id, sms_sequence_id),
           whatsapp_group:whatsapp_groups!workshops_whatsapp_group_id_fkey(id, group_name, group_jid)
         `)
         .eq('organization_id', currentOrganization.id)

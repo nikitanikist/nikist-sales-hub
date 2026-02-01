@@ -270,7 +270,7 @@ function WorkshopSMSPanel({
         </Button>
       ) : (
         <Button variant="outline" asChild className="w-full gap-2">
-          <Link to="/settings/organization?tab=notifications">
+          <Link to="/settings?tab=notifications">
             <Settings2 className="h-4 w-4" />
             Configure SMS in Settings
           </Link>
@@ -344,7 +344,7 @@ export function SMSTab({ workshops, workshopsLoading, orgTimezone }: SMSTabProps
         </p>
         <div className="mt-6 space-y-2">
           <Button asChild>
-            <Link to="/settings/organization?tab=notifications">
+            <Link to="/settings?tab=notifications">
               <Settings2 className="h-4 w-4 mr-2" />
               Set Up SMS Templates & Sequences
             </Link>
