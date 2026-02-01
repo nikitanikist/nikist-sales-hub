@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users } from 'lucide-react';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users, Plus } from 'lucide-react';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useCommunitySession } from '@/hooks/useCommunitySession';
@@ -221,80 +221,95 @@ export function WhatsAppConnection() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Smartphone className="h-5 w-5" />
-            WhatsApp Connection
+            WhatsApp Connections
           </CardTitle>
           <CardDescription>
-            Connect your WhatsApp device to send messages to workshop groups
+            Connect multiple WhatsApp accounts for different purposes (community creation, messaging, etc.)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Connection Status */}
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className={`h-3 w-3 rounded-full ${hasConnectedSession ? 'bg-primary' : 'bg-muted-foreground'}`} />
-              <div>
-                <p className="font-medium">
-                  {hasConnectedSession ? 'Connected' : 'Not Connected'}
-                </p>
-                {hasConnectedSession && connectedSessions[0]?.phone_number && (
-                  <p className="text-sm text-muted-foreground">
-                    {connectedSessions[0].phone_number}
-                  </p>
-                )}
-              </div>
-            </div>
-            
-            {hasConnectedSession ? (
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => syncGroups(connectedSessions[0].id)}
-                  disabled={isSyncing}
-                >
-                  {isSyncing ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                  )}
-                  Sync Groups
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => disconnect(connectedSessions[0].id)}
-                  disabled={isDisconnecting}
-                >
-                  {isDisconnecting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Unplug className="h-4 w-4 mr-2" />
-                  )}
-                  Disconnect
-                </Button>
-              </div>
-            ) : (
-              <Button onClick={handleConnect} disabled={isConnecting}>
-                {isConnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <QrCode className="h-4 w-4 mr-2" />
-                )}
-                Connect Device
-              </Button>
-            )}
-          </div>
-
           {/* Connected Sessions List */}
           {sessionsLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          ) : sessions && sessions.length > 0 ? (
-            <div className="space-y-2">
+          ) : (
+            <>
+              {connectedSessions.length > 0 ? (
+                <div className="space-y-3">
+                  {connectedSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="flex items-center justify-between p-4 border rounded-lg bg-muted/30"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-3 w-3 rounded-full bg-primary" />
+                        <div>
+                          <p className="font-medium">
+                            {session.phone_number || session.display_name || `Session ${session.id.slice(0, 8)}...`}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Last active: {format(new Date(session.updated_at), 'PP p')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => syncGroups(session.id)}
+                          disabled={isSyncing}
+                        >
+                          {isSyncing ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                          )}
+                          Sync Groups
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => disconnect(session.id)}
+                          disabled={isDisconnecting}
+                        >
+                          {isDisconnecting ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Unplug className="h-4 w-4 mr-2" />
+                          )}
+                          Disconnect
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Smartphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No WhatsApp accounts connected</p>
+                  <p className="text-sm">Connect your first device to get started</p>
+                </div>
+              )}
+
+              {/* Always visible Add WhatsApp button */}
+              <Button onClick={handleConnect} disabled={isConnecting} className="w-full">
+                {isConnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-2" />
+                )}
+                {connectedSessions.length > 0 ? 'Connect Another WhatsApp' : 'Connect WhatsApp Device'}
+              </Button>
+            </>
+          )}
+
+          {/* Session History - Only disconnected sessions */}
+          {!sessionsLoading && sessions && sessions.filter(s => s.status !== 'connected').length > 0 && (
+            <div className="space-y-2 pt-4 border-t">
               <h4 className="text-sm font-medium text-muted-foreground">Session History</h4>
               <div className="space-y-2">
-                {sessions.map((session) => (
+                {sessions.filter(s => s.status !== 'connected').map((session) => (
                   <div
                     key={session.id}
                     className="flex items-center justify-between p-3 border rounded-lg"
@@ -311,26 +326,24 @@ export function WhatsAppConnection() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={session.status === 'connected' ? 'default' : 'secondary'}>
+                      <Badge variant="secondary">
                         {session.status}
                       </Badge>
-                      {session.status !== 'connected' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteSession(session.id)}
-                          disabled={isDeletingSession}
-                          className="h-8 w-8"
-                        >
-                          <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteSession(session.id)}
+                        disabled={isDeletingSession}
+                        className="h-8 w-8"
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                      </Button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          ) : null}
+          )}
         </CardContent>
       </Card>
 
