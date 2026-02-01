@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock, Plus, Link2, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useWorkshopNotification, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
+import { useWorkshopNotification, useWorkshopMessages, useWorkshopGroups, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
@@ -46,8 +46,6 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     isSendingNow,
     cancelMessage,
     isCancellingMessage,
-    useWorkshopMessages,
-    useWorkshopGroups: useFetchWorkshopGroups,
     subscribeToMessages,
     orgTimezone,
     createCommunity,
@@ -59,11 +57,11 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
   const { variablesMap, saveVariables, isSaving } = useSequenceVariables(workshop?.id || null);
   
-  // Fetch messages for this workshop
+  // Fetch messages for this workshop (standalone hook)
   const { data: messages, isLoading: messagesLoading } = useWorkshopMessages(workshop?.id || null);
   
-  // Fetch linked groups for this workshop from junction table
-  const { data: linkedGroups } = useFetchWorkshopGroups(workshop?.id || null);
+  // Fetch linked groups for this workshop from junction table (standalone hook)
+  const { data: linkedGroups } = useWorkshopGroups(workshop?.id || null);
   
   // Subscribe to real-time updates
   useEffect(() => {

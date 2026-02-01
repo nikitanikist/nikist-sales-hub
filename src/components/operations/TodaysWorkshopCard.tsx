@@ -23,7 +23,6 @@ interface TodaysWorkshopCardProps {
   onQuickSetup: (workshop: WorkshopWithDetails) => void;
   onRunSequence: (workshop: WorkshopWithDetails) => void;
   subscribeToMessages?: (workshopId: string) => () => void;
-  useWorkshopMessages?: (workshopId: string | null) => { data: ScheduledMessage[] | undefined };
 }
 
 function calculateProgress(workshop: WorkshopWithDetails): {
@@ -49,7 +48,6 @@ export function TodaysWorkshopCard({
   onQuickSetup, 
   onRunSequence,
   subscribeToMessages,
-  useWorkshopMessages,
 }: TodaysWorkshopCardProps) {
   // Filter to today's workshops in org timezone
   const todayWorkshops = useMemo(() => {
@@ -145,7 +143,6 @@ export function TodaysWorkshopCard({
             onRun={() => onRunSequence(workshop)}
             onSetup={() => onQuickSetup(workshop)}
             subscribeToMessages={subscribeToMessages}
-            useWorkshopMessages={useWorkshopMessages}
             className="flex-1"
           />
           <Button 

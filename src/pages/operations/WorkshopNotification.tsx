@@ -10,7 +10,6 @@ export default function WorkshopNotification() {
     workshopsLoading, 
     orgTimezone,
     isRunningMessaging,
-    useWorkshopMessages,
     subscribeToMessages,
     deleteWorkshop,
     isDeletingWorkshop,
@@ -51,7 +50,6 @@ export default function WorkshopNotification() {
             workshopsLoading={workshopsLoading}
             orgTimezone={orgTimezone}
             subscribeToMessages={subscribeToMessages}
-            useWorkshopMessages={useWorkshopMessages}
             isRunningMessaging={isRunningMessaging}
             onDeleteWorkshop={deleteWorkshop}
             isDeletingWorkshop={isDeletingWorkshop}
