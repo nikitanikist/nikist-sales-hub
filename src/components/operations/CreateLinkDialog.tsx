@@ -202,8 +202,8 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{editingLink ? 'Edit Dynamic Link' : 'Create Dynamic Link'}</DialogTitle>
           <DialogDescription>
             {editingLink 
@@ -212,7 +212,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain space-y-6 py-3 pr-1">
           {/* Slug Input */}
           <div className="space-y-2">
             <Label htmlFor="slug">Link Slug</Label>
@@ -341,7 +341,10 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                   </div>
 
                   {/* Groups List */}
-                  <ScrollArea className="h-64 rounded-md border">
+                  <ScrollArea 
+                    className="h-64 rounded-md border overscroll-contain"
+                    onWheelCapture={(e) => e.stopPropagation()}
+                  >
                     {groupsLoading ? (
                       <div className="p-4 text-center text-muted-foreground">
                         Loading groups...
@@ -408,7 +411,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
