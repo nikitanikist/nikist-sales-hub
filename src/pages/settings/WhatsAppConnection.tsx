@@ -11,6 +11,7 @@ import { useCommunitySession } from '@/hooks/useCommunitySession';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { CommunityTemplateEditor } from '@/components/settings/CommunityTemplateEditor';
 
 export function WhatsAppConnection() {
   const {
@@ -211,6 +212,9 @@ export function WhatsAppConnection() {
           )}
         </CardContent>
       </Card>
+
+      {/* Community Creation Templates */}
+      <CommunityTemplateEditor />
 
       {/* Main WhatsApp Connection Card */}
       <Card>

@@ -63,7 +63,7 @@ const Workshops = () => {
   const { user } = useAuth();
   const { isManager } = useUserRole();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
-  const { tags, tagsLoading } = useWorkshopTags();
+  const { tags, tagsLoading, defaultTag } = useWorkshopTags();
   const { format: formatOrg } = useOrgTimezone();
 
   const openCallsDialog = (workshopTitle: string, category: CallCategory) => {
@@ -366,11 +366,16 @@ const Workshops = () => {
   const createMutation = useMutation({
     mutationFn: async (newWorkshop: any) => {
       if (!currentOrganization) throw new Error("No organization selected");
-      const { data: workshop, error } = await supabase.from("workshops").insert([{
+      
+      // Auto-assign default tag if one exists and no tag is specified
+      const workshopData = {
         ...newWorkshop,
         created_by: user?.id,
         organization_id: currentOrganization.id,
-      }]).select().single();
+        tag_id: newWorkshop.tag_id || defaultTag?.id || null,
+      };
+      
+      const { data: workshop, error } = await supabase.from("workshops").insert([workshopData]).select().single();
       if (error) throw error;
       
       // Trigger community creation (non-blocking)

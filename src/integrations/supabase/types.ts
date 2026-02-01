@@ -672,6 +672,51 @@ export type Database = {
           },
         ]
       }
+      community_templates: {
+        Row: {
+          created_at: string | null
+          description_template: string
+          id: string
+          organization_id: string
+          profile_picture_url: string | null
+          tag_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description_template: string
+          id?: string
+          organization_id: string
+          profile_picture_url?: string | null
+          tag_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description_template?: string
+          id?: string
+          organization_id?: string
+          profile_picture_url?: string | null
+          tag_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_templates_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_onboarding: {
         Row: {
           age_group: string | null
@@ -2812,6 +2857,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_default: boolean | null
           name: string
           organization_id: string
           template_sequence_id: string | null
@@ -2822,6 +2868,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_default?: boolean | null
           name: string
           organization_id: string
           template_sequence_id?: string | null
@@ -2832,6 +2879,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_default?: boolean | null
           name?: string
           organization_id?: string
           template_sequence_id?: string | null

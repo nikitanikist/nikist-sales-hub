@@ -647,7 +647,7 @@ export function WorkshopNotificationSettings() {
   const [searchParams] = useSearchParams();
   const { templates, templatesLoading, deleteTemplate } = useMessageTemplates();
   const { sequences, sequencesLoading, createSequence, deleteSequence, createStep, deleteStepAsync, updateStepAsync, isCreatingSequence, isCreatingStep, isUpdatingStep, useSequence } = useTemplateSequences();
-  const { tags, tagsLoading, createTag, updateTag, deleteTag, isCreating: isCreatingTag, isUpdating: isUpdatingTag } = useWorkshopTags();
+  const { tags, tagsLoading, createTag, updateTag, deleteTag, setDefaultTag, isCreating: isCreatingTag, isUpdating: isUpdatingTag, isSettingDefault } = useWorkshopTags();
 
   // Get initial tab from URL params
   const initialTab = searchParams.get('tab') || 'templates';
@@ -842,7 +842,7 @@ export function WorkshopNotificationSettings() {
           <TabsContent value="tags" className="space-y-4">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground">
-                Create tags to categorize workshops and link them to sequences.
+                Create tags to categorize workshops and link them to sequences. Set a default tag for auto-assignment.
               </p>
               <Button onClick={() => { setEditingTag(null); setTagDialogOpen(true); }}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -855,19 +855,20 @@ export function WorkshopNotificationSettings() {
                   <TableRow>
                     <TableHead>Tag</TableHead>
                     <TableHead>Sequence</TableHead>
+                    <TableHead className="w-28">Default</TableHead>
                     <TableHead className="w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tagsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8">
+                      <TableCell colSpan={4} className="text-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       </TableCell>
                     </TableRow>
                   ) : tags.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                         No tags yet
                       </TableCell>
                     </TableRow>
@@ -875,10 +876,32 @@ export function WorkshopNotificationSettings() {
                     tags.map((t) => (
                       <TableRow key={t.id}>
                         <TableCell>
-                          <WorkshopTagBadge name={t.name} color={t.color || '#8B5CF6'} />
+                          <div className="flex items-center gap-2">
+                            <WorkshopTagBadge name={t.name} color={t.color || '#8B5CF6'} />
+                            {t.is_default && (
+                              <Badge variant="outline" className="text-xs">Default</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {t.template_sequence?.name || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant={t.is_default ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={() => setDefaultTag(t.is_default ? null : t.id)}
+                            disabled={isSettingDefault}
+                            className="h-7 text-xs"
+                          >
+                            {isSettingDefault ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : t.is_default ? (
+                              <><Check className="h-3 w-3 mr-1" /> Default</>
+                            ) : (
+                              'Set Default'
+                            )}
+                          </Button>
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">

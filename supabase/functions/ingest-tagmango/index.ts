@@ -550,6 +550,22 @@ Deno.serve(async (req) => {
             console.log('No date found in workshop name, using current date');
           }
           
+          // Fetch the default tag for this organization
+          let defaultTagId: string | null = null;
+          const { data: defaultTag, error: tagError } = await supabase
+            .from('workshop_tags')
+            .select('id')
+            .eq('is_default', true)
+            .limit(1)
+            .maybeSingle();
+          
+          if (tagError) {
+            console.error('Error fetching default tag:', tagError);
+          } else if (defaultTag) {
+            defaultTagId = defaultTag.id;
+            console.log('Auto-assigning default tag:', defaultTagId);
+          }
+          
           const newWorkshopData = {
             title: normalizedWorkshopName,
             start_date: startDate,
@@ -558,6 +574,7 @@ Deno.serve(async (req) => {
             is_free: payload.amount === 0,
             ad_spend: 0,
             created_by: 'efff01b2-c24a-4256-9a91-11459fe27386',
+            tag_id: defaultTagId,
           };
 
           const { data: newWorkshop, error: workshopCreateError } = await supabase

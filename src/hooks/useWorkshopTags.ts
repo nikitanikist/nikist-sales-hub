@@ -10,6 +10,7 @@ export interface WorkshopTag {
   color: string | null;
   description: string | null;
   template_sequence_id: string | null;
+  is_default: boolean;
   created_at: string;
   updated_at: string;
   // Joined data
@@ -140,6 +141,50 @@ export function useWorkshopTags() {
     },
   });
 
+  // Set default tag (only one can be default per organization)
+  const setDefaultMutation = useMutation({
+    mutationFn: async (tagId: string | null) => {
+      if (!currentOrganization) throw new Error('No organization selected');
+      
+      // First, unset all defaults for this organization
+      const { error: unsetError } = await supabase
+        .from('workshop_tags')
+        .update({ is_default: false })
+        .eq('organization_id', currentOrganization.id)
+        .eq('is_default', true);
+
+      if (unsetError) throw unsetError;
+
+      // If tagId is null, we're just clearing the default
+      if (!tagId) return null;
+
+      // Set the new default
+      const { data, error } = await supabase
+        .from('workshop_tags')
+        .update({ is_default: true })
+        .eq('id', tagId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-tags'] });
+      if (data) {
+        toast.success(`"${data.name}" set as default tag for new workshops`);
+      } else {
+        toast.success('Default tag cleared');
+      }
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to set default tag', { description: error.message });
+    },
+  });
+
+  // Get the current default tag
+  const defaultTag = tags?.find(t => t.is_default) || null;
+
   return {
     tags: tags || [],
     tagsLoading,
@@ -150,5 +195,8 @@ export function useWorkshopTags() {
     isUpdating: updateMutation.isPending,
     deleteTag: deleteMutation.mutate,
     isDeleting: deleteMutation.isPending,
+    setDefaultTag: setDefaultMutation.mutate,
+    isSettingDefault: setDefaultMutation.isPending,
+    defaultTag,
   };
 }
