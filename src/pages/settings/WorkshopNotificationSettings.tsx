@@ -10,13 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check, X, MessageSquare } from 'lucide-react';
+import { Plus, Edit2, Trash2, FileText, ListOrdered, Tag, Clock, Loader2, Image, Check, X, MessageSquare, Upload } from 'lucide-react';
 import { useMessageTemplates, TEMPLATE_VARIABLES, CreateTemplateInput } from '@/hooks/useMessageTemplates';
 import { useTemplateSequences, CreateSequenceInput, CreateStepInput } from '@/hooks/useTemplateSequences';
 import { useWorkshopTags, TAG_COLORS, CreateTagInput } from '@/hooks/useWorkshopTags';
 import { useSMSTemplates, CreateSMSTemplateInput, SMSTemplateVariable } from '@/hooks/useSMSTemplates';
 import { useSMSSequences, CreateSMSSequenceInput, CreateSMSStepInput } from '@/hooks/useSMSSequences';
 import { WorkshopTagBadge } from '@/components/operations';
+import { ImportSMSTemplatesDialog } from '@/components/settings/ImportSMSTemplatesDialog';
 import { toast } from 'sonner';
 
 // Template Editor Dialog
@@ -1166,7 +1167,9 @@ export function WorkshopNotificationSettings() {
     updateTemplate: updateSMSTemplate,
     deleteTemplate: deleteSMSTemplate,
     isCreating: isCreatingSMSTemplate, 
-    isUpdating: isUpdatingSMSTemplate 
+    isUpdating: isUpdatingSMSTemplate,
+    bulkCreateTemplates: bulkCreateSMSTemplates,
+    isBulkCreating: isBulkCreatingSMSTemplates,
   } = useSMSTemplates();
   
   const { 
@@ -1198,6 +1201,7 @@ export function WorkshopNotificationSettings() {
   // SMS Template dialog state
   const [smsTemplateDialogOpen, setSmsTemplateDialogOpen] = useState(false);
   const [editingSMSTemplate, setEditingSMSTemplate] = useState<any>(null);
+  const [smsImportDialogOpen, setSmsImportDialogOpen] = useState(false);
 
   // SMS Sequence dialog state
   const [smsSequenceDialogOpen, setSmsSequenceDialogOpen] = useState(false);
@@ -1486,10 +1490,16 @@ export function WorkshopNotificationSettings() {
               <p className="text-sm text-muted-foreground">
                 Add pre-approved DLT templates from Fast2SMS for SMS notifications.
               </p>
-              <Button onClick={() => { setEditingSMSTemplate(null); setSmsTemplateDialogOpen(true); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Template
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setSmsImportDialogOpen(true)}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Bulk Import
+                </Button>
+                <Button onClick={() => { setEditingSMSTemplate(null); setSmsTemplateDialogOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Template
+                </Button>
+              </div>
             </div>
             <div className="border rounded-lg">
               <Table>
@@ -1538,6 +1548,15 @@ export function WorkshopNotificationSettings() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* SMS Import Dialog */}
+            <ImportSMSTemplatesDialog
+              open={smsImportDialogOpen}
+              onOpenChange={setSmsImportDialogOpen}
+              existingTemplateIds={smsTemplates.map(t => t.dlt_template_id)}
+              onImport={bulkCreateSMSTemplates}
+              isImporting={isBulkCreatingSMSTemplates}
+            />
           </TabsContent>
 
           {/* SMS Sequences Tab */}
