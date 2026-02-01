@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { TableSkeleton, MobileCardSkeleton } from '@/components/skeletons';
-import { WorkshopWithDetails, ScheduledMessage } from '@/hooks/useWorkshopNotification';
+import { WorkshopWithDetails, ScheduledMessage, useWorkshopMessages } from '@/hooks/useWorkshopNotification';
 import { WorkshopTagBadge, WorkshopDetailSheet, TodaysWorkshopCard, MessagingProgressBanner, SequenceProgressButton } from '@/components/operations';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -92,7 +92,6 @@ interface WhatsAppGroupTabProps {
   workshopsLoading: boolean;
   orgTimezone: string;
   subscribeToMessages: (workshopId: string) => () => void;
-  useWorkshopMessages: (workshopId: string | null) => { data: ScheduledMessage[] | undefined };
   isRunningMessaging: boolean;
   onDeleteWorkshop?: (workshopId: string) => void;
   isDeletingWorkshop?: boolean;
@@ -106,7 +105,6 @@ function MobileWorkshopCard({
   onRun,
   onDelete,
   subscribeToMessages,
-  useWorkshopMessages,
 }: {
   workshop: WorkshopWithDetails;
   orgTimezone: string;
@@ -114,7 +112,6 @@ function MobileWorkshopCard({
   onRun: (workshop: WorkshopWithDetails) => void;
   onDelete?: (workshop: WorkshopWithDetails) => void;
   subscribeToMessages: (workshopId: string) => () => void;
-  useWorkshopMessages: (workshopId: string | null) => { data: ScheduledMessage[] | undefined };
 }) {
   const setupComplete = isSetupComplete(workshop);
   
@@ -158,7 +155,6 @@ function MobileWorkshopCard({
             onRun={() => onRun(workshop)}
             onSetup={() => onView(workshop)}
             subscribeToMessages={subscribeToMessages}
-            useWorkshopMessages={useWorkshopMessages}
             variant="compact"
             className="w-full"
           />
@@ -191,7 +187,6 @@ export function WhatsAppGroupTab({
   workshopsLoading,
   orgTimezone,
   subscribeToMessages,
-  useWorkshopMessages,
   isRunningMessaging,
   onDeleteWorkshop,
   isDeletingWorkshop,
@@ -203,7 +198,7 @@ export function WhatsAppGroupTab({
   const [activeProgressWorkshop, setActiveProgressWorkshop] = useState<WorkshopWithDetails | null>(null);
   const [workshopToDelete, setWorkshopToDelete] = useState<WorkshopWithDetails | null>(null);
 
-  // Subscribe to messages for the active progress workshop
+  // Subscribe to messages for the active progress workshop using the standalone hook
   const { data: progressMessages } = useWorkshopMessages(activeProgressWorkshop?.id || null);
   
   useEffect(() => {
@@ -277,7 +272,6 @@ export function WhatsAppGroupTab({
           onQuickSetup={handleViewWorkshop}
           onRunSequence={handleRunSequence}
           subscribeToMessages={subscribeToMessages}
-          useWorkshopMessages={useWorkshopMessages}
         />
       )}
 
@@ -376,7 +370,6 @@ export function WhatsAppGroupTab({
                             onRun={() => handleRunSequence(workshop)}
                             onSetup={() => handleViewWorkshop(workshop)}
                             subscribeToMessages={subscribeToMessages}
-                            useWorkshopMessages={useWorkshopMessages}
                             variant="compact"
                           />
                           <Button
@@ -424,7 +417,6 @@ export function WhatsAppGroupTab({
                 onRun={handleRunSequence}
                 onDelete={onDeleteWorkshop ? setWorkshopToDelete : undefined}
                 subscribeToMessages={subscribeToMessages}
-                useWorkshopMessages={useWorkshopMessages}
               />
             ))}
           </div>

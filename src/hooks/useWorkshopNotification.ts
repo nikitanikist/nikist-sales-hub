@@ -101,45 +101,8 @@ export function useWorkshopNotification() {
     },
     enabled: !!currentOrganization,
   });
-
-  // Fetch scheduled messages for a specific workshop
-  const useWorkshopMessages = (workshopId: string | null) => {
-    return useQuery({
-      queryKey: ['workshop-messages', workshopId],
-      queryFn: async () => {
-        if (!workshopId) return [];
-        
-        const { data, error } = await supabase
-          .from('scheduled_whatsapp_messages')
-          .select('*')
-          .eq('workshop_id', workshopId)
-          .order('scheduled_for', { ascending: true });
-
-        if (error) throw error;
-        return data as ScheduledMessage[];
-      },
-      enabled: !!workshopId,
-    });
-  };
-
-  // Fetch linked groups for a specific workshop from junction table
-  const useWorkshopGroups = (workshopId: string | null) => {
-    return useQuery({
-      queryKey: ['workshop-whatsapp-groups', workshopId],
-      queryFn: async () => {
-        if (!workshopId) return [];
-        
-        const { data, error } = await supabase
-          .from('workshop_whatsapp_groups')
-          .select('id, group_id, created_at')
-          .eq('workshop_id', workshopId);
-
-        if (error) throw error;
-        return data;
-      },
-      enabled: !!workshopId,
-    });
-  };
+  // NOTE: useWorkshopMessages and useWorkshopGroups are defined as standalone exported hooks below
+  // They should NOT be defined inside this hook to avoid "Rendered more hooks" errors
 
   // Subscribe to real-time updates for a workshop's messages
   const subscribeToMessages = (workshopId: string) => {
@@ -591,8 +554,6 @@ export function useWorkshopNotification() {
     workshopsLoading,
     error,
     orgTimezone,
-    useWorkshopMessages,
-    useWorkshopGroups,
     subscribeToMessages,
     updateTag: updateTagMutation.mutate,
     isUpdatingTag: updateTagMutation.isPending,
@@ -613,4 +574,42 @@ export function useWorkshopNotification() {
     createCommunity: createCommunityMutation.mutate,
     isCreatingCommunity: createCommunityMutation.isPending,
   };
+}
+
+// Standalone hooks - must be called at component level, not inside other hooks
+export function useWorkshopMessages(workshopId: string | null) {
+  return useQuery({
+    queryKey: ['workshop-messages', workshopId],
+    queryFn: async () => {
+      if (!workshopId) return [];
+      
+      const { data, error } = await supabase
+        .from('scheduled_whatsapp_messages')
+        .select('*')
+        .eq('workshop_id', workshopId)
+        .order('scheduled_for', { ascending: true });
+
+      if (error) throw error;
+      return data as ScheduledMessage[];
+    },
+    enabled: !!workshopId,
+  });
+}
+
+export function useWorkshopGroups(workshopId: string | null) {
+  return useQuery({
+    queryKey: ['workshop-whatsapp-groups', workshopId],
+    queryFn: async () => {
+      if (!workshopId) return [];
+      
+      const { data, error } = await supabase
+        .from('workshop_whatsapp_groups')
+        .select('id, group_id, created_at')
+        .eq('workshop_id', workshopId);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!workshopId,
+  });
 }

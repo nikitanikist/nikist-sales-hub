@@ -9,7 +9,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ScheduledMessage } from '@/hooks/useWorkshopNotification';
+import { ScheduledMessage, useWorkshopMessages } from '@/hooks/useWorkshopNotification';
 
 interface SequenceProgressButtonProps {
   workshopId: string;
@@ -21,7 +21,6 @@ interface SequenceProgressButtonProps {
   messages?: ScheduledMessage[];
   // For real-time subscription when messages aren't passed
   subscribeToMessages?: (workshopId: string) => () => void;
-  useWorkshopMessages?: (workshopId: string | null) => { data: ScheduledMessage[] | undefined };
   variant?: 'default' | 'compact';
   className?: string;
 }
@@ -58,15 +57,14 @@ export function SequenceProgressButton({
   isScheduling = false,
   messages: externalMessages,
   subscribeToMessages,
-  useWorkshopMessages,
   variant = 'default',
   className,
 }: SequenceProgressButtonProps) {
-  const [internalMessages, setInternalMessages] = useState<ScheduledMessage[]>([]);
+  // Always call the hook at the top level (unconditionally)
+  const { data: hookMessages } = useWorkshopMessages(workshopId);
   
-  // Use external messages if provided, otherwise use internal state with subscription
-  const hookResult = useWorkshopMessages?.(workshopId);
-  const messages = externalMessages ?? hookResult?.data ?? internalMessages;
+  // Use external messages if provided, otherwise use hook result
+  const messages = externalMessages ?? hookMessages ?? [];
   
   // Subscribe to real-time updates if we're using internal messages
   useEffect(() => {
