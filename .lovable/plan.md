@@ -1,85 +1,165 @@
 
 
-# Fix: WhatsApp Group Invite Links Not Displaying
+# Feature: Fetch WhatsApp Group Invite Links On-Demand
 
-## Problem Summary
+## Overview
 
-The WhatsApp group invite links are not visible because:
-
-1. **Sync doesn't save invite links**: When groups are synced from WhatsApp via the `vps-whatsapp-proxy` edge function, the `invite_link` field is not being saved to the database (line 596-608 only saves: organization_id, session_id, group_jid, group_name, participant_count, is_active, is_admin, synced_at, updated_at).
-
-2. **Most groups have null invite_link**: Out of all your WhatsApp groups, only 2 test groups have invite links stored. All production groups (like "Crypto Masterclass <> 1st February") have `invite_link: null`.
-
-| Group | Invite Link |
-|-------|-------------|
-| Testworkshop 2 group | `https://chat.whatsapp.com/...` |
-| group test 1 | `https://chat.whatsapp.com/...` |
-| Crypto Masterclass <> 1st February | **null** |
-| All other groups | **null** |
+Since the VPS `/groups/{sessionId}` endpoint doesn't return invite links in the sync response, we need to fetch them on-demand using the confirmed working endpoint: `GET /groups/{sessionId}/{groupJid}/invite`
 
 ---
 
-## Solution
+## Current State
 
-Update the `vps-whatsapp-proxy` edge function to capture and store invite links when syncing groups from WhatsApp.
+| What Works | What's Missing |
+|------------|----------------|
+| UI displays invite links when present (lines 433-464) | Groups from sync have `invite_link: null` |
+| VPS endpoint `GET /groups/{sessionId}/{groupJid}/invite` is live | Edge function doesn't have `get-invite-link` action |
+| Groups are synced and shown | No way to fetch individual invite links |
 
-### File to Modify
+---
 
-**`supabase/functions/vps-whatsapp-proxy/index.ts`**
+## Implementation Plan
 
-### Changes
+### 1. Update Edge Function
 
-In the sync-groups handling section (around line 596-608), add `invite_link` to the group data being saved:
+**File:** `supabase/functions/vps-whatsapp-proxy/index.ts`
+
+Add `get-invite-link` to the action type and handle the new action:
 
 ```typescript
-// Current code (missing invite_link):
-return {
-  organization_id: organizationId,
-  session_id: localSessionIdForDb,
-  group_jid: g.id || g.jid || g.groupId,
-  group_name: g.name || g.subject || 'Unknown Group',
-  participant_count: ...,
-  is_active: true,
-  is_admin: isAdmin,
-  synced_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
+// In VPSProxyRequest interface (line 99), add:
+action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'get-invite-link';
+groupJid?: string;  // Add this new field
 
-// Updated code (with invite_link):
-return {
-  organization_id: organizationId,
-  session_id: localSessionIdForDb,
-  group_jid: g.id || g.jid || g.groupId,
-  group_name: g.name || g.subject || 'Unknown Group',
-  participant_count: ...,
-  is_active: true,
-  is_admin: isAdmin,
-  invite_link: g.inviteLink || g.invite_link || g.inviteCode 
-    ? `https://chat.whatsapp.com/${g.inviteCode || ''}` 
-    : (g.inviteLink || g.invite_link || null),
-  synced_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
+// Add new case in switch statement:
+case 'get-invite-link': {
+  if (!sessionId) {
+    return error response for missing sessionId;
+  }
+  const { groupJid } = body;
+  if (!groupJid) {
+    return error response for missing groupJid;
+  }
+  
+  // Lookup VPS session ID from local session UUID
+  vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+  
+  // Call VPS: GET /groups/{sessionId}/{groupJid}/invite
+  vpsEndpoint = `/groups/${vpsSessionIdForVps}/${groupJid}/invite`;
+  vpsMethod = 'GET';
+  
+  // After getting response, update the database
+  // and return the invite link
+}
 ```
 
+### 2. Add Hook Mutation
+
+**File:** `src/hooks/useWhatsAppGroups.ts`
+
+Add a `fetchInviteLink` mutation:
+
+```typescript
+const fetchInviteLinkMutation = useMutation({
+  mutationFn: async ({ sessionId, groupId, groupJid }: { 
+    sessionId: string; 
+    groupId: string;
+    groupJid: string;
+  }) => {
+    const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
+      body: {
+        action: 'get-invite-link',
+        sessionId,
+        groupJid,
+        organizationId: currentOrganization?.id,
+      },
+    });
+    
+    if (response.error) throw response.error;
+    
+    // Update local database with the fetched link
+    if (response.data?.invite_link) {
+      await supabase
+        .from('whatsapp_groups')
+        .update({ invite_link: response.data.invite_link })
+        .eq('id', groupId);
+    }
+    
+    return response.data;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
+    toast.success('Invite link fetched');
+  },
+  onError: (error) => {
+    toast.error('Failed to get invite link: ' + error.message);
+  },
+});
+```
+
+### 3. Update UI with "Get Link" Button
+
+**File:** `src/components/operations/WorkshopDetailSheet.tsx`
+
+In the linked groups section (around line 421-467), add a "Get Link" button for groups without invite links:
+
+```
+Current UI (group WITH invite link):
+┌────────────────────────────────────────┐
+│ 👥 group test 1                        │
+│    🔗 ABC123xyz  [📋] [↗]              │
+└────────────────────────────────────────┘
+
+New UI (group WITHOUT invite link):
+┌────────────────────────────────────────┐
+│ 👥 Crypto Masterclass <> 1st Feb       │
+│    [🔗 Get Invite Link]                │
+└────────────────────────────────────────┘
+```
+
+Button behavior:
+- Shows loading spinner while fetching
+- Calls `fetchInviteLink` mutation
+- On success: link appears, button disappears
+- On error: shows toast with message
+
 ---
 
-## Important Notes
+## Files to Modify
 
-1. **VPS must return invite links**: This fix assumes the VPS `/groups/{sessionId}` endpoint returns invite links. If it doesn't, you'll need to:
-   - Update the VPS to include invite links in the group list response, OR
-   - Add a separate "Get Invite Link" button that calls a VPS endpoint to fetch the invite link for a specific group
-
-2. **Existing groups need re-sync**: After deploying this fix, you'll need to click the "Sync Groups" button to re-fetch groups and populate their invite links.
-
-3. **Groups where you're not admin**: WhatsApp only provides invite links for groups where you have admin privileges. Non-admin groups will still have `null` invite links.
+| File | Changes |
+|------|---------|
+| `supabase/functions/vps-whatsapp-proxy/index.ts` | Add `get-invite-link` action handler |
+| `src/hooks/useWhatsAppGroups.ts` | Add `fetchInviteLink` mutation and return it |
+| `src/components/operations/WorkshopDetailSheet.tsx` | Add "Get Link" button for groups without `invite_link` |
 
 ---
 
-## Testing Plan
+## Edge Cases
 
-1. Deploy the updated edge function
-2. Go to a workshop with linked groups
-3. Click "Sync Groups" to refresh the group data
-4. The invite link should now appear for groups where you're an admin
+| Scenario | Behavior |
+|----------|----------|
+| Not admin of group | VPS returns error, show toast: "You must be admin to get invite link" |
+| VPS returns error | Show error toast with message |
+| Link already exists | Don't show button, show the link |
+| Fetching in progress | Show spinner, disable button |
+| Multiple groups without links | Each group has its own "Get Link" button |
+
+---
+
+## VPS Request/Response
+
+**Request:**
+```
+GET /groups/{vps_session_id}/{group_jid}/invite
+Headers: X-API-Key: {api_key}
+```
+
+**Expected Response:**
+```json
+{
+  "inviteCode": "ABC123xyz",
+  "inviteLink": "https://chat.whatsapp.com/ABC123xyz"
+}
+```
 
