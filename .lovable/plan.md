@@ -1,154 +1,85 @@
 
 
-# Feature: Manual WhatsApp Community Creation + Invite Link Visibility
+# Fix: WhatsApp Group Invite Links Not Displaying
 
-## Overview
+## Problem Summary
 
-Adding two features to the Workshop Detail Sheet in the Operations > Workshop Notification page:
+The WhatsApp group invite links are not visible because:
 
-1. **Create WhatsApp Group Button**: For old workshops without a community group, add a button to manually trigger the `create-whatsapp-community` edge function
-2. **View Invite Link**: For workshops with linked groups, display the WhatsApp community invite link so users can copy/share it
+1. **Sync doesn't save invite links**: When groups are synced from WhatsApp via the `vps-whatsapp-proxy` edge function, the `invite_link` field is not being saved to the database (line 596-608 only saves: organization_id, session_id, group_jid, group_name, participant_count, is_active, is_admin, synced_at, updated_at).
 
----
+2. **Most groups have null invite_link**: Out of all your WhatsApp groups, only 2 test groups have invite links stored. All production groups (like "Crypto Masterclass <> 1st February") have `invite_link: null`.
 
-## Current State Analysis
-
-| Aspect | Current Implementation |
-|--------|----------------------|
-| Automatic creation | Works for new workshops when `community_session_id` is configured |
-| Old workshops | No way to create community groups manually |
-| Invite links | Stored in `whatsapp_groups.invite_link` but not displayed anywhere |
-| Group data | `useWhatsAppGroups` hook doesn't include `invite_link` in return type |
+| Group | Invite Link |
+|-------|-------------|
+| Testworkshop 2 group | `https://chat.whatsapp.com/...` |
+| group test 1 | `https://chat.whatsapp.com/...` |
+| Crypto Masterclass <> 1st February | **null** |
+| All other groups | **null** |
 
 ---
 
-## Implementation Plan
+## Solution
 
-### 1. Update WhatsApp Groups Hook
+Update the `vps-whatsapp-proxy` edge function to capture and store invite links when syncing groups from WhatsApp.
 
-**File**: `src/hooks/useWhatsAppGroups.ts`
+### File to Modify
 
-- Add `invite_link` to the `WhatsAppGroup` interface
-- Include `invite_link` in the select query
-- Add a mutation to create a community group for a workshop
+**`supabase/functions/vps-whatsapp-proxy/index.ts`**
+
+### Changes
+
+In the sync-groups handling section (around line 596-608), add `invite_link` to the group data being saved:
 
 ```typescript
-interface WhatsAppGroup {
-  // ... existing fields
-  invite_link: string | null;  // Add this
-}
-```
+// Current code (missing invite_link):
+return {
+  organization_id: organizationId,
+  session_id: localSessionIdForDb,
+  group_jid: g.id || g.jid || g.groupId,
+  group_name: g.name || g.subject || 'Unknown Group',
+  participant_count: ...,
+  is_active: true,
+  is_admin: isAdmin,
+  synced_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
 
-### 2. Update Workshop Detail Sheet
-
-**File**: `src/components/operations/WorkshopDetailSheet.tsx`
-
-Add to the WhatsApp Settings section:
-
-**A) "Create WhatsApp Group" Button**
-- Visible when: No groups are linked AND a session is selected
-- Calls the `create-whatsapp-community` edge function
-- Shows loading state during creation
-- Automatically links the new group to the workshop
-
-**B) "View Invite Link" Display**
-- Visible when: Workshop has linked groups with invite links
-- Shows a clickable link with copy button for each group that has an invite_link
-- Display format: Group name with invite link underneath
-
-### 3. Add Create Community Mutation
-
-**File**: `src/hooks/useWorkshopNotification.ts` (or new hook)
-
-Add a mutation that:
-1. Calls `create-whatsapp-community` edge function
-2. Passes `workshopId`, `workshopName`, `organizationId`
-3. Invalidates relevant queries on success
-4. Shows success/error toast
-
----
-
-## UI Design
-
-### WhatsApp Settings Section (Updated)
-
-```
-┌─────────────────────────────────────────┐
-│ WhatsApp Settings           [Complete] ✓│
-├─────────────────────────────────────────┤
-│ Account                                 │
-│ ┌─────────────────────────────────────┐ │
-│ │ Shankha's WhatsApp            ▾   │ │
-│ └─────────────────────────────────────┘ │
-│                                         │
-│ WhatsApp Groups                         │
-│ ┌─────────────────────────────────────┐ │
-│ │ [Search groups...]                  │ │
-│ │ ☑ Crypto Masterclass <> 1st Feb    │ │
-│ │   👥 45 members · #936625          │ │
-│ └─────────────────────────────────────┘ │
-│                                         │
-│ ┌─ No community group? ──────────────┐  │
-│ │ [➕ Create WhatsApp Group]         │  │
-│ └────────────────────────────────────┘  │
-│                                         │
-│ ┌─ Group Invite Links ───────────────┐  │
-│ │ 🔗 Crypto Masterclass <> 1st Feb   │  │
-│ │    https://chat.whatsapp.com/...   │  │
-│ │    [📋 Copy]                       │  │
-│ └────────────────────────────────────┘  │
-└─────────────────────────────────────────┘
-```
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/hooks/useWhatsAppGroups.ts` | Add `invite_link` to interface and query |
-| `src/hooks/useWorkshopNotification.ts` | Add `createCommunityGroup` mutation |
-| `src/components/operations/WorkshopDetailSheet.tsx` | Add create button and invite link display |
-| `src/components/operations/MultiGroupSelect.tsx` | Pass `invite_link` in group data (optional) |
-
----
-
-## Technical Details
-
-### Create Community Button Logic
-
-```typescript
-const handleCreateCommunity = async () => {
-  if (!workshop || !selectedSessionId) return;
-  
-  createCommunityGroup({
-    workshopId: workshop.id,
-    workshopName: workshop.title,
-    organizationId: currentOrganization.id,
-  });
+// Updated code (with invite_link):
+return {
+  organization_id: organizationId,
+  session_id: localSessionIdForDb,
+  group_jid: g.id || g.jid || g.groupId,
+  group_name: g.name || g.subject || 'Unknown Group',
+  participant_count: ...,
+  is_active: true,
+  is_admin: isAdmin,
+  invite_link: g.inviteLink || g.invite_link || g.inviteCode 
+    ? `https://chat.whatsapp.com/${g.inviteCode || ''}` 
+    : (g.inviteLink || g.invite_link || null),
+  synced_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
 };
 ```
 
-Button visibility conditions:
-- `selectedSessionId` is set (account selected)
-- `selectedGroupIds.length === 0` (no groups linked)
-- OR always show but in different state (create new vs already exists)
+---
 
-### Invite Link Display Logic
+## Important Notes
 
-1. From `sessionGroups`, filter to only those in `selectedGroupIds`
-2. Further filter to those with non-null `invite_link`
-3. Display each with copy-to-clipboard functionality
+1. **VPS must return invite links**: This fix assumes the VPS `/groups/{sessionId}` endpoint returns invite links. If it doesn't, you'll need to:
+   - Update the VPS to include invite links in the group list response, OR
+   - Add a separate "Get Invite Link" button that calls a VPS endpoint to fetch the invite link for a specific group
+
+2. **Existing groups need re-sync**: After deploying this fix, you'll need to click the "Sync Groups" button to re-fetch groups and populate their invite links.
+
+3. **Groups where you're not admin**: WhatsApp only provides invite links for groups where you have admin privileges. Non-admin groups will still have `null` invite links.
 
 ---
 
-## Edge Cases Handled
+## Testing Plan
 
-| Scenario | Behavior |
-|----------|----------|
-| No session selected | Create button disabled with tooltip |
-| Groups already linked | Show "Create Additional Group" option (optional) |
-| Invite link is null | Don't show link section for that group |
-| Creation fails | Show error toast with details from edge function |
-| Multiple groups with links | Show all invite links in a list |
+1. Deploy the updated edge function
+2. Go to a workshop with linked groups
+3. Click "Sync Groups" to refresh the group data
+4. The invite link should now appear for groups where you're an admin
 
