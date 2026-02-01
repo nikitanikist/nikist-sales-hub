@@ -555,6 +555,37 @@ export function useWorkshopNotification() {
     },
   });
 
+  // Create WhatsApp community group for a workshop
+  const createCommunityMutation = useMutation({
+    mutationFn: async ({ workshopId, workshopTitle }: { workshopId: string; workshopTitle: string }) => {
+      if (!currentOrganization) throw new Error('No organization selected');
+      
+      const { data, error } = await supabase.functions.invoke('create-whatsapp-community', {
+        body: {
+          workshopId,
+          workshopName: workshopTitle,
+          organizationId: currentOrganization.id,
+        },
+      });
+      
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to create community');
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['workshop-whatsapp-groups'] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
+      toast.success('WhatsApp community created', {
+        description: data.groupName ? `Created "${data.groupName}"` : undefined,
+      });
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to create community', { description: error.message });
+    },
+  });
+
   return {
     workshops: workshops || [],
     workshopsLoading,
@@ -579,5 +610,7 @@ export function useWorkshopNotification() {
     isSendingNow: sendMessageNowMutation.isPending,
     deleteWorkshop: deleteWorkshopMutation.mutate,
     isDeletingWorkshop: deleteWorkshopMutation.isPending,
+    createCommunity: createCommunityMutation.mutate,
+    isCreatingCommunity: createCommunityMutation.isPending,
   };
 }
