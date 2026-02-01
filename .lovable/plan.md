@@ -6,130 +6,93 @@
 
 The SMS test message failed with error: `"Invalid Message ID (or Template, Entity ID)"`
 
-**Root Cause:** The edge function uses `route: 'dlt'` which expects Fast2SMS's internal 6-digit Message ID (assigned when templates are registered in their DLT Manager portal). The current implementation passes the TRAI DLT Template ID (19-digit number like `1207174549154211511`), which Fast2SMS doesn't recognize.
+**Root Cause:** The edge function uses `route: 'dlt'` which expects Fast2SMS's internal **6-digit Message ID** (assigned when you register templates in Fast2SMS's DLT Manager portal). The current implementation passes the TRAI DLT Template ID (19-digit number like `1207174549154211511`), which Fast2SMS doesn't recognize for the `dlt` route.
 
-## Solution
+## Two Solutions Available
 
-Switch from `route: 'dlt'` to `route: 'dlt_manual'` which allows sending DLT SMS by passing:
-- Your TRAI Entity ID
-- The TRAI DLT Template ID  
-- The full message text with variables substituted
-- The sender ID (header)
+### Option A: Use Fast2SMS DLT Manager (Current Route - `dlt`)
 
-This bypasses Fast2SMS's DLT Manager entirely and works with the DLT IDs you already have.
+Register each template in Fast2SMS's DLT Manager at https://fast2sms.com/dlt:
+- Log into Fast2SMS Dashboard
+- Go to DLT Manager
+- Add your DLT-approved Sender IDs (Headers) and Content Templates
+- Fast2SMS assigns a 6-digit message_id to each template
+- Use that 6-digit ID in the API instead of the TRAI template ID
+
+**Pros:** Fast2SMS validates your templates before sending
+**Cons:** Manual work to register each template in their portal
+
+### Option B: Use DLT Manual Route (`dlt_manual`) - Recommended
+
+Send SMS directly using your TRAI DLT credentials without registering in Fast2SMS:
+
+**Required Parameters:**
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `route` | Must be `dlt_manual` | `"dlt_manual"` |
+| `sender_id` | Your DLT-approved header | `"NIKIST"` |
+| `message` | **Full message text** with variables already substituted | `"Hi Amit, Your session..."` |
+| `entity_id` | Your TRAI Principal Entity ID (from Jio DLT, NOT Fast2SMS) | `"1201XXXXXXXXX"` |
+| `template_id` | Your TRAI DLT Template ID (19-digit) | `"1207174549154211511"` |
+| `numbers` | Recipient phone number(s) | `"9876543210"` |
+| `flash` | Flash SMS option (optional) | `"0"` |
+
+**Pros:** No need to register templates in Fast2SMS portal
+**Cons:** Fast2SMS doesn't validate - if message doesn't exactly match DLT template, it fails
 
 ---
 
-## Implementation
+## Required Information from User
 
-### Step 1: Add Entity ID Secret
+For the DLT Manual route, I need your **TRAI Principal Entity ID**:
 
-A new environment secret is needed:
-- **FAST2SMS_ENTITY_ID**: Your TRAI-registered Entity ID (also called Principal Entity ID)
+1. Log into your Jio DLT portal (or whichever operator you registered with)
+2. Your Principal Entity ID is displayed in your profile/dashboard
+3. It's the ID assigned to "Nikist Media Private Limited" when you completed DLT registration
+4. Format: Usually starts with `12` and is about 19 digits
 
-### Step 2: Update the SMS Template Table
+This is NOT a Fast2SMS ID - it's YOUR company's registration ID with TRAI DLT.
 
-Add a column to store the actual message content (not just preview). This is needed because `dlt_manual` route requires the full message text.
+---
 
-Actually, the `content_preview` field already contains the full template text, so we can use that.
+## Implementation (Once Entity ID is Provided)
 
-### Step 3: Update Edge Function
+### Step 1: Add Entity ID as Secret
+
+Add your TRAI Principal Entity ID as a Lovable Cloud secret:
+- **Secret Name:** `FAST2SMS_ENTITY_ID`
+- **Value:** Your 19-digit TRAI Principal Entity ID
+
+### Step 2: Update Edge Function
 
 **File:** `supabase/functions/process-sms-queue/index.ts`
 
 Changes:
 1. Add `FAST2SMS_ENTITY_ID` environment variable
-2. Fetch template `content_preview` in addition to `dlt_template_id`
+2. Fetch template `content_preview` to get the full message text
 3. Switch route from `dlt` to `dlt_manual`
 4. Build the full message by replacing `{#var#}` placeholders with actual values
 5. Pass all required parameters for the manual route
-
-**New API call structure:**
-```javascript
-const fast2smsBody = {
-  route: 'dlt_manual',
-  sender_id: FAST2SMS_SENDER_ID,      // e.g., "NIKIST"
-  message: messageWithVariables,       // Full message text with vars replaced
-  entity_id: FAST2SMS_ENTITY_ID,      // TRAI Entity ID
-  template_id: template.dlt_template_id, // TRAI DLT Template ID
-  numbers: phoneNumber,
-  flash: '0'
-};
-```
-
-### Step 4: Update SMS Template Query
-
-Fetch `content_preview` field to get the full message text:
-```typescript
-const templatesResult = await supabase
-  .from('sms_templates')
-  .select('id, dlt_template_id, variables, content_preview')  // Add content_preview
-  .in('id', templateIds);
-```
-
-### Step 5: Build Message with Variables
-
-Create a function to replace `{#var#}` placeholders:
-```typescript
-function buildMessageWithVariables(
-  contentTemplate: string,
-  variableValues: Record<string, string> | null,
-  variables: { key: string; label: string }[] | null
-): string {
-  let message = contentTemplate;
-  
-  if (variables && variableValues) {
-    // Sort variables by key (var1, var2, etc.)
-    const sortedVars = [...variables].sort((a, b) => {
-      const aNum = parseInt(a.key.replace('var', '')) || 0;
-      const bNum = parseInt(b.key.replace('var', '')) || 0;
-      return aNum - bNum;
-    });
-    
-    // Replace each {#var#} with the corresponding value
-    for (const v of sortedVars) {
-      const value = variableValues[v.key] || '';
-      message = message.replace('{#var#}', value);
-    }
-  }
-  
-  return message;
-}
-```
-
----
-
-## Required Environment Secret
-
-You'll need to add your TRAI Entity ID as a secret:
-
-| Secret Name | Description |
-|-------------|-------------|
-| FAST2SMS_ENTITY_ID | Your DLT-registered Principal Entity ID from TRAI |
-
----
-
-## Technical Details
 
 ### Current (Broken) Implementation
 ```javascript
 {
   route: 'dlt',
   sender_id: 'NIKIST',
-  message: '1207174549154211511',     // ❌ Wrong - Fast2SMS expects 6-digit internal ID
+  message: '1207174549154211511',     // ❌ Fast2SMS expects 6-digit internal ID
   variables_values: 'amit|crypto...',
   numbers: '9457263922'
 }
 ```
 
-### Fixed Implementation
+### Fixed Implementation (DLT Manual)
 ```javascript
 {
   route: 'dlt_manual',
   sender_id: 'NIKIST',
-  entity_id: '1201159547823456789',   // ✅ TRAI Entity ID
+  entity_id: '12XXXXXXXXXXXXXXXXX',   // ✅ Your TRAI Principal Entity ID
   template_id: '1207174549154211511', // ✅ TRAI DLT Template ID
-  message: 'Hi amit, Your session crypto masterclass is scheduled for today at 7pm. Join WhatsApp for zoom link: https://...\n\n-Nikist School',  // ✅ Full message
+  message: 'Hi amit, Your session crypto masterclass is scheduled for today at 7pm. Join WhatsApp: https://...\n\n-Nikist School',  // ✅ Full message with vars replaced
   numbers: '9457263922',
   flash: '0'
 }
@@ -141,17 +104,17 @@ You'll need to add your TRAI Entity ID as a secret:
 
 | File | Change |
 |------|--------|
-| `supabase/functions/process-sms-queue/index.ts` | Switch to `dlt_manual` route with proper parameters |
-| Environment Secrets | Add `FAST2SMS_ENTITY_ID` |
+| `supabase/functions/process-sms-queue/index.ts` | Switch to `dlt_manual` route, fetch content_preview, build full message |
+| Environment Secrets | Add `FAST2SMS_ENTITY_ID` (your TRAI Entity ID) |
 
 ---
 
 ## Summary
 
 The fix requires:
-1. Adding your TRAI Entity ID as a secret
-2. Updating the edge function to use `dlt_manual` route
-3. Building the full message text by substituting variables into the template
-
-After this change, SMS will be sent using the DLT template IDs you already have imported, without needing to manually register each template in Fast2SMS's portal.
-
+1. Getting your TRAI Principal Entity ID from your Jio DLT portal
+2. Adding it as a secret `FAST2SMS_ENTITY_ID`
+3. Updating the edge function to:
+   - Use `route: 'dlt_manual'`
+   - Pass `entity_id` and `template_id`
+   - Build the complete message text with variables substituted (not just variable values)
