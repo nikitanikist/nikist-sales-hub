@@ -1,69 +1,94 @@
 
-# Fix: Community Template Not Applied to WhatsApp Groups
 
-## Root Cause Analysis
+# Enable Multiple WhatsApp Account Connections
 
-I analyzed the edge function logs and compared them to the code:
+## Summary
 
-**Expected log sequence (from updated code):**
-1. "Creating WhatsApp community for workshop: Malasi amit workshop"
-2. "Fetching community template for tag: a4493ce5-9914-406c-934d-714bc6ca571e"
-3. "Found community template: 9e5f4810-0f28-4162-af84-d426d873b52b"
-4. "Parsed community description: 🔶 Nikist School..."
-5. "Including profile picture URL: https://swnpxkovxhinxzprxviz.supabase.co/..."
-6. "Calling VPS /create-community with session: ..."
+The system architecture already supports multiple WhatsApp sessions with role designation:
+- **Community Creation**: Uses `organizations.community_session_id` (the dropdown you mentioned)
+- **Message Sending**: Uses the session that owns each group (`whatsapp_groups.session_id`)
 
-**Actual log sequence:**
-1. "Creating WhatsApp community for workshop: Malasi amit workshop"
-2. "Calling VPS /create-community with session: ..."
+The only fix needed is the UI, which incorrectly hides the "Connect Device" button after the first connection.
 
-The template lookup code (lines 150-208) never executed.
+---
 
-## Diagnosis
+## Current UI Problem
 
-**The `create-whatsapp-community` edge function was NOT redeployed after the template lookup code was added.**
+In `WhatsAppConnection.tsx` lines 247-286:
 
-Your database has all the correct data:
-
-| Item | Status | Value |
-|------|--------|-------|
-| Workshop tag_id | Correct | `a4493ce5-9914-406c-934d-714bc6ca571e` |
-| Community template exists | Yes | For tag `a4493ce5-...` |
-| Template description | Set | "🔶 Nikist School — FREE Crypto LIVE Workshop..." |
-| Template profile_picture_url | Set | `https://swnpxkovxhinxzprxviz.supabase.co/storage/v1/object/public/community-templates/profile-pictures/...` |
-
-But the deployed edge function is running an older version that doesn't have the template lookup logic.
-
-## Solution
-
-**Redeploy the `create-whatsapp-community` edge function** to activate the template lookup code.
-
-## Implementation Steps
-
-1. Force a redeployment of the edge function with the current code
-2. Test by creating a new workshop to verify:
-   - Template is fetched (check logs for "Fetching community template")
-   - Description is parsed with variables
-   - Profile picture URL is passed to VPS
-   - VPS applies both to the newly created group
-
-## VPS Confirmation Needed
-
-After redeployment, please confirm with your VPS developer:
-1. Is the `/create-community` endpoint receiving the `profilePictureUrl` parameter?
-2. Is it successfully downloading and setting the profile picture using `sock.updateProfilePicture()`?
-
-If the VPS shows it received `profilePictureUrl` but the picture still isn't applied, the VPS code may need debugging.
-
-## Technical Note
-
-Once I redeploy, the logs for a new workshop creation should show:
 ```text
-Fetching community template for tag: a4493ce5-9914-406c-934d-714bc6ca571e
-Found community template: 9e5f4810-0f28-4162-af84-d426d873b52b
-Parsed community description: 🔶 Nikist School — FREE Crypto LIVE Workshop...
-Including profile picture URL: https://swnpxkovxhinxzprxviz.supabase.co/...
-Calling VPS /create-community with session: wa_xxx
+if (hasConnectedSession) {
+  → Show Sync/Disconnect for first session only
+} else {
+  → Show Connect Device button
+}
 ```
 
-This will confirm the edge function is sending the correct data to your VPS.
+This prevents adding a second WhatsApp account.
+
+---
+
+## Proposed UI Layout
+
+```text
+┌─ WhatsApp Connections ──────────────────────────────────┐
+│                                                          │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ ● 919289630962                                      │ │
+│ │   Last active: Feb 1, 2026                          │ │
+│ │                     [Sync Groups] [Disconnect]      │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                          │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ ● 918765432100                                      │ │
+│ │   Last active: Feb 1, 2026                          │ │
+│ │                     [Sync Groups] [Disconnect]      │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                          │
+│ [ + Connect Another WhatsApp ]  ← Always visible        │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Implementation Changes
+
+### File: `src/pages/settings/WhatsAppConnection.tsx`
+
+| Change | Description |
+|--------|-------------|
+| Always show connect button | Remove conditional that hides button when a session exists |
+| List all connected sessions | Replace single-session display with `.map()` over all `connectedSessions` |
+| Per-session actions | Each session card gets its own Sync Groups + Disconnect buttons |
+| Rename button | "Connect Another WhatsApp" to clarify multi-account support |
+| Session History section | Only show disconnected sessions (not active ones duplicated) |
+
+### Code Changes
+
+**Lines 232-286** - Replace the single-session status display with:
+
+1. **Connected Sessions List**: Loop through all `connectedSessions` with individual cards
+2. **Add WhatsApp Button**: Always visible below the list
+3. **Filter Session History**: Only show sessions that are NOT connected
+
+---
+
+## WhatsApp Groups Enhancement (Optional)
+
+Currently groups are displayed without indicating which account owns them. Consider adding the session phone number to each group row for clarity when multiple accounts are connected.
+
+---
+
+## No Database Changes Required
+
+The `whatsapp_sessions` table already supports multiple sessions per organization. The "Community Creation Settings" dropdown already lists all connected sessions, confirming the architecture is in place.
+
+---
+
+## Files to Modify
+
+| File | Purpose |
+|------|---------|
+| `src/pages/settings/WhatsAppConnection.tsx` | Restructure UI to display all connected sessions with individual controls |
+
