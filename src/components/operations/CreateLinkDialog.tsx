@@ -191,7 +191,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingLink ? 'Edit Dynamic Link' : 'Create Dynamic Link'}</DialogTitle>
           <DialogDescription>
@@ -278,7 +278,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
               {/* Session Selection */}
               {connectedSessions.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Step 1: Select WhatsApp Account</Label>
+                  <Label>Select WhatsApp Account</Label>
                   <Select
                     value={selectedSessionId || ''}
                     onValueChange={handleSessionChange}
@@ -304,7 +304,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
               {selectedSessionId && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Step 2: Select Group</Label>
+                    <Label>Select Group</Label>
                     <Button
                       type="button"
                       variant="outline"
@@ -330,7 +330,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                   </div>
 
                   {/* Groups List */}
-                  <ScrollArea className="h-52 rounded-md border">
+                  <ScrollArea className="h-auto max-h-64 rounded-md border">
                     {groupsLoading ? (
                       <div className="p-4 text-center text-muted-foreground">
                         Loading groups...
@@ -437,7 +437,7 @@ function GroupItem({ group, isSelected, onSelect, hasInviteLink, disabled }: Gro
       onClick={onSelect}
       disabled={disabled}
       className={`
-        w-full flex items-center justify-between p-2.5 rounded-md text-left text-sm
+        w-full flex items-center justify-between p-3 rounded-md text-left text-sm
         transition-colors
         ${isSelected 
           ? 'bg-primary/10 border border-primary' 
