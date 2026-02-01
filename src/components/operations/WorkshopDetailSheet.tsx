@@ -54,7 +54,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
   
   const { tags } = useWorkshopTags();
   const { sessions } = useWhatsAppSession();
-  const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
+  const { groups, syncGroups, isSyncing, fetchInviteLink, isFetchingInviteLink, fetchingInviteLinkGroupId } = useWhatsAppGroups();
   const { variablesMap, saveVariables, isSaving } = useSequenceVariables(workshop?.id || null);
   
   // Fetch messages for this workshop (standalone hook)
@@ -430,7 +430,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                             <span className="truncate">{group.group_name}</span>
                             <span className="text-muted-foreground/60 font-mono flex-shrink-0">#{shortId}</span>
                           </div>
-                          {group.invite_link && (
+                          {group.invite_link ? (
                             <div className="flex items-center gap-1 ml-4">
                               <Link2 className="h-3 w-3 text-muted-foreground/60" />
                               <a 
@@ -461,7 +461,33 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                                 <ExternalLink className="h-3 w-3 text-muted-foreground" />
                               </a>
                             </div>
-                          )}
+                          ) : group.is_admin && selectedSessionId ? (
+                            <div className="flex items-center gap-1 ml-4">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs gap-1"
+                                onClick={() => fetchInviteLink({ 
+                                  sessionId: selectedSessionId, 
+                                  groupId: group.id, 
+                                  groupJid: group.group_jid 
+                                })}
+                                disabled={isFetchingInviteLink && fetchingInviteLinkGroupId === group.id}
+                              >
+                                {isFetchingInviteLink && fetchingInviteLinkGroupId === group.id ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Getting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Link2 className="h-3 w-3" />
+                                    Get Invite Link
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}

@@ -96,10 +96,11 @@ async function getVpsSessionId(
 }
 
 interface VPSProxyRequest {
-  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community';
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'get-invite-link';
   sessionId?: string;
   organizationId?: string;
   groupId?: string;
+  groupJid?: string;
   message?: string;
   mediaUrl?: string;
   mediaType?: string;
@@ -158,7 +159,7 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: VPSProxyRequest = await req.json();
-    const { action, sessionId, organizationId, groupId, message, mediaUrl, mediaType, name, description } = body;
+    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description } = body;
 
     if (!action) {
       return new Response(
@@ -316,6 +317,28 @@ Deno.serve(async (req) => {
             restrict: true,      // Only admins can edit settings
           },
         };
+        break;
+      }
+
+      case 'get-invite-link': {
+        if (!sessionId || !groupJid) {
+          return new Response(
+            JSON.stringify({ error: 'Session ID and group JID are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        localSessionIdForDb = sessionId;
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
+        }
+        
+        // Call VPS: GET /groups/{sessionId}/{groupJid}/invite
+        vpsEndpoint = `/groups/${vpsSessionIdForVps}/${encodeURIComponent(groupJid)}/invite`;
+        vpsMethod = 'GET';
         break;
       }
 
@@ -666,6 +689,47 @@ Deno.serve(async (req) => {
         JSON.stringify({ success: true, groups: [], vpsCount: 0, savedCount: 0 }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Handle get-invite-link response - update the database with the fetched link
+    if (action === 'get-invite-link' && isJson && localSessionIdForDb && groupJid) {
+      const inviteCode = responseData?.inviteCode;
+      const inviteLink = responseData?.inviteLink || (inviteCode ? `https://chat.whatsapp.com/${inviteCode}` : null);
+      
+      if (inviteLink) {
+        // Update the group record with the invite link
+        const { error: updateError } = await supabase
+          .from('whatsapp_groups')
+          .update({ 
+            invite_link: inviteLink, 
+            updated_at: new Date().toISOString() 
+          })
+          .eq('session_id', localSessionIdForDb)
+          .eq('group_jid', groupJid);
+        
+        if (updateError) {
+          console.error('Failed to update group invite link:', updateError);
+        } else {
+          console.log(`Updated invite link for group ${groupJid}`);
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            invite_link: inviteLink,
+            inviteCode,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Could not fetch invite link. You may not be admin of this group.',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     return new Response(
