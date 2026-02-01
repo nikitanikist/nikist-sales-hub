@@ -461,7 +461,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
                                 <ExternalLink className="h-3 w-3 text-muted-foreground" />
                               </a>
                             </div>
-                          ) : group.is_admin && selectedSessionId ? (
+                          ) : selectedSessionId ? (
                             <div className="flex items-center gap-1 ml-4">
                               <Button
                                 variant="ghost"
