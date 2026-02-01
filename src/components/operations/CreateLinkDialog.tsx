@@ -89,9 +89,8 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
     });
   }, [groups, selectedSessionId, groupSearch]);
 
-  // Groups with invite links vs without
-  const groupsWithInvite = filteredGroups.filter(g => g.invite_link);
-  const groupsWithoutInvite = filteredGroups.filter(g => !g.invite_link);
+  // Only show groups with invite links (usable for redirection)
+  const usableGroups = filteredGroups.filter(g => g.invite_link);
 
   // Get session display info
   const getSessionDisplayName = (session: { phone_number: string | null; display_name: string | null }) => {
@@ -330,67 +329,34 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                   </div>
 
                   {/* Groups List */}
-                  <ScrollArea className="h-auto max-h-64 rounded-md border">
+                  <ScrollArea className="h-64 rounded-md border">
                     {groupsLoading ? (
                       <div className="p-4 text-center text-muted-foreground">
                         Loading groups...
                       </div>
-                    ) : filteredGroups.length === 0 ? (
+                    ) : usableGroups.length === 0 ? (
                       <div className="p-4 text-center text-muted-foreground">
                         {groupSearch 
                           ? 'No groups match your search.'
-                          : 'No groups found for this account. Click "Sync Groups" to fetch.'}
+                          : filteredGroups.length > 0 
+                            ? 'No groups with invite links. Click "Sync Groups" to fetch invite links.'
+                            : 'No groups found. Click "Sync Groups" to fetch.'}
                       </div>
                     ) : (
                       <div className="p-2 space-y-1">
-                        {/* Groups with invite links */}
-                        {groupsWithInvite.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                              <Check className="h-3 w-3 text-green-500" />
-                              Has invite link ({groupsWithInvite.length})
-                            </div>
-                            {groupsWithInvite.map((group) => (
-                              <GroupItem
-                                key={group.id}
-                                group={group}
-                                isSelected={selectedGroupId === group.id}
-                                onSelect={() => setSelectedGroupId(group.id)}
-                                hasInviteLink={true}
-                              />
-                            ))}
-                          </>
-                        )}
-                        
-                        {/* Groups without invite links */}
-                        {groupsWithoutInvite.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5 border-t mt-2 pt-2">
-                              <AlertCircle className="h-3 w-3 text-yellow-500" />
-                              No invite link ({groupsWithoutInvite.length})
-                            </div>
-                            <TooltipProvider>
-                              {groupsWithoutInvite.map((group) => (
-                                <Tooltip key={group.id}>
-                                  <TooltipTrigger asChild>
-                                    <div>
-                                      <GroupItem
-                                        group={group}
-                                        isSelected={selectedGroupId === group.id}
-                                        onSelect={() => {}}
-                                        hasInviteLink={false}
-                                        disabled
-                                      />
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left">
-                                    <p>Sync groups to fetch the invite link</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ))}
-                            </TooltipProvider>
-                          </>
-                        )}
+                        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                          <Check className="h-3 w-3 text-green-500" />
+                          Available Groups ({usableGroups.length})
+                        </div>
+                        {usableGroups.map((group) => (
+                          <GroupItem
+                            key={group.id}
+                            group={group}
+                            isSelected={selectedGroupId === group.id}
+                            onSelect={() => setSelectedGroupId(group.id)}
+                            hasInviteLink={true}
+                          />
+                        ))}
                       </div>
                     )}
                   </ScrollArea>
