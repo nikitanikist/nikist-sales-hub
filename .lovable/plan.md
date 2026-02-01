@@ -1,273 +1,224 @@
 
 
-# Fast2SMS Integration - Complete Architecture
+# Bulk Import SMS Templates from Excel
 
-## Understanding the Architecture Difference
+## Overview
 
-### Current System (WhatsApp)
-```text
-Templates (created in CRM) → Sequences → Tags → Workshops
-```
+Add a "Bulk Import" feature to the SMS Templates tab that allows importing pre-approved DLT templates directly from the Fast2SMS Excel export format.
 
-### New System (SMS)
-```text
-SMS Templates (fetched/synced from Fast2SMS DLT) → SMS Sequences → Tags → Workshops
-                                                                    ↑
-                                                          (same tags, multiple sequences)
-```
+## Excel Format Analysis
 
-**Key Insight**: A single Tag (e.g., "CryptoCloud") can have BOTH a WhatsApp sequence AND an SMS sequence attached to it.
+Based on the uploaded file `AllApprovedContentTemplate.xlsx`, here are the columns we'll map:
 
----
+| Excel Column | Database Field | Notes |
+|--------------|----------------|-------|
+| TEMPLATE_ID | `dlt_template_id` | The DLT template ID (e.g., `1207173398907267114`) |
+| TEMPLATE_NAME | `name` | Friendly name (e.g., "Morning Reminder") |
+| TEMPLATE_CONTENT | `content_preview` | Full template text with `{#var#}` placeholders |
+| VARIABLE_COUNT | Used to auto-generate `variables` | Number like `3` or `4` |
+| HEADER | Stored for reference (optional) | Sender ID like `NIKIST` |
 
-## What I Need From You
+**Variable Auto-Generation**: Since the Excel provides `VARIABLE_COUNT` but not labels, we'll auto-generate variables as:
+- `var1=Variable 1`, `var2=Variable 2`, etc.
+- Users can edit labels after import
 
-### 1. Fast2SMS API Key
-- Your API authorization key from Fast2SMS dashboard
-- I'll store this as a backend secret
-
-### 2. Sender ID
-- Your registered 6-character DLT Sender ID (e.g., `NIKIST`)
-
-### 3. About DLT Templates
-Fast2SMS doesn't have a public API to fetch DLT templates automatically. Instead, we'll create a simple "Add SMS Template" form where you enter:
-- **Template ID** (the numeric DLT ID from Fast2SMS)
-- **Template Name** (friendly name like "Morning Reminder")
-- **Template Content** (the exact text with `{#var1#}`, `{#var2#}` placeholders - for display only)
-- **Variable Labels** (what each var means: var1=Name, var2=Workshop, etc.)
-
-You only need to enter these ONCE per template. After that, they work exactly like WhatsApp templates.
-
----
-
-## Database Schema Changes
-
-### New Table: `sms_templates`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | Primary key |
-| organization_id | uuid | Organization reference |
-| dlt_template_id | text | The Fast2SMS DLT template ID (numeric string) |
-| name | text | Friendly name (e.g., "Morning Reminder") |
-| content_preview | text | Template text for UI display |
-| variables | jsonb | `[{key: "var1", label: "Customer Name"}, ...]` |
-| is_active | boolean | Whether template is usable |
-| created_at | timestamptz | Creation timestamp |
-| updated_at | timestamptz | Last update timestamp |
-
-### New Table: `sms_sequences` (separate from WhatsApp sequences)
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | Primary key |
-| organization_id | uuid | Organization reference |
-| name | text | Sequence name (e.g., "Evening Workshop SMS") |
-| description | text | Optional description |
-| created_at | timestamptz | Creation timestamp |
-| updated_at | timestamptz | Last update timestamp |
-
-### New Table: `sms_sequence_steps`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | Primary key |
-| sequence_id | uuid | Reference to sms_sequences |
-| template_id | uuid | Reference to sms_templates |
-| send_time | time | When to send (e.g., "11:00:00") |
-| time_label | text | Optional label (e.g., "Morning") |
-| step_order | integer | Order in sequence |
-| created_at | timestamptz | Creation timestamp |
-
-### Modify Table: `workshop_tags`
-
-Add column:
-| Column | Type | Description |
-|--------|------|-------------|
-| sms_sequence_id | uuid (nullable) | Reference to sms_sequences |
-
-This allows a tag to have both:
-- `template_sequence_id` → WhatsApp sequence
-- `sms_sequence_id` → SMS sequence
-
-### New Table: `scheduled_sms_messages`
-
-| Column | Type | Description |
-|--------|------|-------------|
-| id | uuid | Primary key |
-| organization_id | uuid | Organization reference |
-| workshop_id | uuid | Workshop reference |
-| lead_id | uuid | Recipient (for phone number lookup) |
-| template_id | uuid | SMS template used |
-| variable_values | jsonb | `{"var1": "John", "var2": "CryptoCloud"}` |
-| scheduled_for | timestamptz | When to send |
-| status | text | pending/sending/sent/failed/cancelled |
-| sent_at | timestamptz | When actually sent |
-| error_message | text | Error details if failed |
-| fast2sms_request_id | text | API response ID for tracking |
-| retry_count | integer | Retry attempts (max 3) |
-| created_at | timestamptz | Creation timestamp |
-
----
-
-## Settings UI Changes
-
-### Settings → Notifications → New "SMS Templates" Tab
+## User Flow
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│  Templates  |  Sequences  |  Tags  |  SMS Templates  |  SMS Sequences  │
-└─────────────────────────────────────────────────────────────────┘
-
-SMS Templates (Fetched from DLT)
-───────────────────────────────────────────────────────────────────
-  [+ Add Template]
-
-  ┌───────────────────────────────────────────────────────────┐
-  │ Morning Reminder           ID: 1707168640039182925        │
-  │ "Dear {#var1#}, reminder for {#var2#} at {#var3#}..."     │
-  │ Variables: var1=Name, var2=Workshop, var3=Time            │
-  │                                            [Edit] [Delete]│
-  └───────────────────────────────────────────────────────────┘
+Settings → Notifications → SMS Templates Tab
+                ↓
+    [+ Add Template]  [↑ Bulk Import]
+                            ↓
+                    ┌─────────────────────────────┐
+                    │    Import SMS Templates     │
+                    ├─────────────────────────────┤
+                    │ Step 1: Upload Excel        │
+                    │ ┌─────────────────────────┐ │
+                    │ │    📄 Drop file here    │ │
+                    │ │    or click to browse   │ │
+                    │ └─────────────────────────┘ │
+                    │                             │
+                    │ Supports: .xlsx from        │
+                    │ Fast2SMS DLT export         │
+                    └─────────────────────────────┘
+                            ↓
+                    ┌─────────────────────────────┐
+                    │ Step 2: Preview (27 found)  │
+                    ├─────────────────────────────┤
+                    │ ✓ 24 Ready to import        │
+                    │ ⚠ 3 Already exist (skip)    │
+                    │                             │
+                    │ ┌─────────────────────────┐ │
+                    │ │ Name       │ DLT ID     │ │
+                    │ │────────────│────────────│ │
+                    │ │ Morning... │ 1207...    │ │
+                    │ │ We Are...  │ 1207...    │ │
+                    │ └─────────────────────────┘ │
+                    │                             │
+                    │      [Cancel] [Import 24]   │
+                    └─────────────────────────────┘
+                            ↓
+                    ┌─────────────────────────────┐
+                    │ Step 3: Complete            │
+                    ├─────────────────────────────┤
+                    │    ✓ Import Complete!       │
+                    │                             │
+                    │  24 templates imported      │
+                    │  3 duplicates skipped       │
+                    │                             │
+                    │         [Done]              │
+                    └─────────────────────────────┘
 ```
 
-### Settings → Notifications → New "SMS Sequences" Tab
+## Technical Implementation
 
-Same UI pattern as WhatsApp sequences, but:
-- Select from SMS templates (not WhatsApp templates)
-- Same time/label structure
+### Files to Create/Modify
 
-### Settings → Notifications → Tags Tab (Modified)
+| File | Action | Description |
+|------|--------|-------------|
+| `src/components/settings/ImportSMSTemplatesDialog.tsx` | **Create** | New dialog component for bulk import |
+| `src/pages/settings/WorkshopNotificationSettings.tsx` | **Modify** | Add "Bulk Import" button next to "Add Template" |
+| `src/hooks/useSMSTemplates.ts` | **Modify** | Add `bulkCreateTemplates` mutation for batch insert |
 
-```text
-┌───────────────────────────────────────────────────────────────┐
-│ Tag: CryptoCloud                                              │
-│                                                               │
-│ WhatsApp Sequence: [Evening Workshop v1    ▼]                 │
-│ SMS Sequence:      [Evening SMS Reminders  ▼]                 │
-│                                                               │
-│ Color: [●] Description: [________________]                    │
-│                                            [Save] [Cancel]    │
-└───────────────────────────────────────────────────────────────┘
+### New Component: ImportSMSTemplatesDialog
+
+**Features:**
+1. **File Upload**: Accept `.xlsx` files only
+2. **Excel Parsing**: Use SheetJS (xlsx) library to parse Excel
+3. **Duplicate Detection**: Check existing `dlt_template_id` values
+4. **Preview Table**: Show all templates with status (ready/duplicate)
+5. **Batch Import**: Insert all ready templates in one go
+6. **Progress Indicator**: Show import progress
+7. **Results Summary**: Success/duplicate/error counts
+
+**Excel Parsing Logic:**
+```typescript
+// Expected columns from Fast2SMS export
+const EXPECTED_COLUMNS = {
+  templateId: 'TEMPLATE_ID',
+  templateName: 'TEMPLATE_NAME', 
+  templateContent: 'TEMPLATE_CONTENT',
+  variableCount: 'VARIABLE_COUNT',
+  header: 'HEADER',
+};
+
+// Auto-generate variables based on count
+function generateVariables(count: number): SMSTemplateVariable[] {
+  return Array.from({ length: count }, (_, i) => ({
+    key: `var${i + 1}`,
+    label: `Variable ${i + 1}`,
+  }));
+}
+```
+
+### Hook Enhancement: useSMSTemplates
+
+Add bulk creation:
+```typescript
+const bulkCreateMutation = useMutation({
+  mutationFn: async (templates: CreateSMSTemplateInput[]) => {
+    const { data, error } = await supabase
+      .from('sms_templates')
+      .insert(templates.map(t => ({
+        organization_id: currentOrganization.id,
+        dlt_template_id: t.dlt_template_id,
+        name: t.name,
+        content_preview: t.content_preview,
+        variables: t.variables || [],
+      })))
+      .select();
+    if (error) throw error;
+    return data;
+  },
+  onSuccess: (data) => {
+    queryClient.invalidateQueries({ queryKey: ['sms-templates'] });
+    toast.success(`${data.length} SMS templates imported successfully`);
+  },
+});
+```
+
+### UI Changes in WorkshopNotificationSettings
+
+Add import button in SMS Templates tab header:
+```tsx
+<div className="flex justify-between items-center">
+  <p className="text-sm text-muted-foreground">
+    Add pre-approved DLT templates from Fast2SMS.
+  </p>
+  <div className="flex gap-2">
+    <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+      <Upload className="h-4 w-4 mr-2" />
+      Bulk Import
+    </Button>
+    <Button onClick={() => openAddDialog()}>
+      <Plus className="h-4 w-4 mr-2" />
+      Add Template
+    </Button>
+  </div>
+</div>
+```
+
+### Dependencies
+
+Need to add the SheetJS library for Excel parsing:
+- `xlsx` (SheetJS) - for parsing .xlsx files
+
+---
+
+## Implementation Steps
+
+### Step 1: Add xlsx Dependency
+Install SheetJS for Excel file parsing
+
+### Step 2: Create ImportSMSTemplatesDialog Component
+- Multi-step dialog (upload → preview → importing → complete)
+- File input accepting .xlsx files
+- Parse Excel using SheetJS
+- Map columns to template fields
+- Duplicate detection against existing templates
+- Preview table with status indicators
+- Batch import with progress
+
+### Step 3: Enhance useSMSTemplates Hook
+- Add `bulkCreateTemplates` mutation
+- Handle batch insert with proper error handling
+
+### Step 4: Integrate in Settings Page
+- Add "Bulk Import" button
+- Import and use the new dialog component
+- Handle dialog state
+
+---
+
+## Template Data Mapping Example
+
+**From Excel Row:**
+| HEADER | TEMPLATE_ID | TEMPLATE_NAME | TEMPLATE_CONTENT | VARIABLE_COUNT |
+|--------|-------------|---------------|------------------|----------------|
+| NIKIST | 1207174541304380020 | We Are Live Explicit | Hi {#var#}, We're live with {#var#}... | 3 |
+
+**To Database Record:**
+```json
+{
+  "dlt_template_id": "1207174541304380020",
+  "name": "We Are Live Explicit",
+  "content_preview": "Hi {#var#}, We're live with {#var#}...",
+  "variables": [
+    {"key": "var1", "label": "Variable 1"},
+    {"key": "var2", "label": "Variable 2"},
+    {"key": "var3", "label": "Variable 3"}
+  ]
+}
 ```
 
 ---
 
-## Operations UI Changes
+## Edge Cases Handled
 
-### Workshop Notification Page → SMS Tab
-
-Replace the "Coming Soon" placeholder with:
-
-```text
-┌───────────────────────────────────────────────────────────────┐
-│ SMS Notifications                                 Fast2SMS    │
-├───────────────────────────────────────────────────────────────┤
-│                                                               │
-│ Today's Workshop: CryptoCloud Masterclass                     │
-│ ├─ Tag: CryptoCloud                                          │
-│ ├─ SMS Sequence: Evening SMS Reminders (3 messages)          │
-│ └─ Registrants with phone: 47 / 52                           │
-│                                                               │
-│ [Run SMS Sequence]  [Send Now]                                │
-│                                                               │
-│ Message Checkpoints:                                          │
-│ ┌─────────────────────────────────────────────────────────┐  │
-│ │ 11:00 AM  Morning Reminder    ○ 47 Pending              │  │
-│ │  1:00 PM  Afternoon Nudge     ○ 47 Pending              │  │
-│ │  6:00 PM  Final Reminder      ○ 47 Pending              │  │
-│ └─────────────────────────────────────────────────────────┘  │
-│                                                               │
-└───────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Backend Functions
-
-### New Edge Function: `process-sms-queue`
-
-Runs every minute (cron job), similar to `process-whatsapp-queue`:
-
-1. Fetch pending messages where `scheduled_for <= now()` and `status = 'pending'`
-2. For each message:
-   - Get lead's phone number
-   - Get template's DLT ID and variable values
-   - Call Fast2SMS API:
-     ```javascript
-     POST https://www.fast2sms.com/dev/bulkV2
-     Headers: { "authorization": "API_KEY" }
-     Body: {
-       "route": "dlt",
-       "sender_id": "NIKIST",
-       "message": "1707168640039182925",  // DLT Template ID
-       "variables_values": "John|CryptoCloud|7 PM",  // Pipe-separated
-       "numbers": "9876543210"
-     }
-     ```
-   - Update status to `sent` or `failed`
-   - Store API response for debugging
-
----
-
-## User Flow Summary
-
-### One-Time Setup (Settings)
-1. Add Fast2SMS API Key in Settings → Integrations
-2. Add your DLT templates in Settings → Notifications → SMS Templates
-3. Create SMS Sequences in Settings → Notifications → SMS Sequences
-4. Assign SMS Sequence to Tags in Settings → Notifications → Tags
-
-### Per Workshop (Operations)
-1. Workshop is created with tag (e.g., "CryptoCloud")
-2. Tag has both WhatsApp sequence AND SMS sequence
-3. Go to Operations → Workshop Notification → SMS tab
-4. Click "Run SMS Sequence"
-5. System schedules individual SMS for each registrant with a phone number
-6. Cron job processes and sends messages at scheduled times
-7. Real-time status updates in UI
-
----
-
-## Files to Create/Modify
-
-| Category | File | Action |
-|----------|------|--------|
-| **Database** | Migration | Create 4 new tables, modify workshop_tags |
-| **Backend** | `supabase/functions/process-sms-queue/index.ts` | Create cron job |
-| **Hooks** | `src/hooks/useSMSTemplates.ts` | Create - CRUD for SMS templates |
-| **Hooks** | `src/hooks/useSMSSequences.ts` | Create - CRUD for SMS sequences |
-| **Hooks** | `src/hooks/useSMSNotification.ts` | Create - Schedule/track SMS |
-| **Settings** | `src/pages/settings/WorkshopNotificationSettings.tsx` | Add SMS Templates & Sequences tabs |
-| **Settings** | `src/components/settings/SMSIntegration.tsx` | Create - Fast2SMS config |
-| **Operations** | `src/components/operations/notification-channels/SMSTab.tsx` | Create - Replace placeholder |
-| **Types** | `src/hooks/useWorkshopTags.ts` | Add sms_sequence_id to interface |
-| **Config** | `supabase/config.toml` | Add process-sms-queue function |
-
----
-
-## Implementation Phases
-
-### Phase 1: Database & Settings (~2 hours)
-- Create database tables with RLS policies
-- Add SMS Templates tab in settings
-- Add SMS Sequences tab in settings
-- Modify Tags to support SMS sequence
-
-### Phase 2: Backend Processing (~1.5 hours)
-- Create `process-sms-queue` edge function
-- Set up cron job
-- Handle Fast2SMS API calls
-
-### Phase 3: Operations UI (~2 hours)
-- Create SMSTab component
-- Real-time message tracking
-- Run sequence / Send now functionality
-
-### Phase 4: Testing & Polish (~1 hour)
-- End-to-end testing
-- Error handling
-- UI polish
-
-**Total Estimated Time: 6-7 hours**
+1. **Missing required columns**: Show error if TEMPLATE_ID, TEMPLATE_NAME, or TEMPLATE_CONTENT columns are missing
+2. **Empty rows**: Skip rows with empty template IDs
+3. **Duplicate templates**: Detect by `dlt_template_id`, show as "already exists", skip during import
+4. **HTML in content**: The Excel has `<br/>` tags - we'll preserve them as-is for display
+5. **Variable count = 0**: Create template with empty variables array
+6. **Large files**: Show loading state during parsing
 
