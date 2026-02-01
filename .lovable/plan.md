@@ -1,72 +1,144 @@
 
-Goal
-- Make the “Create Dynamic Link” popup feel dynamic: it should grow to fit content up to the screen height, keep the footer (Cancel/Create) always visible, and ensure scrolling happens inside the group list/body — not by scrolling the whole popup.
 
-What’s causing the “not dynamic / whole popup scrolls” feeling (based on current code)
-- In `CreateLinkDialog.tsx`, `DialogContent` currently has: `max-h-[90vh] overflow-y-auto`.
-  - This makes the entire modal container the scrollable area.
-  - When you mouse-wheel over the group list, the scroll often bubbles and scrolls the modal container, which feels like the whole popup is moving.
-- `DialogContent` (base component) is a `grid` layout by default. With a lot of content, grid + container scrolling tends to feel less “stable” than a flex layout with a dedicated scroll region.
+# Improved UX: Auto-Fetch Invite Link on Group Selection
 
-Proposed UX behavior
-- The popup expands naturally with content until it reaches 90vh.
-- After 90vh, only the “body” section scrolls (and within that, the group list scrolls as needed).
-- Footer stays pinned/visible at the bottom of the popup (so user never loses “Create Link” button).
+## Current Problem
 
-Implementation plan (frontend only)
+1. **Manual button clicks**: User has to click "Get Link" button for each group without an invite link
+2. **Button cropping**: The "Get Link" button text is getting cut off due to space constraints
+3. **Clunky experience**: Too many steps to select a group
 
-1) Convert this dialog instance to a “flex column” modal with a dedicated scroll body
-File: `src/components/operations/CreateLinkDialog.tsx`
-- Change `DialogContent` className from:
-  - `sm:max-w-2xl max-h-[90vh] overflow-y-auto`
-  to something like:
-  - `sm:max-w-2xl max-h-[90vh] flex flex-col`
-  (removes container scrolling and overrides default `grid` with `flex` because Tailwind’s last display class wins.)
+## Proposed Solution
 
-- Restructure children inside `DialogContent`:
-  - Keep `<DialogHeader />` as `shrink-0`
-  - Wrap the main form section (`<div className="space-y-6 py-4">…`) inside a new container:
-    - `className="flex-1 overflow-y-auto pr-1"`
-    - Optionally add: `overscroll-contain` (prevents scroll chaining to the page on some browsers)
-  - Keep `<DialogFooter />` as `shrink-0` and consider adding:
-    - `border-t bg-background sticky?` (not required if footer is outside the scroll region, but we can add a subtle separation line)
+Replace the list-based selection with a simple **Select dropdown**. When user selects a group:
+- If it already has an invite link → just select it (done!)
+- If it doesn't have an invite link → automatically fetch it in the background, show a loading indicator, and once fetched, it's ready
 
-Result:
-- The modal itself stops scrolling.
-- Only the body scrolls when content exceeds max height.
-- Footer remains visible.
+## New UX Flow
 
-2) Ensure scrolling stays inside the group list (and doesn’t bubble to the dialog body)
-File: `src/components/operations/CreateLinkDialog.tsx`
-- Keep the group list `ScrollArea` height fixed (current `h-64` is correct).
-- Add a scroll-containment/bubbling fix on the group list wrapper:
-  - Option A (preferred, CSS-only): add `overscroll-contain` to the `ScrollArea` root:
-    - `className="h-64 rounded-md border overscroll-contain"`
-  - Option B (guaranteed): add an event handler to stop wheel bubbling:
-    - `<ScrollArea ... onWheelCapture={(e) => e.stopPropagation()}>`
-  - We can combine both for best reliability across devices.
+```
+Select Group                                      [Sync Groups]
+┌──────────────────────────────────────────────────────────────┐
+│  Choose a group...                                       ▼   │
+└──────────────────────────────────────────────────────────────┘
 
-Result:
-- When you scroll over groups, only the group list scrolls (not the entire popup).
+[Dropdown opens]
+┌──────────────────────────────────────────────────────────────┐
+│  🟢 Crypto Masterclass <> 1st February          👥 230  ✓    │
+│  🟢 test amit                                   👥 1         │
+│  ⚪ 10th August <> Ethical Hacking             👥 112       │  ← no invite link yet
+│  ⚪ 12th October (FB) <> Ethical Hacking       👥 99        │
+└──────────────────────────────────────────────────────────────┘
 
-3) Make modal height feel more “content-driven”
-File: `src/components/operations/CreateLinkDialog.tsx`
-- Remove extra vertical padding that forces extra space when not needed, or tune it:
-  - Current: `space-y-6 py-4` is fine, but if the dialog feels “too tall” for small content, we can reduce `py-4` to `py-3` and adjust spacing.
-- Keep `max-h-[90vh]` to avoid going beyond the visible screen.
+[User selects "10th August <> Ethical Hacking" which has no invite link]
 
-4) Quick verification steps (to confirm the fix)
-- Open `/operations/dynamic-links` → Create New Link → WhatsApp Group.
-- Confirm:
-  - Modal grows and stops at 90vh.
-  - Footer buttons (Cancel/Create Link) are always visible.
-  - Scrolling the group list does not scroll the whole modal.
-  - When there are many groups, only the list scrolls; when there are fewer groups, modal shrinks accordingly.
+Select Group                                      [Sync Groups]
+┌──────────────────────────────────────────────────────────────┐
+│  🔄 10th August <> Ethical Hacking... (fetching link)        │  ← auto-fetching
+└──────────────────────────────────────────────────────────────┘
 
-Files to change
-- `src/components/operations/CreateLinkDialog.tsx` (primary)
-- No changes needed to shared `src/components/ui/dialog.tsx` unless we later want this behavior globally across all dialogs.
+[After fetch completes]
 
-Edge cases & notes
-- If the WhatsApp group list becomes extremely long (many sections), the dialog body scroll will still work, while the group list remains independently scrollable (nested scroll). The wheel-capture/overscroll containment is important to prevent “scroll tug-of-war”.
-- On mobile, nested scrolling can be tricky. If needed, we can switch from nested scrolling to a single scroll area (dialog body only) by making the group list height “auto” and letting the body handle scrolling. We’ll only do that if you report mobile scroll issues after this change.
+Select Group                                      [Sync Groups]
+┌──────────────────────────────────────────────────────────────┐
+│  🟢 10th August <> Ethical Hacking & Bug Hunting        ✓    │  ← ready!
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Technical Implementation
+
+### File: `src/components/operations/CreateLinkDialog.tsx`
+
+**1. Replace ScrollArea list with Select component**
+
+Replace the current `ScrollArea` with groups list (lines 343-399) with a `Select` component:
+
+| Current | New |
+|---------|-----|
+| `<ScrollArea>` with group buttons | `<Select>` dropdown with all groups |
+| Manual "Get Link" button | Auto-fetch on selection |
+| Two sections (ready/need link) | Single list, visual indicator for status |
+
+**2. Add auto-fetch logic when selecting a group**
+
+Create a new handler `handleGroupSelect(groupId)`:
+- Find the selected group
+- If `invite_link` exists → just set `selectedGroupId`
+- If `invite_link` is `null` → call `fetchInviteLink()` automatically, show loading state
+
+**3. Track fetching state for selected group**
+
+- Use `isFetchingInviteLink` and `fetchingInviteLinkGroupId` from the hook
+- Show a spinner in the Select trigger when fetching
+
+**4. Update selected group after invite link is fetched**
+
+- After successful fetch, the hook already invalidates queries
+- The group will automatically have `invite_link` populated
+- UI updates automatically via React Query
+
+**5. Clean up unused components**
+
+- Remove `GroupItem` component (no longer needed)
+- Remove `GroupItemWithFetch` component (no longer needed)
+- Simplify the code significantly
+
+### Code Changes Summary
+
+| Location | Change |
+|----------|--------|
+| Lines 343-399 | Replace `ScrollArea` + group items with `<Select>` dropdown |
+| Lines 96-105 | Update `handleFetchInviteLink` → new `handleGroupSelect` with auto-fetch |
+| Lines 427-521 | Remove `GroupItem` and `GroupItemWithFetch` components |
+| Add | Loading state in Select trigger when fetching |
+| Add | Visual indicator (🟢/⚪) in dropdown items showing link status |
+
+### Select Dropdown Design
+
+```tsx
+<Select
+  value={selectedGroupId || ''}
+  onValueChange={handleGroupSelect}
+  disabled={isFetchingInviteLink}
+>
+  <SelectTrigger>
+    {isFetchingInviteLink && fetchingInviteLinkGroupId === selectedGroupId ? (
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        <span>Fetching invite link...</span>
+      </div>
+    ) : (
+      <SelectValue placeholder="Choose a group..." />
+    )}
+  </SelectTrigger>
+  <SelectContent>
+    {filteredGroups.map((group) => (
+      <SelectItem key={group.id} value={group.id}>
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${group.invite_link ? 'bg-green-500' : 'bg-gray-300'}`} />
+          <span>{group.group_name}</span>
+          <span className="text-xs text-muted-foreground ml-auto">
+            👥 {group.participant_count}
+          </span>
+        </div>
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+```
+
+## Benefits
+
+| Before | After |
+|--------|-------|
+| Scroll through list, find group, click "Get Link" button, wait, then select | Just select from dropdown - link fetched automatically |
+| Button text cropping | No buttons needed |
+| Two separate sections | Single clean dropdown |
+| Multiple clicks | One click to select |
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/components/operations/CreateLinkDialog.tsx` | Replace list with Select, add auto-fetch on selection, remove unused components |
+
