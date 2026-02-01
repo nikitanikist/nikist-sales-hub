@@ -572,6 +572,42 @@ Deno.serve(async (req) => {
             workshopId = newWorkshop.id;
             console.log('Created new workshop:', workshopId);
 
+            // Auto-create WhatsApp community for the new workshop
+            try {
+              console.log('Triggering WhatsApp community creation for auto-created workshop:', workshopId);
+              const createCommunityResponse = await fetch(
+                `${supabaseUrl}/functions/v1/create-whatsapp-community`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({
+                    workshopId,
+                    workshopName: normalizedWorkshopName,
+                    organizationId: newWorkshop.organization_id
+                  })
+                }
+              );
+              
+              if (!createCommunityResponse.ok) {
+                console.error('Failed to create WhatsApp community:', await createCommunityResponse.text());
+              } else {
+                const communityResult = await createCommunityResponse.json();
+                if (communityResult.success) {
+                  console.log('WhatsApp community created for workshop:', communityResult.groupId);
+                } else if (communityResult.skipped) {
+                  console.log('WhatsApp community creation skipped:', communityResult.reason);
+                } else {
+                  console.warn('WhatsApp community creation unsuccessful:', communityResult);
+                }
+              }
+            } catch (communityErr) {
+              console.error('Error calling create-whatsapp-community:', communityErr);
+              // Don't fail the webhook - workshop is still created
+            }
+
             // Create lead assignment with new workshop
             const assignmentData = {
               lead_id: leadId,
