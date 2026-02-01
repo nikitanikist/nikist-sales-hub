@@ -2067,6 +2067,7 @@ export type Database = {
       }
       organizations: {
         Row: {
+          community_session_id: string | null
           created_at: string | null
           created_by: string | null
           id: string
@@ -2078,6 +2079,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          community_session_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -2089,6 +2091,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          community_session_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -2099,7 +2102,15 @@ export type Database = {
           timezone?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_community_session_id_fkey"
+            columns: ["community_session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       products: {
         Row: {
@@ -2884,6 +2895,7 @@ export type Database = {
           ad_spend: number | null
           amount: number | null
           automation_status: Json | null
+          community_group_id: string | null
           created_at: string
           created_by: string
           current_participants: number | null
@@ -2910,6 +2922,7 @@ export type Database = {
           ad_spend?: number | null
           amount?: number | null
           automation_status?: Json | null
+          community_group_id?: string | null
           created_at?: string
           created_by: string
           current_participants?: number | null
@@ -2936,6 +2949,7 @@ export type Database = {
           ad_spend?: number | null
           amount?: number | null
           automation_status?: Json | null
+          community_group_id?: string | null
           created_at?: string
           created_by?: string
           current_participants?: number | null
@@ -2959,6 +2973,13 @@ export type Database = {
           whatsapp_session_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "workshops_community_group_id_fkey"
+            columns: ["community_group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workshops_created_by_fkey"
             columns: ["created_by"]

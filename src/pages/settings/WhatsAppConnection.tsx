@@ -3,9 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users } from 'lucide-react';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { useCommunitySession } from '@/hooks/useCommunitySession';
 import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
@@ -27,6 +29,13 @@ export function WhatsAppConnection() {
   } = useWhatsAppSession();
 
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
+  const { 
+    communitySessionId, 
+    connectedSessions: communityConnectedSessions, 
+    setCommunitySession, 
+    isUpdating: isUpdatingCommunitySession 
+  } = useCommunitySession();
+  
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -138,6 +147,65 @@ export function WhatsAppConnection() {
               <AlertTitle>VPS Connection Successful</AlertTitle>
               <AlertDescription>
                 Your backend can reach the WhatsApp VPS. You can now connect a device.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Community Creation Settings Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Community Creation Settings
+          </CardTitle>
+          <CardDescription>
+            Select which WhatsApp number should be used to automatically create communities when new workshops are added
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Select
+                value={communitySessionId || "none"}
+                onValueChange={(value) => setCommunitySession(value === "none" ? null : value)}
+                disabled={isUpdatingCommunitySession}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a connected number" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No automatic community creation</SelectItem>
+                  {communityConnectedSessions.map((session) => (
+                    <SelectItem key={session.id} value={session.id}>
+                      {session.phone_number || session.display_name || `Session ${session.id.slice(0, 8)}...`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {isUpdatingCommunitySession && (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+          </div>
+          
+          {communityConnectedSessions.length === 0 && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>No Connected Sessions</AlertTitle>
+              <AlertDescription>
+                Connect a WhatsApp device first to enable automatic community creation for workshops.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {communitySessionId && (
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertTitle>Auto-Creation Enabled</AlertTitle>
+              <AlertDescription>
+                When new workshops are created, a WhatsApp community will automatically be created and linked to the workshop.
               </AlertDescription>
             </Alert>
           )}

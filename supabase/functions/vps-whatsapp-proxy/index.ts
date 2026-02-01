@@ -96,13 +96,15 @@ async function getVpsSessionId(
 }
 
 interface VPSProxyRequest {
-  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups';
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community';
   sessionId?: string;
   organizationId?: string;
   groupId?: string;
   message?: string;
   mediaUrl?: string;
   mediaType?: string;
+  name?: string;
+  description?: string;
 }
 
 Deno.serve(async (req) => {
@@ -156,7 +158,7 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: VPSProxyRequest = await req.json();
-    const { action, sessionId, organizationId, groupId, message, mediaUrl, mediaType } = body;
+    const { action, sessionId, organizationId, groupId, message, mediaUrl, mediaType, name, description } = body;
 
     if (!action) {
       return new Response(
@@ -284,6 +286,36 @@ Deno.serve(async (req) => {
         // Call VPS to get groups
         vpsEndpoint = `/groups/${vpsSessionIdForVps}`;
         vpsMethod = 'GET';
+        break;
+      }
+
+      case 'create-community': {
+        if (!sessionId || !name) {
+          return new Response(
+            JSON.stringify({ error: 'Session ID and name are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        localSessionIdForDb = sessionId;
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
+        }
+        
+        vpsEndpoint = '/create-community';
+        vpsMethod = 'POST';
+        vpsBody = {
+          sessionId: vpsSessionIdForVps,
+          name,
+          description: description || 'Workshop community',
+          settings: {
+            announcement: true,  // Only admins can send messages
+            restrict: true,      // Only admins can edit settings
+          },
+        };
         break;
       }
 

@@ -366,12 +366,40 @@ const Workshops = () => {
   const createMutation = useMutation({
     mutationFn: async (newWorkshop: any) => {
       if (!currentOrganization) throw new Error("No organization selected");
-      const { error } = await supabase.from("workshops").insert([{
+      const { data: workshop, error } = await supabase.from("workshops").insert([{
         ...newWorkshop,
         created_by: user?.id,
         organization_id: currentOrganization.id,
-      }]);
+      }]).select().single();
       if (error) throw error;
+      
+      // Trigger community creation (non-blocking)
+      try {
+        console.log('Triggering WhatsApp community creation for workshop:', workshop.id);
+        const { data: communityResult, error: communityError } = await supabase.functions.invoke('create-whatsapp-community', {
+          body: {
+            workshopId: workshop.id,
+            workshopName: workshop.title,
+            organizationId: currentOrganization.id
+          }
+        });
+        
+        if (communityError) {
+          console.error('Community creation failed:', communityError);
+        } else if (communityResult?.success) {
+          console.log('WhatsApp community created:', communityResult);
+          toast.success("WhatsApp community created and linked to workshop");
+        } else if (communityResult?.skipped) {
+          console.log('Community creation skipped:', communityResult.reason);
+        } else {
+          console.warn('Community creation unsuccessful:', communityResult);
+        }
+      } catch (err) {
+        console.error('Error calling create-whatsapp-community:', err);
+        // Don't fail the mutation - workshop is still created
+      }
+      
+      return workshop;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workshops"] });
