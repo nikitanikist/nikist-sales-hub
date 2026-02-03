@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.process-sms-queue]
 verify_jwt = false
+
+[functions.whatsapp-membership-webhook]
+verify_jwt = false

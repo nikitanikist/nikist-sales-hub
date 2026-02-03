@@ -15,6 +15,7 @@ import {
   Users, 
   UserCheck, 
   UserX, 
+  UserMinus,
   TrendingUp, 
   RefreshCw, 
   Download, 
@@ -60,6 +61,7 @@ const WorkshopDetail = () => {
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
   const { format: formatOrg } = useOrgTimezone();
   const [searchQuery, setSearchQuery] = useState("");
+  const [leftSearchQuery, setLeftSearchQuery] = useState("");
   const [callsDialogOpen, setCallsDialogOpen] = useState(false);
   const [selectedCallCategory, setSelectedCallCategory] = useState<CallCategory>("converted");
 
@@ -138,6 +140,18 @@ const WorkshopDetail = () => {
     );
   }, [participantsData?.missing, searchQuery]);
 
+  // Filter left group members by search
+  const filteredLeftGroup = useMemo(() => {
+    if (!participantsData?.leftGroup) return [];
+    const query = leftSearchQuery.toLowerCase();
+    return participantsData.leftGroup.filter(member => 
+      member.contact_name?.toLowerCase().includes(query) ||
+      member.email?.toLowerCase().includes(query) ||
+      member.phone_number?.includes(query) ||
+      member.full_phone?.includes(query)
+    );
+  }, [participantsData?.leftGroup, leftSearchQuery]);
+
   // Download CSV of missing members
   const downloadMissingCSV = () => {
     if (!participantsData?.missing || participantsData.missing.length === 0) {
@@ -165,6 +179,36 @@ const WorkshopDetail = () => {
     URL.revokeObjectURL(url);
     
     toast.success(`Downloaded ${participantsData.missing.length} missing members`);
+  };
+
+  // Download CSV of left group members
+  const downloadLeftGroupCSV = () => {
+    if (!participantsData?.leftGroup || participantsData.leftGroup.length === 0) {
+      toast.error("No left group members to download");
+      return;
+    }
+
+    const headers = ['Name', 'Phone', 'Email', 'Joined Date', 'Left Date'];
+    const rows = participantsData.leftGroup.map(m => [
+      m.contact_name || 'Unknown',
+      m.full_phone || m.phone_number || '',
+      m.email || '',
+      m.joined_at ? format(new Date(m.joined_at), 'MMM dd, yyyy') : '',
+      m.left_at ? format(new Date(m.left_at), 'MMM dd, yyyy HH:mm') : ''
+    ]);
+
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `left-group-members-${workshop?.title || 'workshop'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success(`Downloaded ${participantsData.leftGroup.length} left group members`);
   };
 
   const openCallsDialog = (category: CallCategory) => {
@@ -257,7 +301,7 @@ const WorkshopDetail = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -275,12 +319,12 @@ const WorkshopDetail = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <UserCheck className="h-5 w-5 text-emerald-600" />
+              <div className="p-2 rounded-lg bg-accent">
+                <UserCheck className="h-5 w-5 text-accent-foreground" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-emerald-600">
+                  <p className="text-2xl font-bold text-accent-foreground">
                     {participantsLoading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
@@ -310,6 +354,26 @@ const WorkshopDetail = () => {
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground">Missing from Group</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-secondary">
+                <UserMinus className="h-5 w-5 text-secondary-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-secondary-foreground">
+                  {participantsLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    participantsData?.totalLeftGroup || 0
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">Left Group</p>
               </div>
             </div>
           </CardContent>
@@ -391,12 +455,19 @@ const WorkshopDetail = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="missing" className="w-full">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="missing" className="flex items-center gap-2">
             <UserX className="h-4 w-4" />
-            Missing Members
+            Missing
             {participantsData?.totalMissing ? (
               <Badge variant="secondary" className="ml-1">{participantsData.totalMissing}</Badge>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="left" className="flex items-center gap-2">
+            <UserMinus className="h-4 w-4" />
+            Left Group
+            {participantsData?.totalLeftGroup ? (
+              <Badge variant="secondary" className="ml-1">{participantsData.totalLeftGroup}</Badge>
             ) : null}
           </TabsTrigger>
           <TabsTrigger value="stats" className="flex items-center gap-2">
@@ -480,7 +551,79 @@ const WorkshopDetail = () => {
           </Card>
         </TabsContent>
 
-        {/* Call Statistics Tab */}
+        {/* Left Group Tab */}
+        <TabsContent value="left" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg">Left Group Members</CardTitle>
+                  <CardDescription>
+                    People who joined the WhatsApp group but have since left
+                  </CardDescription>
+                </div>
+                <Button 
+                  onClick={downloadLeftGroupCSV} 
+                  disabled={!participantsData?.leftGroup?.length}
+                  variant="outline"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download CSV
+                </Button>
+              </div>
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, phone, or email..."
+                  value={leftSearchQuery}
+                  onChange={(e) => setLeftSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {participantsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !hasWhatsAppGroup ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Link a WhatsApp group to track members who left
+                </div>
+              ) : filteredLeftGroup.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {leftSearchQuery ? "No matching members found" : "No one has left the group yet 🎉"}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Joined</TableHead>
+                      <TableHead>Left</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLeftGroup.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">{member.contact_name || 'Unknown'}</TableCell>
+                        <TableCell>{member.full_phone || member.phone_number || 'N/A'}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {member.joined_at ? format(new Date(member.joined_at), 'MMM dd, yyyy') : 'N/A'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {member.left_at ? format(new Date(member.left_at), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="stats" className="space-y-6">
           {/* Fresh Call Statistics */}
           <Card>
