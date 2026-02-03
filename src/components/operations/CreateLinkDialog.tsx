@@ -117,8 +117,8 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
           groupId: group.id,
           groupJid: group.group_jid,
         });
-        if (result?.inviteLink) {
-          setFetchedInviteLink(result.inviteLink);
+        if (result?.invite_link) {
+          setFetchedInviteLink(result.invite_link);
         }
       } catch (error) {
         // Error already handled by mutation's onError
