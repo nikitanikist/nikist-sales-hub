@@ -3504,8 +3504,6 @@ export type Database = {
         Args: { link_slug: string }
         Returns: {
           destination_url: string
-          invite_link: string
-          whatsapp_group_id: string
         }[]
       }
       is_org_admin: {
