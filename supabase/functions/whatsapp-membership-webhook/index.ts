@@ -67,14 +67,14 @@ Deno.serve(async (req) => {
     const { data: session, error: sessionError } = await supabase
       .from("whatsapp_sessions")
       .select("id, organization_id")
-      .or(`id.eq.${payload.sessionId},metadata->vps_session_id.eq.${payload.sessionId}`)
+      .or(`id.eq.${payload.sessionId},session_data->vps_session_id.eq.${payload.sessionId}`)
       .single();
 
     if (sessionError || !session) {
       // Try to find by checking the metadata jsonb field more directly
       const { data: sessions, error: sessionsError } = await supabase
         .from("whatsapp_sessions")
-        .select("id, organization_id, metadata");
+        .select("id, organization_id, session_data");
 
       if (sessionsError) {
         console.error("Error fetching sessions:", sessionsError);
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
       // Find session by matching vps_session_id in metadata
       const matchedSession = sessions?.find((s) => {
-        const vpsSessionId = s.metadata?.vps_session_id;
+        const vpsSessionId = s.session_data?.vps_session_id;
         return vpsSessionId === payload.sessionId || s.id === payload.sessionId;
       });
 
