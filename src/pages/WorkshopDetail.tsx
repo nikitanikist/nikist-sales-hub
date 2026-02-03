@@ -448,7 +448,7 @@ const WorkshopDetail = () => {
                 className="h-2"
               />
               <p className="text-xs text-muted-foreground">
-                of registered joined group
+                {participantsData?.totalInGroupRaw || 0} of {participantsData?.totalRegistered || 0} joined
               </p>
             </div>
           </CardContent>
@@ -484,7 +484,7 @@ const WorkshopDetail = () => {
               </div>
               <Progress value={participantsData?.joinRate || 0} className="h-3" />
               <p className="text-xs text-muted-foreground text-center">
-                {participantsData?.totalInGroup || 0} of {participantsData?.totalRegistered || 0} registered members have joined the WhatsApp group
+                {participantsData?.totalInGroupRaw || 0} of {participantsData?.totalRegistered || 0} registered members have joined the WhatsApp group
               </p>
             </div>
           </CardContent>
