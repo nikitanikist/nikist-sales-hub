@@ -1,134 +1,149 @@
 
-# Fix: UI Not Updating After Successful Sync
 
-## Root Cause Analysis
+# Simplify Workshop Detail Stats Cards
 
-The sync successfully wrote **284 active members** to the database, but the UI still shows only **23 "In Group"** because the query isn't being properly refetched after the mutation completes.
+## Current Layout (6 Cards)
 
-### Evidence
+| Card | Metric |
+|------|--------|
+| 1 | Total in Group |
+| 2 | Registered |
+| 3 | In Group |
+| 4 | Missing |
+| 5 | Unregistered |
+| 6 | Join Rate |
 
-| What we verified | Result |
-|-----------------|--------|
-| Database active members | 284 (correct) |
-| Organization ID matches user | Yes (both `00000000-0000-0000-0000-000000000001`) |
-| RLS policies | Correctly configured for organization access |
-| Network logs | Only `lead_assignments` queries visible, no `workshop_group_members` |
-| Toast message | Shows "Synced 284 members" |
+## New Layout (3 Cards)
 
-### The Bug
+Based on your request, consolidate into 3 focused cards:
 
-The query invalidation in `onSuccess` uses the correct query key, but there are two issues:
-
-1. **`staleTime: 60000` prevents immediate refetch**: While `invalidateQueries` should override this, React Query may be serving stale data if the query was recently executed.
-
-2. **No explicit `refetchType`**: The invalidation doesn't force a network request - it only marks data as stale.
-
-3. **Missing refetch after mutation**: The mutation's `onSuccess` should explicitly trigger a refetch, not just invalidate.
+```text
+┌─────────────────────┐  ┌─────────────────────────────────────┐  ┌─────────────────────┐
+│   REGISTRATION      │  │          WHATSAPP GROUP             │  │     JOIN RATE       │
+│                     │  │                                     │  │                     │
+│   495               │  │  Total in Group    284              │  │       48%           │
+│   Registered        │  │  Missing           263              │  │  of registered      │
+│                     │  │  Unregistered       53              │  │  joined group       │
+│                     │  │  Left Group         12              │  │                     │
+│                     │  │                                     │  │  ━━━━━━━━━▌         │
+└─────────────────────┘  └─────────────────────────────────────┘  └─────────────────────┘
+```
 
 ---
 
-## Solution
+## Card Details
 
-### 1. Force Immediate Refetch After Sync
+### Card 1: Registration
+- **Header**: "Registration"
+- **Main Value**: Total registered count (e.g., 495)
+- **Subtext**: "Registered"
+- **Icon**: Users icon
+- **Simple, clean, single metric**
 
-In the mutation's `onSuccess`, use `refetchQueries` instead of just `invalidateQueries` to ensure immediate data refresh:
+### Card 2: WhatsApp Group
+- **Header**: "WhatsApp Group"
+- **4 metrics displayed as rows**:
+  - Total in Group (primary, bold)
+  - Missing (red accent)
+  - Unregistered (amber accent)
+  - Left Group (gray accent)
+- **Icon**: MessageSquare or UsersRound
+- **Takes 2 columns width on desktop for better readability**
 
-```typescript
-onSuccess: (data) => {
-  // Force immediate refetch from database
-  queryClient.refetchQueries({ 
-    queryKey: ['workshop-participants', workshopId, sessionId, groupJid] 
-  });
-  toast.success(`Synced ${data.synced} members...`);
-},
-```
+### Card 3: Join Rate
+- **Header**: "Join Rate"
+- **Main Value**: Percentage (e.g., 48%)
+- **Subtext**: "of registered joined group"
+- **Progress bar visual below**
+- **Icon**: TrendingUp
 
-### 2. Reduce staleTime for Faster Updates
+---
 
-Change `staleTime` from 60 seconds to 10 seconds to ensure data refreshes more frequently:
+## Layout Structure
 
-```typescript
-staleTime: 10000, // 10 seconds
-```
+```text
+Desktop (md+):
+┌──────────┬──────────────────────┬──────────┐
+│  Card 1  │       Card 2         │  Card 3  │
+│  1 col   │       2 cols         │  1 col   │
+└──────────┴──────────────────────┴──────────┘
 
-### 3. Add Manual Refetch Function (Safety Net)
-
-Export a `refetch` function from the hook so the UI can manually trigger a refresh if needed:
-
-```typescript
-return {
-  ...query,
-  syncMembers: syncMutation.mutate,
-  isSyncing: syncMutation.isPending,
-  refetch: query.refetch, // Add this
-};
+Mobile:
+┌────────────────────────────────────────────┐
+│                  Card 1                    │
+├────────────────────────────────────────────┤
+│                  Card 2                    │
+├────────────────────────────────────────────┤
+│                  Card 3                    │
+└────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Implementation Changes
 
-### File: `src/hooks/useWorkshopParticipants.ts`
+### File: `src/pages/WorkshopDetail.tsx`
 
-| Line | Change |
+**Lines 342-460**: Replace the 6-card grid with 3 consolidated cards:
+
+1. Change grid from `grid-cols-2 md:grid-cols-3 lg:grid-cols-6` to `grid-cols-1 md:grid-cols-4`
+
+2. **Card 1 - Registration** (1 column):
+   - Clean card with Users icon
+   - Large number for registered count
+   - Simple "Registered" label
+
+3. **Card 2 - WhatsApp Group** (2 columns on desktop):
+   - MessageSquare icon in header
+   - 4-row layout showing:
+     - Total in Group (green accent)
+     - Missing (red accent)
+     - Unregistered (amber accent)
+     - Left Group (gray accent)
+   - Each row has label on left, value on right
+
+4. **Card 3 - Join Rate** (1 column):
+   - TrendingUp icon
+   - Large percentage value
+   - Mini progress bar
+   - Descriptive subtext
+
+---
+
+## Visual Improvements
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Card count | 6 small cards | 3 focused cards |
+| Scanning | Need to look at 6 places | 3 clear groupings |
+| WhatsApp metrics | Scattered | Consolidated in one card |
+| Mobile experience | 2-column cramped | Full-width cards |
+| Hierarchy | All equal importance | Registration and Join Rate highlighted |
+
+---
+
+## Files Modified
+
+| File | Change |
 |------|--------|
-| 137-141 | Replace `invalidateQueries` with `refetchQueries` in `onSuccess` |
-| 293 | Change `staleTime` from `60000` to `10000` |
-| 296-300 | Add `refetch` to return object |
+| `src/pages/WorkshopDetail.tsx` | Replace 6-card grid (lines 342-460) with 3 consolidated cards |
 
-### Code Changes
+---
+
+## Code Structure
+
+The WhatsApp Group card will use a simple row-based layout:
 
 ```text
-// Line 137-141: onSuccess handler
-onSuccess: (data) => {
-  // Force immediate refetch from database (not just invalidate)
-  queryClient.refetchQueries({ 
-    queryKey: ['workshop-participants', workshopId, sessionId, groupJid] 
-  });
-  toast.success(`Synced ${data.synced} members${data.marked_left > 0 ? `, ${data.marked_left} marked as left` : ''}`);
-},
-
-// Line 293: staleTime
-staleTime: 10000, // 10 seconds (was 60000)
-
-// Line 296-300: return object
-return {
-  ...query,
-  syncMembers: syncMutation.mutate,
-  isSyncing: syncMutation.isPending,
-  refetch: query.refetch,
-};
+┌──────────────────────────────────────┐
+│ 🟢 WhatsApp Group                    │
+├──────────────────────────────────────┤
+│ Total in Group           284         │
+│ Missing                  263         │
+│ Unregistered              53         │
+│ Left Group                12         │
+└──────────────────────────────────────┘
 ```
 
----
+This matches the reference image style - clean rows with labels and values aligned.
 
-## Expected Behavior After Fix
-
-1. User clicks "Sync Members"
-2. Edge function fetches 284 members from VPS and writes to database
-3. Mutation's `onSuccess` calls `refetchQueries` (not just invalidateQueries)
-4. React Query immediately re-executes the query (network request)
-5. Fresh data (284 active members) returned from database
-6. UI updates to show correct counts:
-   - Total in Group: ~284
-   - In Group: ~231 (registered leads who are in the group)
-   - Missing: ~263 (494 registered - 231 in group)
-   - Unregistered: ~53 (284 in group - 231 registered)
-
----
-
-## Why This Fixes the Issue
-
-| Problem | Solution |
-|---------|----------|
-| `invalidateQueries` only marks cache stale | `refetchQueries` forces immediate network request |
-| 60-second staleTime too long | Reduced to 10 seconds for faster updates |
-| No way to manually refresh | Added `refetch` function export |
-
----
-
-## Files to Modify
-
-| File | Lines Changed |
-|------|--------------|
-| `src/hooks/useWorkshopParticipants.ts` | ~6 lines total |
