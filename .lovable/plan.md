@@ -1,87 +1,104 @@
 
+# Simplify Dynamic Links with Invite Links During Sync
 
-# Fix "Unauthorized" Error When Selecting WhatsApp Group
+## Summary
 
-## The Problem
+The VPS now supports returning invite links during group sync. We just need to add `?includeInviteLinks=true` to the sync request. The edge function already has code to store `invite_link` in the database.
 
-When you select a WhatsApp group in the Create Dynamic Link dialog, you see an "Unauthorized" toast error. This happens when the group doesn't have a cached invite link and the system tries to fetch one from the VPS.
+## Current Flow (Complicated)
 
-## Root Cause
+```text
+User selects group → No invite link in DB → Fetch from VPS → Auth errors → User frustrated
+```
 
-The edge function logs show `Auth session missing!` errors. This means the authentication token is not being properly passed to the `vps-whatsapp-proxy` edge function when calling `fetchInviteLinkAsync`.
+## New Flow (Simple)
 
-The issue is a **timing/state problem**: The mutation is being called but the Supabase client's auth session is not being attached to the request properly.
-
-## The Solution
-
-The fix involves two changes:
-
-### 1. Add Session Validation Before Fetching
-
-Before attempting to fetch the invite link from VPS, verify the user session is valid. If not, skip the VPS call and show a helpful message instead of an "Unauthorized" error.
-
-### 2. Improve Error Handling with Better User Feedback
-
-When the fetch fails, provide clearer feedback about what happened and how to resolve it.
+```text
+User syncs groups → Invite links stored in DB → User selects group → Link ready instantly
+```
 
 ---
 
-## Files to Change
+## Changes Required
+
+### 1. Edge Function: Add Query Parameter
+
+Update `supabase/functions/vps-whatsapp-proxy/index.ts` to include `?includeInviteLinks=true` when calling the VPS groups endpoint.
+
+**Location**: Line 289 (sync-groups case)
+
+| Before | After |
+|--------|-------|
+| `/groups/${vpsSessionIdForVps}` | `/groups/${vpsSessionIdForVps}?includeInviteLinks=true` |
+
+The edge function already handles storing `inviteLink` from the response (lines 667-681):
+```typescript
+const inviteLink = g.inviteLink || g.invite_link || g.inviteCode 
+  ? (g.inviteLink || g.invite_link || `https://chat.whatsapp.com/${g.inviteCode}`)
+  : null;
+```
+
+### 2. Frontend: Read Invite Link from Database
+
+Update `CreateLinkDialog.tsx` to use the `invite_link` already stored in the database instead of fetching on-demand.
+
+**Changes**:
+- Remove the VPS fetch call when selecting a group
+- Read `invite_link` directly from the selected group object
+- Show appropriate message if link is null (bot isn't admin)
+
+### 3. Cleanup: Remove On-Demand Fetch Logic
+
+The `fetchInviteLinkMutation` in `useWhatsAppGroups.ts` can be simplified or removed since we no longer need it for dynamic links.
+
+---
+
+## Technical Details
+
+### Edge Function Change (1 line)
+
+```typescript
+// Line 289 - Before
+vpsEndpoint = `/groups/${vpsSessionIdForVps}`;
+
+// Line 289 - After
+vpsEndpoint = `/groups/${vpsSessionIdForVps}?includeInviteLinks=true`;
+```
+
+### CreateLinkDialog Change
+
+```typescript
+// In handleGroupSelect - simplified version
+const handleGroupSelect = (groupId: string) => {
+  const group = groups?.find(g => g.id === groupId);
+  setSelectedGroupId(groupId);
+  
+  // Use invite_link from database directly - no VPS call needed
+  if (group?.invite_link) {
+    setFetchedInviteLink(group.invite_link);
+  } else {
+    setFetchedInviteLink(null);
+    // Link is null = bot isn't admin for this group
+  }
+};
+```
+
+---
+
+## User Experience After Changes
+
+| Step | What Happens |
+|------|--------------|
+| Sync Groups | VPS returns groups WITH invite links |
+| Groups Stored | Database now has `invite_link` for each group |
+| Create Dynamic Link | User selects group → link ready instantly |
+| Bot Not Admin | Shows "Invite link not available" (bot needs admin rights) |
+
+---
+
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/hooks/useWhatsAppGroups.ts` | Add session check before edge function call |
-| `src/components/operations/CreateLinkDialog.tsx` | Handle auth failures gracefully |
-
----
-
-## Technical Implementation
-
-### 1. Update `useWhatsAppGroups.ts`
-
-Add a session check before calling the edge function:
-
-```typescript
-// In fetchInviteLinkMutation mutationFn
-const { data: { session } } = await supabase.auth.getSession();
-
-if (!session) {
-  throw new Error('Session expired. Please refresh the page and try again.');
-}
-
-const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
-  // ... existing code
-});
-```
-
-### 2. Update `CreateLinkDialog.tsx`
-
-If the group doesn't have an invite link and we can't fetch one, allow the user to proceed anyway (they can try again later or pick a different group):
-
-```typescript
-// In handleGroupSelect catch block
-} catch (error) {
-  console.error('Failed to fetch invite link:', error);
-  // Don't block the flow - user can still select a different group
-  // or try to refresh and create the link later
-}
-```
-
-Also, improve the helper text when invite link fetch fails to indicate they may need to refresh their session.
-
----
-
-## User Experience After Fix
-
-1. User opens Create Link dialog
-2. Selects WhatsApp Group and picks a group
-3. If session is valid: Invite link is fetched and stored
-4. If session expired: Shows "Session expired. Please refresh the page." message instead of generic "Unauthorized"
-5. User can refresh the page and try again
-
----
-
-## Why This Happens
-
-The Supabase auth token has an expiration time. When the user has the dialog open for a while or there's a delay in token refresh, the edge function may receive an expired token. This is a normal edge case that needs graceful handling.
-
+| `supabase/functions/vps-whatsapp-proxy/index.ts` | Add `?includeInviteLinks=true` to sync endpoint |
+| `src/components/operations/CreateLinkDialog.tsx` | Read invite_link from group object instead of fetching |
