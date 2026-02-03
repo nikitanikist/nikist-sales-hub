@@ -257,13 +257,13 @@ export function useWorkshopParticipants(
           fullPhone: m.full_phone,
         }));
 
-      // 8. Calculate join rate
-      const joinRate = registeredLeads.length > 0 
-        ? (inGroup.length / registeredLeads.length) * 100 
-        : 0;
-
-      // 9. Total in group (raw count from database)
+      // 8. Total in group (raw count from database)
       const totalInGroupRaw = (activeMembers || []).length;
+
+      // 9. Calculate join rate using total in group (accounts for WhatsApp Business users)
+      const joinRate = registeredLeads.length > 0 
+        ? (totalInGroupRaw / registeredLeads.length) * 100 
+        : 0;
 
       // 10. Get last synced timestamp from most recent member update
       const lastSynced = activeMembers && activeMembers.length > 0
