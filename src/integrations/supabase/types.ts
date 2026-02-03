@@ -2173,6 +2173,7 @@ export type Database = {
       }
       organizations: {
         Row: {
+          community_admin_numbers: string[] | null
           community_session_id: string | null
           created_at: string | null
           created_by: string | null
@@ -2185,6 +2186,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          community_admin_numbers?: string[] | null
           community_session_id?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -2197,6 +2199,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          community_admin_numbers?: string[] | null
           community_session_id?: string | null
           created_at?: string | null
           created_by?: string | null

@@ -7,27 +7,33 @@ export function useCommunitySession() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
 
-  // Fetch current community session ID from organization
-  const { data: communitySessionId, isLoading: isLoadingSession } = useQuery({
-    queryKey: ["community-session", currentOrganization?.id],
+  // Fetch current community session ID and admin numbers from organization
+  const { data: communitySettings, isLoading: isLoadingSession } = useQuery({
+    queryKey: ["community-settings", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return null;
       
       const { data, error } = await supabase
         .from("organizations")
-        .select("community_session_id")
+        .select("community_session_id, community_admin_numbers")
         .eq("id", currentOrganization.id)
         .single();
       
       if (error) {
-        console.error("Error fetching community session:", error);
+        console.error("Error fetching community settings:", error);
         return null;
       }
       
-      return data?.community_session_id || null;
+      return {
+        sessionId: data?.community_session_id || null,
+        adminNumbers: (data?.community_admin_numbers as string[]) || [],
+      };
     },
     enabled: !!currentOrganization,
   });
+
+  const communitySessionId = communitySettings?.sessionId || null;
+  const communityAdminNumbers = communitySettings?.adminNumbers || [];
 
   // Fetch connected WhatsApp sessions for the organization
   const { data: connectedSessions, isLoading: isLoadingSessions } = useQuery({
@@ -65,7 +71,7 @@ export function useCommunitySession() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-session", currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ["community-settings", currentOrganization?.id] });
       toast.success("Community creation number updated");
     },
     onError: (error: any) => {
@@ -74,15 +80,59 @@ export function useCommunitySession() {
     },
   });
 
+  // Mutation to update community admin numbers
+  const updateAdminNumbersMutation = useMutation({
+    mutationFn: async (numbers: string[]) => {
+      if (!currentOrganization) throw new Error("No organization selected");
+      
+      const { error } = await supabase
+        .from("organizations")
+        .update({ community_admin_numbers: numbers })
+        .eq("id", currentOrganization.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-settings", currentOrganization?.id] });
+      toast.success("Community admin numbers updated");
+    },
+    onError: (error: any) => {
+      console.error("Error updating community admin numbers:", error);
+      toast.error("Failed to update community admin numbers");
+    },
+  });
+
   const setCommunitySession = (sessionId: string | null) => {
     updateCommunitySessionMutation.mutate(sessionId);
   };
 
+  const setAdminNumbers = (numbers: string[]) => {
+    updateAdminNumbersMutation.mutate(numbers);
+  };
+
+  const addAdminNumber = (number: string) => {
+    const trimmedNumber = number.trim();
+    if (!trimmedNumber) return;
+    if (communityAdminNumbers.includes(trimmedNumber)) {
+      toast.error("Number already exists");
+      return;
+    }
+    setAdminNumbers([...communityAdminNumbers, trimmedNumber]);
+  };
+
+  const removeAdminNumber = (number: string) => {
+    setAdminNumbers(communityAdminNumbers.filter((n) => n !== number));
+  };
+
   return {
     communitySessionId,
+    communityAdminNumbers,
     connectedSessions: connectedSessions || [],
     isLoading: isLoadingSession || isLoadingSessions,
     setCommunitySession,
-    isUpdating: updateCommunitySessionMutation.isPending,
+    setAdminNumbers,
+    addAdminNumber,
+    removeAdminNumber,
+    isUpdating: updateCommunitySessionMutation.isPending || updateAdminNumbersMutation.isPending,
   };
 }
