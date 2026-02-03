@@ -135,8 +135,8 @@ export function useWorkshopParticipants(
       return response.data as SyncResult;
     },
     onSuccess: (data) => {
-      // Invalidate to refetch from database
-      queryClient.invalidateQueries({ 
+      // Force immediate refetch from database (not just invalidate)
+      queryClient.refetchQueries({ 
         queryKey: ['workshop-participants', workshopId, sessionId, groupJid] 
       });
       toast.success(`Synced ${data.synced} members${data.marked_left > 0 ? `, ${data.marked_left} marked as left` : ''}`);
@@ -290,12 +290,13 @@ export function useWorkshopParticipants(
     },
     enabled: enabled && !!workshopId && !!groupJid,
     // REMOVED: refetchInterval - no more polling!
-    staleTime: 60000, // Consider data stale after 1 minute
+    staleTime: 10000, // Consider data stale after 10 seconds
   });
 
   return {
     ...query,
     syncMembers: syncMutation.mutate,
     isSyncing: syncMutation.isPending,
+    refetch: query.refetch,
   };
 }
