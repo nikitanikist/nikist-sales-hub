@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -142,6 +142,41 @@ const CohortPage = () => {
   const [studentListSubtitle, setStudentListSubtitle] = useState("");
   const [studentListData, setStudentListData] = useState<CohortStudent[]>([]);
   const [studentListAmount, setStudentListAmount] = useState(0);
+
+  // Reset all state when navigating to a different cohort type
+  useEffect(() => {
+    // Clear batch selection - returns user to batch card view
+    setSelectedBatch(null);
+    setExpandedStudentId(null);
+    
+    // Clear search queries
+    setSearchQuery("");
+    setBatchSearchQuery("");
+    
+    // Reset to default tab
+    setActiveTab("students");
+    
+    // Close and reset filters
+    setIsFilterOpen(false);
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setStatusFilter("all");
+    setFilterRefunded(false);
+    setFilterDiscontinued(false);
+    setFilterFullPayment(false);
+    setFilterRemaining(false);
+    setFilterTodayFollowUp(false);
+    setFilterPAE(false);
+    
+    // Clear any open dialogs/modals
+    setNotesStudent(null);
+    setEmiStudent(null);
+    setAddStudentOpen(false);
+    setRefundingStudent(null);
+    setDiscontinuingStudent(null);
+    setDeletingStudent(null);
+    setViewingNotesStudent(null);
+  }, [cohortSlug]);
 
   // Fetch cohort type by slug
   const { data: cohortType, isLoading: cohortTypeLoading } = useQuery({
