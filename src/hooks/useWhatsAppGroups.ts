@@ -235,6 +235,7 @@ export function useWhatsAppGroups() {
     getWorkshopGroups,
     unlinkedGroups,
     fetchInviteLink: fetchInviteLinkMutation.mutate,
+    fetchInviteLinkAsync: fetchInviteLinkMutation.mutateAsync,
     isFetchingInviteLink: fetchInviteLinkMutation.isPending,
     fetchingInviteLinkGroupId: fetchInviteLinkMutation.variables?.groupId,
   };
