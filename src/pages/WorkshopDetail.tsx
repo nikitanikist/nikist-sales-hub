@@ -129,6 +129,7 @@ const WorkshopDetail = () => {
     workshopId || '',
     sessionId,
     groupJid,
+    currentOrganization?.id || null,
     !!groupJid // Only enabled if we have a group JID
   );
 
