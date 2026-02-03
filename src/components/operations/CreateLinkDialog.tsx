@@ -21,7 +21,7 @@ type DestinationType = 'url' | 'whatsapp';
 
 export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLinkDialogProps) {
   const { createLink, isCreating, updateLink, isUpdating } = useDynamicLinks();
-  const { groups, groupsLoading, syncGroups, isSyncing } = useWhatsAppGroups();
+  const { groups, groupsLoading, syncGroups, isSyncing, fetchInviteLinkAsync, isFetchingInviteLink } = useWhatsAppGroups();
   const { sessions, sessionsLoading } = useWhatsAppSession();
 
   // Form state
@@ -81,19 +81,36 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
     });
   }, [groups, selectedSessionId, groupSearch]);
 
-  // Handler for selecting a group - reads invite link from database (populated during sync)
-  const handleGroupSelect = (groupId: string) => {
+  // Handler for selecting a group - auto-fetches invite link if not present
+  const handleGroupSelect = async (groupId: string) => {
     const group = filteredGroups.find(g => g.id === groupId);
     if (!group) return;
 
     setSelectedGroupId(groupId);
     
-    // Use invite_link stored in database during sync - no VPS call needed
+    // Use invite_link stored in database if available
     if (group.invite_link) {
       setFetchedInviteLink(group.invite_link);
+    } else if (selectedSessionId && group.group_jid) {
+      // No link stored - auto-fetch from VPS
+      setFetchedInviteLink(null);
+      
+      try {
+        const result = await fetchInviteLinkAsync({
+          sessionId: selectedSessionId,
+          groupId: group.id,
+          groupJid: group.group_jid,
+        });
+        
+        if (result?.invite_link) {
+          setFetchedInviteLink(result.invite_link);
+        }
+      } catch (error) {
+        console.error('Failed to auto-fetch invite link:', error);
+        // Error already shown by hook's onError
+      }
     } else {
       setFetchedInviteLink(null);
-      // Link is null = bot isn't admin for this group
     }
   };
 
@@ -373,13 +390,19 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                   </Select>
                   
                   {/* Helper text for invite link status */}
-                  {selectedGroup && !fetchedInviteLink && (
-                    <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1.5">
-                      <AlertCircle className="h-3 w-3" />
-                      Invite link not available. Bot needs admin rights. Try syncing groups or select another group.
+                  {selectedGroup && isFetchingInviteLink && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      Fetching invite link...
                     </p>
                   )}
-                  {selectedGroup && fetchedInviteLink && (
+                  {selectedGroup && !isFetchingInviteLink && !fetchedInviteLink && (
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1.5">
+                      <AlertCircle className="h-3 w-3" />
+                      Invite link not available. Bot needs admin rights.
+                    </p>
+                  )}
+                  {selectedGroup && !isFetchingInviteLink && fetchedInviteLink && (
                     <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1.5">
                       <Check className="h-3 w-3" />
                       Invite link ready
