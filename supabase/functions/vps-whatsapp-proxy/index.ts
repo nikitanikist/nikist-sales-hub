@@ -413,9 +413,9 @@ Deno.serve(async (req) => {
 
       case 'sync-members': {
         // Sync members from VPS to database - replaces polling-based approach
-        if (!sessionId || !groupJid) {
+        if (!sessionId || !groupJid || !organizationId) {
           return new Response(
-            JSON.stringify({ error: 'Session ID and group JID are required' }),
+            JSON.stringify({ error: 'Session ID, group JID, and organization ID are required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -508,6 +508,7 @@ Deno.serve(async (req) => {
             joined_at: existing?.joined_at || now,
             left_at: null,
             updated_at: now,
+            organization_id: organizationId,
           };
         });
         

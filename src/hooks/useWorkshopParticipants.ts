@@ -72,6 +72,7 @@ export function useWorkshopParticipants(
   workshopId: string,
   sessionId: string | null,
   groupJid: string | null,
+  organizationId: string | null,
   enabled: boolean = true
 ) {
   const queryClient = useQueryClient();
@@ -123,6 +124,7 @@ export function useWorkshopParticipants(
           action: 'sync-members',
           sessionId,
           groupJid,
+          organizationId,
         },
       });
 
