@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Participant {
@@ -24,15 +25,27 @@ interface RegisteredLead {
   created_at: string;
 }
 
+interface LeftMember {
+  id: string;
+  phone_number: string;
+  full_phone: string;
+  joined_at: string;
+  left_at: string | null;
+  contact_name?: string;
+  email?: string;
+}
+
 interface WorkshopParticipantsData {
   registered: RegisteredLead[];
   inGroup: RegisteredLead[];
   missing: RegisteredLead[];
+  leftGroup: LeftMember[];
   groupMembers: Participant[];
   joinRate: number;
   totalRegistered: number;
   totalInGroup: number;
   totalMissing: number;
+  totalLeftGroup: number;
   groupName: string | null;
   lastSynced: Date;
 }
@@ -50,6 +63,37 @@ export function useWorkshopParticipants(
   groupJid: string | null,
   enabled: boolean = true
 ) {
+  const queryClient = useQueryClient();
+
+  // Subscribe to realtime changes on workshop_group_members
+  useEffect(() => {
+    if (!groupJid || !enabled) return;
+
+    const channel = supabase
+      .channel(`workshop-members-${groupJid}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'workshop_group_members',
+          filter: `group_jid=eq.${groupJid}`,
+        },
+        (payload) => {
+          console.log('Realtime update received:', payload);
+          // Invalidate the query to refetch data
+          queryClient.invalidateQueries({ 
+            queryKey: ['workshop-participants', workshopId, sessionId, groupJid] 
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [groupJid, workshopId, sessionId, enabled, queryClient]);
+
   return useQuery<WorkshopParticipantsData | null>({
     queryKey: ['workshop-participants', workshopId, sessionId, groupJid],
     queryFn: async () => {
@@ -110,28 +154,54 @@ export function useWorkshopParticipants(
 
       const vpsData = response.data as VPSParticipantsResponse;
       
+      // 3. Fetch left group members from database
+      const { data: leftMembers, error: leftError } = await supabase
+        .from('workshop_group_members')
+        .select('id, phone_number, full_phone, joined_at, left_at')
+        .eq('group_jid', groupJid)
+        .eq('status', 'left')
+        .order('left_at', { ascending: false });
+
+      if (leftError) {
+        console.error('Error fetching left members:', leftError);
+      }
+
+      // Map left members with lead info if available
+      const leftWithLeadInfo: LeftMember[] = (leftMembers || []).map(member => {
+        const matchedLead = registeredLeads.find(
+          lead => normalizePhone(lead.phone) === member.phone_number
+        );
+        return {
+          ...member,
+          contact_name: matchedLead?.contact_name,
+          email: matchedLead?.email || undefined,
+        };
+      });
+
       if (!vpsData?.success || !vpsData.participants) {
         console.warn('VPS returned unsuccessful response:', vpsData);
         return {
           registered: registeredLeads,
           inGroup: [],
           missing: registeredLeads,
+          leftGroup: leftWithLeadInfo,
           groupMembers: [],
           joinRate: 0,
           totalRegistered: registeredLeads.length,
           totalInGroup: 0,
           totalMissing: registeredLeads.length,
+          totalLeftGroup: leftWithLeadInfo.length,
           groupName: null,
           lastSynced: new Date(),
         };
       }
 
-      // 3. Create a set of normalized phone numbers from VPS participants
+      // 4. Create a set of normalized phone numbers from VPS participants
       const groupPhoneSet = new Set(
         vpsData.participants.map(p => normalizePhone(p.phone))
       );
 
-      // 4. Compare registered leads against group members
+      // 5. Compare registered leads against group members
       const inGroup: RegisteredLead[] = [];
       const missing: RegisteredLead[] = [];
 
@@ -144,7 +214,7 @@ export function useWorkshopParticipants(
         }
       }
 
-      // 5. Calculate join rate
+      // 6. Calculate join rate
       const joinRate = registeredLeads.length > 0 
         ? (inGroup.length / registeredLeads.length) * 100 
         : 0;
@@ -153,11 +223,13 @@ export function useWorkshopParticipants(
         registered: registeredLeads,
         inGroup,
         missing,
+        leftGroup: leftWithLeadInfo,
         groupMembers: vpsData.participants,
         joinRate,
         totalRegistered: registeredLeads.length,
         totalInGroup: inGroup.length,
         totalMissing: missing.length,
+        totalLeftGroup: leftWithLeadInfo.length,
         groupName: vpsData.groupName,
         lastSynced: new Date(),
       };

@@ -3074,6 +3074,69 @@ export type Database = {
           },
         ]
       }
+      workshop_group_members: {
+        Row: {
+          created_at: string
+          full_phone: string
+          group_id: string | null
+          group_jid: string
+          id: string
+          is_admin: boolean | null
+          joined_at: string
+          left_at: string | null
+          organization_id: string
+          participant_jid: string | null
+          phone_number: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_phone: string
+          group_id?: string | null
+          group_jid: string
+          id?: string
+          is_admin?: boolean | null
+          joined_at?: string
+          left_at?: string | null
+          organization_id: string
+          participant_jid?: string | null
+          phone_number: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_phone?: string
+          group_id?: string | null
+          group_jid?: string
+          id?: string
+          is_admin?: boolean | null
+          joined_at?: string
+          left_at?: string | null
+          organization_id?: string
+          participant_jid?: string | null
+          phone_number?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_group_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshop_sequence_variables: {
         Row: {
           created_at: string | null
