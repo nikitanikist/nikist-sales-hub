@@ -617,18 +617,9 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Delete all existing groups for THIS session before fresh insert
-        // This ensures we don't have stale groups that no longer exist on WhatsApp
-        const { error: deleteError } = await supabase
-          .from('whatsapp_groups')
-          .delete()
-          .eq('session_id', localSessionIdForDb);
-
-        if (deleteError) {
-          console.error('Failed to delete old groups before sync:', deleteError);
-        } else {
-          console.log(`Deleted old groups for session ${localSessionIdForDb} before fresh sync`);
-        }
+        // Note: We no longer delete groups before sync.
+        // The upsert with onConflict preserves existing UUIDs, preventing 
+        // dynamic links from breaking when their referenced group IDs change.
 
         // Insert fresh groups from VPS
         const groupsToUpsert = vpsGroups.map((g: any) => {

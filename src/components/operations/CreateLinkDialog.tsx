@@ -51,19 +51,11 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
     if (open) {
       if (editingLink) {
         setSlug(editingLink.slug);
-        if (editingLink.whatsapp_group_id) {
-          setDestinationType('whatsapp');
-          setSelectedGroupId(editingLink.whatsapp_group_id);
-          setDestinationUrl('');
-          // For existing WhatsApp links, set the invite link from the group data
-          const group = groups?.find(g => g.id === editingLink.whatsapp_group_id);
-          setFetchedInviteLink(group?.invite_link || editingLink.destination_url || null);
-        } else {
-          setDestinationType('url');
-          setDestinationUrl(editingLink.destination_url || '');
-          setSelectedGroupId(null);
-          setFetchedInviteLink(null);
-        }
+        // Always treat existing links as custom URLs - the invite URL is stored directly
+        setDestinationType('url');
+        setDestinationUrl(editingLink.destination_url || '');
+        setSelectedGroupId(null);
+        setFetchedInviteLink(null);
       } else {
         setSlug('');
         setDestinationType('url');
@@ -75,17 +67,8 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
       setGroupSearch('');
       setError(null);
     }
-  }, [open, editingLink, groups]);
+  }, [open, editingLink]);
 
-  // Separate effect to set session ID when editing a WhatsApp group link
-  useEffect(() => {
-    if (open && editingLink?.whatsapp_group_id && groups) {
-      const group = groups.find(g => g.id === editingLink.whatsapp_group_id);
-      if (group && !selectedSessionId) {
-        setSelectedSessionId(group.session_id);
-      }
-    }
-  }, [open, editingLink, groups, selectedSessionId]);
 
   // Filter groups based on selected session and search
   const filteredGroups = useMemo(() => {
