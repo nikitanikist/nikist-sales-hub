@@ -1,21 +1,7 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-
-interface Participant {
-  id: string;
-  phone: string;
-  isAdmin: boolean;
-  isSuperAdmin: boolean;
-}
-
-interface VPSParticipantsResponse {
-  success: boolean;
-  groupName: string;
-  groupJid: string;
-  totalParticipants: number;
-  participants: Participant[];
-}
+import { toast } from "sonner";
 
 interface RegisteredLead {
   id: string;
@@ -35,11 +21,18 @@ interface LeftMember {
   email?: string;
 }
 
+interface ActiveMember {
+  id: string;
+  phone_number: string;
+  full_phone: string;
+  joined_at: string;
+  status: string;
+}
+
 interface UnregisteredMember {
   id: string;
   phone: string;
   fullPhone: string;
-  isAdmin: boolean;
 }
 
 interface WorkshopParticipantsData {
@@ -48,7 +41,7 @@ interface WorkshopParticipantsData {
   missing: RegisteredLead[];
   leftGroup: LeftMember[];
   unregistered: UnregisteredMember[];
-  groupMembers: Participant[];
+  activeMembers: ActiveMember[];
   joinRate: number;
   totalRegistered: number;
   totalInGroup: number;
@@ -57,7 +50,15 @@ interface WorkshopParticipantsData {
   totalInGroupRaw: number;
   totalUnregistered: number;
   groupName: string | null;
-  lastSynced: Date;
+  lastSynced: Date | null;
+}
+
+interface SyncResult {
+  success: boolean;
+  synced: number;
+  marked_left: number;
+  total_in_group: number;
+  group_name?: string;
 }
 
 // Normalize phone number to last 10 digits for comparison
@@ -104,10 +105,51 @@ export function useWorkshopParticipants(
     };
   }, [groupJid, workshopId, sessionId, enabled, queryClient]);
 
-  return useQuery<WorkshopParticipantsData | null>({
+  // Sync mutation - calls VPS to fetch current members and updates database
+  const syncMutation = useMutation({
+    mutationFn: async (): Promise<SyncResult> => {
+      if (!sessionId || !groupJid) {
+        throw new Error('Session ID and group JID are required');
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
+        body: {
+          action: 'sync-members',
+          sessionId,
+          groupJid,
+        },
+      });
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      return response.data as SyncResult;
+    },
+    onSuccess: (data) => {
+      // Invalidate to refetch from database
+      queryClient.invalidateQueries({ 
+        queryKey: ['workshop-participants', workshopId, sessionId, groupJid] 
+      });
+      toast.success(`Synced ${data.synced} members${data.marked_left > 0 ? `, ${data.marked_left} marked as left` : ''}`);
+    },
+    onError: (error) => {
+      console.error('Sync failed:', error);
+      toast.error('Failed to sync members from WhatsApp');
+    },
+  });
+
+  // Main query - fetches from DATABASE (not VPS)
+  const query = useQuery<WorkshopParticipantsData | null>({
     queryKey: ['workshop-participants', workshopId, sessionId, groupJid],
     queryFn: async () => {
-      if (!workshopId || !sessionId || !groupJid) {
+      if (!workshopId || !groupJid) {
         return null;
       }
 
@@ -142,29 +184,19 @@ export function useWorkshopParticipants(
           created_at: a.created_at,
         }));
 
-      // 2. Fetch group participants from VPS
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('Not authenticated');
+      // 2. Fetch ACTIVE members from database (populated by webhooks + sync)
+      const { data: activeMembers, error: activeError } = await supabase
+        .from('workshop_group_members')
+        .select('id, phone_number, full_phone, joined_at, status, updated_at')
+        .eq('group_jid', groupJid)
+        .eq('status', 'active')
+        .order('joined_at', { ascending: false });
+
+      if (activeError) {
+        console.error('Error fetching active members:', activeError);
       }
 
-      const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
-        body: {
-          action: 'get-participants',
-          sessionId,
-          groupJid,
-        },
-      });
-
-      if (response.error) {
-        console.error('Error fetching participants:', response.error);
-        throw response.error;
-      }
-
-      const vpsData = response.data as VPSParticipantsResponse;
-      
-      // 3. Fetch left group members from database
+      // 3. Fetch LEFT members from database
       const { data: leftMembers, error: leftError } = await supabase
         .from('workshop_group_members')
         .select('id, phone_number, full_phone, joined_at, left_at')
@@ -188,64 +220,39 @@ export function useWorkshopParticipants(
         };
       });
 
-      if (!vpsData?.success || !vpsData.participants) {
-        console.warn('VPS returned unsuccessful response:', vpsData);
-        return {
-          registered: registeredLeads,
-          inGroup: [],
-          missing: registeredLeads,
-          leftGroup: leftWithLeadInfo,
-          unregistered: [],
-          groupMembers: [],
-          joinRate: 0,
-          totalRegistered: registeredLeads.length,
-          totalInGroup: 0,
-          totalMissing: registeredLeads.length,
-          totalLeftGroup: leftWithLeadInfo.length,
-          totalInGroupRaw: 0,
-          totalUnregistered: 0,
-          groupName: null,
-          lastSynced: new Date(),
-        };
-      }
-
       // 4. Create a set of normalized phone numbers from registered leads
       const registeredPhoneSet = new Set(
         registeredLeads.map(l => normalizePhone(l.phone))
       );
 
-      // 5. Create a set of normalized phone numbers from VPS participants
-      const groupPhoneSet = new Set(
-        vpsData.participants.map(p => normalizePhone(p.phone))
+      // 5. Create a set of normalized phone numbers from active members in DB
+      const activePhoneSet = new Set(
+        (activeMembers || []).map(m => m.phone_number)
       );
 
-      // 6. Compare registered leads against group members
+      // 6. Compare registered leads against active members in database
       const inGroup: RegisteredLead[] = [];
       const missing: RegisteredLead[] = [];
 
       for (const lead of registeredLeads) {
         const normalizedPhone = normalizePhone(lead.phone);
-        if (normalizedPhone && groupPhoneSet.has(normalizedPhone)) {
+        if (normalizedPhone && activePhoneSet.has(normalizedPhone)) {
           inGroup.push(lead);
         } else {
           missing.push(lead);
         }
       }
 
-      // 7. Find unregistered members (in VPS but not in leads, excluding admins)
-      const unregistered: UnregisteredMember[] = vpsData.participants
-        .filter(p => {
-          // Exclude admins
-          if (p.isAdmin || p.isSuperAdmin) return false;
-          // Check if NOT in registered leads
-          const normalizedPhone = normalizePhone(p.phone);
+      // 7. Find unregistered members (in active DB members but not in leads)
+      const unregistered: UnregisteredMember[] = (activeMembers || [])
+        .filter(m => {
+          const normalizedPhone = m.phone_number;
           return normalizedPhone && !registeredPhoneSet.has(normalizedPhone);
         })
-        .map(p => ({
-          id: p.id,
-          phone: normalizePhone(p.phone),
-          fullPhone: p.phone,
-          isAdmin: p.isAdmin,
+        .map(m => ({
+          id: m.id,
+          phone: m.phone_number,
+          fullPhone: m.full_phone,
         }));
 
       // 8. Calculate join rate
@@ -253,8 +260,13 @@ export function useWorkshopParticipants(
         ? (inGroup.length / registeredLeads.length) * 100 
         : 0;
 
-      // 9. Total in group (raw count from VPS including admins)
-      const totalInGroupRaw = vpsData.participants.length;
+      // 9. Total in group (raw count from database)
+      const totalInGroupRaw = (activeMembers || []).length;
+
+      // 10. Get last synced timestamp from most recent member update
+      const lastSynced = activeMembers && activeMembers.length > 0
+        ? new Date((activeMembers[0] as any).updated_at || activeMembers[0].joined_at)
+        : null;
 
       return {
         registered: registeredLeads,
@@ -262,7 +274,7 @@ export function useWorkshopParticipants(
         missing,
         leftGroup: leftWithLeadInfo,
         unregistered,
-        groupMembers: vpsData.participants,
+        activeMembers: (activeMembers || []) as ActiveMember[],
         joinRate,
         totalRegistered: registeredLeads.length,
         totalInGroup: inGroup.length,
@@ -270,12 +282,18 @@ export function useWorkshopParticipants(
         totalLeftGroup: leftWithLeadInfo.length,
         totalInGroupRaw,
         totalUnregistered: unregistered.length,
-        groupName: vpsData.groupName,
-        lastSynced: new Date(),
+        groupName: null, // Will be set from workshop's linked group
+        lastSynced,
       };
     },
-    enabled: enabled && !!workshopId && !!sessionId && !!groupJid,
-    refetchInterval: 30000, // 30 seconds polling for real-time updates
-    staleTime: 10000, // Consider data stale after 10 seconds
+    enabled: enabled && !!workshopId && !!groupJid,
+    // REMOVED: refetchInterval - no more polling!
+    staleTime: 60000, // Consider data stale after 1 minute
   });
+
+  return {
+    ...query,
+    syncMembers: syncMutation.mutate,
+    isSyncing: syncMutation.isPending,
+  };
 }

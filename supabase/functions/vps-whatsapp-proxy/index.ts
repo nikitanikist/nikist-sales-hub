@@ -96,7 +96,7 @@ async function getVpsSessionId(
 }
 
 interface VPSProxyRequest {
-  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'get-invite-link' | 'add-participants' | 'promote-participants' | 'get-participants';
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'get-invite-link' | 'add-participants' | 'promote-participants' | 'get-participants' | 'sync-members';
   sessionId?: string;
   organizationId?: string;
   groupId?: string;
@@ -409,6 +409,162 @@ Deno.serve(async (req) => {
         vpsEndpoint = `/groups/${vpsSessionIdForVps}/${encodeURIComponent(groupJid)}/participants`;
         vpsMethod = 'GET';
         break;
+      }
+
+      case 'sync-members': {
+        // Sync members from VPS to database - replaces polling-based approach
+        if (!sessionId || !groupJid) {
+          return new Response(
+            JSON.stringify({ error: 'Session ID and group JID are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        localSessionIdForDb = sessionId;
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
+        }
+        
+        // Fetch current participants from VPS
+        const participantsUrl = buildUrl(VPS_URL, `/groups/${vpsSessionIdForVps}/${encodeURIComponent(groupJid)}/participants`);
+        console.log(`Syncing members from VPS: ${participantsUrl}`);
+        
+        const { response: participantsResponse } = await fetchWithAuthRetry(
+          participantsUrl,
+          'GET',
+          undefined,
+          VPS_API_KEY
+        );
+        
+        const participantsText = await participantsResponse.text();
+        const { parsed: participantsData, isJson: participantsIsJson } = safeJsonParse(participantsText);
+        
+        if (!participantsResponse.ok || !participantsIsJson) {
+          console.error('Failed to fetch participants from VPS:', truncate(participantsText));
+          return new Response(
+            JSON.stringify({ 
+              error: 'Failed to fetch participants from VPS',
+              upstream: 'vps',
+              status: participantsResponse.status,
+            }),
+            { status: participantsResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        const vpsParticipants = participantsData?.participants || [];
+        console.log(`VPS returned ${vpsParticipants.length} participants`);
+        
+        if (!Array.isArray(vpsParticipants)) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Invalid participants response from VPS',
+              upstream: 'vps',
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Normalize phone to last 10 digits for consistent matching
+        const normalizePhone = (phone: string | null): string => {
+          if (!phone) return '';
+          const digits = phone.replace(/\D/g, '');
+          return digits.slice(-10);
+        };
+        
+        // Create set of normalized phone numbers from VPS
+        const vpsPhoneSet = new Set(
+          vpsParticipants.map((p: any) => normalizePhone(p.phone || p.id?.split('@')[0]))
+        );
+        
+        // Get current active members from database
+        const { data: existingMembers, error: existingError } = await supabase
+          .from('workshop_group_members')
+          .select('id, phone_number, status')
+          .eq('group_jid', groupJid);
+        
+        if (existingError) {
+          console.error('Failed to fetch existing members:', existingError);
+        }
+        
+        const existingMemberMap = new Map(
+          (existingMembers || []).map((m: any) => [m.phone_number, m])
+        );
+        
+        // Prepare upserts for VPS members (mark as active)
+        const now = new Date().toISOString();
+        const membersToUpsert = vpsParticipants.map((p: any) => {
+          const fullPhone = p.phone || p.id?.split('@')[0] || '';
+          const normalizedPhone = normalizePhone(fullPhone);
+          const existing = existingMemberMap.get(normalizedPhone);
+          
+          return {
+            group_jid: groupJid,
+            phone_number: normalizedPhone,
+            full_phone: fullPhone,
+            status: 'active',
+            joined_at: existing?.joined_at || now,
+            left_at: null,
+            updated_at: now,
+          };
+        });
+        
+        // Find members who left (in DB but NOT in VPS)
+        const membersToMarkLeft: string[] = [];
+        for (const [phoneNumber, member] of existingMemberMap) {
+          if (!vpsPhoneSet.has(phoneNumber) && (member as any).status === 'active') {
+            membersToMarkLeft.push(phoneNumber);
+          }
+        }
+        
+        let syncedCount = 0;
+        let markedLeftCount = 0;
+        
+        // Upsert active members
+        if (membersToUpsert.length > 0) {
+          const { error: upsertError } = await supabase
+            .from('workshop_group_members')
+            .upsert(membersToUpsert, { 
+              onConflict: 'group_jid,phone_number',
+              ignoreDuplicates: false 
+            });
+          
+          if (upsertError) {
+            console.error('Failed to upsert members:', upsertError);
+          } else {
+            syncedCount = membersToUpsert.length;
+            console.log(`Synced ${syncedCount} active members to database`);
+          }
+        }
+        
+        // Mark left members
+        if (membersToMarkLeft.length > 0) {
+          const { error: leftError } = await supabase
+            .from('workshop_group_members')
+            .update({ status: 'left', left_at: now, updated_at: now })
+            .eq('group_jid', groupJid)
+            .in('phone_number', membersToMarkLeft);
+          
+          if (leftError) {
+            console.error('Failed to mark left members:', leftError);
+          } else {
+            markedLeftCount = membersToMarkLeft.length;
+            console.log(`Marked ${markedLeftCount} members as left`);
+          }
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            synced: syncedCount,
+            marked_left: markedLeftCount,
+            total_in_group: vpsParticipants.length,
+            group_name: participantsData?.groupName,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
 
       default:
