@@ -1,91 +1,131 @@
 
+# Fix: Cohort Navigation Not Resetting When Switching Cohort Types
 
-# Fix SMS Sending: Implement DLT Manual Route
+## Issue Confirmed
 
-## What Was Wrong
+When navigating between cohort types in the sidebar (e.g., "Hi Future" → "Future Mentorship" → "Insider Crypto Club"), the page heading changes correctly but the content remains stuck on the previously selected batch. This creates a confusing experience where users see mismatched data.
 
-The current implementation uses `route: 'dlt'` which requires Fast2SMS's internal 6-digit message IDs. Since we're using TRAI's 19-digit DLT Template IDs, Fast2SMS rejected the request with "Invalid Message ID".
+**Organization affected:** Nikist (`00000000-0000-0000-0000-000000000001`)
+
+---
+
+## Root Cause
+
+The `CohortPage` component (located at `src/pages/CohortPage.tsx`) uses React's `useState` to track which batch is currently selected. When navigating between cohort types:
+
+1. The URL changes (e.g., `/cohorts/high-future` → `/cohorts/futures-mentorship`)
+2. The `cohortSlug` parameter updates
+3. The page heading updates (this comes from AppLayout, which reads the current route)
+4. **BUT** the internal `selectedBatch` state does NOT reset because React Router reuses the same component instance
+
+This is a well-known React Router behavior—when the same component handles multiple route variations, state persists unless explicitly cleared.
+
+---
 
 ## Solution
 
-Switch to `route: 'dlt_manual'` which allows sending SMS directly using:
-- Your TRAI Entity ID: `1201172906487465179`
-- Your existing TRAI DLT Template IDs
-- The full message text with variables already substituted
+Add a `useEffect` hook in `CohortPage.tsx` that watches for changes to `cohortSlug` and resets all internal state to defaults when the cohort type changes.
 
 ---
 
-## Implementation Steps
+## Scope of Changes
 
-### Step 1: Add Your Entity ID as a Secret
+| File | Change | Risk |
+|------|--------|------|
+| `src/pages/CohortPage.tsx` | Add `useEffect` to reset state on `cohortSlug` change | **Very Low** |
 
-Add a new backend secret:
-| Secret Name | Value |
-|-------------|-------|
-| `FAST2SMS_ENTITY_ID` | `1201172906487465179` |
+**Why this is safe:**
+- This change is isolated to a single component
+- It only affects what happens when the URL slug changes
+- It does not modify any database queries, RLS policies, or backend logic
+- It does not change how data is fetched—only when state resets
+- Other pages in the CRM (Leads, Sales, Workshops, etc.) are completely unaffected
 
-### Step 2: Update the Edge Function
+---
 
-**File:** `supabase/functions/process-sms-queue/index.ts`
+## Technical Implementation
 
-**Changes:**
+### Step 1: Update Import Statement
 
-1. **Add Entity ID environment variable** at line 73-77
-2. **Fetch `content_preview` in template query** at line 121
-3. **Add new function** to build the full message with variables substituted
-4. **Replace API call** from `dlt` route to `dlt_manual` route with proper parameters
+Add `useEffect` to the existing React import on line 1.
 
-**Before (Current - Broken):**
-```javascript
-const fast2smsBody = {
-  route: 'dlt',
-  sender_id: FAST2SMS_SENDER_ID,
-  message: template.dlt_template_id,     // ❌ Fast2SMS expects 6-digit internal ID
-  variables_values: 'value1|value2',
-  numbers: phoneNumber,
-};
+**Before:**
+```typescript
+import React, { useState, useMemo } from "react";
 ```
 
-**After (Fixed):**
-```javascript
-const fast2smsBody = {
-  route: 'dlt_manual',
-  sender_id: FAST2SMS_SENDER_ID,
-  entity_id: FAST2SMS_ENTITY_ID,         // ✅ Your TRAI Entity ID
-  template_id: template.dlt_template_id, // ✅ TRAI DLT Template ID
-  message: fullMessageWithVariables,     // ✅ Complete message text
-  numbers: phoneNumber,
-  flash: '0'
-};
+**After:**
+```typescript
+import React, { useState, useMemo, useEffect } from "react";
 ```
 
-### Step 3: Build Full Message Text
+### Step 2: Add State Reset Hook
 
-New helper function that takes the `content_preview` template and replaces each `{#var#}` placeholder with actual values:
+Add a new `useEffect` block after line 144 (after all state declarations, before the data fetching queries):
 
-```text
-Template: "Hi {#var#}, Your session {#var#} is scheduled for {#var#}. -Nikist School"
-Variables: {var1: "Amit", var2: "Crypto Masterclass", var3: "7 PM today"}
-Result: "Hi Amit, Your session Crypto Masterclass is scheduled for 7 PM today. -Nikist School"
+```typescript
+// Reset all state when navigating to a different cohort type
+useEffect(() => {
+  // Clear batch selection - returns user to batch card view
+  setSelectedBatch(null);
+  setExpandedStudentId(null);
+  
+  // Clear search queries
+  setSearchQuery("");
+  setBatchSearchQuery("");
+  
+  // Reset to default tab
+  setActiveTab("students");
+  
+  // Close and reset filters
+  setIsFilterOpen(false);
+  setDateFrom(undefined);
+  setDateTo(undefined);
+  setStatusFilter("all");
+  setFilterRefunded(false);
+  setFilterDiscontinued(false);
+  setFilterFullPayment(false);
+  setFilterRemaining(false);
+  setFilterTodayFollowUp(false);
+  setFilterPAE(false);
+  
+  // Clear any open dialogs/modals
+  setNotesStudent(null);
+  setEmiStudent(null);
+  setAddStudentOpen(false);
+  setRefundingStudent(null);
+  setDiscontinuingStudent(null);
+  setDeletingStudent(null);
+  setViewingNotesStudent(null);
+}, [cohortSlug]);
 ```
 
 ---
 
-## Files Modified
+## What This Fixes
 
-| File | Changes |
-|------|---------|
-| Backend Secrets | Add `FAST2SMS_ENTITY_ID` = `1201172906487465179` |
-| `supabase/functions/process-sms-queue/index.ts` | Switch to `dlt_manual` route, build full message |
+| Behavior | Before | After |
+|----------|--------|-------|
+| Click "Future Mentorship" while viewing Hi Future batch | Heading changes, but Hi Future students stay on screen | Shows Future Mentorship batch selection cards |
+| Filters from previous cohort | Carry over and may hide data | Reset to defaults |
+| Search query from previous cohort | Stays active, potentially showing "no results" | Cleared |
+| Selected tab (Students/Insights) | Stays on previous selection | Resets to "Students" |
 
 ---
 
-## Why This Works
+## Testing Checklist
 
-The `dlt_manual` route is designed for businesses that have their own TRAI DLT registration. Instead of registering templates in Fast2SMS's portal, you send:
-- Your registered Entity ID (proving you're authorized)
-- The TRAI Template ID (for DLT compliance tracking)
-- The exact message text (must match your DLT-approved template)
+After implementation, verify on Nikist organization:
 
-Fast2SMS then forwards this to the carrier network with proper DLT headers.
-
+1. Go to "Hi Future" and select a batch to view students
+2. Click on "Future Mentorship" in sidebar
+3. **Expected:** See batch selection cards for Future Mentorship, not Hi Future students
+4. Select a batch in Future Mentorship
+5. Apply a filter (e.g., "Show refunded only")
+6. Click on "Insider Crypto Club" in sidebar
+7. **Expected:** Filters should be cleared, batch selection cards should appear
+8. Verify existing functionality still works:
+   - Adding students to a batch
+   - Updating EMI payments
+   - Using filters within a cohort
+   - The Insights tab
