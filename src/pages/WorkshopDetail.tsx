@@ -339,121 +339,117 @@ const WorkshopDetail = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      {/* Stats Cards - Simplified 3-Card Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Card 1: Registration */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-muted">
-                <UsersRound className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {participantsLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    participantsData?.totalInGroupRaw || 0
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground">Total in Group</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
+              <div className="p-2.5 rounded-lg bg-primary/10">
                 <Users className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{participantsData?.totalRegistered || metrics?.registration_count || 0}</p>
-                <p className="text-xs text-muted-foreground">Registered</p>
+                <p className="text-3xl font-bold">
+                  {participantsData?.totalRegistered || metrics?.registration_count || 0}
+                </p>
+                <p className="text-sm text-muted-foreground">Registered</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-accent">
-                <UserCheck className="h-5 w-5 text-accent-foreground" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold text-accent-foreground">
-                    {participantsLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      participantsData?.totalInGroup || 0
-                    )}
-                  </p>
-                  {isSyncing && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+        {/* Card 2: WhatsApp Group - 2 columns */}
+        <Card className="md:col-span-2">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                  <MessageSquare className="h-4 w-4 text-emerald-600" />
                 </div>
-                <p className="text-xs text-muted-foreground">In Group</p>
+                <CardTitle className="text-base font-semibold">WhatsApp Group</CardTitle>
               </div>
+              {isSyncing && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-destructive/10">
-                <UserX className="h-5 w-5 text-destructive" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-destructive">
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 gap-3">
+              {/* Total in Group */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50">
+                <span className="text-sm text-muted-foreground">Total in Group</span>
+                <span className="text-lg font-semibold">
                   {participantsLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    participantsData?.totalInGroupRaw || 0
+                  )}
+                </span>
+              </div>
+              
+              {/* Missing */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-destructive/5">
+                <span className="text-sm text-destructive">Missing</span>
+                <span className="text-lg font-semibold text-destructive">
+                  {participantsLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     participantsData?.totalMissing || 0
                   )}
-                </p>
-                <p className="text-xs text-muted-foreground">Missing</p>
+                </span>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                <UserPlus className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-amber-600">
+              
+              {/* Unregistered */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/10">
+                <span className="text-sm text-amber-600">Unregistered</span>
+                <span className="text-lg font-semibold text-amber-600">
                   {participantsLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     participantsData?.totalUnregistered || 0
                   )}
-                </p>
-                <p className="text-xs text-muted-foreground">Unregistered</p>
+                </span>
+              </div>
+              
+              {/* Left Group */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50">
+                <span className="text-sm text-muted-foreground">Left Group</span>
+                <span className="text-lg font-semibold text-muted-foreground">
+                  {participantsLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    participantsData?.leftGroup?.length || 0
+                  )}
+                </span>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Card 3: Join Rate */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <TrendingUp className="h-5 w-5 text-primary" />
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-primary/10">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-primary">
+                    {participantsLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      `${participantsData?.joinRate?.toFixed(0) || 0}%`
+                    )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Join Rate</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-primary">
-                  {participantsLoading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    `${participantsData?.joinRate?.toFixed(0) || 0}%`
-                  )}
-                </p>
-                <p className="text-xs text-muted-foreground">Join Rate</p>
-              </div>
+              <Progress 
+                value={participantsData?.joinRate || 0} 
+                className="h-2"
+              />
+              <p className="text-xs text-muted-foreground">
+                of registered joined group
+              </p>
             </div>
           </CardContent>
         </Card>
