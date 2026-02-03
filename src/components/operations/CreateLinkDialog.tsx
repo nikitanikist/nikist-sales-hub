@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link as LinkIcon, MessageCircle, Search, Check, AlertCircle, RefreshCw, Users, Loader2 } from 'lucide-react';
+import { Link as LinkIcon, MessageCircle, Search, Check, AlertCircle, RefreshCw, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,7 @@ type DestinationType = 'url' | 'whatsapp';
 
 export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLinkDialogProps) {
   const { createLink, isCreating, updateLink, isUpdating } = useDynamicLinks();
-  const { groups, groupsLoading, syncGroups, isSyncing, fetchInviteLinkAsync, isFetchingInviteLink, fetchingInviteLinkGroupId } = useWhatsAppGroups();
+  const { groups, groupsLoading, syncGroups, isSyncing } = useWhatsAppGroups();
   const { sessions, sessionsLoading } = useWhatsAppSession();
 
   // Form state
@@ -98,39 +98,24 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
     });
   }, [groups, selectedSessionId, groupSearch]);
 
-  // Handler for selecting a group - fetches invite link and stores it
-  const handleGroupSelect = async (groupId: string) => {
+  // Handler for selecting a group - reads invite link from database (populated during sync)
+  const handleGroupSelect = (groupId: string) => {
     const group = filteredGroups.find(g => g.id === groupId);
     if (!group) return;
 
     setSelectedGroupId(groupId);
-    setFetchedInviteLink(null); // Reset while fetching
-
-    // If group already has invite link, use it directly
+    
+    // Use invite_link stored in database during sync - no VPS call needed
     if (group.invite_link) {
       setFetchedInviteLink(group.invite_link);
-    } else if (selectedSessionId) {
-      // Fetch from VPS and store result
-      try {
-        const result = await fetchInviteLinkAsync({
-          sessionId: selectedSessionId,
-          groupId: group.id,
-          groupJid: group.group_jid,
-        });
-        if (result?.invite_link) {
-          setFetchedInviteLink(result.invite_link);
-        }
-      } catch (error: any) {
-        // Don't block the flow - user can still select a different group
-        console.error('Failed to fetch invite link:', error);
-        // Session expiry is already shown via toast, no need to block
-      }
+    } else {
+      setFetchedInviteLink(null);
+      // Link is null = bot isn't admin for this group
     }
   };
 
   // Get display name for selected group
   const selectedGroup = filteredGroups.find(g => g.id === selectedGroupId);
-  const isSelectedGroupFetching = isFetchingInviteLink && fetchingInviteLinkGroupId === selectedGroupId;
 
   // Get session display info
   const getSessionDisplayName = (session: { phone_number: string | null; display_name: string | null }) => {
@@ -375,14 +360,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                     disabled={groupsLoading}
                   >
                     <SelectTrigger className="w-full">
-                      {isSelectedGroupFetching ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                          <span className="text-muted-foreground">Fetching invite link...</span>
-                        </div>
-                      ) : (
-                        <SelectValue placeholder={groupsLoading ? "Loading groups..." : "Choose a group..."} />
-                      )}
+                      <SelectValue placeholder={groupsLoading ? "Loading groups..." : "Choose a group..."} />
                     </SelectTrigger>
                     <SelectContent>
                       {filteredGroups.length === 0 ? (
@@ -412,10 +390,10 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                   </Select>
                   
                   {/* Helper text for invite link status */}
-                  {selectedGroup && !fetchedInviteLink && !isSelectedGroupFetching && (
+                  {selectedGroup && !fetchedInviteLink && (
                     <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1.5">
                       <AlertCircle className="h-3 w-3" />
-                      Invite link not available. Try refreshing the page or selecting another group.
+                      Invite link not available. Bot needs admin rights. Try syncing groups or select another group.
                     </p>
                   )}
                   {selectedGroup && fetchedInviteLink && (

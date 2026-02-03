@@ -285,8 +285,8 @@ Deno.serve(async (req) => {
           vpsSessionIdForVps = sessionId;
         }
         
-        // Call VPS to get groups
-        vpsEndpoint = `/groups/${vpsSessionIdForVps}`;
+        // Call VPS to get groups - include invite links for storage
+        vpsEndpoint = `/groups/${vpsSessionIdForVps}?includeInviteLinks=true`;
         vpsMethod = 'GET';
         break;
       }
