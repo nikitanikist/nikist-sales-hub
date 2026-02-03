@@ -608,7 +608,59 @@ const CloserAssignedCalls = () => {
         throw new Error('Could not fetch updated appointment');
       }
 
-      // Step 3: Send to Pabbly webhook with fresh data
+      // Step 3: Sync to cohort_students if status is converted and has a batch
+      const convertedStatuses: CallStatus[] = ['converted', 'converted_beginner', 'converted_intermediate', 'converted_advance', 'booking_amount'];
+      
+      if (convertedStatuses.includes(data.status) && data.batch_id && freshAppointment.lead) {
+        // Check if the batch_id is a cohort_batch (not a regular batch)
+        const { data: cohortBatch } = await supabase
+          .from("cohort_batches")
+          .select("id")
+          .eq("id", data.batch_id)
+          .maybeSingle();
+        
+        if (cohortBatch) {
+          // This is a cohort batch - sync to cohort_students
+          const { data: existingStudent } = await supabase
+            .from("cohort_students")
+            .select("id")
+            .eq("lead_id", freshAppointment.lead.id)
+            .eq("cohort_batch_id", data.batch_id)
+            .maybeSingle();
+
+          if (existingStudent) {
+            // Update existing cohort student
+            await supabase
+              .from("cohort_students")
+              .update({
+                offer_amount: data.offer_amount,
+                cash_received: data.cash_received,
+                due_amount,
+                classes_access: data.classes_access,
+                closer_id: closerId,
+              })
+              .eq("id", existingStudent.id);
+          } else {
+            // Create new cohort student
+            await supabase
+              .from("cohort_students")
+              .insert({
+                cohort_batch_id: data.batch_id,
+                organization_id: currentOrganization?.id,
+                lead_id: freshAppointment.lead.id,
+                conversion_date: freshAppointment.scheduled_date,
+                offer_amount: data.offer_amount,
+                cash_received: data.cash_received,
+                due_amount,
+                classes_access: data.classes_access,
+                closer_id: closerId,
+                status: 'active',
+              });
+          }
+        }
+      }
+
+      // Step 4: Send to Pabbly webhook with fresh data
       if (freshAppointment.lead) {
         const isNewFlow = isNewWorkflow(freshAppointment.scheduled_date);
         
