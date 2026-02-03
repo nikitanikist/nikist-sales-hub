@@ -74,10 +74,10 @@ Deno.serve(async (req) => {
     workshopTagId = workshop.tag_id;
     workshopStartDate = workshop.start_date;
 
-    // Get community session ID from organization
+    // Get community session ID and admin numbers from organization
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('community_session_id')
+      .select('community_session_id, community_admin_numbers')
       .eq('id', orgId)
       .single();
 
@@ -100,6 +100,8 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const communityAdminNumbers = (org.community_admin_numbers as string[]) || [];
 
     // Step 2: Get the VPS session ID from the whatsapp_sessions table
     const { data: session, error: sessionError } = await supabase
@@ -309,6 +311,56 @@ Deno.serve(async (req) => {
       console.log('Workshop community_group_id updated');
     }
 
+    // Step 7: Add and promote community admins (best-effort, don't fail if this step fails)
+    if (communityAdminNumbers.length > 0 && vpsResult.groupId) {
+      console.log(`Adding ${communityAdminNumbers.length} admin(s) to community: ${communityAdminNumbers.join(', ')}`);
+      
+      try {
+        // Add a small delay before adding participants (VPS needs time to fully create the group)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Add participants
+        const addResponse = await fetch(`${vpsUrl}/groups/${vpsSessionId}/${encodeURIComponent(vpsResult.groupId)}/participants/add`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': VPS_API_KEY,
+          },
+          body: JSON.stringify({ participants: communityAdminNumbers }),
+        });
+        
+        const addResult = await addResponse.json();
+        console.log('Add participants result:', JSON.stringify(addResult, null, 2));
+        
+        if (addResponse.ok) {
+          // Add a small delay before promoting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Promote to admin
+          const promoteResponse = await fetch(`${vpsUrl}/groups/${vpsSessionId}/${encodeURIComponent(vpsResult.groupId)}/participants/promote`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': VPS_API_KEY,
+            },
+            body: JSON.stringify({ participants: communityAdminNumbers }),
+          });
+          
+          const promoteResult = await promoteResponse.json();
+          console.log('Promote participants result:', JSON.stringify(promoteResult, null, 2));
+          
+          if (!promoteResponse.ok) {
+            console.warn('Failed to promote participants:', promoteResult);
+          }
+        } else {
+          console.warn('Failed to add participants:', addResult);
+        }
+      } catch (adminError) {
+        console.error('Error adding/promoting community admins (non-fatal):', adminError);
+        // Don't throw - this is best-effort and shouldn't block the workshop creation
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -316,6 +368,7 @@ Deno.serve(async (req) => {
         groupJid: vpsResult.groupId,
         groupName: workshopName,
         inviteLink: vpsResult.inviteLink,
+        adminsAdded: communityAdminNumbers.length > 0,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

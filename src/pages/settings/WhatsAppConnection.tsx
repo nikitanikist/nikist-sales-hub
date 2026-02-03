@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users, Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users, Plus, UserPlus, X } from 'lucide-react';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useCommunitySession } from '@/hooks/useCommunitySession';
@@ -32,10 +33,15 @@ export function WhatsAppConnection() {
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
   const { 
     communitySessionId, 
+    communityAdminNumbers,
     connectedSessions: communityConnectedSessions, 
-    setCommunitySession, 
+    setCommunitySession,
+    addAdminNumber,
+    removeAdminNumber,
     isUpdating: isUpdatingCommunitySession 
   } = useCommunitySession();
+  
+  const [newAdminNumber, setNewAdminNumber] = useState('');
   
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -210,6 +216,68 @@ export function WhatsAppConnection() {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Community Admin Numbers */}
+          <div className="pt-4 border-t space-y-4">
+            <div>
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Community Admin Numbers
+              </h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                These numbers will be automatically added as admins when new communities are created.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="+919876543210"
+                value={newAdminNumber}
+                onChange={(e) => setNewAdminNumber(e.target.value)}
+                className="flex-1"
+                disabled={isUpdatingCommunitySession}
+              />
+              <Button
+                onClick={() => {
+                  if (newAdminNumber.trim()) {
+                    addAdminNumber(newAdminNumber);
+                    setNewAdminNumber('');
+                  } else {
+                    toast.error('Please enter a valid phone number');
+                  }
+                }}
+                disabled={isUpdatingCommunitySession || !newAdminNumber.trim()}
+              >
+                {isUpdatingCommunitySession ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Add
+              </Button>
+            </div>
+
+            {communityAdminNumbers.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {communityAdminNumbers.map((number) => (
+                  <Badge key={number} variant="secondary" className="pr-1 gap-1">
+                    {number}
+                    <button
+                      onClick={() => removeAdminNumber(number)}
+                      disabled={isUpdatingCommunitySession}
+                      className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                No admin numbers configured yet.
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
