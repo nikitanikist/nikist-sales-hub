@@ -12,6 +12,7 @@ import SalesClosers from "./pages/SalesClosers";
 import CloserAssignedCalls from "./pages/CloserAssignedCalls";
 import AllCloserCalls from "./pages/AllCloserCalls";
 import Workshops from "./pages/Workshops";
+import WorkshopDetail from "./pages/WorkshopDetail";
 import Sales from "./pages/Sales";
 import Funnels from "./pages/Funnels";
 import Calls from "./pages/Calls";
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/cohorts/:cohortSlug" element={<ProtectedRoute><ModuleGuard moduleSlug="cohort-management"><CohortPage /></ModuleGuard></ProtectedRoute>} />
               <Route path="/daily-money-flow" element={<ModuleGuard moduleSlug="daily-money-flow"><DailyMoneyFlow /></ModuleGuard>} />
               <Route path="/workshops" element={<ModuleGuard moduleSlug="workshops"><Workshops /></ModuleGuard>} />
+              <Route path="/workshops/:workshopId" element={<ModuleGuard moduleSlug="workshops"><WorkshopDetail /></ModuleGuard>} />
               <Route path="/operations/workshop-notification" element={<ModuleGuard moduleSlug="workshops"><WorkshopNotification /></ModuleGuard>} />
               <Route path="/operations/dynamic-links" element={<ProtectedRoute><DynamicLinks /></ProtectedRoute>} />
               <Route path="/sales" element={<Sales />} />

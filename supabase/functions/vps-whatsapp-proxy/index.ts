@@ -96,7 +96,7 @@ async function getVpsSessionId(
 }
 
 interface VPSProxyRequest {
-  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'get-invite-link' | 'add-participants' | 'promote-participants';
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'get-invite-link' | 'add-participants' | 'promote-participants' | 'get-participants';
   sessionId?: string;
   organizationId?: string;
   groupId?: string;
@@ -386,6 +386,28 @@ Deno.serve(async (req) => {
         vpsEndpoint = `/groups/${vpsSessionIdForVps}/${encodeURIComponent(groupJid)}/participants/promote`;
         vpsMethod = 'POST';
         vpsBody = { participants: phoneNumbers };
+        break;
+      }
+
+      case 'get-participants': {
+        if (!sessionId || !groupJid) {
+          return new Response(
+            JSON.stringify({ error: 'Session ID and group JID are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        localSessionIdForDb = sessionId;
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
+        }
+        
+        // Call VPS: GET /groups/{sessionId}/{groupJid}/participants
+        vpsEndpoint = `/groups/${vpsSessionIdForVps}/${encodeURIComponent(groupJid)}/participants`;
+        vpsMethod = 'GET';
         break;
       }
 
