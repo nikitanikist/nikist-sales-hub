@@ -196,6 +196,12 @@ export function useWhatsAppGroups() {
       groupId: string;
       groupJid: string;
     }) => {
+      // Check session before making request
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Session expired. Please refresh the page and try again.');
+      }
+
       const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
         body: {
           action: 'get-invite-link',

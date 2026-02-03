@@ -120,9 +120,10 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
         if (result?.invite_link) {
           setFetchedInviteLink(result.invite_link);
         }
-      } catch (error) {
-        // Error already handled by mutation's onError
+      } catch (error: any) {
+        // Don't block the flow - user can still select a different group
         console.error('Failed to fetch invite link:', error);
+        // Session expiry is already shown via toast, no need to block
       }
     }
   };
@@ -414,7 +415,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                   {selectedGroup && !fetchedInviteLink && !isSelectedGroupFetching && (
                     <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1.5">
                       <AlertCircle className="h-3 w-3" />
-                      Invite link not available. Try selecting another group.
+                      Invite link not available. Try refreshing the page or selecting another group.
                     </p>
                   )}
                   {selectedGroup && fetchedInviteLink && (
