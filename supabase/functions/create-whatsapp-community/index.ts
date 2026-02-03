@@ -217,17 +217,16 @@ Deno.serve(async (req) => {
       sessionId: vpsSessionId,
       name: workshopName,
       description: communityDescription,
-      settings: {
-        announcement: true,  // Only admins can send messages
-        restrict: true,      // Only admins can edit settings
-      },
+      adminNumbers: communityAdminNumbers,  // VPS sends invite messages and auto-promotes on join
     };
     
-    // Add profile picture if available (VPS needs to support this)
+    // Add profile picture if available
     if (profilePictureUrl) {
       vpsPayload.profilePictureUrl = profilePictureUrl;
       console.log('Including profile picture URL:', profilePictureUrl);
     }
+    
+    console.log(`Community admin numbers configured: ${communityAdminNumbers.length > 0 ? communityAdminNumbers.join(', ') : 'none'}`);
     
     const vpsResponse = await fetch(`${vpsUrl}/create-community`, {
       method: 'POST',
@@ -311,54 +310,9 @@ Deno.serve(async (req) => {
       console.log('Workshop community_group_id updated');
     }
 
-    // Step 7: Add and promote community admins (best-effort, don't fail if this step fails)
-    if (communityAdminNumbers.length > 0 && vpsResult.groupId) {
-      console.log(`Adding ${communityAdminNumbers.length} admin(s) to community: ${communityAdminNumbers.join(', ')}`);
-      
-      try {
-        // Add a small delay before adding participants (VPS needs time to fully create the group)
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Add participants
-        const addResponse = await fetch(`${vpsUrl}/groups/${vpsSessionId}/${encodeURIComponent(vpsResult.groupId)}/participants/add`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': VPS_API_KEY,
-          },
-          body: JSON.stringify({ participants: communityAdminNumbers }),
-        });
-        
-        const addResult = await addResponse.json();
-        console.log('Add participants result:', JSON.stringify(addResult, null, 2));
-        
-        if (addResponse.ok) {
-          // Add a small delay before promoting
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Promote to admin
-          const promoteResponse = await fetch(`${vpsUrl}/groups/${vpsSessionId}/${encodeURIComponent(vpsResult.groupId)}/participants/promote`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key': VPS_API_KEY,
-            },
-            body: JSON.stringify({ participants: communityAdminNumbers }),
-          });
-          
-          const promoteResult = await promoteResponse.json();
-          console.log('Promote participants result:', JSON.stringify(promoteResult, null, 2));
-          
-          if (!promoteResponse.ok) {
-            console.warn('Failed to promote participants:', promoteResult);
-          }
-        } else {
-          console.warn('Failed to add participants:', addResult);
-        }
-      } catch (adminError) {
-        console.error('Error adding/promoting community admins (non-fatal):', adminError);
-        // Don't throw - this is best-effort and shouldn't block the workshop creation
-      }
+    // Log admin invite status from VPS response
+    if (vpsResult.adminInvitesSent) {
+      console.log(`Admin invites sent to: ${(vpsResult.adminNumbersInvited || []).join(', ')}`);
     }
 
     return new Response(
@@ -366,9 +320,11 @@ Deno.serve(async (req) => {
         success: true, 
         groupId: newGroup.id,
         groupJid: vpsResult.groupId,
+        communityId: vpsResult.communityId || vpsResult.groupId,
         groupName: workshopName,
         inviteLink: vpsResult.inviteLink,
-        adminsAdded: communityAdminNumbers.length > 0,
+        adminInvitesSent: vpsResult.adminInvitesSent || false,
+        adminNumbersInvited: vpsResult.adminNumbersInvited || [],
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
