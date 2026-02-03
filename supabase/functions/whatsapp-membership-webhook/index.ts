@@ -17,6 +17,33 @@ interface WebhookPayload {
   timestamp?: string;
 }
 
+// Simple deduplication cache (in-memory per instance)
+const processedEvents = new Map<string, number>();
+const DEDUP_WINDOW_MS = 5000; // 5 seconds
+
+function createEventKey(payload: WebhookPayload, normalizedPhone: string): string {
+  // Round timestamp to 5-second window for grouping
+  const timestamp = payload.timestamp ? new Date(payload.timestamp).getTime() : Date.now();
+  const windowKey = Math.floor(timestamp / DEDUP_WINDOW_MS);
+  return `${payload.event}:${payload.groupJid}:${normalizedPhone}:${windowKey}`;
+}
+
+function isDuplicateEvent(eventKey: string): boolean {
+  const now = Date.now();
+  // Clean old entries
+  for (const [key, time] of processedEvents.entries()) {
+    if (now - time > DEDUP_WINDOW_MS * 2) {
+      processedEvents.delete(key);
+    }
+  }
+  // Check if already processed
+  if (processedEvents.has(eventKey)) {
+    return true;
+  }
+  processedEvents.set(eventKey, now);
+  return false;
+}
+
 // Normalize phone number to last 10 digits
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
@@ -55,6 +82,21 @@ Deno.serve(async (req) => {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
+      );
+    }
+
+    // Check for duplicate events (deduplication)
+    const normalizedPhoneForDedup = normalizePhone(payload.participant.phone);
+    const eventKey = createEventKey(payload, normalizedPhoneForDedup);
+    if (isDuplicateEvent(eventKey)) {
+      console.log(`Skipping duplicate event: ${eventKey}`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          duplicate: true,
+          message: "Event already processed" 
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
