@@ -1,171 +1,117 @@
 
 
-# Simplify Dynamic Links: Store URL Directly, No Foreign Key
+# Fix: Auto-Fetch Invite Link on Group Selection
 
-## Summary
+## Problem
 
-Your approach is spot-on: treat the WhatsApp group selection as just a **convenient way to populate a custom URL**. The dynamic link should store the actual `https://chat.whatsapp.com/xxx` URL directly, with no reference to `whatsapp_group_id`.
+When selecting a WhatsApp group for a dynamic link, the error "Invite link not available. Bot needs admin rights" appears even though the connected account **is** the group admin.
 
----
+**Root Cause**: The VPS `/groups/:sessionId` endpoint does NOT return invite links in its response. Invite links require a separate API call to `get-invite-link` for each group.
 
-## Current State vs Your Desired State
-
-| Aspect | Current | Your Desired Flow |
-|--------|---------|-------------------|
-| Dynamic Link stores | `whatsapp_group_id` (foreign key reference) | `destination_url` (the actual invite URL) |
-| Redirect lookup | Joins `whatsapp_groups` table to get invite link | Reads `destination_url` directly |
-| WhatsApp selection | Sets `whatsapp_group_id` | Copies invite link into `destination_url` field |
-| Sync impact | If groups table changes, links can break | No impact - URL is self-contained |
+The current flow:
+1. User syncs groups → VPS returns group list WITHOUT invite links
+2. Database stores groups with `invite_link: null`
+3. User selects a group → Code reads null from database → Shows error
 
 ---
 
-## What's Already Done (Good News!)
+## Solution
 
-Looking at the code, `CreateLinkDialog.tsx` is **already halfway there**:
-- Lines 198-207 set `whatsapp_group_id: null` and store the invite link as `destination_url`
+Automatically fetch the invite link when a group is selected and it doesn't have one stored. This uses the existing `fetchInviteLinkAsync` function.
+
+### Changes Required
+
+**File: `src/components/operations/CreateLinkDialog.tsx`**
+
+| Line | Change |
+|------|--------|
+| 1-2 | Add `RefreshCw` import (already exists) |
+| 23-24 | Destructure `fetchInviteLinkAsync` and `isFetchingInviteLink` from `useWhatsAppGroups()` |
+| 34-35 | Add new state: `isFetchingLink` to track auto-fetch progress |
+| 85-98 | Modify `handleGroupSelect` to auto-fetch invite link if not present |
+| 376-387 | Update UI to show "Fetching invite link..." state |
 
 ---
 
-## What Needs to Change
+## Implementation Details
 
-### 1. Edge Function: Use Upsert Instead of Delete + Insert
-
-Remove the delete statement (lines 620-631) and rely on the existing upsert logic. This preserves group records while still updating them with fresh data.
-
-**Changes:**
-- Remove the `DELETE` statement before syncing
-- The upsert with `onConflict: 'session_id,group_jid'` already handles updates
-
-### 2. Database: Simplify the `increment_link_click` Function
-
-Current function tries to join `whatsapp_groups` table when `whatsapp_group_id` is set. Since we'll only use `destination_url`, simplify it:
-
-```sql
-CREATE OR REPLACE FUNCTION public.increment_link_click(link_slug text)
-RETURNS TABLE(destination_url text)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  RETURN QUERY
-  UPDATE public.dynamic_links
-  SET click_count = click_count + 1, updated_at = now()
-  WHERE slug = link_slug AND is_active = true
-  RETURNING dynamic_links.destination_url;
-END;
-$$;
-```
-
-### 3. Frontend: Clean Up Edit Flow
-
-When editing a link, don't try to match `whatsapp_group_id` - just load the `destination_url` as a custom URL:
+### Updated handleGroupSelect Function
 
 ```typescript
-// In useEffect when opening edit dialog
-if (editingLink) {
-  setSlug(editingLink.slug);
-  setDestinationType('url');  // Always treat as custom URL
-  setDestinationUrl(editingLink.destination_url || '');
-  setSelectedGroupId(null);
-  setFetchedInviteLink(null);
-}
+// Handler for selecting a group - auto-fetches invite link if not present
+const handleGroupSelect = async (groupId: string) => {
+  const group = filteredGroups.find(g => g.id === groupId);
+  if (!group) return;
+
+  setSelectedGroupId(groupId);
+  
+  // Use invite_link stored in database if available
+  if (group.invite_link) {
+    setFetchedInviteLink(group.invite_link);
+  } else if (selectedSessionId && group.group_jid) {
+    // No link stored - auto-fetch from VPS
+    setFetchedInviteLink(null);
+    
+    try {
+      const result = await fetchInviteLinkAsync({
+        sessionId: selectedSessionId,
+        groupId: group.id,
+        groupJid: group.group_jid,
+      });
+      
+      if (result?.invite_link) {
+        setFetchedInviteLink(result.invite_link);
+      }
+    } catch (error) {
+      console.error('Failed to auto-fetch invite link:', error);
+      // Error already shown by hook's onError
+    }
+  } else {
+    setFetchedInviteLink(null);
+  }
+};
 ```
 
-### 4. Hook: Remove `whatsapp_group` Join
-
-The `useDynamicLinks` hook no longer needs to join `whatsapp_groups`:
+### Updated UI States
 
 ```typescript
-const { data, error } = await supabase
-  .from('dynamic_links')
-  .select('*')  // No join needed
-  .eq('organization_id', currentOrganization.id)
-  .order('created_at', { ascending: false });
+{/* During fetch - show loading */}
+{selectedGroup && isFetchingInviteLink && (
+  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+    <RefreshCw className="h-3 w-3 animate-spin" />
+    Fetching invite link...
+  </p>
+)}
+
+{/* After fetch failed or not admin - show warning */}
+{selectedGroup && !isFetchingInviteLink && !fetchedInviteLink && (
+  <p className="text-xs text-yellow-600 ...">
+    Invite link not available. Bot needs admin rights.
+  </p>
+)}
+
+{/* After fetch success - show ready */}
+{selectedGroup && !isFetchingInviteLink && fetchedInviteLink && (
+  <p className="text-xs text-green-600 ...">
+    Invite link ready
+  </p>
+)}
 ```
+
+---
+
+## Why This Solves the Problem
+
+1. **No more false errors**: Instead of showing "Bot needs admin rights" when link is just missing from database, the system will try to fetch it
+2. **Works for real admins**: If the account IS an admin, the VPS will return the invite link and it gets saved
+3. **Correct error for non-admins**: Only shows the warning if the VPS call actually fails (meaning bot truly isn't admin)
+4. **Database gets populated**: The fetched link is saved, so future selections won't need another API call
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `supabase/functions/vps-whatsapp-proxy/index.ts` | Remove DELETE before sync, keep upsert |
-| `src/components/operations/CreateLinkDialog.tsx` | Simplify edit flow - always treat as custom URL |
-| `src/hooks/useDynamicLinks.ts` | Remove `whatsapp_groups` join from select |
-| Database migration | Simplify `increment_link_click` function |
-
----
-
-## Technical Details
-
-### Edge Function Change
-
-```typescript
-// REMOVE these lines (620-631):
-// const { error: deleteError } = await supabase
-//   .from('whatsapp_groups')
-//   .delete()
-//   .eq('session_id', localSessionIdForDb);
-```
-
-The existing upsert on lines 687-692 will:
-- **Update** existing groups (same `session_id` + `group_jid`) with fresh data including new `invite_link`
-- **Insert** new groups
-
-### CreateLinkDialog Change
-
-```typescript
-// Simplified edit effect
-useEffect(() => {
-  if (open && editingLink) {
-    setSlug(editingLink.slug);
-    // All links are treated as custom URLs now
-    setDestinationType('url');
-    setDestinationUrl(editingLink.destination_url || '');
-    setSelectedGroupId(null);
-    setFetchedInviteLink(null);
-  }
-}, [open, editingLink]);
-```
-
-### Database Migration
-
-```sql
-CREATE OR REPLACE FUNCTION public.increment_link_click(link_slug text)
-RETURNS TABLE(destination_url text)
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  RETURN QUERY
-  UPDATE public.dynamic_links
-  SET click_count = click_count + 1, updated_at = now()
-  WHERE slug = link_slug AND is_active = true
-  RETURNING dynamic_links.destination_url;
-END;
-$$;
-```
-
----
-
-## Flow After Changes
-
-```text
-User creates dynamic link
-  ├── Option 1: Paste custom URL → Stored in destination_url
-  └── Option 2: Select WhatsApp group → invite_link copied to destination_url
-
-Both options result in:
-  → destination_url = actual URL
-  → whatsapp_group_id = NULL
-  → Self-contained, no dependencies
-```
-
----
-
-## Benefits
-
-1. **Decoupled**: Dynamic links don't depend on `whatsapp_groups` table
-2. **Faster redirects**: No join needed, just read `destination_url`
-3. **Sync-safe**: Syncing groups never affects existing dynamic links
-4. **Simpler logic**: One code path for all link types
+| File | Type | Summary |
+|------|------|---------|
+| `src/components/operations/CreateLinkDialog.tsx` | Edit | Add auto-fetch logic on group selection, update UI states |
 
