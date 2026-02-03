@@ -35,10 +35,9 @@ export function LinkCard({ link, onEdit }: LinkCardProps) {
     setShowDeleteDialog(false);
   };
 
-  const isWhatsAppLink = !!link.whatsapp_group_id;
-  const destinationDisplay = isWhatsAppLink 
-    ? link.whatsapp_group?.group_name || 'WhatsApp Group'
-    : link.destination_url;
+  // Check if it's a WhatsApp link by checking if destination_url contains chat.whatsapp.com
+  const isWhatsAppLink = link.destination_url?.includes('chat.whatsapp.com') || false;
+  const destinationDisplay = link.destination_url;
 
   return (
     <>

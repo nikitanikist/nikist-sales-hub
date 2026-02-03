@@ -15,12 +15,6 @@ export interface DynamicLink {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  // Joined data
-  whatsapp_group?: {
-    id: string;
-    group_name: string;
-    invite_link: string | null;
-  } | null;
 }
 
 export interface CreateLinkData {
@@ -50,10 +44,7 @@ export function useDynamicLinks() {
       
       const { data, error } = await supabase
         .from('dynamic_links')
-        .select(`
-          *,
-          whatsapp_group:whatsapp_groups(id, group_name, invite_link)
-        `)
+        .select('*')
         .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false });
 
@@ -182,9 +173,9 @@ export function usePublicLinkRedirect(slug: string) {
         return null;
       }
 
-      // Return the destination URL (either direct URL or WhatsApp invite link)
+      // Return the destination URL directly
       const result = data[0];
-      return result.destination_url || result.invite_link || null;
+      return result.destination_url || null;
     },
     enabled: !!slug,
     retry: false,
