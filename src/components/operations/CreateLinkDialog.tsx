@@ -21,7 +21,7 @@ type DestinationType = 'url' | 'whatsapp';
 
 export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLinkDialogProps) {
   const { createLink, isCreating, updateLink, isUpdating } = useDynamicLinks();
-  const { groups, groupsLoading, syncGroups, isSyncing, fetchInviteLink, isFetchingInviteLink, fetchingInviteLinkGroupId } = useWhatsAppGroups();
+  const { groups, groupsLoading, syncGroups, isSyncing, fetchInviteLinkAsync, isFetchingInviteLink, fetchingInviteLinkGroupId } = useWhatsAppGroups();
   const { sessions, sessionsLoading } = useWhatsAppSession();
 
   // Form state
@@ -32,6 +32,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [groupSearch, setGroupSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [fetchedInviteLink, setFetchedInviteLink] = useState<string | null>(null);
 
   // Get only connected sessions
   const connectedSessions = useMemo(() => {
@@ -54,22 +55,27 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
           setDestinationType('whatsapp');
           setSelectedGroupId(editingLink.whatsapp_group_id);
           setDestinationUrl('');
+          // For existing WhatsApp links, set the invite link from the group data
+          const group = groups?.find(g => g.id === editingLink.whatsapp_group_id);
+          setFetchedInviteLink(group?.invite_link || editingLink.destination_url || null);
         } else {
           setDestinationType('url');
           setDestinationUrl(editingLink.destination_url || '');
           setSelectedGroupId(null);
+          setFetchedInviteLink(null);
         }
       } else {
         setSlug('');
         setDestinationType('url');
         setDestinationUrl('');
         setSelectedGroupId(null);
+        setFetchedInviteLink(null);
         // Keep selected session if already set
       }
       setGroupSearch('');
       setError(null);
     }
-  }, [open, editingLink]);
+  }, [open, editingLink, groups]);
 
   // Separate effect to set session ID when editing a WhatsApp group link
   useEffect(() => {
@@ -92,20 +98,32 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
     });
   }, [groups, selectedSessionId, groupSearch]);
 
-  // Handler for selecting a group - auto-fetches invite link if missing
-  const handleGroupSelect = (groupId: string) => {
+  // Handler for selecting a group - fetches invite link and stores it
+  const handleGroupSelect = async (groupId: string) => {
     const group = filteredGroups.find(g => g.id === groupId);
     if (!group) return;
 
     setSelectedGroupId(groupId);
+    setFetchedInviteLink(null); // Reset while fetching
 
-    // Auto-fetch invite link if not available
-    if (!group.invite_link && selectedSessionId) {
-      fetchInviteLink({
-        sessionId: selectedSessionId,
-        groupId: group.id,
-        groupJid: group.group_jid,
-      });
+    // If group already has invite link, use it directly
+    if (group.invite_link) {
+      setFetchedInviteLink(group.invite_link);
+    } else if (selectedSessionId) {
+      // Fetch from VPS and store result
+      try {
+        const result = await fetchInviteLinkAsync({
+          sessionId: selectedSessionId,
+          groupId: group.id,
+          groupJid: group.group_jid,
+        });
+        if (result?.inviteLink) {
+          setFetchedInviteLink(result.inviteLink);
+        }
+      } catch (error) {
+        // Error already handled by mutation's onError
+        console.error('Failed to fetch invite link:', error);
+      }
     }
   };
 
@@ -141,6 +159,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
   const handleSessionChange = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     setSelectedGroupId(null); // Reset group selection when session changes
+    setFetchedInviteLink(null);
     setGroupSearch('');
   };
 
@@ -178,28 +197,27 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
         setError('Please select a WhatsApp group');
         return;
       }
-      // Check if selected group has invite link
-      const selectedGroup = groups?.find(g => g.id === selectedGroupId);
-      if (!selectedGroup?.invite_link) {
-        setError('Selected group has no invite link. Please sync groups to fetch invite links.');
+      // Check if we have the invite link
+      if (!fetchedInviteLink) {
+        setError('Invite link not yet fetched. Please wait or select another group.');
         return;
       }
     }
 
     if (editingLink) {
-      // Update existing link
+      // Update existing link - store invite link directly as destination_url
       updateLink({
         id: editingLink.id,
         slug: slug.trim(),
-        destination_url: destinationType === 'url' ? destinationUrl.trim() : null,
-        whatsapp_group_id: destinationType === 'whatsapp' ? selectedGroupId : null,
+        destination_url: destinationType === 'url' ? destinationUrl.trim() : fetchedInviteLink,
+        whatsapp_group_id: null, // No longer needed - we store the URL directly
       });
     } else {
-      // Create new link
+      // Create new link - store invite link directly as destination_url
       createLink({
         slug: slug.trim(),
-        destination_url: destinationType === 'url' ? destinationUrl.trim() : undefined,
-        whatsapp_group_id: destinationType === 'whatsapp' ? selectedGroupId! : undefined,
+        destination_url: destinationType === 'url' ? destinationUrl.trim() : fetchedInviteLink!,
+        // No whatsapp_group_id needed - the invite URL is self-contained
       });
     }
 
@@ -382,7 +400,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                                 <Users className="h-3 w-3" />
                                 {group.participant_count || 0}
                               </span>
-                              {selectedGroupId === group.id && group.invite_link && (
+                              {selectedGroupId === group.id && fetchedInviteLink && (
                                 <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />
                               )}
                             </div>
@@ -392,11 +410,17 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
                     </SelectContent>
                   </Select>
                   
-                  {/* Helper text for selected group without invite link */}
-                  {selectedGroup && !selectedGroup.invite_link && !isSelectedGroupFetching && (
+                  {/* Helper text for invite link status */}
+                  {selectedGroup && !fetchedInviteLink && !isSelectedGroupFetching && (
                     <p className="text-xs text-yellow-600 dark:text-yellow-400 flex items-center gap-1.5">
                       <AlertCircle className="h-3 w-3" />
-                      Invite link will be fetched automatically
+                      Invite link not available. Try selecting another group.
+                    </p>
+                  )}
+                  {selectedGroup && fetchedInviteLink && (
+                    <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                      <Check className="h-3 w-3" />
+                      Invite link ready
                     </p>
                   )}
                 </div>
