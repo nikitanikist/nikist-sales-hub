@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown, ChevronRight, Phone, IndianRupee, Loader2, MessageSquare } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar, Search, RefreshCw, Filter, ChevronDown, ChevronRight, Phone, IndianRupee, Loader2, MessageSquare, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -60,6 +61,7 @@ const Workshops = () => {
   const [workshopToDelete, setWorkshopToDelete] = useState<any>(null);
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isManager } = useUserRole();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
@@ -1013,8 +1015,8 @@ const Workshops = () => {
                   
                   return (
                     <>
-                      <TableRow key={workshop.id} className="cursor-pointer hover:bg-muted/50" onClick={() => toggleRowExpand(workshop.id)}>
-                        <TableCell className="w-[40px]">
+                      <TableRow key={workshop.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/workshops/${workshop.id}`)}>
+                        <TableCell className="w-[40px]" onClick={(e) => { e.stopPropagation(); toggleRowExpand(workshop.id); }}>
                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                             {isExpanded ? (
                               <ChevronDown className="h-4 w-4" />
@@ -1064,6 +1066,14 @@ const Workshops = () => {
                         )}
                         {!isManager && (
                           <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/workshops/${workshop.id}`)}
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
