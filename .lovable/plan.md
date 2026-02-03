@@ -1,74 +1,54 @@
 
-
-# Workshop Detail Page with WhatsApp Group Membership Tracking
+# WhatsApp Membership Webhook Implementation
 
 ## Overview
 
-This feature creates a dedicated Workshop Detail page that compares registered leads against actual WhatsApp group participants, enabling you to identify and reach out to people who registered but haven't joined the group yet.
+Now that your VPS is sending real-time join/leave webhooks, I'll build the CRM-side infrastructure to receive these events and update the UI instantly when someone joins or leaves a WhatsApp group.
 
 ---
 
-## What You'll Get
+## What Will Change
 
-| Metric | Description |
-|--------|-------------|
-| **Total Registered** | People who registered for this workshop (from database) |
-| **In WhatsApp Group** | People who actually joined the linked group (from VPS - real-time) |
-| **Missing** | People to send "Please join the group" reminders |
-| **Join Rate** | Percentage of registered users who joined |
-
-**Key Actions:**
-- Download CSV of missing members
-- Real-time auto-refresh every 30 seconds
-- Manual refresh button for instant updates
+| Component | Change |
+|-----------|--------|
+| **New Database Table** | `workshop_group_members` - Stores membership state with join/leave timestamps |
+| **New Edge Function** | `whatsapp-membership-webhook` - Receives VPS webhooks and updates database |
+| **Updated UI** | New "Left Group" stat card and tab showing who left after joining |
+| **Realtime Updates** | Instant UI refresh when someone joins/leaves (no polling needed) |
 
 ---
 
-## User Flow
+## User Flow After Implementation
 
 ```text
-Workshops Page
-    │
-    └── Click workshop row → Instead of expanding, navigates to...
-    │
-    ▼
-Workshop Detail Page (/workshops/:workshopId)
-    ├── Back button → Return to workshops list
-    ├── Workshop Header (Name, Date, Status, Edit button)
-    ├── Stats Cards (4 cards in a row)
-    │   ├── Total Registered: 500
-    │   ├── In WhatsApp Group: 300 ← Real-time
-    │   ├── Missing: 200
-    │   └── Join Rate: 60%
-    ├── Progress Bar showing join rate visually
-    ├── Tabs
-    │   ├── "Missing Members" tab
-    │   │   ├── Table: Name | Phone | Email | Registered Date
-    │   │   └── Download CSV button
-    │   ├── "Call Statistics" tab (existing expanded row content)
-    │   └── "WhatsApp" tab (existing WhatsApp settings)
-    └── Last synced: X seconds ago (auto-updates)
+Someone JOINS group
+    ↓
+VPS sends webhook → CRM edge function → Database insert (status: 'active')
+    ↓
+Supabase Realtime broadcasts → UI updates instantly
+    ↓
+"In WhatsApp Group" count increases
+
+Someone LEAVES group
+    ↓
+VPS sends webhook → CRM edge function → Database update (status: 'left')
+    ↓
+Supabase Realtime broadcasts → UI updates instantly
+    ↓
+"In WhatsApp Group" decreases, "Left Group" count increases
 ```
 
 ---
 
-## How Phone Matching Works
+## Updated Stats Cards
 
-The VPS returns participants in this format:
-```json
-{
-  "participants": [
-    { "phone": "918130797444", "isAdmin": false },
-    { "phone": "919431117351", "isAdmin": false }
-  ]
-}
+```text
+┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐
+│    500     │  │    300     │  │    150     │  │     50     │  │    60%     │
+│ Registered │  │  In Group  │  │  Missing   │  │    Left    │  │ Join Rate  │
+│            │  │   (Live)   │  │            │  │   (New!)   │  │            │
+└────────────┘  └────────────┘  └────────────┘  └────────────┘  └────────────┘
 ```
-
-**Matching Logic:**
-1. Normalize database phone: `"+91 98188 61043"` → `9818861043` (last 10 digits)
-2. Normalize VPS phone: `918130797444` → `8130797444` (last 10 digits)
-3. If match → person is in group
-4. If no match → person is "missing"
 
 ---
 
@@ -76,187 +56,176 @@ The VPS returns participants in this format:
 
 | File | Purpose |
 |------|---------|
-| `src/pages/WorkshopDetail.tsx` | Main workshop detail page with stats, tabs, and member table |
-| `src/hooks/useWorkshopParticipants.ts` | Hook for fetching group participants from VPS with polling |
-
----
+| `supabase/functions/whatsapp-membership-webhook/index.ts` | Receive VPS join/leave webhooks |
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/App.tsx` | Add new route `/workshops/:workshopId` |
-| `src/pages/Workshops.tsx` | Change row click to navigate instead of expand; add "View" button |
-| `supabase/functions/vps-whatsapp-proxy/index.ts` | Add `get-participants` action |
+| `src/pages/WorkshopDetail.tsx` | Add "Left Group" stat card and tab |
+| `src/hooks/useWorkshopParticipants.ts` | Use database for membership state + realtime subscription |
 
 ---
 
-## Implementation Details
+## Database Changes
 
-### 1. VPS Proxy Enhancement
+### New Table: `workshop_group_members`
 
-Add new action `get-participants`:
+Stores the membership history for each group:
 
-```typescript
-case 'get-participants': {
-  if (!sessionId || !groupJid) {
-    return errorResponse('Session ID and Group JID required');
-  }
-  
-  vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
-  if (!vpsSessionIdForVps) {
-    vpsSessionIdForVps = sessionId;
-  }
-  
-  vpsEndpoint = `/groups/${vpsSessionIdForVps}/${encodeURIComponent(groupJid)}/participants`;
-  vpsMethod = 'GET';
-  break;
-}
-```
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `organization_id` | UUID | Organization this belongs to |
+| `group_id` | UUID | FK to `whatsapp_groups.id` |
+| `group_jid` | TEXT | WhatsApp group JID (for direct lookup) |
+| `phone_number` | TEXT | Normalized 10-digit phone |
+| `full_phone` | TEXT | Full phone from VPS (e.g., 919818861043) |
+| `status` | TEXT | 'active' or 'left' |
+| `joined_at` | TIMESTAMPTZ | When they first joined |
+| `left_at` | TIMESTAMPTZ | When they left (null if still active) |
+| `is_admin` | BOOLEAN | Whether they're a group admin |
+| `created_at` | TIMESTAMPTZ | Record creation time |
+| `updated_at` | TIMESTAMPTZ | Last update time |
 
-### 2. New Hook: useWorkshopParticipants
+**Unique constraint:** One record per group + phone combination.
 
-```typescript
-// Fetches participants from VPS and compares with registered leads
-export function useWorkshopParticipants(workshopId: string) {
-  // 1. Fetch workshop with linked WhatsApp group
-  // 2. Fetch registered leads for this workshop
-  // 3. Call VPS to get current group participants
-  // 4. Compare phone numbers (last 10 digits)
-  // 5. Return { registered, inGroup, missing, joinRate }
-  // 6. Auto-refresh every 30 seconds using refetchInterval
-}
-```
+**RLS Policy:** Organization members can read members for their org's groups.
 
-### 3. Workshop Detail Page Structure
-
-The page will have:
-- Header with workshop title, date, status badge, and back button
-- 4 stat cards in a responsive grid
-- Progress bar showing join rate
-- Tabs for "Missing Members", "Call Statistics", "WhatsApp"
-- Missing members table with search, sort, and CSV download
-
-### 4. Real-time Polling
-
-```typescript
-const { data, isLoading, refetch } = useQuery({
-  queryKey: ['workshop-participants', workshopId],
-  queryFn: fetchParticipants,
-  refetchInterval: 30000, // 30 seconds
-  enabled: !!workshopId && !!groupJid,
-});
-```
-
-### 5. CSV Download
-
-```typescript
-function downloadMissingMembersCSV(members) {
-  const headers = ['Name', 'Phone', 'Email', 'Registered Date'];
-  const rows = members.map(m => [
-    m.contact_name,
-    m.phone,
-    m.email,
-    formatDate(m.created_at)
-  ]);
-  
-  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  // Trigger download
-}
-```
+**Realtime:** Enabled for instant UI updates.
 
 ---
 
-## Important Edge Cases
+## Edge Function: `whatsapp-membership-webhook`
 
-| Scenario | Handling |
-|----------|----------|
-| Workshop has no linked WhatsApp group | Show message: "No WhatsApp group linked to this workshop" with link to settings |
-| WhatsApp session disconnected | Show error with reconnect button |
-| Lead has no phone number | Skip during comparison (can't match) |
-| VPS returns error | Show error toast, allow manual retry |
+This function receives webhooks from the VPS:
 
----
-
-## UI Preview
-
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│  ← Back to Workshops                                    [Edit] [⋮]  │
-│                                                                      │
-│  Crypto Wealth Masterclass (Sh1) <> 4TH February                    │
-│  📅 Feb 4, 2026 • 7:00 PM IST    [Confirmed]                        │
-│                                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐    │
-│  │    500     │  │    300     │  │    200     │  │    60%     │    │
-│  │ Registered │  │  In Group  │  │  Missing   │  │ Join Rate  │    │
-│  │            │  │  ↻ Live    │  │            │  │            │    │
-│  └────────────┘  └────────────┘  └────────────┘  └────────────┘    │
-│                                                                      │
-│  ████████████████████░░░░░░░░░░  60% joined group                   │
-│  Last synced: 5 seconds ago                    [🔄 Refresh Now]     │
-│                                                                      │
-├─────────────────────────────────────────────────────────────────────┤
-│  [Missing Members]  [Call Statistics]  [WhatsApp]                   │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  Missing Members (200)                                    [📥 CSV]  │
-│  ────────────────────────────────────────────────────────────────── │
-│  🔍 Search by name or phone...                                      │
-│  ────────────────────────────────────────────────────────────────── │
-│  Name              Phone            Email              Registered   │
-│  ────────────────────────────────────────────────────────────────── │
-│  John Doe          +91 98765...     john@example.com   Feb 3, 2026  │
-│  Jane Smith        +91 87654...     jane@example.com   Feb 2, 2026  │
-│  ...                                                                 │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Technical Notes
-
-### Database Relationships
-- `workshops.whatsapp_group_id` → `whatsapp_groups.id` (linked group)
-- `workshops.whatsapp_session_id` → `whatsapp_sessions.id` (session for API calls)
-- `lead_assignments.workshop_id` → `workshops.id` (registered leads)
-- `lead_assignments.lead_id` → `leads.id` (lead details with phone)
-
-### VPS Response Format (Confirmed)
+**Input (from VPS):**
 ```json
 {
-  "success": true,
-  "groupName": "Crypto Insider Club",
-  "groupJid": "120363386014269039@g.us",
-  "totalParticipants": 1048,
-  "participants": [
-    { "id": "...", "phone": "918130797444", "isAdmin": false, "isSuperAdmin": false }
-  ]
+  "event": "join",
+  "sessionId": "wa_fd5cd67a-3dc7-44ce-b611-2c3b5cbbf333",
+  "groupJid": "120363423158005005@g.us",
+  "participant": {
+    "phone": "919818861043",
+    "id": "173087265951971@lid"
+  },
+  "timestamp": "2026-02-03T17:30:00Z"
 }
 ```
 
-### Phone Normalization Function
-```typescript
-function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  return digits.slice(-10);
-}
+**Logic:**
+1. Validate the webhook (API key check)
+2. Look up session to get organization_id
+3. Look up or create group record in `whatsapp_groups`
+4. On **join**: Upsert member with `status: 'active'`, `left_at: null`
+5. On **leave**: Update member with `status: 'left'`, `left_at: timestamp`
+6. Return success
+
+---
+
+## Hook Updates: `useWorkshopParticipants`
+
+The hook will be updated to:
+
+1. **Initial load**: Query `workshop_group_members` for current state
+2. **Sync on first load**: If table is empty for this group, fetch from VPS and populate
+3. **Realtime subscription**: Subscribe to changes on `workshop_group_members`
+4. **Calculate stats**: 
+   - `inGroup` = members with `status: 'active'`
+   - `leftGroup` = members with `status: 'left'`
+   - Compare against registered leads for `missing`
+
+---
+
+## UI Updates: `WorkshopDetail.tsx`
+
+### New Stat Card: "Left Group"
+
+Shows count of people who joined but then left.
+
+### New Tab: "Left Group"
+
+Shows table of members who left with:
+- Name (matched from leads if registered)
+- Phone
+- Joined Date
+- Left Date
+- CSV Download
+
+### Updated Tab Structure
+
+```text
+[Missing (150)] [Left Group (50)] [In Group (300)] [Call Statistics] [WhatsApp]
 ```
 
 ---
 
-## Summary
+## Security Considerations
 
-| Component | Description |
-|-----------|-------------|
-| **New Route** | `/workshops/:workshopId` → Workshop Detail page |
-| **VPS Action** | `get-participants` to fetch group members |
-| **Real-time** | 30-second polling for live updates |
-| **Download** | CSV export of missing members |
-| **Navigation** | Click workshop row → Navigate to detail page |
+### Webhook Authentication
 
+The VPS should include an API key header that matches the `WHATSAPP_VPS_API_KEY` secret:
+
+```typescript
+// In webhook edge function
+const apiKey = req.headers.get('X-API-Key');
+const expectedKey = Deno.env.get('WHATSAPP_VPS_API_KEY');
+
+if (apiKey !== expectedKey) {
+  return new Response('Unauthorized', { status: 401 });
+}
+```
+
+### RLS Policies
+
+Members can only see group membership for their own organization's groups.
+
+---
+
+## Implementation Order
+
+1. **Database migration**: Create `workshop_group_members` table with RLS and realtime
+2. **Edge function**: Create `whatsapp-membership-webhook` to receive VPS events
+3. **Update hook**: Modify `useWorkshopParticipants` to use database + realtime
+4. **Update UI**: Add "Left Group" card and tab to `WorkshopDetail.tsx`
+5. **Deploy and test**: Verify webhook receives events and UI updates in real-time
+
+---
+
+## Testing Plan
+
+Once implemented:
+1. Open the workshop detail page
+2. Have someone join the WhatsApp group
+3. Watch the "In WhatsApp Group" count increase instantly
+4. Have someone leave the group
+5. Watch "In WhatsApp Group" decrease and "Left Group" increase
+6. Check the "Left Group" tab shows who left and when
+
+---
+
+## VPS Developer Note
+
+Your VPS should include authentication when calling the webhook:
+
+```typescript
+// When sending webhook to CRM
+const response = await fetch(
+  'https://swnpxkovxhinxzprxviz.supabase.co/functions/v1/whatsapp-membership-webhook',
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': process.env.CRM_API_KEY // Should match WHATSAPP_VPS_API_KEY
+    },
+    body: JSON.stringify({
+      event: 'join', // or 'leave'
+      sessionId: 'wa_xxx',
+      groupJid: '120363xxx@g.us',
+      participant: { phone: '919818861043', id: '...' },
+      timestamp: new Date().toISOString()
+    })
+  }
+);
+```
