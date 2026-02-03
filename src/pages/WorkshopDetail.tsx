@@ -119,17 +119,17 @@ const WorkshopDetail = () => {
   const sessionId = whatsappGroup?.session_id;
   const groupJid = whatsappGroup?.group_jid;
 
-  // Fetch participants comparison
+  // Fetch participants comparison (now from database, not VPS polling)
   const { 
     data: participantsData, 
     isLoading: participantsLoading, 
-    refetch: refetchParticipants,
-    isRefetching 
+    syncMembers,
+    isSyncing 
   } = useWorkshopParticipants(
     workshopId || '',
     sessionId,
     groupJid,
-    !!sessionId && !!groupJid
+    !!groupJid // Only enabled if we have a group JID
   );
 
   // Filter missing members by search
@@ -255,9 +255,8 @@ const WorkshopDetail = () => {
     setCallsDialogOpen(true);
   };
 
-  const handleRefresh = () => {
-    refetchParticipants();
-    toast.success("Refreshing participant data...");
+  const handleSyncMembers = () => {
+    syncMembers();
   };
 
   // Loading states
@@ -390,7 +389,7 @@ const WorkshopDetail = () => {
                       participantsData?.totalInGroup || 0
                     )}
                   </p>
-                  {isRefetching && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                  {isSyncing && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
                 </div>
                 <p className="text-xs text-muted-foreground">In Group</p>
               </div>
@@ -478,11 +477,11 @@ const WorkshopDetail = () => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={handleRefresh}
-                    disabled={isRefetching}
+                    onClick={handleSyncMembers}
+                    disabled={isSyncing}
                   >
-                    <RefreshCw className={`h-4 w-4 mr-1 ${isRefetching ? 'animate-spin' : ''}`} />
-                    Refresh
+                    <RefreshCw className={`h-4 w-4 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'Syncing...' : 'Sync Members'}
                   </Button>
                 </div>
               </div>
