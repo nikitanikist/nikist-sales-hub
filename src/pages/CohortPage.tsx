@@ -770,9 +770,13 @@ const CohortPage = () => {
                       {batch.status}
                     </Badge>
                   </div>
-                  {batch.event_dates && (
-                    <CardDescription>{batch.event_dates}</CardDescription>
-                  )}
+                  <CardDescription>
+                    {batch.event_dates && batch.event_dates.trim()
+                      ? batch.event_dates
+                      : batch.start_date
+                        ? format(new Date(batch.start_date), "dd MMM yyyy")
+                        : "TBD"}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center text-sm text-muted-foreground">
@@ -922,7 +926,13 @@ const CohortPage = () => {
           </Button>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">{selectedBatch.name}</h1>
-            <p className="text-sm text-muted-foreground">Event Dates: {selectedBatch.event_dates || "TBD"}</p>
+            <p className="text-sm text-muted-foreground">
+              Event Dates: {selectedBatch.event_dates && selectedBatch.event_dates.trim()
+                ? selectedBatch.event_dates
+                : selectedBatch.start_date
+                  ? format(new Date(selectedBatch.start_date), "dd MMM yyyy")
+                  : "TBD"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
