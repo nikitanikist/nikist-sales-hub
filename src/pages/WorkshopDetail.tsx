@@ -16,6 +16,7 @@ import {
   UserCheck, 
   UserX, 
   UserMinus,
+  UserPlus,
   TrendingUp, 
   RefreshCw, 
   Download, 
@@ -24,7 +25,8 @@ import {
   Phone,
   MessageSquare,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  UsersRound
 } from "lucide-react";
 import { format } from "date-fns";
 import { useOrgTimezone } from "@/hooks/useOrgTimezone";
@@ -62,6 +64,7 @@ const WorkshopDetail = () => {
   const { format: formatOrg } = useOrgTimezone();
   const [searchQuery, setSearchQuery] = useState("");
   const [leftSearchQuery, setLeftSearchQuery] = useState("");
+  const [unregisteredSearchQuery, setUnregisteredSearchQuery] = useState("");
   const [callsDialogOpen, setCallsDialogOpen] = useState(false);
   const [selectedCallCategory, setSelectedCallCategory] = useState<CallCategory>("converted");
 
@@ -152,6 +155,16 @@ const WorkshopDetail = () => {
     );
   }, [participantsData?.leftGroup, leftSearchQuery]);
 
+  // Filter unregistered members by search
+  const filteredUnregistered = useMemo(() => {
+    if (!participantsData?.unregistered) return [];
+    const query = unregisteredSearchQuery.toLowerCase();
+    return participantsData.unregistered.filter(member => 
+      member.phone?.includes(query) ||
+      member.fullPhone?.includes(query)
+    );
+  }, [participantsData?.unregistered, unregisteredSearchQuery]);
+
   // Download CSV of missing members
   const downloadMissingCSV = () => {
     if (!participantsData?.missing || participantsData.missing.length === 0) {
@@ -209,6 +222,32 @@ const WorkshopDetail = () => {
     URL.revokeObjectURL(url);
     
     toast.success(`Downloaded ${participantsData.leftGroup.length} left group members`);
+  };
+
+  // Download CSV of unregistered members
+  const downloadUnregisteredCSV = () => {
+    if (!participantsData?.unregistered || participantsData.unregistered.length === 0) {
+      toast.error("No unregistered members to download");
+      return;
+    }
+
+    const headers = ['Phone'];
+    const rows = participantsData.unregistered.map(m => [
+      m.fullPhone || m.phone || ''
+    ]);
+
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `unregistered-members-${workshop?.title || 'workshop'}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success(`Downloaded ${participantsData.unregistered.length} unregistered members`);
   };
 
   const openCallsDialog = (category: CallCategory) => {
@@ -301,7 +340,27 @@ const WorkshopDetail = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-muted">
+                <UsersRound className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">
+                  {participantsLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    participantsData?.totalInGroupRaw || 0
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">Total in Group</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -310,7 +369,7 @@ const WorkshopDetail = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{participantsData?.totalRegistered || metrics?.registration_count || 0}</p>
-                <p className="text-xs text-muted-foreground">Total Registered</p>
+                <p className="text-xs text-muted-foreground">Registered</p>
               </div>
             </div>
           </CardContent>
@@ -333,7 +392,7 @@ const WorkshopDetail = () => {
                   </p>
                   {isRefetching && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
                 </div>
-                <p className="text-xs text-muted-foreground">In WhatsApp Group</p>
+                <p className="text-xs text-muted-foreground">In Group</p>
               </div>
             </div>
           </CardContent>
@@ -353,7 +412,7 @@ const WorkshopDetail = () => {
                     participantsData?.totalMissing || 0
                   )}
                 </p>
-                <p className="text-xs text-muted-foreground">Missing from Group</p>
+                <p className="text-xs text-muted-foreground">Missing</p>
               </div>
             </div>
           </CardContent>
@@ -362,18 +421,18 @@ const WorkshopDetail = () => {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-secondary">
-                <UserMinus className="h-5 w-5 text-secondary-foreground" />
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <UserPlus className="h-5 w-5 text-amber-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-secondary-foreground">
+                <p className="text-2xl font-bold text-amber-600">
                   {participantsLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    participantsData?.totalLeftGroup || 0
+                    participantsData?.totalUnregistered || 0
                   )}
                 </p>
-                <p className="text-xs text-muted-foreground">Left Group</p>
+                <p className="text-xs text-muted-foreground">Unregistered</p>
               </div>
             </div>
           </CardContent>
@@ -468,6 +527,13 @@ const WorkshopDetail = () => {
             Left Group
             {participantsData?.totalLeftGroup ? (
               <Badge variant="secondary" className="ml-1">{participantsData.totalLeftGroup}</Badge>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="unregistered" className="flex items-center gap-2">
+            <UserPlus className="h-4 w-4" />
+            Unregistered
+            {participantsData?.totalUnregistered ? (
+              <Badge variant="secondary" className="ml-1">{participantsData.totalUnregistered}</Badge>
             ) : null}
           </TabsTrigger>
           <TabsTrigger value="stats" className="flex items-center gap-2">
@@ -615,6 +681,69 @@ const WorkshopDetail = () => {
                         <TableCell className="text-muted-foreground">
                           {member.left_at ? format(new Date(member.left_at), 'MMM dd, yyyy HH:mm') : 'N/A'}
                         </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Unregistered Members Tab */}
+        <TabsContent value="unregistered" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg">Unregistered Members</CardTitle>
+                  <CardDescription>
+                    People in the WhatsApp group who didn't register (admins excluded)
+                  </CardDescription>
+                </div>
+                <Button 
+                  onClick={downloadUnregisteredCSV} 
+                  disabled={!participantsData?.unregistered?.length}
+                  variant="outline"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download CSV
+                </Button>
+              </div>
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by phone..."
+                  value={unregisteredSearchQuery}
+                  onChange={(e) => setUnregisteredSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {participantsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : !hasWhatsAppGroup ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Link a WhatsApp group to see unregistered members
+                </div>
+              ) : filteredUnregistered.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {unregisteredSearchQuery ? "No matching members found" : "All group members are registered! 🎉"}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Phone Number</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUnregistered.map((member) => (
+                      <TableRow key={member.id}>
+                        <TableCell className="font-medium">{member.fullPhone || member.phone || 'N/A'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

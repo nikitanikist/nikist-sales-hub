@@ -35,17 +35,27 @@ interface LeftMember {
   email?: string;
 }
 
+interface UnregisteredMember {
+  id: string;
+  phone: string;
+  fullPhone: string;
+  isAdmin: boolean;
+}
+
 interface WorkshopParticipantsData {
   registered: RegisteredLead[];
   inGroup: RegisteredLead[];
   missing: RegisteredLead[];
   leftGroup: LeftMember[];
+  unregistered: UnregisteredMember[];
   groupMembers: Participant[];
   joinRate: number;
   totalRegistered: number;
   totalInGroup: number;
   totalMissing: number;
   totalLeftGroup: number;
+  totalInGroupRaw: number;
+  totalUnregistered: number;
   groupName: string | null;
   lastSynced: Date;
 }
@@ -185,23 +195,31 @@ export function useWorkshopParticipants(
           inGroup: [],
           missing: registeredLeads,
           leftGroup: leftWithLeadInfo,
+          unregistered: [],
           groupMembers: [],
           joinRate: 0,
           totalRegistered: registeredLeads.length,
           totalInGroup: 0,
           totalMissing: registeredLeads.length,
           totalLeftGroup: leftWithLeadInfo.length,
+          totalInGroupRaw: 0,
+          totalUnregistered: 0,
           groupName: null,
           lastSynced: new Date(),
         };
       }
 
-      // 4. Create a set of normalized phone numbers from VPS participants
+      // 4. Create a set of normalized phone numbers from registered leads
+      const registeredPhoneSet = new Set(
+        registeredLeads.map(l => normalizePhone(l.phone))
+      );
+
+      // 5. Create a set of normalized phone numbers from VPS participants
       const groupPhoneSet = new Set(
         vpsData.participants.map(p => normalizePhone(p.phone))
       );
 
-      // 5. Compare registered leads against group members
+      // 6. Compare registered leads against group members
       const inGroup: RegisteredLead[] = [];
       const missing: RegisteredLead[] = [];
 
@@ -214,22 +232,44 @@ export function useWorkshopParticipants(
         }
       }
 
-      // 6. Calculate join rate
+      // 7. Find unregistered members (in VPS but not in leads, excluding admins)
+      const unregistered: UnregisteredMember[] = vpsData.participants
+        .filter(p => {
+          // Exclude admins
+          if (p.isAdmin || p.isSuperAdmin) return false;
+          // Check if NOT in registered leads
+          const normalizedPhone = normalizePhone(p.phone);
+          return normalizedPhone && !registeredPhoneSet.has(normalizedPhone);
+        })
+        .map(p => ({
+          id: p.id,
+          phone: normalizePhone(p.phone),
+          fullPhone: p.phone,
+          isAdmin: p.isAdmin,
+        }));
+
+      // 8. Calculate join rate
       const joinRate = registeredLeads.length > 0 
         ? (inGroup.length / registeredLeads.length) * 100 
         : 0;
+
+      // 9. Total in group (raw count from VPS including admins)
+      const totalInGroupRaw = vpsData.participants.length;
 
       return {
         registered: registeredLeads,
         inGroup,
         missing,
         leftGroup: leftWithLeadInfo,
+        unregistered,
         groupMembers: vpsData.participants,
         joinRate,
         totalRegistered: registeredLeads.length,
         totalInGroup: inGroup.length,
         totalMissing: missing.length,
         totalLeftGroup: leftWithLeadInfo.length,
+        totalInGroupRaw,
+        totalUnregistered: unregistered.length,
         groupName: vpsData.groupName,
         lastSynced: new Date(),
       };
