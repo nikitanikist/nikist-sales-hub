@@ -1,120 +1,55 @@
 
+# Fix All Closer Calls Page - Closer Dropdown
 
-# Fix: Track Announcement Group Instead of Community Parent
+## Summary
+Replace the direct `user_roles` table query with the existing `useOrgClosers` hook to fix the empty closer dropdown caused by the new RLS policy.
 
-## Problem Summary
+## What's Happening
+The closer filter dropdown on the All Closer Calls page is empty for non-super-admin users because it directly queries the `user_roles` table, which now restricts visibility due to recent security hardening.
 
-When a WhatsApp Community is created, WhatsApp automatically creates **two groups**:
+## The Fix
+Use the existing `useOrgClosers` hook that already queries `organization_members` instead of `user_roles`.
 
-| Type | JID | Purpose |
-|------|-----|---------|
-| **Community Parent** | `120363407568201755@g.us` | Container for admins only |
-| **Announcement Group** | `120363407019330416@g.us` | Where members actually join |
+---
 
-The CRM is currently storing the **Community Parent JID** but members join the **Announcement Group**. This causes the member count to show 2-3 (admins only) instead of 91+ (actual members).
+## Technical Details
 
-## Current State
+### File to Modify
+`src/pages/AllCloserCalls.tsx`
 
-- **Workshop**: Crypto Wealth Masterclass (Sh1) <> 5TH February (`2a81de7e-a980-4379-b9bc-5250a1f91222`)
-- **Currently Linked Group**: `120363407568201755@g.us` (Community Parent, 2 members)
-- **Correct Group**: `120363407019330416@g.us` (Announcement Group, 91+ members) — not yet in database
+### Changes Required
 
-## Solution
+1. **Add import for the hook** (around line 27):
+   ```typescript
+   import { useOrgClosers } from "@/hooks/useOrgClosers";
+   ```
 
-### Part 1: Immediate Database Fix
+2. **Replace the closers query** (lines 305-326):
+   
+   **Current code (broken):**
+   ```typescript
+   const { data: closers } = useQuery({
+     queryKey: ["all-closers-dropdown"],
+     queryFn: async () => {
+       const { data: userRoles, error: rolesError } = await supabase
+         .from("user_roles")
+         .select("user_id")
+         .eq("role", "sales_rep");
+       // ... profiles query
+     },
+   });
+   ```
 
-**Step 1**: Insert the announcement group into `whatsapp_groups` table
+   **Replace with:**
+   ```typescript
+   const { data: closers } = useOrgClosers();
+   ```
 
-```sql
-INSERT INTO whatsapp_groups (
-  organization_id, 
-  session_id, 
-  group_jid, 
-  group_name, 
-  is_active, 
-  is_admin, 
-  participant_count
-)
-SELECT 
-  organization_id,
-  session_id,
-  '120363407019330416@g.us',
-  group_name,  -- Same name as workshop, no suffix
-  true,
-  true,
-  91
-FROM whatsapp_groups 
-WHERE group_jid = '120363407568201755@g.us';
-```
+### Why This Works
+- The `useOrgClosers` hook queries `organization_members` which has proper RLS allowing authenticated users to see members of their organization
+- It's already scoped to the current organization (multi-tenant safe)
+- Returns the same data structure (`id`, `full_name`) needed by the dropdown
+- Follows existing project patterns for organization-scoped data
 
-**Step 2**: Update workshop to link to the new announcement group
-
-```sql
-UPDATE workshops 
-SET 
-  community_group_id = (SELECT id FROM whatsapp_groups WHERE group_jid = '120363407019330416@g.us'),
-  whatsapp_group_id = (SELECT id FROM whatsapp_groups WHERE group_jid = '120363407019330416@g.us')
-WHERE id = '2a81de7e-a980-4379-b9bc-5250a1f91222';
-```
-
-**Step 3**: Update junction table if exists
-
-```sql
-UPDATE workshop_whatsapp_groups 
-SET group_id = (SELECT id FROM whatsapp_groups WHERE group_jid = '120363407019330416@g.us')
-WHERE workshop_id = '2a81de7e-a980-4379-b9bc-5250a1f91222';
-```
-
-### Part 2: Long-Term Fix in Edge Function
-
-Update `supabase/functions/create-whatsapp-community/index.ts` to store the **announcement group JID** instead of the community parent.
-
-#### Changes at Line ~256-269
-
-**Current code stores community parent:**
-```typescript
-group_jid: vpsResult.groupId,  // ← Community parent
-```
-
-**Updated code stores announcement group:**
-```typescript
-// Use announcement group JID (where members join) instead of community parent
-const trackingGroupJid = vpsResult.announcementGroupId || vpsResult.groupId;
-
-console.log(`Community parent: ${vpsResult.groupId}`);
-console.log(`Announcement group (tracked): ${trackingGroupJid}`);
-
-// In the insert:
-group_jid: trackingGroupJid,  // ← Now stores announcement group
-```
-
-#### Changes at Response (~Line 318)
-
-Add both JIDs to the response for transparency:
-```typescript
-groupJid: trackingGroupJid,
-communityParentJid: vpsResult.groupId,
-announcementGroupJid: vpsResult.announcementGroupId,
-```
-
-## Result After Fix
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Tracked JID | Community parent | Announcement group |
-| Member count | 2-3 (admins) | 91+ (actual members) |
-| Future workshops | Same issue | Works correctly |
-
-## Files Changed
-
-| File | Changes |
-|------|---------|
-| Database | Insert announcement group, update workshop linkage |
-| `supabase/functions/create-whatsapp-community/index.ts` | Use `announcementGroupId` as the tracked group |
-
-## Verification
-
-After deployment, the Workshop Detail page for "Crypto Wealth Masterclass (Sh1) <> 5TH February" should show:
-- **Total in Group**: 91+ (instead of 2-3)
-- **Join Rate**: ~70%+ (instead of ~2%)
-
+### No Other Changes Needed
+The rest of the component already works with the `closers` data structure returned by the hook since both return objects with `id` and `full_name` properties.
