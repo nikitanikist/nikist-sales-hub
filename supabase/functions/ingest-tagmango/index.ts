@@ -140,41 +140,61 @@ Deno.serve(async (req) => {
     eventId = eventData?.id || null;
     console.log('Created webhook event:', eventId);
 
-    // Validate required fields
+    // Validate required fields with strict format validation
     const errors: string[] = [];
     
+    // Name validation
     if (!payload.name || typeof payload.name !== 'string' || payload.name.trim().length === 0) {
       errors.push('name is required and must be a non-empty string');
+    } else if (payload.name.length > 100) {
+      errors.push('name must be less than 100 characters');
     }
-    if (!payload.email || typeof payload.email !== 'string' || !payload.email.includes('@')) {
-      errors.push('email is required and must be a valid email address');
+    
+    // Email validation with format check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!payload.email || typeof payload.email !== 'string') {
+      errors.push('email is required and must be a string');
+    } else if (!emailRegex.test(payload.email.trim())) {
+      errors.push('email must be a valid email address format');
+    } else if (payload.email.length > 255) {
+      errors.push('email must be less than 255 characters');
     }
     
     // Convert phone to string if it's a number
     const phoneValue = typeof payload.phone === 'number' ? String(payload.phone) : payload.phone;
     if (!phoneValue || phoneValue.trim().length === 0) {
       errors.push('phone is required and must be a non-empty string');
+    } else {
+      // Phone validation - extract digits only and validate length
+      const phoneDigits = phoneValue.replace(/\D/g, '');
+      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+        errors.push('phone must contain 10-15 digits');
+      }
     }
     
+    // Workshop name validation
     if (!payload.workshop_name || typeof payload.workshop_name !== 'string' || payload.workshop_name.trim().length === 0) {
       errors.push('workshop_name is required and must be a non-empty string');
+    } else if (payload.workshop_name.length > 255) {
+      errors.push('workshop_name must be less than 255 characters');
     }
+    
+    // Amount validation
     if (typeof payload.amount !== 'number' || payload.amount < 0) {
       errors.push('amount is required and must be a non-negative number');
+    } else if (payload.amount > 10000000) {
+      errors.push('amount must be less than 10,000,000');
     }
-
-    // Additional validation
-    if (payload.name && payload.name.length > 255) {
-      errors.push('name must be less than 255 characters');
+    
+    // UTM validation (optional fields but limit lengths)
+    if (payload['Utm Source'] && String(payload['Utm Source']).length > 100) {
+      errors.push('Utm Source must be less than 100 characters');
     }
-    if (payload.email && payload.email.length > 255) {
-      errors.push('email must be less than 255 characters');
+    if (payload['Utm Medium'] && String(payload['Utm Medium']).length > 100) {
+      errors.push('Utm Medium must be less than 100 characters');
     }
-    if (phoneValue && phoneValue.length > 20) {
-      errors.push('phone must be less than 20 characters');
-    }
-    if (payload.workshop_name && payload.workshop_name.length > 255) {
-      errors.push('workshop_name must be less than 255 characters');
+    if (payload['Utm Campaign'] && String(payload['Utm Campaign']).length > 100) {
+      errors.push('Utm Campaign must be less than 100 characters');
     }
 
     if (errors.length > 0) {
