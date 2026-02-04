@@ -251,14 +251,19 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
     // Step 4: Insert the new group into whatsapp_groups table
+    // Use announcement group JID (where members join) instead of community parent
+    const trackingGroupJid = vpsResult.announcementGroupId || vpsResult.groupId;
+
+    console.log(`Community parent: ${vpsResult.groupId}`);
+    console.log(`Announcement group (tracked): ${trackingGroupJid}`);
+
     const { data: newGroup, error: groupInsertError } = await supabase
       .from('whatsapp_groups')
       .insert({
         organization_id: orgId,
         session_id: org.community_session_id,
-        group_jid: vpsResult.groupId,
+        group_jid: trackingGroupJid,  // Store announcement group, not community parent
         group_name: workshopName,
         is_active: true,
         is_admin: true,
@@ -319,8 +324,9 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         groupId: newGroup.id,
-        groupJid: vpsResult.groupId,
-        communityId: vpsResult.communityId || vpsResult.groupId,
+        groupJid: trackingGroupJid,  // The tracked announcement group
+        communityParentJid: vpsResult.groupId,  // Keep for reference
+        announcementGroupJid: vpsResult.announcementGroupId,  // Explicit for clarity
         groupName: workshopName,
         inviteLink: vpsResult.inviteLink,
         adminInvitesSent: vpsResult.adminInvitesSent || false,
