@@ -27,6 +27,59 @@ const ALL_PERMISSIONS = [
   'batch_high_future', 'workshops', 'sales', 'funnels', 'products', 'users'
 ];
 
+// Helper function to validate user authentication and admin role
+// deno-lint-ignore no-explicit-any
+async function validateAdminAccess(
+  req: Request, 
+  supabaseAdmin: any,
+  organizationId?: string
+): Promise<{ valid: boolean; error?: string; userId?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { valid: false, error: 'Missing or invalid authorization header' };
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  
+  // Verify the JWT token
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  
+  if (authError || !user) {
+    return { valid: false, error: 'Invalid or expired token' };
+  }
+
+  // Check for super admin first
+  const { data: superAdmin } = await supabaseAdmin
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('role', 'super_admin')
+    .maybeSingle();
+  
+  if (superAdmin) {
+    return { valid: true, userId: user.id };
+  }
+
+  // Check if user has admin/manager role in the target organization
+  let query = supabaseAdmin
+    .from('organization_members')
+    .select('role, is_org_admin')
+    .eq('user_id', user.id)
+    .or('role.eq.admin,role.eq.manager,is_org_admin.eq.true');
+  
+  if (organizationId) {
+    query = query.eq('organization_id', organizationId);
+  }
+
+  const { data: membership, error: memberError } = await query.limit(1).maybeSingle();
+
+  if (memberError || !membership) {
+    return { valid: false, error: 'Unauthorized: Admin or manager access required for this organization' };
+  }
+
+  return { valid: true, userId: user.id };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -34,6 +87,18 @@ serve(async (req) => {
   }
 
   try {
+    // Create Supabase admin client first for auth validation
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+
     const { 
       action, 
       user_id, 
@@ -48,19 +113,16 @@ serve(async (req) => {
       is_org_admin 
     } = await req.json();
 
-    console.log(`manage-users called with action: ${action}, org_id: ${organization_id}`);
+    // Validate authentication and admin access
+    const authResult = await validateAdminAccess(req, supabaseAdmin, organization_id);
+    if (!authResult.valid) {
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    );
+    console.log(`manage-users called with action: ${action}, org_id: ${organization_id}, by user: ${authResult.userId}`);
 
     if (action === 'create') {
       // Validate required fields

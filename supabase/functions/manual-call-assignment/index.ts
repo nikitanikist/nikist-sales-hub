@@ -6,6 +6,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to validate user authentication
+// deno-lint-ignore no-explicit-any
+async function validateAuth(req: Request, supabase: any): Promise<{ valid: boolean; error?: string; userId?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { valid: false, error: 'Missing or invalid authorization header' };
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  
+  if (authError || !user) {
+    return { valid: false, error: 'Invalid or expired token' };
+  }
+
+  // Verify user is a member of at least one organization
+  const { data: membership, error: memberError } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (memberError || !membership) {
+    return { valid: false, error: 'Unauthorized: User is not a member of any organization' };
+  }
+
+  return { valid: true, userId: user.id };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -17,9 +47,18 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Validate authentication
+    const authResult = await validateAuth(req, supabase);
+    if (!authResult.valid) {
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { lead_id, closer_id, scheduled_date, scheduled_time, zoom_link } = await req.json();
 
-    console.log('Manual call assignment request:', { lead_id, closer_id, scheduled_date, scheduled_time, zoom_link });
+    console.log('Manual call assignment request:', { lead_id, closer_id, scheduled_date, scheduled_time, zoom_link, requestedBy: authResult.userId });
 
     // Validate required fields
     if (!lead_id || !closer_id || !scheduled_date || !scheduled_time) {

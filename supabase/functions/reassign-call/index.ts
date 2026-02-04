@@ -6,6 +6,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// deno-lint-ignore no-explicit-any
+async function validateAuth(req: Request, supabase: any): Promise<{ valid: boolean; error?: string; userId?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { valid: false, error: 'Missing or invalid authorization header' };
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+  
+  if (authError || !user) {
+    return { valid: false, error: 'Invalid or expired token' };
+  }
+
+  // Verify user is a member of at least one organization
+  const { data: membership, error: memberError } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (memberError || !membership) {
+    return { valid: false, error: 'Unauthorized: User is not a member of any organization' };
+  }
+
+  return { valid: true, userId: user.id };
+}
+
 // Template for booking confirmation
 const BOOKING_TEMPLATE = '1_to_1_call_booking_crypto_nikist_video';
 const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
@@ -392,9 +421,18 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Validate authentication
+    const authResult = await validateAuth(req, supabase);
+    if (!authResult.valid) {
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { appointment_id, new_closer_id, new_date, new_time } = await req.json();
 
-    console.log('Reassign call request:', { appointment_id, new_closer_id, new_date, new_time });
+    console.log('Reassign call request:', { appointment_id, new_closer_id, new_date, new_time, requestedBy: authResult.userId });
 
     // Validate required fields
     if (!appointment_id || !new_closer_id || !new_date || !new_time) {
