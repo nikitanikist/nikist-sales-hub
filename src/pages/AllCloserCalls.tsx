@@ -25,6 +25,7 @@ import { RebookCallDialog } from "@/components/RebookCallDialog";
 import { ReassignCallDialog } from "@/components/ReassignCallDialog";
 import { UpdateEmiDialog } from "@/components/UpdateEmiDialog";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useOrgClosers } from "@/hooks/useOrgClosers";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { PageIntro } from "@/components/PageIntro";
@@ -302,28 +303,8 @@ const AllCloserCalls = () => {
     enabled: !!currentOrganization,
   });
 
-  // Fetch all closers for filter dropdown
-  const { data: closers } = useQuery({
-    queryKey: ["all-closers-dropdown"],
-    queryFn: async () => {
-      const { data: userRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "sales_rep");
-
-      if (rolesError) throw rolesError;
-
-      const userIds = userRoles.map(ur => ur.user_id);
-
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", userIds);
-
-      if (profilesError) throw profilesError;
-      return profiles;
-    },
-  });
+  // Fetch all closers for filter dropdown (organization-scoped)
+  const { data: closers } = useOrgClosers();
 
   const { isAdmin, isManager } = useUserRole();
 
