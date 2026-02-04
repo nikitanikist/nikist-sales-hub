@@ -6,6 +6,49 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to validate user authentication and admin role
+// deno-lint-ignore no-explicit-any
+async function validateAdminAccess(req: Request, supabaseAdmin: any): Promise<{ valid: boolean; error?: string; userId?: string }> {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return { valid: false, error: 'Missing or invalid authorization header' };
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+  
+  // Verify the JWT token
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+  
+  if (authError || !user) {
+    return { valid: false, error: 'Invalid or expired token' };
+  }
+
+  // Check if user has admin role in any organization
+  const { data: membership, error: memberError } = await supabaseAdmin
+    .from('organization_members')
+    .select('role, is_org_admin')
+    .eq('user_id', user.id)
+    .or('role.eq.admin,is_org_admin.eq.true')
+    .limit(1)
+    .maybeSingle();
+
+  if (memberError || !membership) {
+    // Also check for super admin
+    const { data: superAdmin } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'super_admin')
+      .maybeSingle();
+    
+    if (!superAdmin) {
+      return { valid: false, error: 'Unauthorized: Admin access required' };
+    }
+  }
+
+  return { valid: true, userId: user.id };
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -13,6 +56,27 @@ serve(async (req) => {
   }
 
   try {
+    // Create Supabase admin client first for auth validation
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+
+    // Validate authentication and admin access
+    const authResult = await validateAdminAccess(req, supabaseAdmin);
+    if (!authResult.valid) {
+      return new Response(
+        JSON.stringify({ error: authResult.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { email, full_name, role = 'sales_rep' } = await req.json();
 
     // Validate required fields
@@ -34,19 +98,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Creating closer: ${full_name} (${email}) with role: ${role}`);
-
-    // Create Supabase admin client
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    );
+    console.log(`Creating closer: ${full_name} (${email}) with role: ${role} - requested by user: ${authResult.userId}`);
 
     // Check if user already exists
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
