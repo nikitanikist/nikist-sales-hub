@@ -83,15 +83,22 @@ const WorkshopDetail = () => {
 
       if (workshopErr) throw workshopErr;
       
-      // Then fetch linked WhatsApp group if exists
+      // Fetch linked WhatsApp group from junction table (source of truth)
       let whatsappGroup = null;
-      if (workshopData.whatsapp_group_id) {
-        const { data: groupData } = await supabase
-          .from("whatsapp_groups")
-          .select("id, group_jid, group_name, session_id")
-          .eq("id", workshopData.whatsapp_group_id)
-          .single();
-        whatsappGroup = groupData;
+      const { data: linkedGroup } = await supabase
+        .from("workshop_whatsapp_groups")
+        .select(`
+          group_id,
+          whatsapp_groups!inner (
+            id, group_jid, group_name, session_id
+          )
+        `)
+        .eq("workshop_id", workshopId)
+        .limit(1)
+        .maybeSingle();
+
+      if (linkedGroup?.whatsapp_groups) {
+        whatsappGroup = linkedGroup.whatsapp_groups;
       }
 
       return { ...workshopData, whatsapp_group: whatsappGroup };
