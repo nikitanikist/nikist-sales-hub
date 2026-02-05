@@ -1,55 +1,64 @@
 
-# Fix All Closer Calls Page - Closer Dropdown
+# Fix Workshop WhatsApp Group Display
 
-## Summary
-Replace the direct `user_roles` table query with the existing `useOrgClosers` hook to fix the empty closer dropdown caused by the new RLS policy.
+## Problem
+The "6TH February" workshop shows "No WhatsApp Group Linked" even though there IS a WhatsApp group connected via the `workshop_whatsapp_groups` junction table.
 
-## What's Happening
-The closer filter dropdown on the All Closer Calls page is empty for non-super-admin users because it directly queries the `user_roles` table, which now restricts visibility due to recent security hardening.
+**Root Cause:** The `WorkshopDetail.tsx` page checks the legacy `workshops.whatsapp_group_id` column (which is `null`) instead of querying the junction table where the relationship actually exists.
 
-## The Fix
-Use the existing `useOrgClosers` hook that already queries `organization_members` instead of `user_roles`.
+## Data Evidence
+- Workshop `bb58389d-e0eb-4314-ab06-87d54710f555` has `whatsapp_group_id: null`
+- Junction table `workshop_whatsapp_groups` HAS a record linking this workshop to group `e48205e7-4d36-4d4d-ae00-606ded577683` with JID `120363405847177268@g.us`
+
+## Solution
+Update the workshop detail query to fetch WhatsApp group(s) from the junction table instead of the legacy column.
 
 ---
 
 ## Technical Details
 
 ### File to Modify
-`src/pages/AllCloserCalls.tsx`
+`src/pages/WorkshopDetail.tsx`
 
-### Changes Required
+### Change Required (Lines 74-98)
+Replace the current query that checks `workshopData.whatsapp_group_id`:
 
-1. **Add import for the hook** (around line 27):
-   ```typescript
-   import { useOrgClosers } from "@/hooks/useOrgClosers";
-   ```
+```typescript
+// Current (broken):
+let whatsappGroup = null;
+if (workshopData.whatsapp_group_id) {
+  const { data: groupData } = await supabase
+    .from("whatsapp_groups")
+    .select("id, group_jid, group_name, session_id")
+    .eq("id", workshopData.whatsapp_group_id)
+    .single();
+  whatsappGroup = groupData;
+}
+```
 
-2. **Replace the closers query** (lines 305-326):
-   
-   **Current code (broken):**
-   ```typescript
-   const { data: closers } = useQuery({
-     queryKey: ["all-closers-dropdown"],
-     queryFn: async () => {
-       const { data: userRoles, error: rolesError } = await supabase
-         .from("user_roles")
-         .select("user_id")
-         .eq("role", "sales_rep");
-       // ... profiles query
-     },
-   });
-   ```
+With a query that uses the junction table:
 
-   **Replace with:**
-   ```typescript
-   const { data: closers } = useOrgClosers();
-   ```
+```typescript
+// Fixed:
+let whatsappGroup = null;
+const { data: linkedGroup } = await supabase
+  .from("workshop_whatsapp_groups")
+  .select(`
+    group_id,
+    whatsapp_groups!inner (
+      id, group_jid, group_name, session_id
+    )
+  `)
+  .eq("workshop_id", workshopId)
+  .limit(1)
+  .maybeSingle();
+
+if (linkedGroup?.whatsapp_groups) {
+  whatsappGroup = linkedGroup.whatsapp_groups;
+}
+```
 
 ### Why This Works
-- The `useOrgClosers` hook queries `organization_members` which has proper RLS allowing authenticated users to see members of their organization
-- It's already scoped to the current organization (multi-tenant safe)
-- Returns the same data structure (`id`, `full_name`) needed by the dropdown
-- Follows existing project patterns for organization-scoped data
-
-### No Other Changes Needed
-The rest of the component already works with the `closers` data structure returned by the hook since both return objects with `id` and `full_name` properties.
+- Uses the `workshop_whatsapp_groups` junction table (the source of truth)
+- Falls back gracefully if no group is linked
+- Maintains compatibility with rest of the component since it returns the same data structure
