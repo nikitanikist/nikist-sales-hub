@@ -1,53 +1,97 @@
 
 
-# Fix Workshop WhatsApp Group - Wrong JID Linked
+# Add Contact Details to Cohort Student Rows
 
-## Problem
-The "Sync Members" button fails with `item-not-found` because the workshop is linked to the **Community Parent JID** instead of the **Announcement Group JID**.
+## What Changes
+Show student email and phone number in the cohort batches tables (Insider Crypto Club, Future Mentorship, Hi Future) so you can easily identify students -- especially when two have the same name.
 
-**Evidence:**
-- Workshop linked to: `120363405847177268@g.us` (Community Parent - no participants accessible)
-- Correct group: `120363407949020306@g.us` (Announcement Group - has 184 participants)
+## Where Contact Info Will Appear
 
-Both groups have the same name "Crypto Wealth Masterclass (Sh1) <> 6TH February", but only the announcement group has queryable participants.
+### 1. Student Name Column (both desktop and mobile)
+- Below the student name, display the email in light gray text
+- Add a small copy icon next to it so you can quickly copy the email
 
-## Solution
+### 2. Expanded Row (when you click to expand)
+- Above the "EMI Payment History" heading, show both email and phone number
+- Each will have a copy button for quick copying
+- Displayed in a clean, compact layout
 
-### Part 1: Data Fix (Manual SQL)
-Update the junction table to point to the correct announcement group:
-
-```sql
-UPDATE workshop_whatsapp_groups 
-SET group_id = '4404c32d-8288-42be-9a05-036e7add8467'
-WHERE workshop_id = 'bb58389d-e0eb-4314-ab06-87d54710f555';
-```
-
-This immediately fixes the 6th February workshop.
-
-### Part 2: Verify Community Creation Logic
-The `create-whatsapp-community` edge function should already be storing the announcement group JID based on the memory context. If this workshop was created before that fix, that explains the wrong link.
-
-No code changes needed - just the data fix above.
+## No Logic Changes
+- The email and phone data is already being fetched from the database -- it just isn't displayed
+- No queries, mutations, or business logic will be modified
+- Only the rendering/display portion of the page changes
 
 ---
 
 ## Technical Details
 
-### Why This Happened
-When a WhatsApp Community is created, it generates:
-1. A **Community Parent JID** - used for the community structure
-2. An **Announcement Group JID** - where members actually join and messages are sent
+### File to Modify
+`src/pages/CohortPage.tsx`
 
-The workshop was linked to the parent JID (which cannot be queried for participants) instead of the announcement group JID (which contains the actual members).
+### Import Addition
+Add `Copy` icon from `lucide-react` and a small inline copy-to-clipboard handler using `navigator.clipboard`.
 
-### Database Records
-| Group ID | JID | Type |
-|----------|-----|------|
-| `e48205e7-...` | `120363405847177268@g.us` | Community Parent (wrong) |
-| `4404c32d-...` | `120363407949020306@g.us` | Announcement Group (correct) |
+### Change 1: Desktop Student Name Cell (around line 1481)
+Currently shows only the student name + PAE badge. Will add a second line below the name:
+```tsx
+<TableCell className="font-medium">
+  <div className="flex items-center gap-2">
+    {student.contact_name}
+    {/* ...existing PAE badge and notes icon... */}
+  </div>
+  {/* NEW: Email subtitle with copy */}
+  {student.email && (
+    <div className="flex items-center gap-1 mt-0.5">
+      <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+        {student.email}
+      </span>
+      <button onClick={(e) => { e.stopPropagation(); copyToClipboard(student.email); }}>
+        <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+      </button>
+    </div>
+  )}
+</TableCell>
+```
 
-### After the Fix
-- The workshop will be linked to the announcement group
-- "Sync Members" will work and show the 184 participants
-- Member tracking webhooks will function correctly
+### Change 2: Desktop Expanded Row (around line 1555)
+Add contact info block above "EMI Payment History":
+```tsx
+<div className="pl-8">
+  {/* NEW: Contact details */}
+  <div className="flex flex-wrap gap-4 mb-3 text-sm text-muted-foreground">
+    {student.email && (
+      <div className="flex items-center gap-1">
+        <span>Email: {student.email}</span>
+        <button onClick={() => copyToClipboard(student.email)}>
+          <Copy className="h-3.5 w-3.5 hover:text-foreground" />
+        </button>
+      </div>
+    )}
+    {student.phone && (
+      <div className="flex items-center gap-1">
+        <span>Phone: {student.phone}</span>
+        <button onClick={() => copyToClipboard(student.phone)}>
+          <Copy className="h-3.5 w-3.5 hover:text-foreground" />
+        </button>
+      </div>
+    )}
+  </div>
+  <h4 className="font-medium mb-3">EMI Payment History</h4>
+  {/* ...existing EMI table... */}
+</div>
+```
 
+### Change 3: Mobile Student Card (around line 1626)
+Add email below student name, same pattern as desktop.
+
+### Change 4: Mobile Expanded Section (around line 1715)
+Add contact details above "EMI Payment History" heading in the mobile expanded view.
+
+### Helper Function
+Add a simple `copyToClipboard` function that copies text and shows a toast confirmation:
+```tsx
+const copyToClipboard = (text: string) => {
+  navigator.clipboard.writeText(text);
+  toast({ title: "Copied", description: text, duration: 1500 });
+};
+```
