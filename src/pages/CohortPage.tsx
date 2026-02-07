@@ -15,7 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins, BarChart3, Eye, FolderOpen } from "lucide-react";
+import { GraduationCap, Plus, Edit, Trash2, Calendar, ArrowLeft, Users, Loader2, Search, Download, ChevronDown, ChevronRight, IndianRupee, Filter, X, MoreHorizontal, RefreshCcw, FileText, Pencil, HandCoins, BarChart3, Eye, FolderOpen, Copy } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
@@ -89,6 +89,11 @@ const CohortPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin, isManager } = useUserRole();
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied", description: text, duration: 1500 });
+  };
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
   
   // State
@@ -1496,6 +1501,18 @@ const CohortPage = () => {
                                       />
                                     )}
                                   </div>
+                                  {student.email && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">{student.email}</span>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); copyToClipboard(student.email); }}
+                                        className="flex-shrink-0 hover:text-foreground text-muted-foreground transition-colors"
+                                        title="Copy email"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  )}
                                 </TableCell>
                                 <TableCell>₹{student.offer_amount.toLocaleString('en-IN')}</TableCell>
                                 <TableCell className="text-green-600 dark:text-green-400">₹{student.cash_received.toLocaleString('en-IN')}</TableCell>
@@ -1553,6 +1570,24 @@ const CohortPage = () => {
                                 <TableRow className="bg-muted/30 hover:bg-muted/30">
                                   <TableCell colSpan={9} className="py-4">
                                     <div className="pl-8">
+                                      <div className="flex flex-wrap gap-4 mb-3 text-sm text-muted-foreground">
+                                        {student.email && (
+                                          <div className="flex items-center gap-1">
+                                            <span>Email: {student.email}</span>
+                                            <button onClick={() => copyToClipboard(student.email)} className="hover:text-foreground transition-colors" title="Copy email">
+                                              <Copy className="h-3.5 w-3.5" />
+                                            </button>
+                                          </div>
+                                        )}
+                                        {student.phone && (
+                                          <div className="flex items-center gap-1">
+                                            <span>Phone: {student.phone}</span>
+                                            <button onClick={() => copyToClipboard(student.phone!)} className="hover:text-foreground transition-colors" title="Copy phone">
+                                              <Copy className="h-3.5 w-3.5" />
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
                                       <h4 className="font-medium mb-3">EMI Payment History</h4>
                                       {emiLoading ? (
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1641,6 +1676,18 @@ const CohortPage = () => {
                                       />
                                     )}
                                   </div>
+                                  {student.email && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                      <span className="text-xs text-muted-foreground truncate">{student.email}</span>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); copyToClipboard(student.email); }}
+                                        className="flex-shrink-0 hover:text-foreground text-muted-foreground transition-colors"
+                                        title="Copy email"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  )}
                                   <p className="text-xs text-muted-foreground">{format(new Date(student.conversion_date), "dd MMM yyyy")}</p>
                                 </div>
                               </div>
@@ -1713,6 +1760,24 @@ const CohortPage = () => {
                           {/* Mobile Expanded EMI Section */}
                           {expandedStudentId === student.id && (
                             <div className="border-t bg-muted/30 p-4">
+                              <div className="flex flex-wrap gap-3 mb-3 text-xs text-muted-foreground">
+                                {student.email && (
+                                  <div className="flex items-center gap-1">
+                                    <span>Email: {student.email}</span>
+                                    <button onClick={() => copyToClipboard(student.email)} className="hover:text-foreground transition-colors" title="Copy email">
+                                      <Copy className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
+                                {student.phone && (
+                                  <div className="flex items-center gap-1">
+                                    <span>Phone: {student.phone}</span>
+                                    <button onClick={() => copyToClipboard(student.phone!)} className="hover:text-foreground transition-colors" title="Copy phone">
+                                      <Copy className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                               <h4 className="font-medium mb-3 text-sm">EMI Payment History</h4>
                               {emiLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
