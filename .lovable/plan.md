@@ -1,33 +1,31 @@
 
 
-# Fix Foreign Key Constraint on call_appointments.batch_id
+# Fix "Could not find relationship" Error
 
 ## Root Cause
 
-The `call_appointments` table has a foreign key constraint `call_appointments_batch_id_fkey` that references the **old `batches` table**. After updating the dropdown to use `cohort_batches`, the selected batch ID (e.g., Batch 4 from `cohort_batches`) does not exist in the old `batches` table, causing the constraint violation error.
+After the migration changed the foreign key from `batches` to `cohort_batches`, two queries in `CloserAssignedCalls.tsx` still use the old join syntax `batch:batches(id, name, start_date)`. PostgREST looks for a relationship to `batches` but the FK now points to `cohort_batches`, causing the error.
 
-## What Will Change
+## Changes
 
-### Database Migration
+### File: `src/pages/CloserAssignedCalls.tsx`
 
-A single migration to:
-1. **Drop** the existing foreign key `call_appointments_batch_id_fkey` (pointing to `batches`)
-2. **Add** a new foreign key `call_appointments_batch_id_fkey` pointing to `cohort_batches(id)`
+**1. Line 455** - Update the appointment fetch query join:
+- Change `batch:batches(id, name, start_date)` to `batch:cohort_batches(id, name)`
+- Remove `start_date` since `cohort_batches` doesn't have that column in the same way
 
-This is safe because:
-- Existing batch IDs (Batch 1, 2, 3) already exist in **both** `batches` and `cohort_batches` tables (they were migrated during the unified cohort system setup)
-- New batches (Batch 4+) only exist in `cohort_batches`
-- No other code or pages will be affected -- only this constraint changes
+**2. Line 612** - Update the post-save refetch query join:
+- Same change: `batch:batches(id, name, start_date)` to `batch:cohort_batches(id, name)`
 
-### No Code Changes
+**3. Lines 480-490 and 627-637** - Remove the fallback cohort_batches lookups:
+- These were added as workarounds for when the old `batches` join returned null. Now that the FK directly references `cohort_batches`, the join will always work and these fallbacks are unnecessary.
 
-The UI code from the previous edit already correctly queries `cohort_batches` and passes the right IDs. Only the database constraint needs updating.
+**4. Line 55** - Update the type definition:
+- Remove `start_date` from the batch type since we're now using `cohort_batches`
 
-## What Will NOT Be Touched
+## What Will NOT Change
 
-- No frontend code changes
-- No edge function changes
-- No other tables or constraints
-- AISensy integration remains untouched
-- All other pages continue working as before
-
+- No database changes needed (migration is already done)
+- No other files affected
+- Conversion sync logic stays the same
+- AISensy/notification logic untouched
