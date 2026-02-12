@@ -13,6 +13,7 @@ import { ModulesSettings } from "@/pages/settings/ModulesSettings";
 import { PabblyIntegration } from "@/pages/settings/PabblyIntegration";
 import { WhatsAppConnection } from "@/pages/settings/WhatsAppConnection";
 import { WorkshopNotificationSettings } from "@/pages/settings/WorkshopNotificationSettings";
+import { AISensySettings } from "@/pages/settings/AISensySettings";
 import { PageIntro } from "@/components/PageIntro";
 import { CloserAssignments } from "@/components/settings/CloserAssignments";
 
@@ -68,10 +69,11 @@ const OrganizationSettings = () => {
 
   // Group integrations by base type
   const groupedIntegrations = useMemo(() => {
-    const groups: Record<"zoom" | "calendly" | "whatsapp", Integration[]> = {
+    const groups: Record<"zoom" | "calendly" | "whatsapp" | "aisensy", Integration[]> = {
       zoom: [],
       calendly: [],
       whatsapp: [],
+      aisensy: [],
     };
 
     integrations?.forEach((integration) => {
@@ -80,6 +82,8 @@ const OrganizationSettings = () => {
         groups.zoom.push(integration);
       } else if (type.startsWith("calendly")) {
         groups.calendly.push(integration);
+      } else if (type.startsWith("aisensy")) {
+        groups.aisensy.push(integration);
       } else if (type.startsWith("whatsapp")) {
         groups.whatsapp.push(integration);
       }
@@ -245,7 +249,7 @@ const OrganizationSettings = () => {
         <TabsContent value="integrations" className="space-y-6">
           {/* Nested Tabs for Integration Types */}
           <Tabs defaultValue="zoom" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4 max-w-lg">
+            <TabsList className="grid w-full grid-cols-5 max-w-2xl">
               <TabsTrigger value="zoom" className="gap-2">
                 <Video className="h-4 w-4" />
                 Zoom
@@ -270,6 +274,15 @@ const OrganizationSettings = () => {
                 {groupedIntegrations.whatsapp.length > 0 && (
                   <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
                     {groupedIntegrations.whatsapp.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="aisensy" className="gap-2">
+                <MessageCircle className="h-4 w-4" />
+                AISensy
+                {groupedIntegrations.aisensy.length > 0 && (
+                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                    {groupedIntegrations.aisensy.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -301,6 +314,15 @@ const OrganizationSettings = () => {
 
             <TabsContent value="whatsapp">
               <WhatsAppConnection />
+            </TabsContent>
+
+            <TabsContent value="aisensy">
+              <AISensySettings
+                integrations={integrations || []}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                isSaving={saveMutation.isPending}
+              />
             </TabsContent>
 
             <TabsContent value="webhooks">

@@ -183,7 +183,9 @@ Deno.serve(async (req) => {
       .eq('organization_id', appointment.organization_id)
       .maybeSingle();
 
-    // If closer has specific integration, verify it's a Zoom one
+    // If closer has specific integration, verify it's a Zoom one and use its config
+    let zoomConfig: { account_id: string; client_id: string; client_secret: string };
+
     if (closerIntegration) {
       const { data: specificIntegration } = await supabase
         .from('organization_integrations')
@@ -196,9 +198,29 @@ Deno.serve(async (req) => {
       if (!specificIntegration) {
         throw new Error(`This closer does not have Zoom integration configured`);
       }
+      
+      const rawConfig = specificIntegration.config as Record<string, unknown>;
+      if (rawConfig.uses_env_secrets) {
+        zoomConfig = {
+          account_id: Deno.env.get(rawConfig.account_id_secret as string) || '',
+          client_id: Deno.env.get(rawConfig.client_id_secret as string) || '',
+          client_secret: Deno.env.get(rawConfig.client_secret_secret as string) || '',
+        };
+      } else {
+        zoomConfig = rawConfig as { account_id: string; client_id: string; client_secret: string };
+      }
+    } else {
+      const rawConfig = zoomIntegration.config as Record<string, unknown>;
+      if (rawConfig.uses_env_secrets) {
+        zoomConfig = {
+          account_id: Deno.env.get(rawConfig.account_id_secret as string) || '',
+          client_id: Deno.env.get(rawConfig.client_id_secret as string) || '',
+          client_secret: Deno.env.get(rawConfig.client_secret_secret as string) || '',
+        };
+      } else {
+        zoomConfig = rawConfig as { account_id: string; client_id: string; client_secret: string };
+      }
     }
-
-    const zoomConfig = zoomIntegration.config as { account_id: string; client_id: string; client_secret: string };
 
     // Get Zoom access token
     console.log('Getting Zoom access token...');

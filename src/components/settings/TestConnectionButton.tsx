@@ -5,7 +5,7 @@ import { Loader2, TestTube, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TestConnectionButtonProps {
-  integrationType: "zoom" | "calendly" | "whatsapp";
+  integrationType: "zoom" | "calendly" | "whatsapp" | "aisensy";
   config: Record<string, string>;
   organizationId?: string;
 }
@@ -60,7 +60,8 @@ export function TestConnectionButton({ integrationType, config, organizationId }
           break;
         }
         
-        case "whatsapp": {
+        case "whatsapp":
+        case "aisensy": {
           // Test AiSensy by checking if API key format is valid
           if (!config.api_key) {
             throw new Error("Missing AiSensy API key");
@@ -73,7 +74,7 @@ export function TestConnectionButton({ integrationType, config, organizationId }
           // AiSensy doesn't have a simple validation endpoint
           // We'll validate format and consider it valid
           isValid = true;
-          message = "WhatsApp credentials appear valid. Test by sending a message.";
+          message = "AISensy credentials appear valid. Test by sending a message.";
           break;
         }
         

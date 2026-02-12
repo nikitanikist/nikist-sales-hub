@@ -6,13 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Closers who should receive WhatsApp reminders
-const ENABLED_CLOSER_EMAILS = [
-  'nikistofficial@gmail.com',  // Dipanshu
-  'akanshanikist@gmail.com',   // Akansha
-  'aadeshnikist@gmail.com',    // Adesh
-];
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -36,7 +29,6 @@ serve(async (req) => {
 
     // Query pending reminders where reminder_time is due
     // Exclude 'call_booked' as it's handled immediately during scheduling
-    // Include appointment created_at to check if reminder was already past at booking time
     const { data: dueReminders, error: queryError } = await supabase
       .from('call_reminders')
       .select(`
@@ -46,7 +38,9 @@ serve(async (req) => {
         appointment:call_appointments(
           id,
           created_at,
-          closer:profiles!call_appointments_closer_id_fkey(email)
+          closer_id,
+          organization_id,
+          closer:profiles!call_appointments_closer_id_fkey(email, full_name)
         )
       `)
       .eq('status', 'pending')
@@ -71,7 +65,26 @@ serve(async (req) => {
       );
     }
 
-    // Separate reminders into: to-skip (past at booking), enabled, and non-enabled
+    // Fetch all closer notification configs for the relevant organization(s)
+    const orgIds = [...new Set(dueReminders.map(r => {
+      const appt = Array.isArray(r.appointment) ? r.appointment[0] : r.appointment;
+      return appt?.organization_id;
+    }).filter(Boolean))];
+
+    const { data: allCloserConfigs } = await supabase
+      .from('closer_notification_configs')
+      .select('closer_id, is_active, organization_id')
+      .in('organization_id', orgIds)
+      .eq('is_active', true);
+
+    // Build a set of enabled closer IDs
+    const enabledCloserIds = new Set(
+      (allCloserConfigs || []).map(c => c.closer_id)
+    );
+
+    console.log(`Found ${enabledCloserIds.size} closers with active notification configs`);
+
+    // Separate reminders into categories
     const remindersToSkip: any[] = [];
     const enabledReminders: any[] = [];
     const nonEnabledReminders: any[] = [];
@@ -79,7 +92,7 @@ serve(async (req) => {
     for (const reminder of dueReminders) {
       const appointment = Array.isArray(reminder.appointment) ? reminder.appointment[0] : reminder.appointment;
       const closer = Array.isArray(appointment?.closer) ? appointment.closer[0] : appointment?.closer;
-      const closerEmail = closer?.email?.toLowerCase();
+      const closerId = appointment?.closer_id;
       const appointmentCreatedAt = appointment?.created_at;
       const reminderTime = reminder.reminder_time;
 
@@ -89,24 +102,24 @@ serve(async (req) => {
         const reminderDateTime = new Date(reminderTime);
         
         if (reminderDateTime < createdAt) {
-          // This reminder was already supposed to go before the call was booked
           remindersToSkip.push(reminder);
           console.log(`Reminder ${reminder.id} (${reminder.reminder_type}) was past at booking time - will skip`);
           continue;
         }
       }
 
-      // Check if this closer is enabled for WhatsApp reminders
-      if (closerEmail && ENABLED_CLOSER_EMAILS.includes(closerEmail)) {
+      // Check if this closer has an active notification config
+      if (closerId && enabledCloserIds.has(closerId)) {
         enabledReminders.push(reminder);
       } else {
         nonEnabledReminders.push(reminder);
+        console.log(`Reminder ${reminder.id} - closer ${closer?.full_name || closerId} has no active notification config`);
       }
     }
 
     console.log(`${remindersToSkip.length} reminders to skip (past at booking time)`);
-    console.log(`${enabledReminders.length} reminders for enabled closers (Dipanshu/Akansha/Adesh)`);
-    console.log(`${nonEnabledReminders.length} reminders for non-enabled closers`);
+    console.log(`${enabledReminders.length} reminders for configured closers`);
+    console.log(`${nonEnabledReminders.length} reminders for non-configured closers`);
 
     // Mark reminders that were past at booking time as 'skipped'
     if (remindersToSkip.length > 0) {
@@ -168,15 +181,15 @@ serve(async (req) => {
       }
     }
 
-    // Mark non-enabled reminders as sent to prevent reprocessing
+    // Mark non-enabled reminders as skipped (no notification config)
     if (nonEnabledReminders.length > 0) {
       const nonEnabledIds = nonEnabledReminders.map((r: any) => r.id);
       await supabase
         .from('call_reminders')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .update({ status: 'skipped' })
         .in('id', nonEnabledIds);
       
-      console.log(`Marked ${nonEnabledIds.length} non-enabled reminders as sent`);
+      console.log(`Marked ${nonEnabledIds.length} non-configured reminders as skipped`);
     }
 
     return new Response(
@@ -184,7 +197,7 @@ serve(async (req) => {
         success: true, 
         processed: results.length,
         skipped: remindersToSkip.length,
-        nonEnabled: nonEnabledReminders.length,
+        nonConfigured: nonEnabledReminders.length,
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

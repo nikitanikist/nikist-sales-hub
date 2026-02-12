@@ -40,6 +40,7 @@ const getIntegrationIcon = (type: string) => {
   if (type.startsWith("zoom")) return <Video className="h-5 w-5" />;
   if (type.startsWith("calendly")) return <Calendar className="h-5 w-5" />;
   if (type.startsWith("whatsapp")) return <MessageCircle className="h-5 w-5" />;
+  if (type.startsWith("aisensy")) return <MessageCircle className="h-5 w-5" />;
   return null;
 };
 
@@ -89,6 +90,13 @@ export function IntegrationCard({ integration, onEdit, onDelete }: IntegrationCa
         { key: "source", label: "Source Number", secret: false },
         { key: "video_url", label: "Video URL", secret: false },
         { key: "support_number", label: "Support Number", secret: false },
+      ];
+    }
+
+    if (type.startsWith("aisensy")) {
+      return [
+        { key: "api_key", label: "API Key", secret: true },
+        { key: "source", label: "Source Number", secret: false },
       ];
     }
     
