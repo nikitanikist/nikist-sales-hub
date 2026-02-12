@@ -185,7 +185,7 @@ export type Database = {
             foreignKeyName: "call_appointments_batch_id_fkey"
             columns: ["batch_id"]
             isOneToOne: false
-            referencedRelation: "batches"
+            referencedRelation: "cohort_batches"
             referencedColumns: ["id"]
           },
           {
