@@ -573,7 +573,17 @@ serve(async (req) => {
       console.log('Closer uses Zoom - creating new Zoom meeting for rebooked call');
       
       try {
-        const zoomConfig = closerIntegration.config as ZoomConfig;
+        const rawConfig = closerIntegration.config as Record<string, unknown>;
+        let zoomConfig: ZoomConfig;
+        if (rawConfig.uses_env_secrets) {
+          zoomConfig = {
+            account_id: Deno.env.get(rawConfig.account_id_secret as string) || '',
+            client_id: Deno.env.get(rawConfig.client_id_secret as string) || '',
+            client_secret: Deno.env.get(rawConfig.client_secret_secret as string) || '',
+          };
+        } else {
+          zoomConfig = rawConfig as unknown as ZoomConfig;
+        }
         const accessToken = await getZoomAccessToken(zoomConfig);
         const meeting = await createZoomMeeting(
           accessToken,

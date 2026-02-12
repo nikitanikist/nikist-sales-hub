@@ -322,6 +322,70 @@ export type Database = {
           },
         ]
       }
+      closer_notification_configs: {
+        Row: {
+          aisensy_integration_id: string | null
+          closer_id: string
+          created_at: string
+          id: string
+          include_zoom_link_types: string[]
+          is_active: boolean
+          organization_id: string
+          support_number: string | null
+          templates: Json
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          aisensy_integration_id?: string | null
+          closer_id: string
+          created_at?: string
+          id?: string
+          include_zoom_link_types?: string[]
+          is_active?: boolean
+          organization_id: string
+          support_number?: string | null
+          templates?: Json
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          aisensy_integration_id?: string | null
+          closer_id?: string
+          created_at?: string
+          id?: string
+          include_zoom_link_types?: string[]
+          is_active?: boolean
+          organization_id?: string
+          support_number?: string | null
+          templates?: Json
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "closer_notification_configs_aisensy_integration_id_fkey"
+            columns: ["aisensy_integration_id"]
+            isOneToOne: false
+            referencedRelation: "organization_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "closer_notification_configs_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "closer_notification_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cohort_batches: {
         Row: {
           cohort_type_id: string

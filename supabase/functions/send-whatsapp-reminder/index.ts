@@ -23,9 +23,36 @@ const DEFAULT_VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f4
 interface WhatsAppConfig {
   api_key: string;
   source: string;
-  templates?: Record<string, { name: string; isVideo: boolean }>;
+  templates?: Record<string, { name: string; isVideo: boolean } | string>;
   video_url?: string;
   support_number?: string;
+  uses_env_secrets?: boolean;
+  api_key_secret?: string;
+  source_secret?: string;
+}
+
+// Resolve config values, handling the uses_env_secrets pattern
+function resolveConfig(config: Record<string, unknown>): { api_key: string; source: string } {
+  let api_key = '';
+  let source = '';
+
+  if (config.uses_env_secrets) {
+    // Resolve from environment variables
+    const apiKeySecretName = config.api_key_secret as string;
+    const sourceSecretName = config.source_secret as string;
+    if (apiKeySecretName) {
+      api_key = Deno.env.get(apiKeySecretName) || '';
+    }
+    if (sourceSecretName) {
+      source = Deno.env.get(sourceSecretName) || '';
+    }
+    console.log('Resolved secrets from env:', { apiKeySecretName, sourceSecretName, hasApiKey: !!api_key, hasSource: !!source });
+  } else {
+    api_key = (config.api_key as string) || '';
+    source = (config.source as string) || '';
+  }
+
+  return { api_key, source };
 }
 
 serve(async (req) => {
@@ -80,70 +107,122 @@ serve(async (req) => {
       );
     }
 
-    // Get WhatsApp integration for this organization
-    const { data: whatsappIntegration, error: integrationError } = await supabase
-      .from('organization_integrations')
-      .select('config')
+    // === STEP 1: Check for closer-specific notification config ===
+    let apiKey = '';
+    let apiSource = '';
+    let templateMap: Record<string, { name: string; isVideo: boolean }> = { ...DEFAULT_TEMPLATE_MAP };
+    let videoUrl = DEFAULT_VIDEO_URL;
+    let supportNumber = '+919266395637';
+    let includeZoomLinkTypes: string[] = ['ten_minutes', 'we_are_live'];
+
+    const { data: closerNotifConfig } = await supabase
+      .from('closer_notification_configs')
+      .select('*, aisensy_integration:organization_integrations!closer_notification_configs_aisensy_integration_id_fkey(config)')
+      .eq('closer_id', appointment.closer_id)
       .eq('organization_id', appointment.organization_id)
-      .eq('integration_type', 'whatsapp')
       .eq('is_active', true)
       .maybeSingle();
 
-    if (integrationError) {
-      console.error('Error fetching WhatsApp integration:', integrationError);
+    if (closerNotifConfig) {
+      console.log('Found closer notification config for closer:', closer?.full_name);
+
+      // Resolve AISensy credentials from the linked integration
+      if (closerNotifConfig.aisensy_integration) {
+        const integrationConfig = (closerNotifConfig.aisensy_integration as any).config as Record<string, unknown>;
+        const resolved = resolveConfig(integrationConfig);
+        apiKey = resolved.api_key;
+        apiSource = resolved.source;
+      }
+
+      // Use closer's templates
+      if (closerNotifConfig.templates && typeof closerNotifConfig.templates === 'object') {
+        const closerTemplates = closerNotifConfig.templates as Record<string, string>;
+        for (const [key, value] of Object.entries(closerTemplates)) {
+          if (value) {
+            // Check if call_booked type - those are video templates
+            templateMap[key] = { name: value, isVideo: key === 'call_booked' };
+          }
+        }
+      }
+
+      if (closerNotifConfig.video_url) videoUrl = closerNotifConfig.video_url;
+      if (closerNotifConfig.support_number) supportNumber = closerNotifConfig.support_number;
+      if (closerNotifConfig.include_zoom_link_types) {
+        includeZoomLinkTypes = closerNotifConfig.include_zoom_link_types;
+      }
     }
 
-    // Use org integration config or fallback to env variables
-    let whatsappConfig: WhatsAppConfig;
-    
-    if (whatsappIntegration?.config) {
-      whatsappConfig = whatsappIntegration.config as WhatsAppConfig;
-    } else {
-      // Fallback to environment variables for backwards compatibility
-      const aisensyApiKey = Deno.env.get('AISENSY_API_KEY');
-      const aisensySource = Deno.env.get('AISENSY_SOURCE');
-      
-      if (!aisensyApiKey || !aisensySource) {
-        console.log('No WhatsApp integration configured, skipping reminder');
-        // Mark as sent to prevent re-processing
-        await supabase
-          .from('call_reminders')
-          .update({ status: 'sent', sent_at: new Date().toISOString() })
-          .eq('id', reminder_id);
-        
-        return new Response(
-          JSON.stringify({ success: true, skipped: true, reason: 'No WhatsApp integration configured' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+    // === STEP 2: Fallback to org-level WhatsApp/AISensy integration ===
+    if (!apiKey) {
+      // Try aisensy integrations first, then whatsapp
+      const { data: aisensyIntegration } = await supabase
+        .from('organization_integrations')
+        .select('config')
+        .eq('organization_id', appointment.organization_id)
+        .like('integration_type', 'aisensy%')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (aisensyIntegration?.config) {
+        const resolved = resolveConfig(aisensyIntegration.config as Record<string, unknown>);
+        apiKey = resolved.api_key;
+        apiSource = resolved.source;
       }
-      
-      whatsappConfig = {
-        api_key: aisensyApiKey,
-        source: aisensySource,
-      };
     }
 
-    // Check if closer has WhatsApp integration mapped
-    const { data: closerIntegration } = await supabase
-      .from('closer_integrations')
-      .select('integration_id, organization_integrations!inner(config)')
-      .eq('closer_id', appointment.closer_id)
-      .eq('organization_id', appointment.organization_id)
-      .maybeSingle();
+    if (!apiKey) {
+      const { data: whatsappIntegration } = await supabase
+        .from('organization_integrations')
+        .select('config')
+        .eq('organization_id', appointment.organization_id)
+        .eq('integration_type', 'whatsapp')
+        .eq('is_active', true)
+        .maybeSingle();
 
-    // If closer has specific integration, use those templates
-    if (closerIntegration?.organization_integrations) {
-      const closerConfig = (closerIntegration.organization_integrations as any).config as WhatsAppConfig;
-      if (closerConfig?.templates) {
-        whatsappConfig.templates = closerConfig.templates;
+      if (whatsappIntegration?.config) {
+        const config = whatsappIntegration.config as Record<string, unknown>;
+        const resolved = resolveConfig(config);
+        apiKey = resolved.api_key;
+        apiSource = resolved.source;
+
+        // Also pick up templates/video/support from legacy whatsapp config
+        if (config.templates) {
+          const legacyTemplates = config.templates as Record<string, unknown>;
+          for (const [key, value] of Object.entries(legacyTemplates)) {
+            if (typeof value === 'string') {
+              templateMap[key] = { name: value, isVideo: key === 'call_booked' };
+            } else if (value && typeof value === 'object') {
+              const tmpl = value as { name: string; isVideo?: boolean };
+              templateMap[key] = { name: tmpl.name, isVideo: tmpl.isVideo || false };
+            }
+          }
+        }
+        if (config.video_url) videoUrl = config.video_url as string;
+        if (config.support_number) supportNumber = config.support_number as string;
       }
-      if (closerConfig?.video_url) {
-        whatsappConfig.video_url = closerConfig.video_url;
-      }
+    }
+
+    // === STEP 3: Final fallback to env variables ===
+    if (!apiKey) {
+      apiKey = Deno.env.get('AISENSY_API_KEY') || '';
+      apiSource = Deno.env.get('AISENSY_SOURCE') || '';
+    }
+
+    if (!apiKey || !apiSource) {
+      console.log('No AISensy/WhatsApp integration configured, skipping reminder');
+      await supabase
+        .from('call_reminders')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', reminder_id);
+
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: 'No WhatsApp integration configured' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Get template for this reminder type
-    const templateMap = whatsappConfig.templates || DEFAULT_TEMPLATE_MAP;
     const template = templateMap[reminder.reminder_type];
     
     if (!template) {
@@ -172,9 +251,11 @@ serve(async (req) => {
     const formattedTime = `${hour12}:${minutes} ${ampm} IST`;
     const dateTimeCombo = `${formattedDate}, ${formattedTime}`;
 
-    const supportNumber = whatsappConfig.support_number || '+919266395637';
-
     // Build template params based on reminder type
+    // Determine if zoom link should be included
+    const shouldIncludeZoomLink = includeZoomLinkTypes.includes(reminder.reminder_type);
+    const zoomLink = shouldIncludeZoomLink ? (appointment.zoom_link || 'Link will be shared shortly') : 'Link will be shared shortly';
+
     let templateParams: string[] = [];
     
     switch (reminder.reminder_type) {
@@ -184,7 +265,7 @@ serve(async (req) => {
           'Our Crypto Expert',
           formattedDate,
           formattedTime,
-          'you will get zoom link 30 minutes before the zoom call',
+          shouldIncludeZoomLink && appointment.zoom_link ? appointment.zoom_link : 'you will get zoom link 30 minutes before the zoom call',
           supportNumber,
         ];
         break;
@@ -216,14 +297,14 @@ serve(async (req) => {
       case 'ten_minutes':
         templateParams = [
           lead.contact_name,
-          appointment.zoom_link || 'Link will be shared shortly',
+          zoomLink,
         ];
         break;
       case 'we_are_live':
         templateParams = [
           lead.contact_name,
           'One-to-one call with our crypto expert',
-          appointment.zoom_link || 'Link will be shared shortly',
+          zoomLink,
         ];
         break;
     }
@@ -233,22 +314,23 @@ serve(async (req) => {
       template: template.name,
       phone: phoneWithCountry,
       params: templateParams,
+      hasApiKey: !!apiKey,
     });
 
     // Build WhatsApp payload
     const whatsappPayload: any = {
-      apiKey: whatsappConfig.api_key,
+      apiKey: apiKey,
       campaignName: template.name,
       destination: phoneWithCountry,
       userName: 'Crypto Call',
-      source: whatsappConfig.source,
+      source: apiSource,
       templateParams,
     };
 
     // Add media for video templates
     if (template.isVideo) {
       whatsappPayload.media = {
-        url: whatsappConfig.video_url || DEFAULT_VIDEO_URL,
+        url: videoUrl,
         filename: 'reminder.mp4',
       };
     }

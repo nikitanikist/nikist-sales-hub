@@ -29,7 +29,7 @@ interface Integration {
 interface AddIntegrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  integrationType: "zoom" | "calendly" | "whatsapp";
+  integrationType: "zoom" | "calendly" | "whatsapp" | "aisensy";
   existingIntegration?: Integration | null;
   onSave: (data: { name: string; config: Record<string, unknown>; integrationId?: string }) => Promise<void>;
   isSaving: boolean;
@@ -57,6 +57,11 @@ const getFieldsForType = (type: string) => {
         { key: "support_number", label: "Support Number", placeholder: "+919266395637", secret: false },
         { key: "video_url", label: "Video URL for Call Booking", placeholder: "https://...video.mp4", secret: false },
       ];
+    case "aisensy":
+      return [
+        { key: "api_key", label: "AISensy API Key", placeholder: "Enter AISensy API Key", secret: true },
+        { key: "source", label: "Source Number", placeholder: "919266395637", secret: false },
+      ];
     default:
       return [];
   }
@@ -67,6 +72,7 @@ const getTypeLabel = (type: string) => {
     case "zoom": return "Zoom";
     case "calendly": return "Calendly";
     case "whatsapp": return "WhatsApp";
+    case "aisensy": return "AISensy";
     default: return type;
   }
 };

@@ -18,7 +18,7 @@ interface Integration {
 }
 
 interface IntegrationSectionProps {
-  type: "zoom" | "calendly" | "whatsapp";
+  type: "zoom" | "calendly" | "whatsapp" | "aisensy";
   integrations: Integration[];
   onSave: (data: { 
     type: string; 
@@ -48,6 +48,12 @@ const sectionConfig = {
     description: "Configure AiSensy WhatsApp API for call reminders and notifications",
     icon: MessageCircle,
     buttonLabel: "Add WhatsApp Account",
+  },
+  aisensy: {
+    title: "AISensy Accounts",
+    description: "Configure AISensy WhatsApp API accounts for one-to-one call reminders",
+    icon: MessageCircle,
+    buttonLabel: "Add AISensy Account",
   },
 };
 
