@@ -385,17 +385,18 @@ const CloserAssignedCalls = () => {
   const [emiAppointment, setEmiAppointment] = useState<Appointment | null>(null);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
 
-  // Fetch active batches for dropdown
+  // Fetch active Insider Crypto Club batches from cohort_batches for dropdown
   const { data: batches } = useQuery({
-    queryKey: ["batches-dropdown", currentOrganization?.id],
+    queryKey: ["cohort-batches-dropdown", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return [];
       const { data, error } = await supabase
-        .from("batches")
-        .select("id, name, start_date")
+        .from("cohort_batches")
+        .select("id, name, cohort_types!inner(slug)")
         .eq("organization_id", currentOrganization.id)
         .eq("is_active", true)
-        .order("start_date", { ascending: true });
+        .eq("cohort_types.slug", "insider-crypto-club")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -476,8 +477,22 @@ const CloserAssignedCalls = () => {
             workshopName = matchedWorkshop || apt.lead.workshop_name || null;
           }
 
+          // If batch_id exists but batch relation is null, try cohort_batches
+          let batchInfo = apt.batch;
+          if (apt.batch_id && !apt.batch) {
+            const { data: cohortBatch } = await supabase
+              .from("cohort_batches")
+              .select("id, name")
+              .eq("id", apt.batch_id)
+              .maybeSingle();
+            if (cohortBatch) {
+              batchInfo = { id: cohortBatch.id, name: cohortBatch.name, start_date: '' };
+            }
+          }
+
           return {
             ...apt,
+            batch: batchInfo,
             lead: apt.lead ? { ...apt.lead, workshop_name: workshopName } : null,
             reminders: reminders || [],
           };
@@ -593,6 +608,7 @@ const CloserAssignedCalls = () => {
           cash_received,
           due_amount,
           classes_access,
+          batch_id,
           batch:batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone)
         `)
@@ -606,6 +622,18 @@ const CloserAssignedCalls = () => {
 
       if (!freshAppointment) {
         throw new Error('Could not fetch updated appointment');
+      }
+
+      // If batch_id points to a cohort_batch (not in old batches table), resolve it
+      if (freshAppointment.batch_id && !freshAppointment.batch) {
+        const { data: cohortBatch } = await supabase
+          .from("cohort_batches")
+          .select("id, name")
+          .eq("id", freshAppointment.batch_id)
+          .maybeSingle();
+        if (cohortBatch) {
+          (freshAppointment as any).batch = { id: cohortBatch.id, name: cohortBatch.name, start_date: '' };
+        }
       }
 
       // Step 3: Sync to cohort_students if status is converted and has a batch
@@ -1274,7 +1302,7 @@ const CloserAssignedCalls = () => {
                                                   <SelectContent>
                                                     {batches?.map((batch) => (
                                                       <SelectItem key={batch.id} value={batch.id}>
-                                                        {batch.name} - {format(new Date(batch.start_date), "dd MMM")}
+                                                        {batch.name}
                                                       </SelectItem>
                                                     ))}
                                                   </SelectContent>
