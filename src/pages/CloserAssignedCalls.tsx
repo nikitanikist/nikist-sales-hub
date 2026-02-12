@@ -632,7 +632,7 @@ const CloserAssignedCalls = () => {
 
           if (existingStudent) {
             // Update existing cohort student
-            await supabase
+            const { error: updateError } = await supabase
               .from("cohort_students")
               .update({
                 offer_amount: data.offer_amount,
@@ -642,9 +642,13 @@ const CloserAssignedCalls = () => {
                 closer_id: closerId,
               })
               .eq("id", existingStudent.id);
+            if (updateError) {
+              console.error('Failed to update cohort student:', updateError);
+              toast({ title: "Warning", description: "Appointment saved, but student record update failed." });
+            }
           } else {
             // Create new cohort student
-            await supabase
+            const { error: insertError } = await supabase
               .from("cohort_students")
               .insert({
                 cohort_batch_id: data.batch_id,
@@ -658,6 +662,10 @@ const CloserAssignedCalls = () => {
                 closer_id: closerId,
                 status: 'active',
               });
+            if (insertError) {
+              console.error('Failed to sync student to cohort batch:', insertError);
+              toast({ title: "Warning", description: "Appointment saved, but student sync to batch failed." });
+            }
           }
         }
       }
@@ -681,17 +689,14 @@ const CloserAssignedCalls = () => {
         // For new workflow converted calls, include batch info from fresh DB data
         if (isNewFlow && freshAppointment.status === 'converted') {
           // Validate required fields before sending
-          if (!freshAppointment.batch?.start_date) {
-            throw new Error('Batch start date is required for converted calls. Please ensure a batch is selected.');
-          }
           if (!freshAppointment.classes_access) {
             throw new Error('Classes access is required for converted calls. Please select the number of classes.');
           }
           
           const payload = {
             ...basePayload,
-            batch_name: freshAppointment.batch.name,
-            batch_start_date: freshAppointment.batch.start_date,
+            batch_name: freshAppointment.batch?.name || '',
+            batch_start_date: freshAppointment.batch?.start_date || '',
             classes_access: freshAppointment.classes_access,
             use_new_webhook: true
           };
