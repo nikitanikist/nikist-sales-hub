@@ -52,7 +52,7 @@ interface Appointment {
   classes_access: number | null;
   access_given: boolean | null;
   access_given_at: string | null;
-  batch: { id: string; name: string; start_date: string } | null;
+  batch: { id: string; name: string; start_date: string | null } | null;
   closer: { id: string; full_name: string } | null;
   lead: {
     id: string;
@@ -341,7 +341,7 @@ const AllCloserCalls = () => {
           access_given_at,
           previous_closer:profiles!call_appointments_previous_closer_id_fkey(full_name),
           closer:profiles!call_appointments_closer_id_fkey(id, full_name),
-          batch:batches(id, name, start_date),
+          batch:cohort_batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
         .eq("organization_id", currentOrganization.id);

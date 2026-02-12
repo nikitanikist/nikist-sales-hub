@@ -52,7 +52,7 @@ interface Appointment {
   classes_access: number | null;
   access_given: boolean | null;
   access_given_at: string | null;
-  batch: { id: string; name: string; start_date: string } | null;
+  batch: { id: string; name: string; start_date: string | null } | null;
   lead: {
     id: string;
     contact_name: string;
@@ -452,7 +452,7 @@ const CloserAssignedCalls = () => {
           access_given,
           access_given_at,
           previous_closer:profiles!call_appointments_previous_closer_id_fkey(full_name),
-          batch:batches(id, name, start_date),
+          batch:cohort_batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
         .eq("closer_id", closerId!)
@@ -477,22 +477,8 @@ const CloserAssignedCalls = () => {
             workshopName = matchedWorkshop || apt.lead.workshop_name || null;
           }
 
-          // If batch_id exists but batch relation is null, try cohort_batches
-          let batchInfo = apt.batch;
-          if (apt.batch_id && !apt.batch) {
-            const { data: cohortBatch } = await supabase
-              .from("cohort_batches")
-              .select("id, name")
-              .eq("id", apt.batch_id)
-              .maybeSingle();
-            if (cohortBatch) {
-              batchInfo = { id: cohortBatch.id, name: cohortBatch.name, start_date: '' };
-            }
-          }
-
           return {
             ...apt,
-            batch: batchInfo,
             lead: apt.lead ? { ...apt.lead, workshop_name: workshopName } : null,
             reminders: reminders || [],
           };
@@ -609,7 +595,7 @@ const CloserAssignedCalls = () => {
           due_amount,
           classes_access,
           batch_id,
-          batch:batches(id, name, start_date),
+          batch:cohort_batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone)
         `)
         .eq("id", data.id)
@@ -622,18 +608,6 @@ const CloserAssignedCalls = () => {
 
       if (!freshAppointment) {
         throw new Error('Could not fetch updated appointment');
-      }
-
-      // If batch_id points to a cohort_batch (not in old batches table), resolve it
-      if (freshAppointment.batch_id && !freshAppointment.batch) {
-        const { data: cohortBatch } = await supabase
-          .from("cohort_batches")
-          .select("id, name")
-          .eq("id", freshAppointment.batch_id)
-          .maybeSingle();
-        if (cohortBatch) {
-          (freshAppointment as any).batch = { id: cohortBatch.id, name: cohortBatch.name, start_date: '' };
-        }
       }
 
       // Step 3: Sync to cohort_students if status is converted and has a batch
