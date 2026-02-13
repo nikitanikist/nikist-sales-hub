@@ -1,40 +1,73 @@
 
 
-# Update Read Receipt Webhook for LID-based Receipts
+# Fix Reactions and Reads: UPSERT + Recount
 
-## What Already Exists
-- `read_count` and `delivered_count` columns on `notification_campaign_groups`
-- `notification_campaign_reads` table with deduplication
-- `increment_delivered_count` RPC function
-- No database or schema changes needed
+## Changes Overview
 
-## Single File Change
+Three areas need updating: the reactions unique constraint, the reaction webhook logic, and the read receipt webhook logic.
 
-**File: `supabase/functions/whatsapp-read-receipt-webhook/index.ts`**
+---
 
-Simplify the event handling logic (lines 83-165):
+## 1. Database Migration
 
-1. **"delivered" events**: Always call `increment_delivered_count` RPC (atomic, capped at member_count). No reads row needed. Ignore `readerPhone` for delivered events since we only need the count.
+**Drop old unique constraint** on `notification_campaign_reactions` (currently on `campaign_group_id, reactor_phone, emoji`) and **add new one** on `(campaign_group_id, reactor_phone)` only. This means one person = one reaction per group (changing emoji overwrites the previous one).
 
-2. **"read" events**: Require `readerPhone` (LID number). Upsert into `notification_campaign_reads` with `receipt_type = 'read'`. Then use `increment_read_count` RPC for atomic increment (same pattern as delivered).
+The reads table constraint `(campaign_group_id, reader_phone, receipt_type)` is already correct -- no change needed.
 
-3. **Create `increment_read_count` RPC** via migration -- same pattern as `increment_delivered_count`:
+---
+
+## 2. Reaction Webhook Update
+
+**File:** `supabase/functions/whatsapp-reaction-webhook/index.ts`
+
+- Update the interface to accept both `reaction_add` and `reaction_remove` events
+- For `reaction_add`: UPSERT with `onConflict: 'campaign_group_id,reactor_phone'` (emoji gets overwritten)
+- For `reaction_remove`: DELETE the row matching `campaign_group_id + reactor_phone`
+- After either operation: recount reactions from the table and update `reaction_count`
+
+---
+
+## 3. Read Receipt Webhook Update
+
+**File:** `supabase/functions/whatsapp-read-receipt-webhook/index.ts`
+
+- Replace the `increment_read_count` RPC call with a recount-from-table approach (same pattern as reactions)
+- After upsert, SELECT count from `notification_campaign_reads` where `receipt_type = 'read'`, then UPDATE `read_count` on the group
+
+This ensures the count is always accurate even if duplicate webhooks arrive.
+
+---
+
+## Technical Details
+
+**Migration SQL:**
 ```sql
-CREATE OR REPLACE FUNCTION increment_read_count(p_group_id uuid)
-RETURNS integer LANGUAGE sql SECURITY DEFINER SET search_path TO 'public' AS $$
-  UPDATE notification_campaign_groups
-  SET read_count = LEAST(COALESCE(read_count, 0) + 1, COALESCE(member_count, 999999))
-  WHERE id = p_group_id
-  RETURNING read_count;
-$$;
+ALTER TABLE notification_campaign_reactions 
+  DROP CONSTRAINT notification_campaign_reactio_campaign_group_id_reactor_pho_key;
+
+ALTER TABLE notification_campaign_reactions 
+  ADD CONSTRAINT unique_reactor_per_group 
+  UNIQUE (campaign_group_id, reactor_phone);
 ```
 
-## Updated Webhook Flow
+**Reaction webhook key changes:**
+- Interface: `event: "reaction_add" | "reaction_remove"`
+- `reaction_remove` path: delete row, then recount
+- `reaction_add` path: upsert with new constraint, then recount
+- Validation: only require emoji for `reaction_add`, not `reaction_remove`
 
-```
-delivered event --> increment_delivered_count RPC --> return
-read event     --> upsert to notification_campaign_reads --> increment_read_count RPC --> return
-```
+**Read receipt webhook key change (lines 134-142):**
+Replace RPC increment with:
+```typescript
+const { count } = await supabase
+  .from("notification_campaign_reads")
+  .select("*", { count: "exact", head: true })
+  .eq("campaign_group_id", campaignGroup.id)
+  .eq("receipt_type", "read");
 
-The old code path that counted reads via a SELECT query and then SET will be replaced with the atomic RPC approach, matching how delivered_count already works. This prevents race conditions from concurrent read receipts.
+await supabase
+  .from("notification_campaign_groups")
+  .update({ read_count: count || 0 })
+  .eq("id", campaignGroup.id);
+```
 
