@@ -1,28 +1,40 @@
 
 
-# Add is_admin Filter to Sendable Groups
+# Update Read Receipt Webhook for LID-based Receipts
 
-## What's Already Done
-- The `is_admin` column exists in `whatsapp_groups` (boolean, default false)
-- The VPS proxy already stores `is_admin` during group sync (line 855)
-- The frontend hook already fetches `is_admin` from the database
+## What Already Exists
+- `read_count` and `delivered_count` columns on `notification_campaign_groups`
+- `notification_campaign_reads` table with deduplication
+- `increment_delivered_count` RPC function
+- No database or schema changes needed
 
-## Single Change Needed
+## Single File Change
 
-**File: `src/hooks/useWhatsAppGroups.ts` (line 195)**
+**File: `supabase/functions/whatsapp-read-receipt-webhook/index.ts`**
 
-Update the `sendableGroups` filter to also require `is_admin`:
+Simplify the event handling logic (lines 83-165):
 
-```typescript
-// Before
-const sendableGroups = groups?.filter(g => !g.is_community) || [];
+1. **"delivered" events**: Always call `increment_delivered_count` RPC (atomic, capped at member_count). No reads row needed. Ignore `readerPhone` for delivered events since we only need the count.
 
-// After
-const sendableGroups = groups?.filter(g => !g.is_community && g.is_admin) || [];
+2. **"read" events**: Require `readerPhone` (LID number). Upsert into `notification_campaign_reads` with `receipt_type = 'read'`. Then use `increment_read_count` RPC for atomic increment (same pattern as delivered).
+
+3. **Create `increment_read_count` RPC** via migration -- same pattern as `increment_delivered_count`:
+```sql
+CREATE OR REPLACE FUNCTION increment_read_count(p_group_id uuid)
+RETURNS integer LANGUAGE sql SECURITY DEFINER SET search_path TO 'public' AS $$
+  UPDATE notification_campaign_groups
+  SET read_count = LEAST(COALESCE(read_count, 0) + 1, COALESCE(member_count, 999999))
+  WHERE id = p_group_id
+  RETURNING read_count;
+$$;
 ```
 
-## Result
-After a group re-sync, only groups where the connected WhatsApp account is an admin will appear in the Send Notification wizard. Non-admin groups and community parents are both excluded.
+## Updated Webhook Flow
 
-No database migration or edge function changes are needed -- everything is already wired up.
+```
+delivered event --> increment_delivered_count RPC --> return
+read event     --> upsert to notification_campaign_reads --> increment_read_count RPC --> return
+```
+
+The old code path that counted reads via a SELECT query and then SET will be replaced with the atomic RPC approach, matching how delivered_count already works. This prevents race conditions from concurrent read receipts.
 
