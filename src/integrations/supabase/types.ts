@@ -225,6 +225,125 @@ export type Database = {
           },
         ]
       }
+      call_phone_reminder_types: {
+        Row: {
+          closer_id: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          label: string
+          offset_type: string
+          offset_value: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          closer_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          label: string
+          offset_type: string
+          offset_value: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          closer_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          label?: string
+          offset_type?: string
+          offset_value?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_phone_reminder_types_closer_id_fkey"
+            columns: ["closer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_phone_reminder_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_phone_reminders: {
+        Row: {
+          appointment_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          reminder_time: string
+          reminder_type_id: string
+          status: string
+        }
+        Insert: {
+          appointment_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          reminder_time: string
+          reminder_type_id: string
+          status?: string
+        }
+        Update: {
+          appointment_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          reminder_time?: string
+          reminder_type_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_phone_reminders_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "call_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_phone_reminders_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_phone_reminders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_phone_reminders_reminder_type_id_fkey"
+            columns: ["reminder_type_id"]
+            isOneToOne: false
+            referencedRelation: "call_phone_reminder_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_reminders: {
         Row: {
           appointment_id: string

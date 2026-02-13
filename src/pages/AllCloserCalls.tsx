@@ -29,6 +29,7 @@ import { useOrgClosers } from "@/hooks/useOrgClosers";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { PageIntro } from "@/components/PageIntro";
+import { CallPhoneReminderTimeline } from "@/components/CallPhoneReminderTimeline";
 
 type CallStatus = Database["public"]["Enums"]["call_status"];
 type ReminderStatus = Database["public"]["Enums"]["reminder_status"];
@@ -857,10 +858,17 @@ const AllCloserCalls = () => {
                                     )}
                                   </div>
 
-                                  {/* EMI History */}
-                                  <EmiHistorySection appointmentId={apt.id} />
+                                   {/* EMI History */}
+                                   <EmiHistorySection appointmentId={apt.id} />
 
-                                  {/* Edit Form */}
+                                   {/* Call Reminder Timeline */}
+                                   <CallPhoneReminderTimeline
+                                     appointmentId={apt.id}
+                                     closerId={apt.closer?.id || null}
+                                     organizationId={currentOrganization?.id || ""}
+                                   />
+
+                                   {/* Edit Form */}
                                   {editingId === apt.id && editData ? (
                                     <div className="space-y-4 border-t pt-4">
                                       <h4 className="font-semibold">Edit Appointment</h4>
