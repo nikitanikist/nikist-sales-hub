@@ -4005,6 +4005,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_delivered_count: {
+        Args: { p_group_id: string }
+        Returns: number
+      }
       increment_link_click: {
         Args: { link_slug: string }
         Returns: {

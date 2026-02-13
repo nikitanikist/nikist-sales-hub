@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     // Find the campaign group by message_id
     const { data: campaignGroup, error: findError } = await supabase
       .from("notification_campaign_groups")
-      .select("id, delivered_count")
+      .select("id")
       .eq("message_id", payload.messageId)
       .single();
 
@@ -82,16 +82,26 @@ Deno.serve(async (req) => {
 
     const receiptType = payload.event; // "read" or "delivered"
 
-    // For delivered events with no specific reader, just increment counter directly
+    // For delivered events with no specific reader, atomically increment capped at member_count
     if (receiptType === "delivered" && !payload.readerPhone) {
-      const newCount = (campaignGroup.delivered_count || 0) + 1;
-      await supabase
-        .from("notification_campaign_groups")
-        .update({ delivered_count: newCount })
-        .eq("id", campaignGroup.id);
+      const { data: newCount, error: rpcError } = await supabase.rpc(
+        "increment_delivered_count",
+        { p_group_id: campaignGroup.id }
+      );
+
+      if (rpcError) {
+        console.error("Error incrementing delivered count:", rpcError);
+        return new Response(
+          JSON.stringify({ error: rpcError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
 
       console.log(
-        `Delivered count incremented for group ${campaignGroup.id}, new count: ${newCount}`
+        `Delivered count atomically incremented for group ${campaignGroup.id}, new count: ${newCount}`
       );
 
       return new Response(
