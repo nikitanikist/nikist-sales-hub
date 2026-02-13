@@ -1,0 +1,1 @@
+ALTER TABLE public.call_phone_reminders ADD COLUMN skip_reason TEXT;
