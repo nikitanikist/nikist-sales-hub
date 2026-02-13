@@ -48,9 +48,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!payload.messageId || !payload.readerPhone) {
+    if (!payload.messageId) {
       return new Response(
-        JSON.stringify({ error: "Missing messageId or readerPhone" }),
+        JSON.stringify({ error: "Missing messageId" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // For "read" events, readerPhone is required; for "delivered", default to "group"
+    const readerPhone = payload.readerPhone || (payload.event === "delivered" ? "group" : "");
+    if (!readerPhone) {
+      return new Response(
+        JSON.stringify({ error: "Missing readerPhone for read event" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -88,7 +100,7 @@ Deno.serve(async (req) => {
       .upsert(
         {
           campaign_group_id: campaignGroup.id,
-          reader_phone: payload.readerPhone,
+          reader_phone: readerPhone,
           read_at: payload.timestamp || new Date().toISOString(),
           receipt_type: receiptType,
         },
