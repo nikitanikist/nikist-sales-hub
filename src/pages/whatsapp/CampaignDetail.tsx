@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus } from "lucide-react";
 import { format } from "date-fns";
 
 const CampaignDetail = () => {
@@ -42,7 +42,7 @@ const CampaignDetail = () => {
       return data;
     },
     enabled: !!campaignId,
-    refetchInterval: campaign?.status === "sending" ? 5000 : false,
+    refetchInterval: campaign?.status === "sending" ? 5000 : 30000,
   });
 
   if (campaignLoading || groupsLoading) {
@@ -68,6 +68,8 @@ const CampaignDetail = () => {
   const sentCount = campaignGroups?.filter((g) => g.status === "sent").length || 0;
   const failedCount = campaignGroups?.filter((g) => g.status === "failed").length || 0;
   const pendingCount = campaignGroups?.filter((g) => g.status === "pending").length || 0;
+  const totalReads = campaignGroups?.reduce((sum, g) => sum + (g.read_count || 0), 0) || 0;
+  const totalReactions = campaignGroups?.reduce((sum, g) => sum + (g.reaction_count || 0), 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -82,11 +84,11 @@ const CampaignDetail = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="h-4 w-4" /> Total Audience
+              <Users className="h-4 w-4" /> Audience
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -123,6 +125,26 @@ const CampaignDetail = () => {
             <div className="text-2xl font-bold">{pendingCount}</div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Eye className="h-4 w-4 text-blue-500" /> Read
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-500">{totalReads}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <SmilePlus className="h-4 w-4 text-amber-500" /> Reactions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-500">{totalReactions}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Message preview */}
@@ -148,6 +170,8 @@ const CampaignDetail = () => {
                 <TableHead>Group</TableHead>
                 <TableHead className="text-right">Members</TableHead>
                 <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Reads</TableHead>
+                <TableHead className="text-right">Reactions</TableHead>
                 <TableHead>Sent At</TableHead>
                 <TableHead>Error</TableHead>
               </TableRow>
@@ -166,6 +190,20 @@ const CampaignDetail = () => {
                     >
                       {g.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {g.read_count > 0 ? (
+                      <span className="text-blue-500 font-medium">{g.read_count}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {g.reaction_count > 0 ? (
+                      <span className="text-amber-500 font-medium">{g.reaction_count}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {g.sent_at ? format(new Date(g.sent_at), "h:mm a") : "—"}

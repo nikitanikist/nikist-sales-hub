@@ -2094,6 +2094,8 @@ export type Database = {
           id: string
           member_count: number
           message_id: string | null
+          reaction_count: number
+          read_count: number
           sent_at: string | null
           status: string
         }
@@ -2107,6 +2109,8 @@ export type Database = {
           id?: string
           member_count?: number
           message_id?: string | null
+          reaction_count?: number
+          read_count?: number
           sent_at?: string | null
           status?: string
         }
@@ -2120,6 +2124,8 @@ export type Database = {
           id?: string
           member_count?: number
           message_id?: string | null
+          reaction_count?: number
+          read_count?: number
           sent_at?: string | null
           status?: string
         }
@@ -2136,6 +2142,73 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_campaign_reactions: {
+        Row: {
+          campaign_group_id: string
+          created_at: string
+          emoji: string
+          id: string
+          reacted_at: string
+          reactor_phone: string
+        }
+        Insert: {
+          campaign_group_id: string
+          created_at?: string
+          emoji: string
+          id?: string
+          reacted_at?: string
+          reactor_phone: string
+        }
+        Update: {
+          campaign_group_id?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          reacted_at?: string
+          reactor_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_campaign_reactions_campaign_group_id_fkey"
+            columns: ["campaign_group_id"]
+            isOneToOne: false
+            referencedRelation: "notification_campaign_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_campaign_reads: {
+        Row: {
+          campaign_group_id: string
+          created_at: string
+          id: string
+          read_at: string
+          reader_phone: string
+        }
+        Insert: {
+          campaign_group_id: string
+          created_at?: string
+          id?: string
+          read_at?: string
+          reader_phone: string
+        }
+        Update: {
+          campaign_group_id?: string
+          created_at?: string
+          id?: string
+          read_at?: string
+          reader_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_campaign_reads_campaign_group_id_fkey"
+            columns: ["campaign_group_id"]
+            isOneToOne: false
+            referencedRelation: "notification_campaign_groups"
             referencedColumns: ["id"]
           },
         ]
