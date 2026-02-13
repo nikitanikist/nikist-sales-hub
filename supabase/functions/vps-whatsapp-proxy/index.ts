@@ -801,7 +801,12 @@ Deno.serve(async (req) => {
         // dynamic links from breaking when their referenced group IDs change.
 
         // Insert fresh groups from VPS
-        const groupsToUpsert = vpsGroups.map((g: any) => {
+        // Filter out community parent groups — they are non-sendable containers
+        // that cause WhatsApp error 420. Announcement groups (isCommunityAnnounce)
+        // are still synced as they are the actual sendable targets.
+        const groupsToUpsert = vpsGroups
+          .filter((g: any) => g.isCommunity !== true)
+          .map((g: any) => {
           // Check if the connected session user is admin
           // Baileys returns participants with admin status (admin, superadmin, or isAdmin flag)
           let isAdmin = false;
