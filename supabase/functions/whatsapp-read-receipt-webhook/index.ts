@@ -58,18 +58,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // For "read" events, readerPhone is required; for "delivered", default to "group"
-    const readerPhone = payload.readerPhone || (payload.event === "delivered" ? "group" : "");
-    if (!readerPhone) {
-      return new Response(
-        JSON.stringify({ error: "Missing readerPhone for read event" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -77,7 +65,7 @@ Deno.serve(async (req) => {
     // Find the campaign group by message_id
     const { data: campaignGroup, error: findError } = await supabase
       .from("notification_campaign_groups")
-      .select("id")
+      .select("id, delivered_count")
       .eq("message_id", payload.messageId)
       .single();
 
@@ -94,13 +82,44 @@ Deno.serve(async (req) => {
 
     const receiptType = payload.event; // "read" or "delivered"
 
+    // For delivered events with no specific reader, just increment counter directly
+    if (receiptType === "delivered" && !payload.readerPhone) {
+      const newCount = (campaignGroup.delivered_count || 0) + 1;
+      await supabase
+        .from("notification_campaign_groups")
+        .update({ delivered_count: newCount })
+        .eq("id", campaignGroup.id);
+
+      console.log(
+        `Delivered count incremented for group ${campaignGroup.id}, new count: ${newCount}`
+      );
+
+      return new Response(
+        JSON.stringify({ success: true, receipt_type: "delivered", count: newCount }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // For read events or delivered with specific reader, require readerPhone
+    if (!payload.readerPhone) {
+      return new Response(
+        JSON.stringify({ error: "Missing readerPhone for read event" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Upsert receipt (deduplicated by unique constraint including receipt_type)
     const { error: insertError } = await supabase
       .from("notification_campaign_reads")
       .upsert(
         {
           campaign_group_id: campaignGroup.id,
-          reader_phone: readerPhone,
+          reader_phone: payload.readerPhone,
           read_at: payload.timestamp || new Date().toISOString(),
           receipt_type: receiptType,
         },
