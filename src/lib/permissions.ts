@@ -13,6 +13,7 @@ export const PERMISSION_KEYS = {
   products: 'products',
   users: 'users',
   settings: 'settings',
+  whatsapp: 'whatsapp',
 } as const;
 
 export type PermissionKey = typeof PERMISSION_KEYS[keyof typeof PERMISSION_KEYS];
@@ -37,6 +38,10 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/products': PERMISSION_KEYS.products,
   '/users': PERMISSION_KEYS.users,
   '/settings': PERMISSION_KEYS.settings,
+  '/whatsapp': PERMISSION_KEYS.whatsapp,
+  '/whatsapp/campaigns': PERMISSION_KEYS.whatsapp,
+  '/whatsapp/templates': PERMISSION_KEYS.whatsapp,
+  '/whatsapp/scheduled': PERMISSION_KEYS.whatsapp,
 };
 
 // Permission labels for UI display
@@ -54,6 +59,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   products: 'Products',
   users: 'Team Members',
   settings: 'Organization Settings',
+  whatsapp: 'WhatsApp',
 };
 
 // Permission groups for organized display (matches sidebar structure)
@@ -94,6 +100,12 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    label: 'WhatsApp',
+    permissions: [
+      PERMISSION_KEYS.whatsapp,
+    ],
+  },
+  {
     label: 'Other',
     permissions: [
       PERMISSION_KEYS.dashboard,
@@ -118,6 +130,7 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSION_KEYS.sales,
     PERMISSION_KEYS.funnels,
     PERMISSION_KEYS.products,
+    PERMISSION_KEYS.whatsapp,
     // users - NOT included
   ],
   sales_rep: [
@@ -157,6 +170,11 @@ export function getPermissionForRoute(path: string): PermissionKey | undefined {
   // Handle dynamic cohort routes
   if (path.startsWith('/cohorts/')) {
     return PERMISSION_KEYS.cohort_batches;
+  }
+  
+  // Handle dynamic whatsapp routes
+  if (path.startsWith('/whatsapp')) {
+    return PERMISSION_KEYS.whatsapp;
   }
   
   return undefined;
