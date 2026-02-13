@@ -71,3 +71,6 @@ verify_jwt = false
 
 [functions.whatsapp-membership-webhook]
 verify_jwt = false
+
+[functions.whatsapp-message-error-webhook]
+verify_jwt = false
