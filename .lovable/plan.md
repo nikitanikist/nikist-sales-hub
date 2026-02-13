@@ -1,35 +1,60 @@
 
 
-# Fix: Call Reminder Timeline Not Showing
+# Fix: Accept Both "read" and "delivered" Events in WhatsApp Receipt Webhook
 
-## Root Cause
+## Problem
 
-The `call_phone_reminders` table has **0 records**. The backfill was never actually executed in any migration. The trigger only fires on changes to `scheduled_date`, `scheduled_time`, or `closer_id` columns specifically -- so the previous attempt (if any) using `updated_at = now()` would not have triggered it.
+The VPS sends two types of receipt events: `"read"` and `"delivered"`. Currently, the webhook only types the payload as `event: "read"` and doesn't validate or handle `"delivered"` events. While it doesn't explicitly reject them with a 400, the lack of separate tracking means delivered events are silently mixed into read counts. More importantly, for group chats, `"delivered"` is often the best metric available since WhatsApp limits read receipts for privacy.
 
-## Fix
+## Solution
 
-Run a single database migration that performs the backfill by updating `scheduled_date = scheduled_date` on all of Adesh's appointments. This is a no-op value change but it matches the trigger's column list, so it will fire `generate_call_phone_reminders()` for each row and populate the `call_phone_reminders` table.
+Track read and delivered events **separately** by adding a `delivered_count` column to the database and a `receipt_type` column to the reads table. This gives the best analytics visibility.
 
-### Database Migration (single SQL statement)
+## Changes
 
-```sql
-UPDATE call_appointments
-SET scheduled_date = scheduled_date
-WHERE closer_id = 'e2e0ebc6-f203-494c-b52f-bf8d4a6ab69c';
+### 1. Database Migration
+
+- Add `delivered_count` integer column (default 0) to `notification_campaign_groups`
+- Add `receipt_type` text column (default `'read'`) to `notification_campaign_reads` with a check for `'read'` or `'delivered'`
+- Update the unique constraint on `notification_campaign_reads` to include `receipt_type` so the same phone can have both a read and delivered entry
+
+### 2. Edge Function: `whatsapp-read-receipt-webhook/index.ts`
+
+- Update the `ReadReceiptPayload` interface to accept `event: "read" | "delivered"`
+- Add validation: reject events that are neither `"read"` nor `"delivered"`
+- Store the `receipt_type` in the upsert
+- Update the correct denormalized counter: `read_count` for "read" events, `delivered_count` for "delivered" events
+
+### 3. UI: `src/pages/whatsapp/CampaignDetail.tsx`
+
+- Add a "Delivered" stats card alongside the existing "Read" card
+- Add a `delivered_count` column to the per-group table
+- Compute `totalDelivered` the same way `totalReads` is computed
+
+## Technical Details
+
+```text
+notification_campaign_groups
++------------------+
+| ...existing...   |
+| read_count       |  (already exists)
+| delivered_count  |  (new, default 0)
++------------------+
+
+notification_campaign_reads
++--------------------+
+| ...existing...     |
+| receipt_type       |  (new: 'read' or 'delivered')
++--------------------+
+unique on (campaign_group_id, reader_phone, receipt_type)
 ```
 
-This will:
-- Fire the trigger for every appointment assigned to Adesh
-- Generate `call_phone_reminders` records based on the 3 configured reminder types (1 Day Before at 18:00, Same Day at 10:45, Minutes Before at 5)
-- Past reminders will automatically get status = 'skipped', future ones = 'pending'
+The webhook logic change:
 
-## No Code Changes Required
+```text
+1. Parse payload, validate event is "read" or "delivered"
+2. Upsert into notification_campaign_reads with receipt_type
+3. Count rows matching that receipt_type for the group
+4. Update the corresponding counter (read_count or delivered_count)
+```
 
-The `CallPhoneReminderTimeline` component is already correctly placed in the expanded row (line 1216 of `CloserAssignedCalls.tsx`). It currently returns `null` because `reminders.length === 0`. Once the backfill populates the data, the timeline will appear.
-
-## What Will NOT Change
-
-- No UI code changes
-- No trigger function changes
-- Existing WhatsApp Reminder Timeline untouched
-- All other features untouched
