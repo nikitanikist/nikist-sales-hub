@@ -493,7 +493,10 @@ function CallRemindersSection({
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newOffsetType, setNewOffsetType] = useState<string>("day_before");
-  const [newOffsetValue, setNewOffsetValue] = useState("");
+  const [newOffsetValue, setNewOffsetValue] = useState("18:00");
+  const [newHour, setNewHour] = useState("18");
+  const [newMinute, setNewMinute] = useState("00");
+  const [newMinutesBefore, setNewMinutesBefore] = useState("5");
   const [saving, setSaving] = useState(false);
 
   const { data: reminderTypes, refetch } = useQuery({
@@ -521,20 +524,31 @@ function CallRemindersSection({
     }
   };
 
-  const getPlaceholder = () => {
-    switch (newOffsetType) {
-      case 'day_before': return "e.g. 18:00";
-      case 'same_day': return "e.g. 10:00";
-      case 'minutes_before': return "e.g. 7";
-      default: return "";
+  const handleTypeChange = (type: string) => {
+    setNewOffsetType(type);
+    if (type === 'day_before') {
+      setNewHour("18"); setNewMinute("00");
+      setNewOffsetValue("18:00");
+    } else if (type === 'same_day') {
+      setNewHour("10"); setNewMinute("00");
+      setNewOffsetValue("10:00");
+    } else {
+      setNewMinutesBefore("5");
+      setNewOffsetValue("5");
     }
   };
 
+  const handleTimeChange = (h: string, m: string) => {
+    setNewHour(h); setNewMinute(m);
+    setNewOffsetValue(`${h.padStart(2, '0')}:${m.padStart(2, '0')}`);
+  };
+
   const handleAdd = async () => {
-    if (!newLabel || !newOffsetValue) {
-      toast({ title: "Please fill in label and value", variant: "destructive" });
+    if (!newLabel) {
+      toast({ title: "Please fill in the label", variant: "destructive" });
       return;
     }
+    const finalValue = newOffsetType === 'minutes_before' ? newMinutesBefore : newOffsetValue;
     setSaving(true);
     try {
       const nextOrder = (reminderTypes?.length || 0) + 1;
@@ -545,13 +559,14 @@ function CallRemindersSection({
           closer_id: closerId,
           label: newLabel,
           offset_type: newOffsetType,
-          offset_value: newOffsetValue,
+          offset_value: finalValue,
           display_order: nextOrder,
         } as any);
       if (error) throw error;
       toast({ title: "Call reminder added" });
       setNewLabel("");
-      setNewOffsetValue("");
+      setNewOffsetValue("18:00");
+      setNewHour("18"); setNewMinute("00"); setNewMinutesBefore("5");
       setAdding(false);
       refetch();
     } catch (error: any) {
@@ -631,10 +646,10 @@ function CallRemindersSection({
               onChange={(e) => setNewLabel(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div className="space-y-2">
               <Label className="text-xs">Type</Label>
-              <Select value={newOffsetType} onValueChange={setNewOffsetType}>
+              <Select value={newOffsetType} onValueChange={handleTypeChange}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -645,14 +660,49 @@ function CallRemindersSection({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Value</Label>
-              <Input
-                placeholder={getPlaceholder()}
-                value={newOffsetValue}
-                onChange={(e) => setNewOffsetValue(e.target.value)}
-              />
-            </div>
+            {newOffsetType === 'minutes_before' ? (
+              <div className="space-y-2">
+                <Label className="text-xs">Minutes before call</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={newMinutesBefore}
+                  onChange={(e) => setNewMinutesBefore(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-xs">
+                  Time ({newOffsetType === 'day_before' ? 'day before' : 'same day'})
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Select value={newHour} onValueChange={(h) => handleTimeChange(h, newMinute)}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={String(i).padStart(2, '0')}>
+                          {String(i).padStart(2, '0')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm font-medium">:</span>
+                  <Select value={newMinute} onValueChange={(m) => handleTimeChange(newHour, m)}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['00', '15', '30', '45'].map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
