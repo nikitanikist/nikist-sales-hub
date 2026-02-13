@@ -848,6 +848,8 @@ Deno.serve(async (req) => {
               : (g.participants || g.participantsCount || g.size || 0),
             is_active: true,
             is_admin: isAdmin,
+            is_community: g.isCommunity === true,
+            is_community_announce: g.isCommunityAnnounce === true,
             invite_link: inviteLink,
             synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
