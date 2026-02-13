@@ -1,60 +1,43 @@
 
 
-# Fix: Accept Both "read" and "delivered" Events in WhatsApp Receipt Webhook
+# Fix: Stop Rejecting Delivered Events with Empty readerPhone
 
-## Problem
+## Confirmed Root Cause
 
-The VPS sends two types of receipt events: `"read"` and `"delivered"`. Currently, the webhook only types the payload as `event: "read"` and doesn't validate or handle `"delivered"` events. While it doesn't explicitly reject them with a 400, the lack of separate tracking means delivered events are silently mixed into read counts. More importantly, for group chats, `"delivered"` is often the best metric available since WhatsApp limits read receipts for privacy.
-
-## Solution
-
-Track read and delivered events **separately** by adding a `delivered_count` column to the database and a `receipt_type` column to the reads table. This gives the best analytics visibility.
-
-## Changes
-
-### 1. Database Migration
-
-- Add `delivered_count` integer column (default 0) to `notification_campaign_groups`
-- Add `receipt_type` text column (default `'read'`) to `notification_campaign_reads` with a check for `'read'` or `'delivered'`
-- Update the unique constraint on `notification_campaign_reads` to include `receipt_type` so the same phone can have both a read and delivered entry
-
-### 2. Edge Function: `whatsapp-read-receipt-webhook/index.ts`
-
-- Update the `ReadReceiptPayload` interface to accept `event: "read" | "delivered"`
-- Add validation: reject events that are neither `"read"` nor `"delivered"`
-- Store the `receipt_type` in the upsert
-- Update the correct denormalized counter: `read_count` for "read" events, `delivered_count` for "delivered" events
-
-### 3. UI: `src/pages/whatsapp/CampaignDetail.tsx`
-
-- Add a "Delivered" stats card alongside the existing "Read" card
-- Add a `delivered_count` column to the per-group table
-- Compute `totalDelivered` the same way `totalReads` is computed
-
-## Technical Details
-
+The VPS code shows:
 ```text
-notification_campaign_groups
-+------------------+
-| ...existing...   |
-| read_count       |  (already exists)
-| delivered_count  |  (new, default 0)
-+------------------+
+readerPhone: receipt.participant?.replace(...) || ''
+```
+For group "delivered" events, `receipt.participant` is undefined, so `readerPhone` is always `""`. The webhook then rejects with 400: "Missing messageId or readerPhone".
 
-notification_campaign_reads
-+--------------------+
-| ...existing...     |
-| receipt_type       |  (new: 'read' or 'delivered')
-+--------------------+
-unique on (campaign_group_id, reader_phone, receipt_type)
+## Change
+
+**File: `supabase/functions/whatsapp-read-receipt-webhook/index.ts`**
+
+Update the validation block (around lines 51-59) to:
+- Always require `messageId`
+- Only require `readerPhone` for `"read"` events
+- For `"delivered"` events with empty `readerPhone`, default to `"group"` so the upsert and unique constraint work correctly
+
+No database or UI changes needed -- schema already supports this.
+
+## Technical Detail
+
+Current validation:
+```text
+if (!payload.messageId || !payload.readerPhone) {
+  return 400
+}
 ```
 
-The webhook logic change:
-
+New validation:
 ```text
-1. Parse payload, validate event is "read" or "delivered"
-2. Upsert into notification_campaign_reads with receipt_type
-3. Count rows matching that receipt_type for the group
-4. Update the corresponding counter (read_count or delivered_count)
+if (!payload.messageId) {
+  return 400 "Missing messageId"
+}
+
+const readerPhone = payload.readerPhone || "group";
+// proceed with readerPhone in upsert
 ```
 
+This ensures delivered events are accepted and counted via `delivered_count`, while read events still track the specific reader phone number.
