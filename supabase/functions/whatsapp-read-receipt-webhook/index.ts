@@ -131,15 +131,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Atomically increment read_count (capped at member_count)
-    const { data: readCount, error: readRpcError } = await supabase.rpc(
-      "increment_read_count",
-      { p_group_id: campaignGroup.id }
-    );
+    // Recount reads from table for accuracy
+    const { count: readCount } = await supabase
+      .from("notification_campaign_reads")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_group_id", campaignGroup.id)
+      .eq("receipt_type", "read");
 
-    if (readRpcError) {
-      console.error("Error incrementing read count:", readRpcError);
-    }
+    await supabase
+      .from("notification_campaign_groups")
+      .update({ read_count: readCount || 0 })
+      .eq("id", campaignGroup.id);
 
     console.log(`Read receipt recorded for group ${campaignGroup.id}, reader: ${payload.readerPhone}, count: ${readCount}`);
     return new Response(
