@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus } from "lucide-react";
+import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 
 const CampaignDetail = () => {
@@ -68,6 +68,7 @@ const CampaignDetail = () => {
   const sentCount = campaignGroups?.filter((g) => g.status === "sent").length || 0;
   const failedCount = campaignGroups?.filter((g) => g.status === "failed").length || 0;
   const pendingCount = campaignGroups?.filter((g) => g.status === "pending").length || 0;
+  const totalDelivered = campaignGroups?.reduce((sum, g) => sum + ((g as any).delivered_count || 0), 0) || 0;
   const totalReads = campaignGroups?.reduce((sum, g) => sum + (g.read_count || 0), 0) || 0;
   const totalReactions = campaignGroups?.reduce((sum, g) => sum + (g.reaction_count || 0), 0) || 0;
 
@@ -84,7 +85,7 @@ const CampaignDetail = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -123,6 +124,16 @@ const CampaignDetail = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{pendingCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CheckCheck className="h-4 w-4 text-emerald-500" /> Delivered
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-500">{totalDelivered}</div>
           </CardContent>
         </Card>
         <Card>
@@ -170,6 +181,7 @@ const CampaignDetail = () => {
                 <TableHead>Group</TableHead>
                 <TableHead className="text-right">Members</TableHead>
                 <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Delivered</TableHead>
                 <TableHead className="text-right">Reads</TableHead>
                 <TableHead className="text-right">Reactions</TableHead>
                 <TableHead>Sent At</TableHead>
@@ -190,6 +202,13 @@ const CampaignDetail = () => {
                     >
                       {g.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {(g as any).delivered_count > 0 ? (
+                      <span className="text-emerald-500 font-medium">{(g as any).delivered_count}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     {g.read_count > 0 ? (
