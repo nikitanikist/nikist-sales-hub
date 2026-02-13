@@ -289,6 +289,7 @@ export type Database = {
           organization_id: string
           reminder_time: string
           reminder_type_id: string
+          skip_reason: string | null
           status: string
         }
         Insert: {
@@ -300,6 +301,7 @@ export type Database = {
           organization_id: string
           reminder_time: string
           reminder_type_id: string
+          skip_reason?: string | null
           status?: string
         }
         Update: {
@@ -311,6 +313,7 @@ export type Database = {
           organization_id?: string
           reminder_time?: string
           reminder_type_id?: string
+          skip_reason?: string | null
           status?: string
         }
         Relationships: [
