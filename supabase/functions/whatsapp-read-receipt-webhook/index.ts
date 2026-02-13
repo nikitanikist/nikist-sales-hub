@@ -80,10 +80,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const receiptType = payload.event; // "read" or "delivered"
-
-    // For delivered events with no specific reader, atomically increment capped at member_count
-    if (receiptType === "delivered" && !payload.readerPhone) {
+    // DELIVERED events: always increment delivered_count atomically
+    if (payload.event === "delivered") {
       const { data: newCount, error: rpcError } = await supabase.rpc(
         "increment_delivered_count",
         { p_group_id: campaignGroup.id }
@@ -93,37 +91,26 @@ Deno.serve(async (req) => {
         console.error("Error incrementing delivered count:", rpcError);
         return new Response(
           JSON.stringify({ error: rpcError.message }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log(
-        `Delivered count atomically incremented for group ${campaignGroup.id}, new count: ${newCount}`
-      );
-
+      console.log(`Delivered count incremented for group ${campaignGroup.id}, new count: ${newCount}`);
       return new Response(
         JSON.stringify({ success: true, receipt_type: "delivered", count: newCount }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // For read events or delivered with specific reader, require readerPhone
+    // READ events: require readerPhone, upsert reads row, then increment read_count
     if (!payload.readerPhone) {
       return new Response(
         JSON.stringify({ error: "Missing readerPhone for read event" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Upsert receipt (deduplicated by unique constraint including receipt_type)
+    // Upsert receipt (deduplicated by unique constraint)
     const { error: insertError } = await supabase
       .from("notification_campaign_reads")
       .upsert(
@@ -131,44 +118,33 @@ Deno.serve(async (req) => {
           campaign_group_id: campaignGroup.id,
           reader_phone: payload.readerPhone,
           read_at: payload.timestamp || new Date().toISOString(),
-          receipt_type: receiptType,
+          receipt_type: "read",
         },
         { onConflict: "campaign_group_id,reader_phone,receipt_type" }
       );
 
     if (insertError) {
-      console.error("Error inserting receipt:", insertError);
+      console.error("Error inserting read receipt:", insertError);
       return new Response(
         JSON.stringify({ error: insertError.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Update the correct denormalized counter
-    const { count } = await supabase
-      .from("notification_campaign_reads")
-      .select("*", { count: "exact", head: true })
-      .eq("campaign_group_id", campaignGroup.id)
-      .eq("receipt_type", receiptType);
-
-    const updateField = receiptType === "read" ? "read_count" : "delivered_count";
-    await supabase
-      .from("notification_campaign_groups")
-      .update({ [updateField]: count || 0 })
-      .eq("id", campaignGroup.id);
-
-    console.log(
-      `${receiptType} receipt recorded for group ${campaignGroup.id}, total ${receiptType}: ${count}`
+    // Atomically increment read_count (capped at member_count)
+    const { data: readCount, error: readRpcError } = await supabase.rpc(
+      "increment_read_count",
+      { p_group_id: campaignGroup.id }
     );
 
+    if (readRpcError) {
+      console.error("Error incrementing read count:", readRpcError);
+    }
+
+    console.log(`Read receipt recorded for group ${campaignGroup.id}, reader: ${payload.readerPhone}, count: ${readCount}`);
     return new Response(
-      JSON.stringify({ success: true, receipt_type: receiptType, count }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ success: true, receipt_type: "read", count: readCount }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
     console.error("Receipt webhook error:", err);

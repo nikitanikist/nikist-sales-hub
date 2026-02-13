@@ -4021,6 +4021,7 @@ export type Database = {
           destination_url: string
         }[]
       }
+      increment_read_count: { Args: { p_group_id: string }; Returns: number }
       is_org_admin: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
