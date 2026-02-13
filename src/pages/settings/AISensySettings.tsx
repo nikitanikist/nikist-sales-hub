@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
-import { Plus, MessageCircle, Save, Loader2, User, Info, Trash2 } from "lucide-react";
+import { Plus, MessageCircle, Save, Loader2, User, Info, Trash2, PhoneCall } from "lucide-react";
 import { IntegrationSection } from "@/components/settings/IntegrationSection";
 import {
   AlertDialog,
@@ -47,6 +47,15 @@ const REMINDER_TYPES = [
   { key: "ten_minutes", label: "10 Minutes Before" },
   { key: "we_are_live", label: "We Are Live" },
 ];
+
+interface CallReminderType {
+  id?: string;
+  label: string;
+  offset_type: 'day_before' | 'same_day' | 'minutes_before';
+  offset_value: string;
+  display_order: number;
+  is_active: boolean;
+}
 
 interface CloserConfig {
   id?: string;
@@ -320,6 +329,13 @@ function CloserNotificationCard({
     }
   };
 
+  // Offset type display helpers
+  const OFFSET_TYPE_OPTIONS = [
+    { value: 'day_before', label: 'Day Before' },
+    { value: 'same_day', label: 'Same Day' },
+    { value: 'minutes_before', label: 'Minutes Before' },
+  ];
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -423,6 +439,14 @@ function CloserNotificationCard({
           </div>
         </div>
 
+        <Separator />
+
+        {/* Call Reminders Section */}
+        <CallRemindersSection
+          closerId={localConfig.closer_id}
+          organizationId={organizationId}
+        />
+
         {/* Actions */}
         <div className="flex justify-between pt-2">
           {localConfig.id && (
@@ -454,5 +478,193 @@ function CloserNotificationCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// Call Reminders management section within each closer card
+function CallRemindersSection({
+  closerId,
+  organizationId,
+}: {
+  closerId: string;
+  organizationId: string;
+}) {
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newOffsetType, setNewOffsetType] = useState<string>("day_before");
+  const [newOffsetValue, setNewOffsetValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const { data: reminderTypes, refetch } = useQuery({
+    queryKey: ["call-phone-reminder-types", closerId, organizationId],
+    queryFn: async () => {
+      if (!organizationId || !closerId) return [];
+      const { data, error } = await supabase
+        .from("call_phone_reminder_types" as any)
+        .select("*")
+        .eq("closer_id", closerId)
+        .eq("organization_id", organizationId)
+        .order("display_order", { ascending: true });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+    enabled: !!organizationId && !!closerId,
+  });
+
+  const getOffsetLabel = (type: string, value: string) => {
+    switch (type) {
+      case 'day_before': return `Day Before at ${value}`;
+      case 'same_day': return `Same Day at ${value}`;
+      case 'minutes_before': return `${value} min before call`;
+      default: return value;
+    }
+  };
+
+  const getPlaceholder = () => {
+    switch (newOffsetType) {
+      case 'day_before': return "e.g. 18:00";
+      case 'same_day': return "e.g. 10:00";
+      case 'minutes_before': return "e.g. 7";
+      default: return "";
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!newLabel || !newOffsetValue) {
+      toast({ title: "Please fill in label and value", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const nextOrder = (reminderTypes?.length || 0) + 1;
+      const { error } = await supabase
+        .from("call_phone_reminder_types" as any)
+        .insert({
+          organization_id: organizationId,
+          closer_id: closerId,
+          label: newLabel,
+          offset_type: newOffsetType,
+          offset_value: newOffsetValue,
+          display_order: nextOrder,
+        } as any);
+      if (error) throw error;
+      toast({ title: "Call reminder added" });
+      setNewLabel("");
+      setNewOffsetValue("");
+      setAdding(false);
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Failed to add reminder", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("call_phone_reminder_types" as any)
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+      toast({ title: "Call reminder deleted" });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Failed to delete", description: error.message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium flex items-center gap-2">
+          <PhoneCall className="h-4 w-4" />
+          Call Reminders
+        </Label>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setAdding(true)}
+          className="gap-1"
+        >
+          <Plus className="h-3 w-3" />
+          Add Reminder
+        </Button>
+      </div>
+
+      {reminderTypes && reminderTypes.length > 0 ? (
+        <div className="space-y-2">
+          {reminderTypes.map((rt: any) => (
+            <div
+              key={rt.id}
+              className="flex items-center justify-between px-3 py-2 bg-muted/50 rounded-md border text-sm"
+            >
+              <div>
+                <span className="font-medium">{rt.label}</span>
+                <span className="text-muted-foreground ml-2">
+                  — {getOffsetLabel(rt.offset_type, rt.offset_value)}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+                onClick={() => handleDelete(rt.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">No call reminders configured yet.</p>
+      )}
+
+      {adding && (
+        <div className="border rounded-md p-3 space-y-3 bg-background">
+          <div className="space-y-2">
+            <Label className="text-xs">Label</Label>
+            <Input
+              placeholder="e.g. Day Before Evening"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-xs">Type</Label>
+              <Select value={newOffsetType} onValueChange={setNewOffsetType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="day_before">Day Before</SelectItem>
+                  <SelectItem value="same_day">Same Day</SelectItem>
+                  <SelectItem value="minutes_before">Minutes Before</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs">Value</Label>
+              <Input
+                placeholder={getPlaceholder()}
+                value={newOffsetValue}
+                onChange={(e) => setNewOffsetValue(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="ghost" size="sm" onClick={() => setAdding(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleAdd} disabled={saving}>
+              {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

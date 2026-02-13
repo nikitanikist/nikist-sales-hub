@@ -29,6 +29,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 import { PageIntro } from "@/components/PageIntro";
+import { CallPhoneReminderTimeline } from "@/components/CallPhoneReminderTimeline";
 
 type CallStatus = Database["public"]["Enums"]["call_status"];
 type ReminderStatus = Database["public"]["Enums"]["reminder_status"];
@@ -1209,9 +1210,16 @@ const CloserAssignedCalls = () => {
                                         );
                                       })}
                                     </div>
-                                  </div>
+                                   </div>
 
-                                  {/* Editable Fields */}
+                                   {/* Call Reminder Timeline */}
+                                   <CallPhoneReminderTimeline
+                                     appointmentId={apt.id}
+                                     closerId={closerId || null}
+                                     organizationId={currentOrganization?.id || ""}
+                                   />
+
+                                   {/* Editable Fields */}
                                   <div className="space-y-4">
                                     <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                                       Call Details
