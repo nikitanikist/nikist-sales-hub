@@ -3320,6 +3320,8 @@ export type Database = {
           invite_link: string | null
           is_active: boolean | null
           is_admin: boolean | null
+          is_community: boolean
+          is_community_announce: boolean
           organization_id: string
           participant_count: number | null
           session_id: string
@@ -3335,6 +3337,8 @@ export type Database = {
           invite_link?: string | null
           is_active?: boolean | null
           is_admin?: boolean | null
+          is_community?: boolean
+          is_community_announce?: boolean
           organization_id: string
           participant_count?: number | null
           session_id: string
@@ -3350,6 +3354,8 @@ export type Database = {
           invite_link?: string | null
           is_active?: boolean | null
           is_admin?: boolean | null
+          is_community?: boolean
+          is_community_announce?: boolean
           organization_id?: string
           participant_count?: number | null
           session_id?: string

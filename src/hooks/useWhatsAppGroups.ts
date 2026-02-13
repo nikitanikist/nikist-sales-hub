@@ -14,6 +14,8 @@ export interface WhatsAppGroup {
   synced_at: string;
   is_active: boolean;
   is_admin: boolean;
+  is_community: boolean;
+  is_community_announce: boolean;
   invite_link: string | null;
 }
 
@@ -84,7 +86,7 @@ export function useWhatsAppGroups() {
         .from('whatsapp_groups')
         .select(`
           id, group_jid, group_name, organization_id, session_id, participant_count,
-          workshop_id, synced_at, is_active, is_admin, invite_link,
+          workshop_id, synced_at, is_active, is_admin, is_community, is_community_announce, invite_link,
           session:whatsapp_sessions!inner(status)
         `)
         .eq('organization_id', currentOrganization.id)
@@ -189,6 +191,9 @@ export function useWhatsAppGroups() {
   // Get unlinked groups
   const unlinkedGroups = groups?.filter(g => !g.workshop_id) || [];
 
+  // Groups safe to send messages to (excludes community parent containers)
+  const sendableGroups = groups?.filter(g => !g.is_community) || [];
+
   // Fetch invite link for a specific group
   const fetchInviteLinkMutation = useMutation({
     mutationFn: async ({ sessionId, groupId, groupJid }: { 
@@ -233,6 +238,7 @@ export function useWhatsAppGroups() {
 
   return {
     groups,
+    sendableGroups,
     groupsLoading,
     syncGroups: syncMutation.mutate,
     isSyncing: syncMutation.isPending,

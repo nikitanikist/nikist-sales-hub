@@ -33,7 +33,7 @@ const SendNotification = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
   const { sessions, sessionsLoading } = useWhatsAppSession();
-  const { groups, groupsLoading } = useWhatsAppGroups();
+  const { sendableGroups: groups, groupsLoading } = useWhatsAppGroups();
   const { templates } = useMessageTemplates();
 
   const [step, setStep] = useState<Step>(1);
