@@ -1,63 +1,73 @@
 
 
-# Fix Student Sync to Cohort Batches
+# Call Reminder Timeline — Inside Closer Notification Config
 
-## What Went Wrong
+## Summary
 
-When Keyur's appointment was marked as "converted" with Batch 4 assigned, the student record was never created in the batch's student list. Two issues caused this:
-
-1. **Batch 4 has no start date set** -- the code crashes with "Batch start date is required" at Step 4 (Pabbly webhook), making the entire save appear to fail. Although the appointment status did save (Step 1), the student sync (Step 3) either failed silently or was affected by the error flow.
-
-2. **No error feedback on student sync** -- when the insert into the student list fails for any reason, the error is completely swallowed with no feedback shown.
-
-3. **Closers cannot sync students** -- the student list table only allows admin and manager roles to insert AND view records. When a closer (like Dipanshu) converts someone, the sync silently fails. The closer also cannot view the cohort batch students page since SELECT is restricted too.
+Add a **"Call Reminders"** section inside each closer's notification configuration card (in the AISensy settings page), right below the existing "Template Names per Reminder Type" section. This section will allow admins to define custom call reminder checkpoints (e.g., "Day Before 6 PM", "Same Day Morning", "Before Call 7 min") with an **"Add Reminder"** button for adding more. These configured reminders will then appear dynamically in the expanded row of the Sales Closers list as a **"Call Reminder Timeline"** below the existing WhatsApp Reminder Timeline.
 
 ## What Will Change
 
-### 1. Database: Update security policies for closers
+### 1. Database: New tables for call reminders
 
-Update the `cohort_students` table policies:
-- **INSERT policy**: Add `sales_rep` role so closers can sync converted students
-- **SELECT policy**: Add `sales_rep` role but with a filter -- closers can only see students where `closer_id` matches their own user ID
+**`call_phone_reminder_types`** — Stores the configurable reminder definitions per closer:
+- `id`, `organization_id`, `closer_id`
+- `label` (text, e.g., "Day Before Evening")
+- `offset_type` (text: 'day_before', 'same_day', 'minutes_before')
+- `offset_value` (text, e.g., '18:00' for day-before time, '10:00' for morning, or '7' for minutes)
+- `display_order` (integer)
+- `is_active` (boolean)
+- `created_at`, `updated_at`
 
-This matches what you described: closers only see students they personally converted.
+**`call_phone_reminders`** — Stores per-appointment reminder instances:
+- `id`, `appointment_id`, `reminder_type_id` (FK to above)
+- `reminder_time` (timestamptz)
+- `status` (text: 'pending', 'done', 'skipped')
+- `completed_at`, `completed_by`
+- `organization_id`, `created_at`
 
-### 2. Database: Insert Keyur's missing record
+**Database trigger**: When an appointment is created/updated, auto-generate records in `call_phone_reminders` based on the closer's configured reminder types.
 
-One-time fix to add Keyur to Batch 4 with the correct data from his appointment:
-- Batch 4 (ecd65889...)
-- Offer: 15,000 | Cash received: 2,000 | Due: 13,000
-- Classes access: 3
-- Closer: Dipanshu
+### 2. UI: Add "Call Reminders" section in each closer's config card
 
-### 3. Code: Fix the start_date crash
+In `src/pages/settings/AISensySettings.tsx`, inside the `CloserNotificationCard` component, add a new section after the template names:
 
-In `CloserAssignedCalls.tsx`, line 684:
-- Remove the hard error when batch start_date is missing
-- Send the Pabbly webhook with start_date as empty when not available
-- The webhook can handle missing dates gracefully
+- A heading: **"Call Reminders"**
+- A list of configured call reminders showing label and timing
+- Each row has a delete button
+- An **"Add Reminder"** button at the bottom to add new entries
+- When adding: select offset type (Day Before / Same Day / Minutes Before) and set the time/minutes value
 
-### 4. Code: Add error handling on student sync
+This data is saved alongside the closer's notification config when clicking "Save Configuration".
 
-In `CloserAssignedCalls.tsx`, lines 647-661:
-- Check for errors after the insert/update calls
-- Log errors and show a warning toast so issues are visible instead of silent
+### 3. UI: Show "Call Reminder Timeline" in expanded rows
+
+In `src/pages/CloserAssignedCalls.tsx` and `src/pages/AllCloserCalls.tsx`, below the existing "Reminder Timeline" section, add a new **"Call Reminder Timeline"** section:
+
+- Shows the dynamically configured checkpoints (from the closer's config)
+- Each checkpoint is clickable to mark as "done" (records who completed it and when)
+- Color coding: green = done, yellow = pending, gray = skipped
+- If no call reminders are configured for that closer, the section is hidden
+
+### 4. RLS Policies
+
+- `call_phone_reminder_types`: admin/manager can manage; sales_rep can view their own closer_id records
+- `call_phone_reminders`: admin/manager can manage; sales_rep can view/update for their own appointments
 
 ## What Will NOT Change
 
-- No changes to any other pages
-- No changes to notifications or AISensy logic  
-- No changes to the Pabbly edge function
-- Closer permissions for other menu items stay the same
-- Admin/manager access stays unchanged
+- Existing WhatsApp Reminder Timeline (the `call_reminders` table and `calculate_reminder_times` trigger) — completely untouched
+- AISensy account management and template configuration — untouched
+- The `REMINDER_TYPES` constant and all WhatsApp notification logic — untouched
+- All edge functions — untouched
+- No existing features are renamed or moved
 
 ## Technical Details
 
+### Files to Create
+- Migration SQL for `call_phone_reminder_types`, `call_phone_reminders` tables, trigger, and RLS policies
+
 ### Files to Edit
-- `src/pages/CloserAssignedCalls.tsx` -- fix start_date validation + add error handling
-
-### Database Changes
-- Update INSERT policy on `cohort_students`: add `sales_rep` role
-- Update SELECT policy on `cohort_students`: add `sales_rep` with `closer_id = auth.uid()` filter
-- Insert missing record for Keyur into `cohort_students`
-
+- `src/pages/settings/AISensySettings.tsx` — Add "Call Reminders" section inside `CloserNotificationCard`, with add/delete UI for reminder types
+- `src/pages/CloserAssignedCalls.tsx` — Add "Call Reminder Timeline" section below existing Reminder Timeline in expanded rows, with clickable status toggles
+- `src/pages/AllCloserCalls.tsx` — Same Call Reminder Timeline addition for admin view
