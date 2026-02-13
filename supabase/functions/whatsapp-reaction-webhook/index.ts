@@ -9,12 +9,12 @@ const corsHeaders = {
 const EXPECTED_API_KEY = "nikist-whatsapp-2024-secure-key";
 
 interface ReactionPayload {
-  event: "reaction_add";
+  event: "reaction_add" | "reaction_remove";
   sessionId: string;
   messageId: string;
   groupJid: string;
   reactorPhone: string;
-  emoji: string;
+  emoji?: string;
   timestamp: string;
 }
 
@@ -24,7 +24,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate API key
     const apiKey =
       req.headers.get("x-api-key") ||
       req.headers.get("authorization")?.replace("Bearer ", "");
@@ -39,11 +38,19 @@ Deno.serve(async (req) => {
     const payload: ReactionPayload = await req.json();
     console.log("Reaction received:", JSON.stringify(payload));
 
-    if (!payload.messageId || !payload.reactorPhone || !payload.emoji) {
+    if (!payload.messageId || !payload.reactorPhone) {
       return new Response(
-        JSON.stringify({
-          error: "Missing messageId, reactorPhone, or emoji",
-        }),
+        JSON.stringify({ error: "Missing messageId or reactorPhone" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    if (payload.event === "reaction_add" && !payload.emoji) {
+      return new Response(
+        JSON.stringify({ error: "Missing emoji for reaction_add" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -63,10 +70,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (findError || !campaignGroup) {
-      console.log(
-        "No campaign group found for messageId:",
-        payload.messageId
-      );
+      console.log("No campaign group found for messageId:", payload.messageId);
       return new Response(
         JSON.stringify({ message: "No matching campaign group" }),
         {
@@ -76,31 +80,44 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Upsert reaction (deduplicated by unique constraint)
-    const { error: insertError } = await supabase
-      .from("notification_campaign_reactions")
-      .upsert(
-        {
-          campaign_group_id: campaignGroup.id,
-          reactor_phone: payload.reactorPhone,
-          emoji: payload.emoji,
-          reacted_at: payload.timestamp || new Date().toISOString(),
-        },
-        { onConflict: "campaign_group_id,reactor_phone,emoji" }
-      );
+    if (payload.event === "reaction_remove") {
+      // Delete the reaction row
+      const { error: deleteError } = await supabase
+        .from("notification_campaign_reactions")
+        .delete()
+        .eq("campaign_group_id", campaignGroup.id)
+        .eq("reactor_phone", payload.reactorPhone);
 
-    if (insertError) {
-      console.error("Error inserting reaction:", insertError);
-      return new Response(
-        JSON.stringify({ error: insertError.message }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      if (deleteError) {
+        console.error("Error deleting reaction:", deleteError);
+      }
+    } else {
+      // reaction_add: UPSERT (one reaction per person per group)
+      const { error: upsertError } = await supabase
+        .from("notification_campaign_reactions")
+        .upsert(
+          {
+            campaign_group_id: campaignGroup.id,
+            reactor_phone: payload.reactorPhone,
+            emoji: payload.emoji!,
+            reacted_at: payload.timestamp || new Date().toISOString(),
+          },
+          { onConflict: "campaign_group_id,reactor_phone" }
+        );
+
+      if (upsertError) {
+        console.error("Error upserting reaction:", upsertError);
+        return new Response(
+          JSON.stringify({ error: upsertError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
 
-    // Update the denormalized reaction_count
+    // Recount reactions from table
     const { count } = await supabase
       .from("notification_campaign_reactions")
       .select("*", { count: "exact", head: true })
@@ -112,7 +129,7 @@ Deno.serve(async (req) => {
       .eq("id", campaignGroup.id);
 
     console.log(
-      `Reaction recorded for group ${campaignGroup.id}, emoji: ${payload.emoji}, total reactions: ${count}`
+      `Reaction ${payload.event} for group ${campaignGroup.id}, reactor: ${payload.reactorPhone}, total: ${count}`
     );
 
     return new Response(
