@@ -2083,6 +2083,141 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_campaign_groups: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          error_message: string | null
+          group_id: string
+          group_jid: string
+          group_name: string
+          id: string
+          member_count: number
+          message_id: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          error_message?: string | null
+          group_id: string
+          group_jid: string
+          group_name: string
+          id?: string
+          member_count?: number
+          message_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          error_message?: string | null
+          group_id?: string
+          group_jid?: string
+          group_name?: string
+          id?: string
+          member_count?: number
+          message_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_campaign_groups_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "notification_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_campaign_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_campaigns: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          delay_seconds: number
+          failed_count: number
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message_content: string
+          name: string
+          organization_id: string
+          scheduled_for: string | null
+          sent_count: number
+          session_id: string
+          started_at: string | null
+          status: string
+          total_audience: number
+          total_groups: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delay_seconds?: number
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_content: string
+          name: string
+          organization_id: string
+          scheduled_for?: string | null
+          sent_count?: number
+          session_id: string
+          started_at?: string | null
+          status?: string
+          total_audience?: number
+          total_groups?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delay_seconds?: number
+          failed_count?: number
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_content?: string
+          name?: string
+          organization_id?: string
+          scheduled_for?: string | null
+          sent_count?: number
+          session_id?: string
+          started_at?: string | null
+          status?: string
+          total_audience?: number
+          total_groups?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offer_amount_history: {
         Row: {
           appointment_id: string
@@ -3048,6 +3183,48 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "webhook_ingest_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_group_admins: {
+        Row: {
+          group_id: string
+          id: string
+          is_super_admin: boolean
+          organization_id: string
+          phone: string
+          synced_at: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          is_super_admin?: boolean
+          organization_id: string
+          phone: string
+          synced_at?: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          is_super_admin?: boolean
+          organization_id?: string
+          phone?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_group_admins_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_group_admins_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

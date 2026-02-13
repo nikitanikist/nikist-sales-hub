@@ -35,6 +35,7 @@ import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
 import ProtectedRoute from "./components/ProtectedRoute";
 import TemplateEditor from "./pages/settings/TemplateEditor";
+import { WhatsAppDashboard, SendNotification, Campaigns, CampaignDetail, Templates as WhatsAppTemplates, ScheduledMessages } from "./pages/whatsapp";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,13 @@ const App = () => (
               <Route path="/settings" element={<ProtectedRoute adminOnly><OrganizationSettings /></ProtectedRoute>} />
               <Route path="/settings/templates/new" element={<ProtectedRoute adminOnly><TemplateEditor /></ProtectedRoute>} />
               <Route path="/settings/templates/:id" element={<ProtectedRoute adminOnly><TemplateEditor /></ProtectedRoute>} />
+              {/* WhatsApp Module */}
+              <Route path="/whatsapp" element={<ProtectedRoute><WhatsAppDashboard /></ProtectedRoute>} />
+              <Route path="/whatsapp/send-notification" element={<ProtectedRoute><SendNotification /></ProtectedRoute>} />
+              <Route path="/whatsapp/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
+              <Route path="/whatsapp/campaigns/:campaignId" element={<ProtectedRoute><CampaignDetail /></ProtectedRoute>} />
+              <Route path="/whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplates /></ProtectedRoute>} />
+              <Route path="/whatsapp/scheduled" element={<ProtectedRoute><ScheduledMessages /></ProtectedRoute>} />
               <Route path="/super-admin" element={<SuperAdminDashboard />} />
               <Route path="/super-admin/create-org" element={<SuperAdminDashboard />} />
             </Route>
