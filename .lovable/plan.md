@@ -1,65 +1,70 @@
 
 
-# Filter Out Community Parent Groups from Send Notification
+# Filter Community Parents from Sync and Handle Async WhatsApp Errors
 
-## Problem
-Community parent JIDs appear as selectable groups in the Send Notification wizard. Sending to these container JIDs causes WhatsApp error 420.
+## 1. Delete the two bad community parent groups
 
-## Changes
-
-### 1. Database Migration -- Add community flag columns
-
-Add two new boolean columns to `whatsapp_groups`:
+Run a SQL data operation to remove the two known community container groups that cause error 420:
 
 ```sql
-ALTER TABLE whatsapp_groups
-  ADD COLUMN is_community boolean NOT NULL DEFAULT false,
-  ADD COLUMN is_community_announce boolean NOT NULL DEFAULT false;
+DELETE FROM whatsapp_groups 
+WHERE group_jid IN ('120363407711548023@g.us', '120363405870946081@g.us');
 ```
 
-### 2. VPS Proxy -- Store flags during group sync
+## 2. Update VPS sync to skip community parents entirely
 
 **File: `supabase/functions/vps-whatsapp-proxy/index.ts`**
 
-In the `groupsToUpsert` mapping (around line 841-855), add two fields from the VPS response:
+Add a `.filter()` before `.map()` at line ~804 so community parent groups are never stored:
 
 ```text
-is_community: g.isCommunity === true,
-is_community_announce: g.isCommunityAnnounce === true,
+const groupsToUpsert = vpsGroups
+  .filter((g: any) => g.isCommunity !== true)
+  .map((g: any) => { ... });
 ```
 
-### 3. Frontend -- Filter out community parents from group selection
+This prevents community parents from re-appearing after future syncs. Announcement groups (`isCommunityAnnounce: true`) are still synced since they are the actual sendable targets.
 
-**File: `src/hooks/useWhatsAppGroups.ts`**
+## 3. Create `whatsapp-message-error-webhook` edge function
 
-Two changes:
+**New file: `supabase/functions/whatsapp-message-error-webhook/index.ts`**
 
-a) Add `is_community` and `is_community_announce` to the `WhatsAppGroup` interface and the select query.
+This webhook receives async error ACKs from the VPS when WhatsApp rejects a message after the initial send succeeded (e.g., error 420).
 
-b) Add a `sendableGroups` computed value that filters out community parents:
-```text
-const sendableGroups = groups?.filter(g => !g.is_community) || [];
+Expected payload from VPS:
+```json
+{
+  "event": "message_error",
+  "sessionId": "wa_xxx",
+  "messageId": "ABCDEF...",
+  "errorCode": 420,
+  "errorMessage": "Rate limit / community parent rejection",
+  "groupJid": "120363407711548023@g.us"
+}
 ```
 
-This keeps community parents in the full `groups` list (useful for dashboard/management) but removes them from messaging contexts.
+Logic:
+1. Authenticate with same API key (`nikist-whatsapp-2024-secure-key`)
+2. Look up `notification_campaign_groups` by `message_id`
+3. Update status from `sent` to `failed` with `error_message` = the error details
+4. Recount sent/failed totals on the parent `notification_campaigns` row and update status to `partial_failure` if needed
 
-### 4. Send Notification Wizard -- Use filtered groups
-
-Wherever the Send Notification wizard currently uses `groups` for selection, switch to using `sendableGroups` from the hook. This ensures community parent JIDs never appear as selectable options.
+**Config: `supabase/config.toml`**
+```toml
+[functions.whatsapp-message-error-webhook]
+verify_jwt = false
+```
 
 ## Technical Details
 
-- The VPS `/groups` endpoint already returns `isCommunity` and `isCommunityAnnounce` fields per group
-- Announcement groups (`isCommunityAnnounce: true`) remain visible and sendable -- these are the correct targets
-- Community parents (`isCommunity: true`) are containers only and are filtered out
-- Existing groups will default to `false` for both flags until next sync
-- After deploying, a re-sync of groups will populate the flags correctly
+- The VPS side will need a corresponding change to forward error ACKs to this new webhook URL. That is outside the CRM codebase but the endpoint will be ready.
+- The `is_community` filter in sync is a hard filter (not just a flag) so community parents will no longer clutter the database at all.
+- The `is_community` and `is_community_announce` columns remain on the table for any edge cases but community parents simply won't be synced.
 
 ## Sequence
 
-1. Run migration to add columns
-2. Update VPS proxy to store flags during sync
-3. Update `useWhatsAppGroups` hook with new fields and `sendableGroups`
-4. Update Send Notification wizard to use `sendableGroups`
-5. User re-syncs groups to populate the new flags
+1. Delete the two bad groups (data operation)
+2. Update VPS proxy sync to filter out community parents
+3. Create the error webhook edge function + config.toml entry
+4. Deploy both edge functions
 
