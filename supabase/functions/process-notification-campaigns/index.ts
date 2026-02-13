@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       // Get session's VPS session ID
       const { data: sessionData } = await supabase
         .from("whatsapp_sessions")
-        .select("metadata, status")
+        .select("session_data, status")
         .eq("id", campaign.session_id)
         .single();
 
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       }
 
       const vpsSessionId =
-        (sessionData.metadata as any)?.vps_session_id || campaign.session_id;
+        (sessionData.session_data as any)?.vps_session_id || campaign.session_id;
 
       // Get next batch of pending groups
       const { data: pendingGroups } = await supabase
