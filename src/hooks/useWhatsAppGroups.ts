@@ -192,7 +192,7 @@ export function useWhatsAppGroups() {
   const unlinkedGroups = groups?.filter(g => !g.workshop_id) || [];
 
   // Groups safe to send messages to (excludes community parent containers)
-  const sendableGroups = groups?.filter(g => !g.is_community) || [];
+  const sendableGroups = groups?.filter(g => !g.is_community && g.is_admin) || [];
 
   // Fetch invite link for a specific group
   const fetchInviteLinkMutation = useMutation({
