@@ -1,55 +1,65 @@
 
 
-# Deduplicate Delivered Receipts by Capping at Member Count
+# Filter Out Community Parent Groups from Send Notification
 
 ## Problem
-
-The current increment logic (lines 86-102) has two issues:
-1. **No deduplication** -- the same delivery event sent from multiple VPS sessions (or retried by WhatsApp) increments the counter each time.
-2. **Race condition** -- concurrent webhooks read the same `delivered_count`, both write `count + 1`, resulting in a lost update.
-
-## Approach: Atomic SQL increment with a cap
-
-Instead of read-then-write in application code, use a single atomic SQL update that increments `delivered_count` but never exceeds `member_count`. This is handled entirely on the CRM side -- no VPS changes needed.
+Community parent JIDs appear as selectable groups in the Send Notification wizard. Sending to these container JIDs causes WhatsApp error 420.
 
 ## Changes
 
-**File: `supabase/functions/whatsapp-read-receipt-webhook/index.ts`**
+### 1. Database Migration -- Add community flag columns
 
-Replace the current delivered-no-reader block (lines 86-102) with an RPC call to a new database function that atomically increments `delivered_count` only if it is below `member_count`.
-
-**Database migration: new function `increment_delivered_count`**
+Add two new boolean columns to `whatsapp_groups`:
 
 ```sql
-CREATE OR REPLACE FUNCTION public.increment_delivered_count(p_group_id uuid)
-RETURNS integer
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  UPDATE notification_campaign_groups
-  SET delivered_count = LEAST(COALESCE(delivered_count, 0) + 1, COALESCE(member_count, 999999))
-  WHERE id = p_group_id
-  RETURNING delivered_count;
-$$;
+ALTER TABLE whatsapp_groups
+  ADD COLUMN is_community boolean NOT NULL DEFAULT false,
+  ADD COLUMN is_community_announce boolean NOT NULL DEFAULT false;
 ```
 
-This single statement is atomic (no race condition) and caps at member_count (no over-counting from duplicate webhooks).
+### 2. VPS Proxy -- Store flags during group sync
 
-**Edge function update (delivered branch):**
+**File: `supabase/functions/vps-whatsapp-proxy/index.ts`**
+
+In the `groupsToUpsert` mapping (around line 841-855), add two fields from the VPS response:
 
 ```text
-// Replace lines 86-102 with:
-const { data, error } = await supabase.rpc('increment_delivered_count', { p_group_id: campaignGroup.id });
-const newCount = data;
-// Log and return response
+is_community: g.isCommunity === true,
+is_community_announce: g.isCommunityAnnounce === true,
 ```
 
-## Why this approach
+### 3. Frontend -- Filter out community parents from group selection
 
-- **Atomic** -- single SQL statement, no read-then-write race
-- **Capped** -- delivered_count can never exceed member_count
-- **No VPS changes** -- handled entirely in CRM
-- **Simple** -- one small DB function, minimal edge function change
-- **No timing hacks** -- works regardless of how many times the same event arrives
+**File: `src/hooks/useWhatsAppGroups.ts`**
+
+Two changes:
+
+a) Add `is_community` and `is_community_announce` to the `WhatsAppGroup` interface and the select query.
+
+b) Add a `sendableGroups` computed value that filters out community parents:
+```text
+const sendableGroups = groups?.filter(g => !g.is_community) || [];
+```
+
+This keeps community parents in the full `groups` list (useful for dashboard/management) but removes them from messaging contexts.
+
+### 4. Send Notification Wizard -- Use filtered groups
+
+Wherever the Send Notification wizard currently uses `groups` for selection, switch to using `sendableGroups` from the hook. This ensures community parent JIDs never appear as selectable options.
+
+## Technical Details
+
+- The VPS `/groups` endpoint already returns `isCommunity` and `isCommunityAnnounce` fields per group
+- Announcement groups (`isCommunityAnnounce: true`) remain visible and sendable -- these are the correct targets
+- Community parents (`isCommunity: true`) are containers only and are filtered out
+- Existing groups will default to `false` for both flags until next sync
+- After deploying, a re-sync of groups will populate the flags correctly
+
+## Sequence
+
+1. Run migration to add columns
+2. Update VPS proxy to store flags during sync
+3. Update `useWhatsAppGroups` hook with new fields and `sendableGroups`
+4. Update Send Notification wizard to use `sendableGroups`
+5. User re-syncs groups to populate the new flags
 
