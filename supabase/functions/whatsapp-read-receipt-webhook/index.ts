@@ -8,8 +8,8 @@ const corsHeaders = {
 
 const EXPECTED_API_KEY = "nikist-whatsapp-2024-secure-key";
 
-interface ReadReceiptPayload {
-  event: "read";
+interface ReceiptPayload {
+  event: "read" | "delivered";
   sessionId: string;
   messageId: string;
   groupJid: string;
@@ -23,7 +23,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate API key
     const apiKey =
       req.headers.get("x-api-key") ||
       req.headers.get("authorization")?.replace("Bearer ", "");
@@ -35,8 +34,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const payload: ReadReceiptPayload = await req.json();
-    console.log("Read receipt received:", JSON.stringify(payload));
+    const payload: ReceiptPayload = await req.json();
+    console.log("Receipt received:", JSON.stringify(payload));
+
+    // Validate event type
+    if (payload.event !== "read" && payload.event !== "delivered") {
+      return new Response(
+        JSON.stringify({ error: "Invalid event type, expected 'read' or 'delivered'" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     if (!payload.messageId || !payload.readerPhone) {
       return new Response(
@@ -70,7 +80,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Upsert read receipt (deduplicated by unique constraint)
+    const receiptType = payload.event; // "read" or "delivered"
+
+    // Upsert receipt (deduplicated by unique constraint including receipt_type)
     const { error: insertError } = await supabase
       .from("notification_campaign_reads")
       .upsert(
@@ -78,12 +90,13 @@ Deno.serve(async (req) => {
           campaign_group_id: campaignGroup.id,
           reader_phone: payload.readerPhone,
           read_at: payload.timestamp || new Date().toISOString(),
+          receipt_type: receiptType,
         },
-        { onConflict: "campaign_group_id,reader_phone" }
+        { onConflict: "campaign_group_id,reader_phone,receipt_type" }
       );
 
     if (insertError) {
-      console.error("Error inserting read receipt:", insertError);
+      console.error("Error inserting receipt:", insertError);
       return new Response(
         JSON.stringify({ error: insertError.message }),
         {
@@ -93,29 +106,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update the denormalized read_count
+    // Update the correct denormalized counter
     const { count } = await supabase
       .from("notification_campaign_reads")
       .select("*", { count: "exact", head: true })
-      .eq("campaign_group_id", campaignGroup.id);
+      .eq("campaign_group_id", campaignGroup.id)
+      .eq("receipt_type", receiptType);
 
+    const updateField = receiptType === "read" ? "read_count" : "delivered_count";
     await supabase
       .from("notification_campaign_groups")
-      .update({ read_count: count || 0 })
+      .update({ [updateField]: count || 0 })
       .eq("id", campaignGroup.id);
 
     console.log(
-      `Read receipt recorded for group ${campaignGroup.id}, total reads: ${count}`
+      `${receiptType} receipt recorded for group ${campaignGroup.id}, total ${receiptType}: ${count}`
     );
 
     return new Response(
-      JSON.stringify({ success: true, read_count: count }),
+      JSON.stringify({ success: true, receipt_type: receiptType, count }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   } catch (err) {
-    console.error("Read receipt webhook error:", err);
+    console.error("Receipt webhook error:", err);
     return new Response(
       JSON.stringify({
         error: err instanceof Error ? err.message : "Unknown error",

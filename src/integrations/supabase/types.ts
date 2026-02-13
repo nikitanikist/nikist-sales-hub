@@ -2087,6 +2087,7 @@ export type Database = {
         Row: {
           campaign_id: string
           created_at: string
+          delivered_count: number
           error_message: string | null
           group_id: string
           group_jid: string
@@ -2102,6 +2103,7 @@ export type Database = {
         Insert: {
           campaign_id: string
           created_at?: string
+          delivered_count?: number
           error_message?: string | null
           group_id: string
           group_jid: string
@@ -2117,6 +2119,7 @@ export type Database = {
         Update: {
           campaign_id?: string
           created_at?: string
+          delivered_count?: number
           error_message?: string | null
           group_id?: string
           group_jid?: string
@@ -2188,6 +2191,7 @@ export type Database = {
           id: string
           read_at: string
           reader_phone: string
+          receipt_type: string
         }
         Insert: {
           campaign_group_id: string
@@ -2195,6 +2199,7 @@ export type Database = {
           id?: string
           read_at?: string
           reader_phone: string
+          receipt_type?: string
         }
         Update: {
           campaign_group_id?: string
@@ -2202,6 +2207,7 @@ export type Database = {
           id?: string
           read_at?: string
           reader_phone?: string
+          receipt_type?: string
         }
         Relationships: [
           {
