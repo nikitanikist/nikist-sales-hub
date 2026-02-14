@@ -351,7 +351,6 @@ const AppLayoutContent = () => {
         { title: "Dashboard", path: "/whatsapp", permissionKey: 'whatsapp' as PermissionKey },
         { title: "Campaigns", path: "/whatsapp/campaigns", permissionKey: 'whatsapp' as PermissionKey },
         { title: "Templates", path: "/whatsapp/templates", permissionKey: 'whatsapp' as PermissionKey },
-        { title: "Scheduled", path: "/whatsapp/scheduled", permissionKey: 'whatsapp' as PermissionKey },
       ],
     },
     

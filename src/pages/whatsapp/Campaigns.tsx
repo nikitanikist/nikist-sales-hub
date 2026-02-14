@@ -9,11 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { CheckCircle2, Clock, Send, AlertTriangle, Trash2, Loader2, LayoutList } from "lucide-react";
+import { CheckCircle2, Clock, Send, AlertTriangle, Trash2, LayoutList, List } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const STATUS_BADGE_VARIANT: Record<string, string> = {
   draft: "secondary",
@@ -28,7 +28,7 @@ const Campaigns = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: campaigns, isLoading } = useQuery({
@@ -63,14 +63,15 @@ const Campaigns = () => {
 
   const filteredCampaigns = useMemo(() => {
     if (!campaigns) return [];
-    if (activeTab === "all") return campaigns;
-    return campaigns.filter((c) => c.status === activeTab);
-  }, [campaigns, activeTab]);
+    if (activeFilter === "all") return campaigns;
+    if (activeFilter === "failed") return campaigns.filter((c) => c.status === "failed" || c.status === "partial_failure");
+    return campaigns.filter((c) => c.status === activeFilter);
+  }, [campaigns, activeFilter]);
 
-  // Stat counts
   const counts = useMemo(() => {
-    if (!campaigns) return { completed: 0, scheduled: 0, sending: 0, failed: 0 };
+    if (!campaigns) return { all: 0, completed: 0, scheduled: 0, sending: 0, failed: 0 };
     return {
+      all: campaigns.length,
       completed: campaigns.filter((c) => c.status === "completed").length,
       scheduled: campaigns.filter((c) => c.status === "scheduled").length,
       sending: campaigns.filter((c) => c.status === "sending").length,
@@ -78,19 +79,20 @@ const Campaigns = () => {
     };
   }, [campaigns]);
 
-  const statCards = [
-    { label: "Completed", count: counts.completed, icon: CheckCircle2, color: "text-emerald-500", bg: "from-emerald-500/10 to-emerald-500/5" },
-    { label: "Scheduled", count: counts.scheduled, icon: Clock, color: "text-blue-500", bg: "from-blue-500/10 to-blue-500/5" },
-    { label: "Sending", count: counts.sending, icon: Send, color: "text-primary", bg: "from-primary/10 to-primary/5" },
-    { label: "Failed", count: counts.failed, icon: AlertTriangle, color: "text-destructive", bg: "from-destructive/10 to-destructive/5" },
+  const filterCards = [
+    { key: "all", label: "All", count: counts.all, icon: List, color: "text-foreground", activeRing: "ring-primary" },
+    { key: "completed", label: "Completed", count: counts.completed, icon: CheckCircle2, color: "text-emerald-500", activeRing: "ring-emerald-500" },
+    { key: "scheduled", label: "Scheduled", count: counts.scheduled, icon: Clock, color: "text-blue-500", activeRing: "ring-blue-500" },
+    { key: "sending", label: "Sending", count: counts.sending, icon: Send, color: "text-primary", activeRing: "ring-primary" },
+    { key: "failed", label: "Failed", count: counts.failed, icon: AlertTriangle, color: "text-destructive", activeRing: "ring-destructive" },
   ];
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" /><Skeleton className="h-20" />
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          <Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" /><Skeleton className="h-16" />
         </div>
         <Skeleton className="h-64" />
       </div>
@@ -101,31 +103,30 @@ const Campaigns = () => {
     <div className="space-y-6">
       <PageHeader title="Campaigns" />
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {statCards.map((stat) => (
-          <Card key={stat.label} className={`bg-gradient-to-br ${stat.bg} border-0 shadow-sm`}>
-            <CardContent className="p-4 flex items-center gap-3">
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-              <div>
-                <p className="text-2xl font-bold">{stat.count}</p>
-                <p className="text-xs text-muted-foreground">{stat.label}</p>
+      {/* Clickable filter cards */}
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+        {filterCards.map((card) => {
+          const isActive = activeFilter === card.key;
+          return (
+            <button
+              key={card.key}
+              onClick={() => setActiveFilter(card.key)}
+              className={cn(
+                "flex items-center gap-2.5 rounded-lg border bg-card p-3 text-left transition-all hover:shadow-sm",
+                isActive
+                  ? `ring-2 ${card.activeRing} border-transparent shadow-sm`
+                  : "border-border hover:border-muted-foreground/30"
+              )}
+            >
+              <card.icon className={cn("h-4 w-4 shrink-0", card.color)} />
+              <div className="min-w-0">
+                <p className="text-lg font-bold leading-tight">{card.count}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{card.label}</p>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </button>
+          );
+        })}
       </div>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="all">All ({campaigns?.length || 0})</TabsTrigger>
-          <TabsTrigger value="completed">Completed</TabsTrigger>
-          <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-          <TabsTrigger value="sending">Sending</TabsTrigger>
-          <TabsTrigger value="failed">Failed</TabsTrigger>
-        </TabsList>
-      </Tabs>
 
       {/* Table */}
       <Card>
@@ -147,9 +148,9 @@ const Campaigns = () => {
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     <LayoutList className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    {activeTab === "all"
+                    {activeFilter === "all"
                       ? "No campaigns yet. Send your first notification from the Dashboard."
-                      : `No ${activeTab} campaigns.`}
+                      : `No ${activeFilter} campaigns.`}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -196,7 +197,6 @@ const Campaigns = () => {
         </CardContent>
       </Card>
 
-      {/* Delete confirmation */}
       <ConfirmDeleteDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
