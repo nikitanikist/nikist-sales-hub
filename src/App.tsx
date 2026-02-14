@@ -20,7 +20,7 @@ import Calls from "./pages/Calls";
 import Products from "./pages/Products";
 import Onboarding from "./pages/Onboarding";
 import Users from "./pages/Users";
-import Batches from "./pages/Batches";
+import Batches from "./pages/batches";
 import FuturesMentorship from "./pages/FuturesMentorship";
 import HighFuture from "./pages/HighFuture";
 import DailyMoneyFlow from "./pages/DailyMoneyFlow";
