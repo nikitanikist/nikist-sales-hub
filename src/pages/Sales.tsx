@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, DollarSign } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
@@ -35,7 +35,8 @@ const Sales = () => {
         .from("sales")
         .select("*, lead:leads(company_name), sales_rep:profiles(full_name)")
         .eq("organization_id", currentOrganization.id)
-        .order("closed_date", { ascending: false });
+        .order("closed_date", { ascending: false })
+        .limit(1000);
 
       if (error) throw error;
       return data;
@@ -218,7 +219,8 @@ const Sales = () => {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" className="w-full sm:w-auto h-11 sm:h-10">
+                <Button type="submit" className="w-full sm:w-auto h-11 sm:h-10" disabled={createMutation.isPending || updateMutation.isPending}>
+                  {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {editingSale ? "Update" : "Record"} Sale
                 </Button>
               </DialogFooter>

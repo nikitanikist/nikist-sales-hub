@@ -78,7 +78,8 @@ const Products = () => {
           funnel:funnels!products_funnel_id_fkey(funnel_name)
         `)
         .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(1000);
 
       if (error) throw error;
       return data as Product[];

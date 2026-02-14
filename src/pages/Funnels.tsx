@@ -58,7 +58,8 @@ const Funnels = () => {
       const { data, error } = await supabase
         .from("lead_assignments")
         .select("funnel_id, product_id, workshop_id, lead_id")
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .limit(1000);
 
       if (error) throw error;
       return data;

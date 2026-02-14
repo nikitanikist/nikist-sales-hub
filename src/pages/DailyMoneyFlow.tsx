@@ -76,7 +76,8 @@ const DailyMoneyFlow = () => {
         .from("daily_money_flow")
         .select("*")
         .eq("organization_id", currentOrganization.id)
-        .order("date", { ascending: false });
+        .order("date", { ascending: false })
+        .limit(1000);
 
       if (moneyFlowError) throw moneyFlowError;
 

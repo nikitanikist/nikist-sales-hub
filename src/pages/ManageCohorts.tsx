@@ -430,8 +430,9 @@ const ManageCohorts = () => {
             <AlertDialogAction
               onClick={() => deletingCohort && deleteMutation.mutate(deletingCohort.id)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
             >
-              Delete
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

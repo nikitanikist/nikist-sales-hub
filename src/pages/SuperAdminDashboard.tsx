@@ -95,6 +95,7 @@ const SuperAdminDashboard = () => {
     }
   }, [isSuperAdmin, orgLoading, navigate]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO: review this dependency. fetchOrganizations and fetchAllModules are non-memoized functions that trigger setState, adding them would cause infinite re-renders.
   useEffect(() => {
     if (isSuperAdmin) {
       fetchOrganizations();

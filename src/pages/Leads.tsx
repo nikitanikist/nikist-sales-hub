@@ -262,7 +262,8 @@ const Leads = () => {
           previous_assigned_profile:profiles!leads_previous_assigned_to_fkey(id, full_name)
         `)
         .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(1000);
 
       if (error) throw error;
       return data;
@@ -278,7 +279,8 @@ const Leads = () => {
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .order("full_name");
+        .order("full_name")
+        .limit(1000);
 
       if (error) throw error;
       return data;

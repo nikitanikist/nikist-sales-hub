@@ -197,7 +197,8 @@ const HighFuture = () => {
           closer:profiles!closer_id(full_name)
         `)
         .eq("batch_id", selectedBatch.id)
-        .order("conversion_date", { ascending: false });
+        .order("conversion_date", { ascending: false })
+        .limit(1000);
       
       if (error) throw error;
       
