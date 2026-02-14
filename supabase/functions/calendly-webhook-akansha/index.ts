@@ -34,7 +34,8 @@ serve(async (req) => {
 
     // Parse the Calendly webhook payload
     const payload = await req.json();
-    console.log('Akansha Calendly webhook received:', JSON.stringify(payload, null, 2));
+    // Log only event type and structural info - no PII
+    console.log('Akansha Calendly webhook received, event:', payload.event);
 
     // Verify this is an invitee.created event
     if (payload.event !== 'invitee.created') {
@@ -68,13 +69,12 @@ serve(async (req) => {
     const calendlyInviteeUri = invitee.uri;
 
     console.log('Akansha webhook - Extracted data:', {
-      customerName,
-      customerEmail,
-      customerPhone,
+      hasName: !!customerName,
+      hasEmail: !!customerEmail,
+      hasPhone: !!customerPhone,
       startTime,
-      zoomLink,
+      hasZoomLink: !!zoomLink,
       calendlyEventUri,
-      calendlyInviteeUri,
     });
 
     if (!customerEmail) {
@@ -146,7 +146,7 @@ serve(async (req) => {
       }
     }
     
-    console.log('Parsed phone:', { rawPhone, countryCode, phoneDigits });
+    console.log('Parsed phone:', { countryCode, hasPhone: !!phoneDigits });
 
     if (!lead) {
       // Create new lead
@@ -289,7 +289,7 @@ serve(async (req) => {
         ],
       };
 
-      console.log('WhatsApp payload (Akansha):', JSON.stringify(whatsappPayload, null, 2));
+      console.log('Sending WhatsApp call booking notification (Akansha), template: 1_to_1_call_booking_crypto_nikist_video');
 
       try {
         const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {

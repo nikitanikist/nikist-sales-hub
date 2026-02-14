@@ -5,8 +5,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
 };
 
-const EXPECTED_API_KEY = "nikist-whatsapp-2024-secure-key";
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -14,6 +12,14 @@ Deno.serve(async (req) => {
 
   try {
     // Authenticate
+    const EXPECTED_API_KEY = Deno.env.get('WEBHOOK_SECRET_KEY');
+    if (!EXPECTED_API_KEY) {
+      console.error('WEBHOOK_SECRET_KEY environment variable not configured');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const apiKey = req.headers.get("x-api-key") || req.headers.get("authorization")?.replace("Bearer ", "");
     if (apiKey !== EXPECTED_API_KEY) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
