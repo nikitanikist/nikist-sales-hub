@@ -8,7 +8,7 @@ import { ModuleGuard } from "@/components/ModuleGuard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
-import Leads from "./pages/Leads";
+import Leads from "./pages/leads";
 import SalesClosers from "./pages/SalesClosers";
 import CloserAssignedCalls from "./pages/CloserAssignedCalls";
 import AllCloserCalls from "./pages/AllCloserCalls";
