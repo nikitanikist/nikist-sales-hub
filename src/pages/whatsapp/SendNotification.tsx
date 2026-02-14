@@ -275,38 +275,48 @@ const SendNotification = () => {
       </div>
 
       {/* Step indicator - labeled stepper */}
-      <div className="flex items-center justify-center gap-0">
+      <div className="flex items-center justify-center gap-0 py-2">
         {STEP_LABELS.map((label, i) => {
           const s = (i + 1) as Step;
           const isCompleted = s < step;
           const isActive = s === step;
           return (
             <div key={s} className="flex items-center">
-              <div className="flex flex-col items-center gap-1.5">
+              <div className="flex flex-col items-center gap-2">
                 <div
-                  className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
-                    isCompleted
-                      ? "bg-primary text-primary-foreground"
+                  className={`
+                    h-10 w-10 rounded-full flex items-center justify-center text-sm font-bold
+                    transition-all duration-300 ease-out
+                    ${isCompleted
+                      ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200"
                       : isActive
-                      ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
-                      : "bg-muted text-muted-foreground"
-                  }`}
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-primary/20 scale-110"
+                      : "bg-slate-100 text-slate-400 border border-slate-200"
+                    }
+                  `}
                 >
-                  {isCompleted ? <Check className="h-4 w-4" /> : s}
+                  {isCompleted ? <Check className="h-5 w-5" /> : s}
                 </div>
                 <span
-                  className={`text-xs font-medium whitespace-nowrap ${
-                    isActive ? "text-primary" : "text-muted-foreground"
-                  }`}
+                  className={`
+                    text-xs font-semibold whitespace-nowrap transition-colors
+                    ${isCompleted
+                      ? "text-emerald-600"
+                      : isActive
+                      ? "text-primary"
+                      : "text-slate-400"
+                    }
+                  `}
                 >
                   {label}
                 </span>
               </div>
               {i < 3 && (
                 <div
-                  className={`h-0.5 w-10 sm:w-16 mx-1 mt-[-18px] ${
-                    isCompleted ? "bg-primary" : "bg-muted"
-                  }`}
+                  className={`
+                    h-1 w-12 sm:w-20 mx-2 mt-[-24px] rounded-full transition-all duration-500
+                    ${isCompleted ? "bg-emerald-500" : "bg-slate-200"}
+                  `}
                 />
               )}
             </div>

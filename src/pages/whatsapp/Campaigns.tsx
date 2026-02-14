@@ -100,116 +100,136 @@ const Campaigns = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Campaigns" />
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -mt-2 px-4 pt-2 sm:-mx-6 sm:px-6">
+      <div className="space-y-6">
+        <PageHeader title="Campaigns" />
 
-      {/* Clickable filter cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {filterCards.map((card) => {
-          const isActive = activeFilter === card.key;
-          return (
-            <button
-              key={card.key}
-              onClick={() => setActiveFilter(card.key)}
-              className={cn(
-                "relative flex items-center gap-3 rounded-xl border-l-4 bg-card px-4 py-4 text-left transition-all duration-200 hover:shadow-md",
-                isActive
-                  ? `${card.activeBorder} ring-2 ${card.activeRing} shadow-md ${card.bgTint}`
-                  : "border-l-transparent border hover:border-l-muted-foreground/30 hover:bg-accent/30"
-              )}
-            >
-              <div className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-                isActive ? `${card.bgTint}` : "bg-muted/60"
-              )}>
-                <card.icon className={cn("h-5 w-5", card.color)} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-2xl font-bold leading-tight tracking-tight">{card.count}</p>
-                <p className="text-xs text-muted-foreground font-medium truncate">{card.label}</p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+        {/* Clickable filter cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {filterCards.map((card) => {
+            const isActive = activeFilter === card.key;
+            return (
+              <button
+                key={card.key}
+                onClick={() => setActiveFilter(card.key)}
+                className={cn(
+                  "relative flex items-center gap-3 rounded-xl border-l-4 bg-card px-4 py-4 text-left transition-all duration-200 hover:shadow-md",
+                  isActive
+                    ? `${card.activeBorder} ring-2 ${card.activeRing} shadow-md ${card.bgTint}`
+                    : "border-l-transparent border hover:border-l-muted-foreground/30 hover:bg-accent/30"
+                )}
+              >
+                <div className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                  isActive ? `${card.bgTint}` : "bg-muted/60"
+                )}>
+                  <card.icon className={cn("h-5 w-5", card.color)} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-bold leading-tight tracking-tight">{card.count}</p>
+                  <p className="text-xs text-muted-foreground font-medium truncate">{card.label}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Campaign</TableHead>
-                <TableHead className="text-center">Groups</TableHead>
-                <TableHead className="text-right">Audience</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead>Scheduled For</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="w-12"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCampaigns.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    <LayoutList className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                    {activeFilter === "all"
-                      ? "No campaigns yet. Send your first notification from the Dashboard."
-                      : `No ${activeFilter} campaigns.`}
-                  </TableCell>
+        {/* Table */}
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                  <TableHead className="text-slate-500 font-medium">Campaign</TableHead>
+                  <TableHead className="text-center text-slate-500 font-medium">Groups</TableHead>
+                  <TableHead className="text-right text-slate-500 font-medium">Audience</TableHead>
+                  <TableHead className="text-center text-slate-500 font-medium">Status</TableHead>
+                  <TableHead className="text-slate-500 font-medium">Scheduled For</TableHead>
+                  <TableHead className="text-slate-500 font-medium">Created</TableHead>
+                  <TableHead className="w-12"></TableHead>
                 </TableRow>
-              ) : (
-                filteredCampaigns.map((c) => (
-                  <TableRow
-                    key={c.id}
-                    className="cursor-pointer hover:bg-accent/50"
-                    onClick={() => navigate(`/whatsapp/campaigns/${c.id}`)}
-                  >
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell className="text-center">{c.total_groups}</TableCell>
-                    <TableCell className="text-right">{c.total_audience?.toLocaleString()}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={(STATUS_BADGE_VARIANT[c.status] as any) || "secondary"}>
-                        {c.status === "partial_failure" ? "Partial Failure" : c.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {c.scheduled_for
-                        ? format(new Date(c.scheduled_for), "MMM d, yyyy h:mm a")
-                        : "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {format(new Date(c.created_at), "MMM d, yyyy h:mm a")}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteId(c.id);
-                        }}
-                        title="Delete campaign"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {filteredCampaigns.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-16">
+                      <div className="flex flex-col items-center justify-center text-center">
+                        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                          <LayoutList className="h-8 w-8 text-slate-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-slate-800 mb-1">
+                          {activeFilter === "all" ? "No campaigns yet" : `No ${activeFilter} campaigns`}
+                        </h3>
+                        <p className="text-sm text-slate-500 max-w-sm mb-4">
+                          {activeFilter === "all"
+                            ? "Send your first notification to your WhatsApp groups and track engagement."
+                            : `You don't have any ${activeFilter} campaigns at the moment.`}
+                        </p>
+                        {activeFilter === "all" && (
+                          <Button
+                            onClick={() => navigate("/whatsapp/send-notification")}
+                            className="gap-2"
+                          >
+                            <Send className="h-4 w-4" />
+                            Send First Notification
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ) : (
+                  filteredCampaigns.map((c) => (
+                    <TableRow
+                      key={c.id}
+                      className="cursor-pointer hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0"
+                      onClick={() => navigate(`/whatsapp/campaigns/${c.id}`)}
+                    >
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell className="text-center">{c.total_groups}</TableCell>
+                      <TableCell className="text-right">{c.total_audience?.toLocaleString()}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={(STATUS_BADGE_VARIANT[c.status] as any) || "secondary"}>
+                          {c.status === "partial_failure" ? "Partial Failure" : c.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {c.scheduled_for
+                          ? format(new Date(c.scheduled_for), "MMM d, yyyy h:mm a")
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {format(new Date(c.created_at), "MMM d, yyyy h:mm a")}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(c.id);
+                          }}
+                          title="Delete campaign"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-      <ConfirmDeleteDialog
-        open={!!deleteId}
-        onOpenChange={(open) => !open && setDeleteId(null)}
-        onConfirm={() => { if (deleteId) deleteMutation.mutate(deleteId); }}
-        title="Delete Campaign"
-        description="Are you sure you want to delete this campaign? This action cannot be undone."
-        isDeleting={deleteMutation.isPending}
-      />
+        <ConfirmDeleteDialog
+          open={!!deleteId}
+          onOpenChange={(open) => !open && setDeleteId(null)}
+          onConfirm={() => { if (deleteId) deleteMutation.mutate(deleteId); }}
+          title="Delete Campaign"
+          description="Are you sure you want to delete this campaign? This action cannot be undone."
+          isDeleting={deleteMutation.isPending}
+        />
+      </div>
     </div>
   );
 };

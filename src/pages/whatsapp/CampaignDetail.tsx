@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, CheckCheck } from "lucide-react";
+import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, CheckCheck, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
 import { WhatsAppPreview } from "@/components/settings/WhatsAppPreview";
 import { getMediaTypeFromUrl } from "@/components/settings/TemplateMediaUpload";
@@ -91,120 +91,190 @@ const CampaignDetail = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/whatsapp/campaigns")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <PageHeader title={campaign.name} />
-        <Badge variant={campaign.status === "completed" ? "default" : campaign.status === "sending" ? "secondary" : "outline"}>
-          {campaign.status}
-        </Badge>
-      </div>
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -mt-2 px-4 pt-2 sm:-mx-6 sm:px-6">
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/whatsapp/campaigns")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <PageHeader title={campaign.name} />
+          <Badge variant={campaign.status === "completed" ? "default" : campaign.status === "sending" ? "secondary" : "outline"}>
+            {campaign.status}
+          </Badge>
+        </div>
 
-      {/* Top row: Stats grid (left) + Preview (right) */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Stats grid */}
-        <div className="flex-1 min-w-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {statItems.map((stat) => (
-              <Card key={stat.label} className={`shadow-sm hover:shadow-md transition-shadow border-l-4 ${stat.borderColor} bg-gradient-to-r ${stat.gradientFrom} to-transparent`}>
-                <CardContent className="p-5 flex items-center gap-4">
-                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${stat.bgTint}`}>
-                    <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-3xl font-bold leading-tight tracking-tight">{stat.value}</p>
-                    <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+        {/* Top row: Stats grid (left) + Preview (right) */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Stats grid */}
+          <div className="flex-1 min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {statItems.map((stat) => (
+                <Card key={stat.label} className={`shadow-sm hover:shadow-md transition-shadow border-l-4 ${stat.borderColor} bg-gradient-to-r ${stat.gradientFrom} to-transparent`}>
+                  <CardContent className="p-5 flex items-center gap-4">
+                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${stat.bgTint}`}>
+                      <stat.icon className={`h-6 w-6 ${stat.color}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-3xl font-bold leading-tight tracking-tight">{stat.value}</p>
+                      <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* WhatsApp preview - portrait */}
+          <div className="w-full lg:w-80 xl:w-96 shrink-0">
+            <Card className="bg-[hsl(var(--muted)/0.3)] overflow-hidden h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Message Preview</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3">
+                <WhatsAppPreview
+                  content={campaign.message_content}
+                  mediaUrl={campaign.media_url}
+                  mediaType={mediaType as any}
+                />
+              </CardContent>
+            </Card>
           </div>
         </div>
 
-        {/* WhatsApp preview - portrait */}
-        <div className="w-full lg:w-80 xl:w-96 shrink-0">
-          <Card className="bg-[hsl(var(--muted)/0.3)] overflow-hidden h-full">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Message Preview</CardTitle>
-            </CardHeader>
-            <CardContent className="p-3">
-              <WhatsAppPreview
-                content={campaign.message_content}
-                mediaUrl={campaign.media_url}
-                mediaType={mediaType as any}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+        {/* Delivery Funnel */}
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-slate-600">Delivery Funnel</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Delivered */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-sm font-medium text-slate-700">Delivered</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-emerald-600">{totalDelivered}</span>
+                  <span className="text-xs text-slate-400">/ {campaign.total_audience}</span>
+                </div>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700"
+                  style={{ width: `${Math.min((totalDelivered / (campaign.total_audience || 1)) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+            {/* Read */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-sm font-medium text-slate-700">Read</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-blue-600">{totalReads}</span>
+                  <span className="text-xs text-slate-400">
+                    {totalDelivered > 0 ? `${Math.round((totalReads / totalDelivered) * 100)}%` : "0%"}
+                  </span>
+                </div>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-700"
+                  style={{ width: `${Math.min((totalReads / (campaign.total_audience || 1)) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+            {/* Reactions */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-sm font-medium text-slate-700">Reactions</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-amber-600">{totalReactions}</span>
+                  <span className="text-xs text-slate-400">
+                    {totalDelivered > 0 ? `${Math.round((totalReactions / totalDelivered) * 100)}%` : "0%"}
+                  </span>
+                </div>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700"
+                  style={{ width: `${Math.min((totalReactions / (campaign.total_audience || 1)) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Full-width groups breakdown table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Group</TableHead>
-                <TableHead className="text-right">Members</TableHead>
-                <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right">Delivered</TableHead>
-                <TableHead className="text-right">Reads</TableHead>
-                <TableHead className="text-right">Reactions</TableHead>
-                <TableHead>Sent At</TableHead>
-                <TableHead>Error</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {campaignGroups?.map((g, idx) => (
-                <TableRow key={g.id}>
-                  <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                  <TableCell className="font-medium">{g.group_name}</TableCell>
-                  <TableCell className="text-right">{g.member_count}</TableCell>
-                  <TableCell className="text-center">
-                    <Badge
-                      variant={
-                        g.status === "sent" ? "default" : g.status === "failed" ? "destructive" : "secondary"
-                      }
-                    >
-                      {g.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {(g as any).delivered_count > 0 ? (
-                      <span className="text-emerald-500 font-medium">{(g as any).delivered_count}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {g.read_count > 0 ? (
-                      <span className="text-blue-500 font-medium">{g.read_count}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {g.reaction_count > 0 ? (
-                      <span className="text-amber-500 font-medium">{g.reaction_count}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {g.sent_at ? format(new Date(g.sent_at), "h:mm a") : "—"}
-                  </TableCell>
-                  <TableCell className="text-sm text-destructive max-w-[200px] truncate">
-                    {g.error_message || "—"}
-                  </TableCell>
+        {/* Full-width groups breakdown table */}
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                  <TableHead className="text-slate-500 font-medium">#</TableHead>
+                  <TableHead className="text-slate-500 font-medium">Group</TableHead>
+                  <TableHead className="text-right text-slate-500 font-medium">Members</TableHead>
+                  <TableHead className="text-center text-slate-500 font-medium">Status</TableHead>
+                  <TableHead className="text-right text-slate-500 font-medium">Delivered</TableHead>
+                  <TableHead className="text-right text-slate-500 font-medium">Reads</TableHead>
+                  <TableHead className="text-right text-slate-500 font-medium">Reactions</TableHead>
+                  <TableHead className="text-slate-500 font-medium">Sent At</TableHead>
+                  <TableHead className="text-slate-500 font-medium">Error</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {campaignGroups?.map((g, idx) => (
+                  <TableRow key={g.id} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0">
+                    <TableCell className="text-slate-400 text-sm">{idx + 1}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center shrink-0">
+                          <MessageSquare className="h-4 w-4 text-primary" />
+                        </div>
+                        <span className="font-medium text-slate-800">{g.group_name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">{g.member_count}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant={
+                          g.status === "sent" ? "default" : g.status === "failed" ? "destructive" : "secondary"
+                        }
+                      >
+                        {g.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {(g as any).delivered_count > 0 ? (
+                        <span className="text-emerald-500 font-medium">{(g as any).delivered_count}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {g.read_count > 0 ? (
+                        <span className="text-blue-500 font-medium">{g.read_count}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {g.reaction_count > 0 ? (
+                        <span className="text-amber-500 font-medium">{g.reaction_count}</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {g.sent_at ? format(new Date(g.sent_at), "h:mm a") : "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-destructive max-w-[200px] truncate">
+                      {g.error_message || "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
