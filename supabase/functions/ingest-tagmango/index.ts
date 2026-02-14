@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
 
     // Parse incoming JSON
     const payload: PabblyPayload = await req.json();
-    console.log('Payload received:', JSON.stringify(payload, null, 2));
+    console.log('Payload received for workshop:', payload.workshop_name, 'amount:', payload.amount, 'mangoId:', payload['Mango Id']);
 
     // Create webhook event log entry
     const { data: eventData } = await supabase
@@ -279,7 +279,7 @@ Deno.serve(async (req) => {
       // Reuse existing lead - ONE lead per customer
       leadId = existingLead.id;
       isExistingLead = true;
-      console.log('Found existing lead for email:', normalizedEmail, 'using lead_id:', leadId);
+      console.log('Found existing lead, using lead_id:', leadId);
     } else {
       // Create new lead only if customer doesn't exist
       const leadData = {
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
         country: countryCode,
       };
 
-      console.log('Creating new lead:', JSON.stringify(leadData, null, 2));
+      console.log('Creating new lead for workshop:', normalizedWorkshopName);
 
       const { data, error } = await supabase
         .from('leads')
@@ -714,7 +714,7 @@ Deno.serve(async (req) => {
             buttons: []
           };
 
-          console.log('Sending Crypto WhatsApp confirmation:', JSON.stringify(whatsappPayload, null, 2));
+          console.log('Sending Crypto WhatsApp confirmation to destination');
 
           const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
             method: 'POST',
@@ -770,7 +770,7 @@ Deno.serve(async (req) => {
               utmCampaign: String(payload['Utm Campaign'] || ''),
             };
 
-            console.log('Sending data to Google Sheet:', JSON.stringify(sheetPayload, null, 2));
+            console.log('Sending data to Google Sheet for workshop:', normalizedWorkshopName);
 
             const sheetResponse = await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
               method: 'POST',
@@ -826,7 +826,7 @@ Deno.serve(async (req) => {
             buttons: []
           };
 
-          console.log('Sending YouTube WhatsApp confirmation:', JSON.stringify(whatsappPayload, null, 2));
+          console.log('Sending YouTube WhatsApp confirmation to destination');
 
           const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
             method: 'POST',
@@ -875,7 +875,7 @@ Deno.serve(async (req) => {
             registrationDate: registrationDate
           };
 
-          console.log('Sending data to YouTube Google Sheet:', JSON.stringify(sheetPayload, null, 2));
+          console.log('Sending data to YouTube Google Sheet for workshop:', normalizedWorkshopName);
 
           const sheetResponse = await fetch(GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL, {
             method: 'POST',
