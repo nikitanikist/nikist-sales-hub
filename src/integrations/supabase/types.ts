@@ -3880,6 +3880,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      count_paginated_leads: {
+        Args: {
+          p_country?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_organization_id: string
+          p_product_ids?: string[]
+          p_search?: string
+          p_status?: string
+          p_workshop_ids?: string[]
+        }
+        Returns: number
+      }
       get_closer_call_counts: {
         Args: { p_organization_id?: string; target_date: string }
         Returns: {
@@ -3900,6 +3913,51 @@ export type Database = {
           pending_count: number
           rescheduled_count: number
           total_calls: number
+        }[]
+      }
+      get_paginated_leads: {
+        Args: {
+          p_country?: string
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+          p_offset?: number
+          p_organization_id: string
+          p_product_ids?: string[]
+          p_search?: string
+          p_status?: string
+          p_workshop_ids?: string[]
+        }
+        Returns: {
+          assigned_to: string
+          assigned_to_name: string
+          assignment_id: string
+          company_name: string
+          contact_name: string
+          converted_from_workshop_id: string
+          converted_from_workshop_title: string
+          country: string
+          email: string
+          funnel_id: string
+          funnel_name: string
+          is_connected: boolean
+          is_refunded: boolean
+          lead_created_at: string
+          lead_id: string
+          lead_status: string
+          lead_updated_at: string
+          notes: string
+          phone: string
+          previous_assigned_to: string
+          previous_assigned_to_name: string
+          product_id: string
+          product_name: string
+          product_price: number
+          refund_reason: string
+          refunded_at: string
+          source: string
+          workshop_id: string
+          workshop_title: string
         }[]
       }
       get_product_user_counts: {

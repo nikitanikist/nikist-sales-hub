@@ -14,7 +14,6 @@ import OrganizationLoadingState from "@/components/OrganizationLoadingState";
 import EmptyState from "@/components/EmptyState";
 
 import { useLeadsData } from "./hooks/useLeadsData";
-import { useLeadsFilters } from "./hooks/useLeadsFilters";
 import { LeadsTable } from "./LeadsTable";
 import { LeadsToolbar } from "./LeadsToolbar";
 import { EditCustomerDialog, RefundDialog } from "./LeadsDialogs";
@@ -82,26 +81,19 @@ const Leads = () => {
     setSelectedAssignmentForRefund(null);
   };
 
-  // --- Data ---
+  // --- Data (server-side paginated) ---
   const {
     currentOrganization, orgLoading,
-    leadsCount, searchResults, leadAssignments, allLeads,
+    leadsCount, filteredCount, paginatedAssignments, totalPages, startIndex, endIndex,
+    hasActiveFilters,
     profiles, workshops, funnels, products, salesClosers, integrations,
     isLoading,
     saveMutation, deleteMutation, markRefundMutation, markAssignmentRefundMutation, undoRefundMutation,
     fetchLeadAppointments, fetchLeadAssignmentsForRefund,
     refreshData, invalidateOnImportSuccess,
   } = useLeadsData({
-    filters, searchQuery, editingLead,
-    resetEditState, resetRefundDialog,
-  });
-
-  // --- Filters & Pagination ---
-  const {
-    hasActiveFilters, groupedAssignmentsArray, paginatedAssignments, totalPages, startIndex, endIndex,
-  } = useLeadsFilters({
-    leadAssignments, allLeads, searchResults, searchQuery,
-    filters, currentPage, itemsPerPage,
+    filters, searchQuery, currentPage, itemsPerPage,
+    editingLead, resetEditState, resetRefundDialog,
   });
 
   // --- Handlers ---
@@ -230,7 +222,7 @@ const Leads = () => {
           </div>
           <div>
             <p className="text-xs sm:text-sm text-muted-foreground">{hasActiveFilters ? "Filtered Customers" : "Total Customers"}</p>
-            <p className="text-xl sm:text-2xl font-semibold">{hasActiveFilters ? groupedAssignmentsArray.length : (leadsCount ?? 0)}</p>
+            <p className="text-xl sm:text-2xl font-semibold">{hasActiveFilters ? filteredCount : (leadsCount ?? 0)}</p>
           </div>
         </CardContent>
       </Card>
@@ -270,10 +262,10 @@ const Leads = () => {
         </CardContent>
       </Card>
 
-      {!isLoading && groupedAssignmentsArray.length > 0 && (
+      {!isLoading && filteredCount > 0 && (
         <div className="flex items-center justify-between px-2">
           <div className="text-sm text-muted-foreground">
-            Showing {startIndex + 1} to {Math.min(endIndex, groupedAssignmentsArray.length)} of {groupedAssignmentsArray.length} customers
+            Showing {startIndex + 1} to {Math.min(endIndex, filteredCount)} of {filteredCount} customers
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1}>Previous</Button>

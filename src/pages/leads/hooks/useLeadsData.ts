@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -55,12 +55,14 @@ export const formatPhoneDisplay = (phone: string | null, country: string | null)
 interface UseLeadsDataOptions {
   filters: LeadsFilters;
   searchQuery: string;
+  currentPage: number;
+  itemsPerPage: number;
   editingLead: any;
   resetEditState: () => void;
   resetRefundDialog: () => void;
 }
 
-export function useLeadsData({ filters, searchQuery, editingLead, resetEditState, resetRefundDialog }: UseLeadsDataOptions) {
+export function useLeadsData({ filters, searchQuery, currentPage, itemsPerPage, editingLead, resetEditState, resetRefundDialog }: UseLeadsDataOptions) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
@@ -68,17 +70,29 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
   const { data: salesClosers } = useOrgClosers();
   const { data: integrations = [] } = useOrgIntegrations();
 
-  // Real-time subscription
+  // Build stable filter params for query keys
+  const filterParams = {
+    orgId: currentOrganization?.id,
+    search: searchQuery.trim(),
+    dateFrom: filters.dateFrom?.toISOString() ?? null,
+    dateTo: filters.dateTo?.toISOString() ?? null,
+    status: filters.status,
+    country: filters.country,
+    productIds: filters.productIds,
+    workshopIds: filters.workshopIds,
+  };
+
+  // Real-time subscription — invalidates paginated queries
   useEffect(() => {
     const channel = supabase
       .channel('leads-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
-        queryClient.invalidateQueries({ queryKey: ["all-leads"] });
-        queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+        queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
         queryClient.invalidateQueries({ queryKey: ["leads-count"] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_assignments' }, () => {
-        queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
+        queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
+        queryClient.invalidateQueries({ queryKey: ["leads-count"] });
       })
       .subscribe();
 
@@ -87,6 +101,7 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
     };
   }, [queryClient]);
 
+  // --- Total count (for "Total Customers" card, no filters) ---
   const { data: leadsCount } = useQuery({
     queryKey: ["leads-count", currentOrganization?.id],
     queryFn: async () => {
@@ -101,77 +116,117 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
     enabled: !!currentOrganization,
   });
 
-  const { data: searchResults, isLoading: isLoadingSearch } = useQuery({
-    queryKey: ["search-leads", searchQuery],
+  // --- Filtered count (for pagination) ---
+  const { data: filteredCount } = useQuery({
+    queryKey: ["paginated-leads-count", filterParams],
     queryFn: async () => {
-      if (!searchQuery.trim()) return null;
-      const { data, error } = await supabase.rpc("search_leads", {
-        search_query: searchQuery.trim()
+      if (!currentOrganization) return 0;
+      const { data, error } = await supabase.rpc("count_paginated_leads", {
+        p_organization_id: currentOrganization.id,
+        p_search: filterParams.search,
+        p_date_from: filterParams.dateFrom,
+        p_date_to: filterParams.dateTo,
+        p_status: filterParams.status,
+        p_country: filterParams.country,
+        p_product_ids: filterParams.productIds.length > 0 ? filterParams.productIds : [],
+        p_workshop_ids: filterParams.workshopIds.length > 0 ? filterParams.workshopIds : [],
       });
       if (error) throw error;
-      return data;
-    },
-    enabled: searchQuery.trim().length > 0,
-  });
-
-  const { data: leadAssignments, isLoading: isLoadingAssignments } = useQuery({
-    queryKey: ["lead-assignments", currentOrganization?.id, filters.productIds, filters.workshopIds],
-    queryFn: async () => {
-      if (!currentOrganization) return [];
-      let query = supabase
-        .from("lead_assignments")
-        .select(`
-          *,
-          lead:leads(
-            id, contact_name, company_name, email, phone, country, status, updated_at, created_at, assigned_to, previous_assigned_to,
-            assigned_profile:profiles!leads_assigned_to_fkey(id, full_name),
-            previous_assigned_profile:profiles!leads_previous_assigned_to_fkey(id, full_name)
-          ),
-          workshop:workshops!lead_assignments_workshop_id_fkey(id, title),
-          converted_from_workshop:workshops!lead_assignments_converted_from_workshop_id_fkey(id, title),
-          funnel:funnels(id, funnel_name),
-          product:products(id, product_name, price)
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false });
-
-      if (filters.productIds.length > 0) {
-        query = query.in("product_id", filters.productIds);
-      }
-      if (filters.workshopIds.length > 0) {
-        query = query.in("workshop_id", filters.workshopIds);
-      }
-      if (filters.productIds.length === 0 && filters.workshopIds.length === 0) {
-        query = query.limit(1000);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      return Number(data) || 0;
     },
     enabled: !!currentOrganization,
+    placeholderData: keepPreviousData,
   });
 
-  const { data: allLeads, isLoading: isLoadingLeads } = useQuery({
-    queryKey: ["all-leads", currentOrganization?.id],
+  // --- Paginated leads + assignments (single RPC) ---
+  const { data: paginatedRows, isLoading: isLoadingPaginated } = useQuery({
+    queryKey: ["paginated-leads", filterParams, currentPage, itemsPerPage],
     queryFn: async () => {
       if (!currentOrganization) return [];
-      const { data, error } = await supabase
-        .from("leads")
-        .select(`
-          *,
-          assigned_profile:profiles!leads_assigned_to_fkey(id, full_name),
-          previous_assigned_profile:profiles!leads_previous_assigned_to_fkey(id, full_name)
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false })
-        .limit(1000);
+      const offset = (currentPage - 1) * itemsPerPage;
+      const { data, error } = await supabase.rpc("get_paginated_leads", {
+        p_organization_id: currentOrganization.id,
+        p_offset: offset,
+        p_limit: itemsPerPage,
+        p_search: filterParams.search,
+        p_date_from: filterParams.dateFrom,
+        p_date_to: filterParams.dateTo,
+        p_status: filterParams.status,
+        p_country: filterParams.country,
+        p_product_ids: filterParams.productIds.length > 0 ? filterParams.productIds : [],
+        p_workshop_ids: filterParams.workshopIds.length > 0 ? filterParams.workshopIds : [],
+      });
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: !!currentOrganization,
+    placeholderData: keepPreviousData,
   });
 
+  // --- Transform flat RPC rows into grouped { lead, assignments[] } for the table ---
+  const paginatedAssignments = (() => {
+    if (!paginatedRows || paginatedRows.length === 0) return [];
+    
+    // Group by lead_id, preserving order (first occurrence wins position)
+    const groups: { lead: any; assignments: any[] }[] = [];
+    const leadIndexMap = new Map<string, number>();
+
+    for (const row of paginatedRows) {
+      const leadKey = row.lead_id;
+      const lead = {
+        id: row.lead_id,
+        contact_name: row.contact_name,
+        company_name: row.company_name,
+        email: row.email,
+        phone: row.phone,
+        country: row.country,
+        status: row.lead_status,
+        notes: row.notes,
+        source: row.source,
+        created_at: row.lead_created_at,
+        updated_at: row.lead_updated_at,
+        assigned_to: row.assigned_to,
+        assigned_profile: row.assigned_to_name ? { id: row.assigned_to, full_name: row.assigned_to_name } : null,
+        previous_assigned_profile: row.previous_assigned_to_name ? { id: row.previous_assigned_to, full_name: row.previous_assigned_to_name } : null,
+      };
+
+      const assignment = row.assignment_id ? {
+        id: row.assignment_id,
+        workshop_id: row.workshop_id,
+        workshop: row.workshop_title ? { id: row.workshop_id, title: row.workshop_title } : null,
+        product_id: row.product_id,
+        product: row.product_name ? { id: row.product_id, product_name: row.product_name, price: row.product_price } : null,
+        funnel_id: row.funnel_id,
+        funnel: row.funnel_name ? { id: row.funnel_id, funnel_name: row.funnel_name } : null,
+        is_connected: row.is_connected,
+        is_refunded: row.is_refunded,
+        refund_reason: row.refund_reason,
+        refunded_at: row.refunded_at,
+        converted_from_workshop_id: row.converted_from_workshop_id,
+        converted_from_workshop: row.converted_from_workshop_title ? { id: row.converted_from_workshop_id, title: row.converted_from_workshop_title } : null,
+      } : null;
+
+      // Each row is its own display row (1 row = 1 assignment or 1 lead with no assignment)
+      groups.push({ lead, assignments: assignment ? [assignment] : [] });
+    }
+
+    return groups;
+  })();
+
+  const totalPages = Math.ceil((filteredCount || 0) / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, filteredCount || 0);
+
+  const hasActiveFilters = 
+    filters.dateFrom !== undefined ||
+    filters.dateTo !== undefined ||
+    filters.productIds.length > 0 ||
+    filters.workshopIds.length > 0 ||
+    filters.country !== "all" ||
+    filters.status !== "all" ||
+    searchQuery.trim().length > 0;
+
+  // Reference data queries (for dialogs/forms, not paginated)
   const { data: profiles } = useQuery({
     queryKey: ["profiles"],
     queryFn: async () => {
@@ -234,9 +289,9 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
     enabled: !!currentOrganization,
   });
 
-  const isLoading = isLoadingAssignments || isLoadingLeads || isLoadingSearch;
+  const isLoading = isLoadingPaginated;
 
-  // --- Mutations ---
+  // --- Mutations (unchanged) ---
 
   const saveMutation = useMutation({
     mutationFn: async ({ leadData, workshopIds, productIds, isConnected, previousAssignedTo, convertedFromWorkshopId }: any) => {
@@ -306,8 +361,8 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["leads-count"] });
       toast.success(editingLead ? "Customer updated successfully" : "Customer created successfully");
       resetEditState();
     },
@@ -322,8 +377,8 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["leads-count"] });
       toast.success("Customer deleted successfully");
     },
     onError: (error: any) => {
@@ -341,8 +396,7 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
       toast.success("Customer assigned successfully");
     },
     onError: (error: any) => {
@@ -383,8 +437,7 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
       queryClient.invalidateQueries({ queryKey: ["workshops"] });
       queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
       toast.success("Marked as refunded successfully");
@@ -404,10 +457,8 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
       queryClient.invalidateQueries({ queryKey: ["workshops"] });
-      queryClient.invalidateQueries({ queryKey: ["workshop-calls"] });
       toast.success("Marked as refunded successfully");
       resetRefundDialog();
     },
@@ -425,8 +476,7 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
       queryClient.invalidateQueries({ queryKey: ["workshops"] });
       toast.success("Refund undone successfully");
     },
@@ -436,13 +486,12 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
   });
 
   const refreshData = () => {
-    queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-    queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+    queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
+    queryClient.invalidateQueries({ queryKey: ["leads-count"] });
   };
 
   const invalidateOnImportSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["lead-assignments"] });
-    queryClient.invalidateQueries({ queryKey: ["all-leads"] });
+    queryClient.invalidateQueries({ queryKey: ["paginated-leads"] });
     queryClient.invalidateQueries({ queryKey: ["leads-count"] });
   };
 
@@ -452,9 +501,12 @@ export function useLeadsData({ filters, searchQuery, editingLead, resetEditState
     orgLoading,
     // Data
     leadsCount,
-    searchResults,
-    leadAssignments,
-    allLeads,
+    filteredCount: filteredCount || 0,
+    paginatedAssignments,
+    totalPages,
+    startIndex,
+    endIndex,
+    hasActiveFilters,
     profiles,
     workshops,
     funnels,
