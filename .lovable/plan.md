@@ -1,66 +1,73 @@
 
 
-# Fix: Infinite Recursion in `user_roles` RLS Policy
+# Fix: Campaign Status Stuck on "Sending" + Zero Analytics
 
-## Problem
-When you log in, the app queries the `user_roles` table to check if you're a super admin. But the RLS policy "Super admins can view all roles" on that table does a sub-query back into `user_roles` to verify super admin status -- creating an infinite loop. Postgres returns error `42P17: infinite recursion detected in policy for relation "user_roles"`.
+## What went wrong
 
-Since this query fails, the system never recognizes you as a super admin, so:
-- The redirect to `/super-admin` never fires
-- Manually navigating to `/super-admin` shows "Access denied"
-
-## Root Cause
-This RLS policy on `user_roles`:
-
-```text
-"Super admins can view all roles"
-USING (
-  EXISTS (
-    SELECT 1 FROM user_roles ur
-    WHERE ur.user_id = auth.uid() AND ur.role = 'super_admin'
-  )
-)
+The edge function `process-notification-campaigns` crashes at line 281 with:
+```
+TypeError: supabase.rpc(...).catch is not a function
 ```
 
-It references `user_roles` from within its own policy -- classic recursive RLS.
+**Two bugs combined:**
+1. The function calls `supabase.rpc("update_campaign_counts", ...)` but this database function does not exist
+2. It chains `.catch()` on the result, but the Supabase JS client returns `{data, error}` -- not a standard Promise that supports `.catch()`
 
-## Solution
-1. Create (or verify) a `SECURITY DEFINER` function called `has_role` that directly checks `user_roles` while bypassing RLS.
-2. Drop the recursive policy.
-3. Replace it with a new policy that calls `has_role(auth.uid(), 'super_admin')` instead of doing a sub-select.
+This crash happens *after* messages are successfully sent to groups, so:
+- Group-level statuses update correctly ("sent")
+- But the campaign never transitions from "sending" to "completed"
+- The `sent_count` / `failed_count` on the campaign row stay at 0
+- The campaign keeps being picked up by the cron job every minute (stuck in a loop)
 
-## Technical Details
+## The fix
 
-### Database Migration (single SQL migration)
+**File: `supabase/functions/process-notification-campaigns/index.ts`**
 
-```sql
--- Step 1: Create the SECURITY DEFINER helper (idempotent)
-CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role text)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_roles
-    WHERE user_id = _user_id
-      AND role::text = _role
-  );
-$$;
+Replace the broken RPC call (lines 280-290) with direct count logic + campaign status finalization:
 
--- Step 2: Drop the broken policy
-DROP POLICY IF EXISTS "Super admins can view all roles" ON public.user_roles;
+```typescript
+// After the group processing loop ends:
 
--- Step 3: Recreate it using the safe function
-CREATE POLICY "Super admins can view all roles"
-ON public.user_roles FOR SELECT
-TO authenticated
-USING (
-  public.has_role(auth.uid(), 'super_admin')
-);
+// 1. Count actual group statuses from DB
+const { data: groupStats } = await supabase
+  .from("notification_campaign_groups")
+  .select("status")
+  .eq("campaign_id", campaign.id);
+
+const finalSent = groupStats?.filter(g => g.status === "sent").length || 0;
+const finalFailed = groupStats?.filter(g => g.status === "failed").length || 0;
+const finalPending = groupStats?.filter(g => g.status === "pending").length || 0;
+
+// 2. Update campaign counts
+await supabase
+  .from("notification_campaigns")
+  .update({
+    sent_count: finalSent,
+    failed_count: finalFailed,
+  })
+  .eq("id", campaign.id);
+
+// 3. If no more pending groups, finalize status
+if (finalPending === 0) {
+  const finalStatus = finalFailed > 0 && finalSent > 0
+    ? "partial_failure"
+    : finalFailed > 0
+    ? "failed"
+    : "completed";
+
+  await supabase
+    .from("notification_campaigns")
+    .update({
+      status: finalStatus,
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", campaign.id);
+}
 ```
 
-### No frontend changes needed
-The `useUserRole` hook and `AppLayout` redirect logic are already correct. Once the RLS policy stops erroring, the super admin check will succeed and everything will work.
+This removes the dependency on the non-existent RPC function, uses proper Supabase client patterns (no `.catch()`), and correctly finalizes the campaign status.
+
+### Technical Detail
+
+No database migration needed. This is a single edge function code fix. The function will be redeployed automatically.
 
