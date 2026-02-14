@@ -141,66 +141,6 @@ const CampaignDetail = () => {
           </div>
         </div>
 
-        {/* Delivery Funnel */}
-        <Card className="overflow-hidden">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-slate-600">Delivery Funnel</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Delivered */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-sm font-medium text-slate-700">Delivered</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-emerald-600">{totalDelivered}</span>
-                  <span className="text-xs text-slate-400">/ {campaign.total_audience}</span>
-                </div>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700"
-                  style={{ width: `${Math.min((totalDelivered / (campaign.total_audience || 1)) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-            {/* Read */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-sm font-medium text-slate-700">Read</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-blue-600">{totalReads}</span>
-                  <span className="text-xs text-slate-400">
-                    {totalDelivered > 0 ? `${Math.round((totalReads / totalDelivered) * 100)}%` : "0%"}
-                  </span>
-                </div>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-700"
-                  style={{ width: `${Math.min((totalReads / (campaign.total_audience || 1)) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-            {/* Reactions */}
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <span className="text-sm font-medium text-slate-700">Reactions</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-amber-600">{totalReactions}</span>
-                  <span className="text-xs text-slate-400">
-                    {totalDelivered > 0 ? `${Math.round((totalReactions / totalDelivered) * 100)}%` : "0%"}
-                  </span>
-                </div>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-full transition-all duration-700"
-                  style={{ width: `${Math.min((totalReactions / (campaign.total_audience || 1)) * 100, 100)}%` }}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Full-width groups breakdown table */}
         <Card className="overflow-hidden">
