@@ -257,7 +257,8 @@ const CohortPage = () => {
           closer:profiles!closer_id(full_name)
         `)
         .eq("cohort_batch_id", selectedBatch.id)
-        .order("conversion_date", { ascending: false });
+        .order("conversion_date", { ascending: false })
+        .limit(1000);
       
       if (error) throw error;
       

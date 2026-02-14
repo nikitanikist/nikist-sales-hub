@@ -100,7 +100,8 @@ const Workshops = () => {
         .select("*")
         .eq("organization_id", currentOrganization.id)
         .is("product_id", null) // Hide workshops converted to products
-        .order("start_date", { ascending: false });
+        .order("start_date", { ascending: false })
+        .limit(1000);
       
       if (error) {
         console.error("Error fetching workshops:", error);

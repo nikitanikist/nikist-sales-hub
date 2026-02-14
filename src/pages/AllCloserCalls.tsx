@@ -345,7 +345,8 @@ const AllCloserCalls = () => {
           batch:cohort_batches(id, name, start_date),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .limit(1000);
 
       if (error) throw error;
 
@@ -1082,8 +1083,9 @@ const AllCloserCalls = () => {
             <AlertDialogAction
               onClick={() => deletingId && deleteMutation.mutate(deletingId)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
             >
-              Delete
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

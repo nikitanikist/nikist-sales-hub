@@ -168,7 +168,8 @@ export function useWorkshopParticipants(
             phone
           )
         `)
-        .eq('workshop_id', workshopId);
+        .eq('workshop_id', workshopId)
+        .limit(1000);
 
       if (assignmentsError) {
         console.error('Error fetching lead assignments:', assignmentsError);
@@ -192,7 +193,8 @@ export function useWorkshopParticipants(
         .select('id, phone_number, full_phone, joined_at, status, updated_at')
         .eq('group_jid', groupJid)
         .eq('status', 'active')
-        .order('joined_at', { ascending: false });
+        .order('joined_at', { ascending: false })
+        .limit(1000);
 
       if (activeError) {
         console.error('Error fetching active members:', activeError);

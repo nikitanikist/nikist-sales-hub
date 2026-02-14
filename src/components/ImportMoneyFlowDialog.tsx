@@ -118,7 +118,8 @@ export function ImportMoneyFlowDialog({ open, onOpenChange }: ImportMoneyFlowDia
     // Fetch existing dates to check for duplicates
     const { data: existingEntries } = await supabase
       .from("daily_money_flow")
-      .select("date");
+      .select("date")
+      .limit(1000);
 
     const existingDates = new Set(existingEntries?.map((e) => e.date) || []);
 

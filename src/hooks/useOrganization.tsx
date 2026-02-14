@@ -141,6 +141,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO: review this dependency. fetchOrganizations references currentOrganization internally, wrapping in useCallback would create a render cycle. Safe as-is because user change is the correct trigger.
   useEffect(() => {
     fetchOrganizations();
   }, [user]);

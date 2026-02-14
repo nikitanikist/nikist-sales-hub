@@ -92,7 +92,8 @@ export function useWhatsAppGroups() {
         .eq('organization_id', currentOrganization.id)
         .eq('is_active', true)
         .eq('session.status', 'connected')
-        .order('group_name', { ascending: true });
+        .order('group_name', { ascending: true })
+        .limit(1000);
 
       if (error) throw error;
       
