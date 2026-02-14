@@ -19,7 +19,7 @@ import Funnels from "./pages/Funnels";
 import Calls from "./pages/calls";
 import Products from "./pages/Products";
 import Onboarding from "./pages/Onboarding";
-import Users from "./pages/Users";
+import Users from "./pages/users";
 import Batches from "./pages/batches";
 import FuturesMentorship from "./pages/futures-mentorship";
 import HighFuture from "./pages/HighFuture";
