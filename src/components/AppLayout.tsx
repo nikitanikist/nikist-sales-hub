@@ -211,6 +211,13 @@ const AppLayoutContent = () => {
     }
   }, [user, loading, navigate]);
 
+  // Auto-redirect super admins to /super-admin when they land on /
+  useEffect(() => {
+    if (!roleLoading && !loading && user && isSuperAdmin && location.pathname === "/") {
+      navigate("/super-admin");
+    }
+  }, [isSuperAdmin, roleLoading, loading, user, location.pathname, navigate]);
+
   // Skip permission checks for super admin routes
   const isSuperAdminRoute = location.pathname.startsWith("/super-admin");
 
