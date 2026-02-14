@@ -81,13 +81,13 @@ const CampaignDetail = () => {
   const mediaType = campaign.media_type || getMediaTypeFromUrl(campaign.media_url || null);
 
   const statItems = [
-    { label: "Audience", value: campaign.total_audience?.toLocaleString() || "0", icon: Users, color: "text-primary", bgTint: "bg-primary/10" },
-    { label: "Sent", value: sentCount, icon: CheckCircle2, color: "text-violet-500", bgTint: "bg-violet-500/10" },
-    { label: "Failed", value: failedCount, icon: XCircle, color: "text-destructive", bgTint: "bg-destructive/10" },
-    { label: "Pending", value: pendingCount, icon: Clock, color: "text-muted-foreground", bgTint: "bg-muted" },
-    { label: "Delivered", value: totalDelivered, icon: CheckCheck, color: "text-emerald-500", bgTint: "bg-emerald-500/10" },
-    { label: "Read", value: totalReads, icon: Eye, color: "text-blue-500", bgTint: "bg-blue-500/10" },
-    { label: "Reactions", value: totalReactions, icon: SmilePlus, color: "text-amber-500", bgTint: "bg-amber-500/10" },
+    { label: "Audience", value: campaign.total_audience?.toLocaleString() || "0", icon: Users, color: "text-primary", bgTint: "bg-primary/10", borderColor: "border-l-primary", gradientFrom: "from-primary/5" },
+    { label: "Sent", value: sentCount, icon: CheckCircle2, color: "text-violet-500", bgTint: "bg-violet-500/10", borderColor: "border-l-violet-500", gradientFrom: "from-violet-500/5" },
+    { label: "Failed", value: failedCount, icon: XCircle, color: "text-destructive", bgTint: "bg-destructive/10", borderColor: "border-l-destructive", gradientFrom: "from-destructive/5" },
+    { label: "Pending", value: pendingCount, icon: Clock, color: "text-muted-foreground", bgTint: "bg-muted", borderColor: "border-l-muted-foreground", gradientFrom: "from-muted-foreground/5" },
+    { label: "Delivered", value: totalDelivered, icon: CheckCheck, color: "text-emerald-500", bgTint: "bg-emerald-500/10", borderColor: "border-l-emerald-500", gradientFrom: "from-emerald-500/5" },
+    { label: "Read", value: totalReads, icon: Eye, color: "text-blue-500", bgTint: "bg-blue-500/10", borderColor: "border-l-blue-500", gradientFrom: "from-blue-500/5" },
+    { label: "Reactions", value: totalReactions, icon: SmilePlus, color: "text-amber-500", bgTint: "bg-amber-500/10", borderColor: "border-l-amber-500", gradientFrom: "from-amber-500/5" },
   ];
 
   return (
@@ -106,16 +106,16 @@ const CampaignDetail = () => {
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Stats grid */}
         <div className="flex-1 min-w-0">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {statItems.map((stat) => (
-              <Card key={stat.label} className="shadow-sm hover:shadow-md transition-shadow">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${stat.bgTint}`}>
-                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              <Card key={stat.label} className={`shadow-sm hover:shadow-md transition-shadow border-l-4 ${stat.borderColor} bg-gradient-to-r ${stat.gradientFrom} to-transparent`}>
+                <CardContent className="p-5 flex items-center gap-4">
+                  <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${stat.bgTint}`}>
+                    <stat.icon className={`h-6 w-6 ${stat.color}`} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-2xl font-bold leading-tight tracking-tight">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground font-medium">{stat.label}</p>
+                    <p className="text-3xl font-bold leading-tight tracking-tight">{stat.value}</p>
+                    <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
                   </div>
                 </CardContent>
               </Card>
