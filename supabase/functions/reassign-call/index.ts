@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { fetchWithRetry, fetchWithTimeout } from '../_shared/fetchWithRetry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,7 +21,6 @@ async function validateAuth(req: Request, supabase: any): Promise<{ valid: boole
     return { valid: false, error: 'Invalid or expired token' };
   }
 
-  // Verify user is a member of at least one organization
   const { data: membership, error: memberError } = await supabase
     .from('organization_members')
     .select('id')
@@ -35,11 +35,9 @@ async function validateAuth(req: Request, supabase: any): Promise<{ valid: boole
   return { valid: true, userId: user.id };
 }
 
-// Template for booking confirmation
 const BOOKING_TEMPLATE = '1_to_1_call_booking_crypto_nikist_video';
 const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
 
-// Integration config types
 interface ZoomConfig {
   account_id: string;
   client_id: string;
@@ -53,7 +51,6 @@ interface CalendlyConfig {
   event_type_uri?: string;
 }
 
-// Get Zoom access token using Server-to-Server OAuth from integration config
 async function getZoomAccessToken(config: ZoomConfig): Promise<string> {
   const { account_id, client_id, client_secret } = config;
 
@@ -64,14 +61,14 @@ async function getZoomAccessToken(config: ZoomConfig): Promise<string> {
   console.log('Getting Zoom access token from integration config...');
   const authHeader = btoa(`${client_id}:${client_secret}`);
   
-  const tokenResponse = await fetch('https://zoom.us/oauth/token', {
+  const tokenResponse = await fetchWithRetry('https://zoom.us/oauth/token', {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${authHeader}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: `grant_type=account_credentials&account_id=${account_id}`,
-  });
+  }, { timeoutMs: 15000 });
 
   if (!tokenResponse.ok) {
     const errorText = await tokenResponse.text();
@@ -84,7 +81,6 @@ async function getZoomAccessToken(config: ZoomConfig): Promise<string> {
   return tokenData.access_token;
 }
 
-// Create Zoom meeting
 async function createZoomMeeting(
   accessToken: string,
   customerName: string,
@@ -102,7 +98,7 @@ async function createZoomMeeting(
     duration: 90,
   });
 
-  const meetingResponse = await fetch('https://api.zoom.us/v2/users/me/meetings', {
+  const meetingResponse = await fetchWithRetry('https://api.zoom.us/v2/users/me/meetings', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -126,7 +122,7 @@ async function createZoomMeeting(
         auto_recording: 'cloud',
       },
     }),
-  });
+  }, { timeoutMs: 15000 });
 
   if (!meetingResponse.ok) {
     const errorText = await meetingResponse.text();
@@ -146,12 +142,11 @@ async function createZoomMeeting(
   };
 }
 
-// Helper function to get Calendly user URI
 async function getCalendlyUserUri(token: string): Promise<string | null> {
   try {
-    const response = await fetch('https://api.calendly.com/users/me', {
+    const response = await fetchWithTimeout('https://api.calendly.com/users/me', {
       headers: { 'Authorization': `Bearer ${token}` }
-    });
+    }, 15000);
     
     if (!response.ok) {
       console.error('Failed to get Calendly user:', await response.text());
@@ -166,12 +161,12 @@ async function getCalendlyUserUri(token: string): Promise<string | null> {
   }
 }
 
-// Helper function to get Calendly event type URI - PRIORITY: "Direct" > full closer name > first active
 async function getCalendlyEventTypeUri(token: string, userUri: string, closerName: string): Promise<string | null> {
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://api.calendly.com/event_types?user=${encodeURIComponent(userUri)}&active=true`,
-      { headers: { 'Authorization': `Bearer ${token}` } }
+      { headers: { 'Authorization': `Bearer ${token}` } },
+      15000
     );
     
     if (!response.ok) {
@@ -184,7 +179,6 @@ async function getCalendlyEventTypeUri(token: string, userUri: string, closerNam
     
     console.log('Available Calendly event types:', eventTypes.map((e: { name: string; uri: string }) => ({ name: e.name, uri: e.uri })));
     
-    // PRIORITY 1: Event type with "Direct" in name (preferred for rebooking/reassigning)
     const directEventType = eventTypes.find((e: { name: string }) => 
       e.name.toLowerCase().includes('direct')
     );
@@ -193,7 +187,6 @@ async function getCalendlyEventTypeUri(token: string, userUri: string, closerNam
       return directEventType.uri;
     }
     
-    // PRIORITY 2: Event type with full closer name (e.g., "Dipanshu Malasi")
     const closerNameLower = closerName.toLowerCase();
     const closerNameParts = closerNameLower.split(' ');
     const closerLastName = closerNameParts.length > 1 ? closerNameParts[closerNameParts.length - 1] : '';
@@ -208,7 +201,6 @@ async function getCalendlyEventTypeUri(token: string, userUri: string, closerNam
       return closerNameEventType.uri;
     }
     
-    // PRIORITY 3: Fallback to first active event type
     console.log('No priority match found, using first event type:', eventTypes[0]?.name);
     return eventTypes[0]?.uri || null;
   } catch (error) {
@@ -217,7 +209,6 @@ async function getCalendlyEventTypeUri(token: string, userUri: string, closerNam
   }
 }
 
-// Helper function to get Calendly event type custom questions with positions
 interface CalendlyCustomQuestion {
   name: string;
   type: string;
@@ -228,9 +219,9 @@ interface CalendlyCustomQuestion {
 
 async function getCalendlyEventTypeQuestions(token: string, eventTypeUri: string): Promise<CalendlyCustomQuestion[]> {
   try {
-    const response = await fetch(eventTypeUri, {
+    const response = await fetchWithTimeout(eventTypeUri, {
       headers: { 'Authorization': `Bearer ${token}` }
-    });
+    }, 15000);
     
     if (!response.ok) {
       console.error('Failed to get Calendly event type details:', await response.text());
@@ -247,7 +238,6 @@ async function getCalendlyEventTypeQuestions(token: string, eventTypeUri: string
   }
 }
 
-// Build questions_and_answers dynamically based on event type questions
 function buildQuestionsAndAnswers(
   questions: CalendlyCustomQuestion[], 
   phoneNumber: string
@@ -277,13 +267,12 @@ function buildQuestionsAndAnswers(
   return answers;
 }
 
-// Helper function to cancel existing Calendly event
 async function cancelCalendlyEvent(token: string, eventUri: string): Promise<boolean> {
   try {
     const eventUuid = eventUri.split('/').pop();
     if (!eventUuid) return false;
     
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://api.calendly.com/scheduled_events/${eventUuid}/cancellation`,
       {
         method: 'POST',
@@ -294,7 +283,8 @@ async function cancelCalendlyEvent(token: string, eventUri: string): Promise<boo
         body: JSON.stringify({
           reason: 'Reassigned to another closer via CRM'
         })
-      }
+      },
+      15000
     );
     
     if (!response.ok) {
@@ -310,7 +300,6 @@ async function cancelCalendlyEvent(token: string, eventUri: string): Promise<boo
   }
 }
 
-// Helper function to create Calendly invitee (book meeting)
 async function createCalendlyInvitee(
   token: string, 
   eventTypeUri: string, 
@@ -328,7 +317,7 @@ async function createCalendlyInvitee(
       questionsAndAnswers
     });
     
-    const response = await fetch('https://api.calendly.com/invitees', {
+    const response = await fetchWithTimeout('https://api.calendly.com/invitees', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -347,7 +336,7 @@ async function createCalendlyInvitee(
         },
         questions_and_answers: questionsAndAnswers
       })
-    });
+    }, 15000);
     
     const responseText = await response.text();
     console.log('Calendly invitee response status:', response.status);
@@ -368,7 +357,6 @@ async function createCalendlyInvitee(
   }
 }
 
-// Helper function to get closer's integration from database
 // deno-lint-ignore no-explicit-any
 async function getCloserIntegration(
   supabaseClient: any,
@@ -391,7 +379,6 @@ async function getCloserIntegration(
     return { integrationType: null, config: null };
   }
 
-  // Type assertion with proper handling
   const orgIntegration = (data as Record<string, unknown>).organization_integrations as { 
     integration_type: string; 
     config: Record<string, unknown> 
@@ -408,7 +395,6 @@ async function getCloserIntegration(
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -421,7 +407,6 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate authentication
     const authResult = await validateAuth(req, supabase);
     if (!authResult.valid) {
       return new Response(
@@ -434,7 +419,6 @@ serve(async (req) => {
 
     console.log('Reassign call request:', { appointment_id, new_closer_id, new_date, new_time, requestedBy: authResult.userId });
 
-    // Validate required fields
     if (!appointment_id || !new_closer_id || !new_date || !new_time) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: appointment_id, new_closer_id, new_date, new_time' }),
@@ -442,7 +426,6 @@ serve(async (req) => {
       );
     }
 
-    // Fetch current appointment with lead and closer details
     const { data: appointment, error: appointmentError } = await supabase
       .from('call_appointments')
       .select(`
@@ -461,7 +444,6 @@ serve(async (req) => {
       );
     }
 
-    // Fetch new closer profile
     const { data: newCloser, error: newCloserError } = await supabase
       .from('profiles')
       .select('id, full_name, email')
@@ -492,7 +474,6 @@ serve(async (req) => {
       lead: lead.contact_name
     });
 
-    // Check if date/time is changing
     const oldDate = appointment.scheduled_date;
     const oldTime = appointment.scheduled_time?.slice(0, 5);
     const newTimeNormalized = new_time.slice(0, 5);
@@ -506,7 +487,6 @@ serve(async (req) => {
       dateTimeChanged
     });
 
-    // Get new closer's integration from database
     const newCloserIntegration = await getCloserIntegration(supabase, new_closer_id, appointment.organization_id);
     const useCalendly = newCloserIntegration.integrationType === 'calendly';
     const useZoom = newCloserIntegration.integrationType === 'zoom';
@@ -522,7 +502,7 @@ serve(async (req) => {
     let newCalendlyEventUri: string | null = null;
     let calendlySynced = false;
 
-    // Get old closer's integration to cancel old Calendly event if needed
+    // Cancel old Calendly event if needed
     if (appointment.closer_id && appointment.calendly_event_uri) {
       const oldCloserIntegration = await getCloserIntegration(supabase, appointment.closer_id, appointment.organization_id);
       if (oldCloserIntegration.integrationType === 'calendly' && oldCloserIntegration.config) {
@@ -603,7 +583,7 @@ serve(async (req) => {
       console.log('No integration configured for new closer, skipping meeting creation');
     }
 
-    // Build update data for call_appointments
+    // Build update data
     const updateData: Record<string, unknown> = {
       closer_id: new_closer_id,
       previous_closer_id: appointment.closer_id,
@@ -611,12 +591,10 @@ serve(async (req) => {
       updated_at: new Date().toISOString()
     };
 
-    // Always update zoom link if we got a new one
     if (newZoomLink) {
       updateData.zoom_link = newZoomLink;
     }
 
-    // Update Calendly URIs
     if (useCalendly && calendlySynced) {
       if (newCalendlyEventUri) updateData.calendly_event_uri = newCalendlyEventUri;
     } else {
@@ -624,7 +602,6 @@ serve(async (req) => {
       updateData.calendly_invitee_uri = null;
     }
 
-    // Update date/time if changed
     if (dateTimeChanged) {
       updateData.previous_scheduled_date = appointment.scheduled_date;
       updateData.previous_scheduled_time = appointment.scheduled_time;
@@ -718,11 +695,11 @@ serve(async (req) => {
           },
         };
 
-        const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+        const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(whatsappPayload),
-        });
+        }, { timeoutMs: 10000 });
 
         if (whatsappResponse.ok) {
           whatsappSent = true;
