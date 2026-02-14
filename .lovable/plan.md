@@ -1,44 +1,42 @@
 
 
-# WhatsApp Module UI/UX Improvements -- Round 2
+# UI Polish: Campaigns Filter Cards + Campaign Detail Layout
 
-## 1. Campaigns Page -- Replace Summary Cards with Clickable Filter Cards
+## 1. Campaigns Page -- Elevated Filter Cards
 
-**Current state:** The page has both summary stat cards at the top AND a separate tab strip below them. Both serve the same filtering purpose.
+The current filter cards are small and flat. They need more visual presence to feel like a professional dashboard.
 
-**Change:** Remove the separate `Tabs`/`TabsList` component. Make the top summary cards themselves clickable to act as the filter. Clicking a card highlights it (active border/ring) and filters the table. Add an "All" card at the beginning.
+**Changes to `src/pages/whatsapp/Campaigns.tsx`:**
+- Increase card padding and font sizes (count goes from `text-lg` to `text-2xl`)
+- Add a subtle colored background tint to each card (e.g., emerald-50 for Completed, blue-50 for Scheduled)
+- Add a gradient left border accent on the active card
+- Give the icon a circular tinted background (pill shape) for visual weight
+- Add a subtle shadow on hover
 
-This matches the reference screenshot showing a clean pill/card row: `All (16) | Completed | Scheduled | Sending | Failed`.
+## 2. Campaign Detail Page -- Reorganized Layout
 
-**File:** `src/pages/whatsapp/Campaigns.tsx`
+Based on the annotated screenshot, the desired layout is:
 
-## 2. Remove "Scheduled" Sub-menu from Sidebar
+```text
++-----------------------------+------------------+
+|                             |                  |
+|   Analytics Cards (3x2)    | Message Preview  |
+|                             |  (portrait)      |
++-----------------------------+------------------+
+|                                                |
+|          Groups Table (full width)             |
+|                                                |
++------------------------------------------------+
+```
 
-Since scheduled campaigns are now visible within the Campaigns page (via the "Scheduled" filter card), the separate "Scheduled" sidebar link is redundant.
+**Changes to `src/pages/whatsapp/CampaignDetail.tsx`:**
+- Move to a two-row structure instead of the current two-column structure
+- **Top row** is two columns: left = 3-column stats grid, right = WhatsApp preview (portrait, not sticky)
+- **Bottom row** is the full-width groups breakdown table
+- On mobile, stack: preview on top, stats below it, then table
+- Polish the stat cards with colored icon backgrounds and slightly larger text
 
-**File:** `src/components/AppLayout.tsx` -- Remove line 354 (`{ title: "Scheduled", path: "/whatsapp/scheduled" }`)
+### Technical Summary
 
-## 3. Campaign Detail Page -- Two-Column Layout with Compact Stats
-
-**Current state:** Stats are spread across 7 individual cards in a single row (overflows on smaller screens). The message preview is a full-width card below, taking up excessive vertical space.
-
-**Change:**
-- Switch to a **two-column layout** on desktop:
-  - **Left column (2/3 width):** Analytics stats in a compact 3x2 grid (Audience, Sent, Failed, Pending, Delivered, Read, Reactions) using small inline cards, followed by the groups breakdown table below
-  - **Right column (1/3 width):** WhatsApp message preview in portrait orientation, sticky so it stays visible while scrolling the table
-- On mobile, stack: preview first, then stats, then table
-
-**File:** `src/pages/whatsapp/CampaignDetail.tsx`
-
----
-
-## Technical Summary
-
-### Files to Modify
-1. **`src/pages/whatsapp/Campaigns.tsx`** -- Remove Tabs, make stat cards clickable filters, add "All" card
-2. **`src/components/AppLayout.tsx`** -- Remove "Scheduled" sidebar entry (line 354)
-3. **`src/pages/whatsapp/CampaignDetail.tsx`** -- Two-column layout: stats grid + table on left, portrait WhatsApp preview on right
-
-### No New Files or Database Changes
-All changes are purely frontend layout/UX improvements.
+Only two files modified, no database changes, no new components.
 
