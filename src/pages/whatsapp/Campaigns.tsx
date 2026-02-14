@@ -80,11 +80,11 @@ const Campaigns = () => {
   }, [campaigns]);
 
   const filterCards = [
-    { key: "all", label: "All", count: counts.all, icon: List, color: "text-foreground", activeRing: "ring-primary" },
-    { key: "completed", label: "Completed", count: counts.completed, icon: CheckCircle2, color: "text-emerald-500", activeRing: "ring-emerald-500" },
-    { key: "scheduled", label: "Scheduled", count: counts.scheduled, icon: Clock, color: "text-blue-500", activeRing: "ring-blue-500" },
-    { key: "sending", label: "Sending", count: counts.sending, icon: Send, color: "text-primary", activeRing: "ring-primary" },
-    { key: "failed", label: "Failed", count: counts.failed, icon: AlertTriangle, color: "text-destructive", activeRing: "ring-destructive" },
+    { key: "all", label: "All", count: counts.all, icon: List, color: "text-primary", bgTint: "bg-primary/5", activeBorder: "border-l-primary", activeRing: "ring-primary" },
+    { key: "completed", label: "Completed", count: counts.completed, icon: CheckCircle2, color: "text-emerald-500", bgTint: "bg-emerald-500/5", activeBorder: "border-l-emerald-500", activeRing: "ring-emerald-500" },
+    { key: "scheduled", label: "Scheduled", count: counts.scheduled, icon: Clock, color: "text-blue-500", bgTint: "bg-blue-500/5", activeBorder: "border-l-blue-500", activeRing: "ring-blue-500" },
+    { key: "sending", label: "Sending", count: counts.sending, icon: Send, color: "text-violet-500", bgTint: "bg-violet-500/5", activeBorder: "border-l-violet-500", activeRing: "ring-violet-500" },
+    { key: "failed", label: "Failed", count: counts.failed, icon: AlertTriangle, color: "text-destructive", bgTint: "bg-destructive/5", activeBorder: "border-l-destructive", activeRing: "ring-destructive" },
   ];
 
   if (isLoading) {
@@ -104,7 +104,7 @@ const Campaigns = () => {
       <PageHeader title="Campaigns" />
 
       {/* Clickable filter cards */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {filterCards.map((card) => {
           const isActive = activeFilter === card.key;
           return (
@@ -112,16 +112,21 @@ const Campaigns = () => {
               key={card.key}
               onClick={() => setActiveFilter(card.key)}
               className={cn(
-                "flex items-center gap-2.5 rounded-lg border bg-card p-3 text-left transition-all hover:shadow-sm",
+                "relative flex items-center gap-3 rounded-xl border-l-4 bg-card px-4 py-4 text-left transition-all duration-200 hover:shadow-md",
                 isActive
-                  ? `ring-2 ${card.activeRing} border-transparent shadow-sm`
-                  : "border-border hover:border-muted-foreground/30"
+                  ? `${card.activeBorder} ring-2 ${card.activeRing} shadow-md ${card.bgTint}`
+                  : "border-l-transparent border hover:border-l-muted-foreground/30 hover:bg-accent/30"
               )}
             >
-              <card.icon className={cn("h-4 w-4 shrink-0", card.color)} />
+              <div className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+                isActive ? `${card.bgTint}` : "bg-muted/60"
+              )}>
+                <card.icon className={cn("h-5 w-5", card.color)} />
+              </div>
               <div className="min-w-0">
-                <p className="text-lg font-bold leading-tight">{card.count}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{card.label}</p>
+                <p className="text-2xl font-bold leading-tight tracking-tight">{card.count}</p>
+                <p className="text-xs text-muted-foreground font-medium truncate">{card.label}</p>
               </div>
             </button>
           );

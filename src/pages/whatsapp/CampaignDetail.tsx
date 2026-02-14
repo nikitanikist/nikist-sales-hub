@@ -81,13 +81,13 @@ const CampaignDetail = () => {
   const mediaType = campaign.media_type || getMediaTypeFromUrl(campaign.media_url || null);
 
   const statItems = [
-    { label: "Audience", value: campaign.total_audience?.toLocaleString() || "0", icon: Users, color: "text-foreground" },
-    { label: "Sent", value: sentCount, icon: CheckCircle2, color: "text-primary" },
-    { label: "Failed", value: failedCount, icon: XCircle, color: "text-destructive" },
-    { label: "Pending", value: pendingCount, icon: Clock, color: "text-muted-foreground" },
-    { label: "Delivered", value: totalDelivered, icon: CheckCheck, color: "text-emerald-500" },
-    { label: "Read", value: totalReads, icon: Eye, color: "text-blue-500" },
-    { label: "Reactions", value: totalReactions, icon: SmilePlus, color: "text-amber-500" },
+    { label: "Audience", value: campaign.total_audience?.toLocaleString() || "0", icon: Users, color: "text-primary", bgTint: "bg-primary/10" },
+    { label: "Sent", value: sentCount, icon: CheckCircle2, color: "text-violet-500", bgTint: "bg-violet-500/10" },
+    { label: "Failed", value: failedCount, icon: XCircle, color: "text-destructive", bgTint: "bg-destructive/10" },
+    { label: "Pending", value: pendingCount, icon: Clock, color: "text-muted-foreground", bgTint: "bg-muted" },
+    { label: "Delivered", value: totalDelivered, icon: CheckCheck, color: "text-emerald-500", bgTint: "bg-emerald-500/10" },
+    { label: "Read", value: totalReads, icon: Eye, color: "text-blue-500", bgTint: "bg-blue-500/10" },
+    { label: "Reactions", value: totalReactions, icon: SmilePlus, color: "text-amber-500", bgTint: "bg-amber-500/10" },
   ];
 
   return (
@@ -102,110 +102,109 @@ const CampaignDetail = () => {
         </Badge>
       </div>
 
-      {/* Two-column layout: stats+table left, preview right */}
-      <div className="flex flex-col-reverse lg:flex-row gap-6">
-        {/* Left column - Stats grid + Groups table */}
-        <div className="flex-1 min-w-0 space-y-6">
-          {/* Compact stats grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {/* Top row: Stats grid (left) + Preview (right) */}
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Stats grid */}
+        <div className="flex-1 min-w-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-3">
             {statItems.map((stat) => (
-              <Card key={stat.label} className="shadow-sm">
-                <CardContent className="p-3 flex items-center gap-3">
-                  <stat.icon className={`h-4 w-4 shrink-0 ${stat.color}`} />
+              <Card key={stat.label} className="shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${stat.bgTint}`}>
+                    <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                  </div>
                   <div className="min-w-0">
-                    <p className="text-xl font-bold leading-tight">{stat.value}</p>
-                    <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+                    <p className="text-2xl font-bold leading-tight tracking-tight">{stat.value}</p>
+                    <p className="text-xs text-muted-foreground font-medium">{stat.label}</p>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+        </div>
 
-          {/* Groups breakdown */}
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Group</TableHead>
-                    <TableHead className="text-right">Members</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Delivered</TableHead>
-                    <TableHead className="text-right">Reads</TableHead>
-                    <TableHead className="text-right">Reactions</TableHead>
-                    <TableHead>Sent At</TableHead>
-                    <TableHead>Error</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {campaignGroups?.map((g, idx) => (
-                    <TableRow key={g.id}>
-                      <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                      <TableCell className="font-medium">{g.group_name}</TableCell>
-                      <TableCell className="text-right">{g.member_count}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={
-                            g.status === "sent" ? "default" : g.status === "failed" ? "destructive" : "secondary"
-                          }
-                        >
-                          {g.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {(g as any).delivered_count > 0 ? (
-                          <span className="text-emerald-500 font-medium">{(g as any).delivered_count}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {g.read_count > 0 ? (
-                          <span className="text-blue-500 font-medium">{g.read_count}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {g.reaction_count > 0 ? (
-                          <span className="text-amber-500 font-medium">{g.reaction_count}</span>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {g.sent_at ? format(new Date(g.sent_at), "h:mm a") : "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-destructive max-w-[200px] truncate">
-                        {g.error_message || "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+        {/* WhatsApp preview - portrait */}
+        <div className="w-full lg:w-80 xl:w-96 shrink-0">
+          <Card className="bg-[hsl(var(--muted)/0.3)] overflow-hidden h-full">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Message Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              <WhatsAppPreview
+                content={campaign.message_content}
+                mediaUrl={campaign.media_url}
+                mediaType={mediaType as any}
+              />
             </CardContent>
           </Card>
         </div>
-
-        {/* Right column - Sticky WhatsApp preview */}
-        <div className="w-full lg:w-80 xl:w-96 shrink-0">
-          <div className="lg:sticky lg:top-20">
-            <Card className="bg-[hsl(var(--muted)/0.3)] overflow-hidden">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Message Preview</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3">
-                <WhatsAppPreview
-                  content={campaign.message_content}
-                  mediaUrl={campaign.media_url}
-                  mediaType={mediaType as any}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </div>
+
+      {/* Full-width groups breakdown table */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead>
+                <TableHead>Group</TableHead>
+                <TableHead className="text-right">Members</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Delivered</TableHead>
+                <TableHead className="text-right">Reads</TableHead>
+                <TableHead className="text-right">Reactions</TableHead>
+                <TableHead>Sent At</TableHead>
+                <TableHead>Error</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {campaignGroups?.map((g, idx) => (
+                <TableRow key={g.id}>
+                  <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                  <TableCell className="font-medium">{g.group_name}</TableCell>
+                  <TableCell className="text-right">{g.member_count}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge
+                      variant={
+                        g.status === "sent" ? "default" : g.status === "failed" ? "destructive" : "secondary"
+                      }
+                    >
+                      {g.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {(g as any).delivered_count > 0 ? (
+                      <span className="text-emerald-500 font-medium">{(g as any).delivered_count}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {g.read_count > 0 ? (
+                      <span className="text-blue-500 font-medium">{g.read_count}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {g.reaction_count > 0 ? (
+                      <span className="text-amber-500 font-medium">{g.reaction_count}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {g.sent_at ? format(new Date(g.sent_at), "h:mm a") : "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-destructive max-w-[200px] truncate">
+                    {g.error_message || "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 };
