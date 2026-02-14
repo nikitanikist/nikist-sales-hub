@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -336,13 +337,13 @@ serve(async (req) => {
     }
 
     // Send WhatsApp message
-    const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+    const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(whatsappPayload),
-    });
+    }, { maxRetries: 3, timeoutMs: 10000 });
 
     const whatsappResult = await whatsappResponse.json();
     console.log('WhatsApp API response:', whatsappResult);

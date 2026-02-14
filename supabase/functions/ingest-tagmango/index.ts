@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
+import { fetchWithRetry } from '../_shared/fetchWithRetry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -716,13 +717,13 @@ Deno.serve(async (req) => {
 
           console.log('Sending Crypto WhatsApp confirmation to destination');
 
-          const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+          const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(whatsappPayload),
-          });
+          }, { maxRetries: 3, timeoutMs: 10000 });
 
           const whatsappResult = await whatsappResponse.text();
           console.log('WhatsApp API response:', whatsappResponse.status, whatsappResult);
@@ -772,13 +773,13 @@ Deno.serve(async (req) => {
 
             console.log('Sending data to Google Sheet for workshop:', normalizedWorkshopName);
 
-            const sheetResponse = await fetch(GOOGLE_SHEET_WEBHOOK_URL, {
+            const sheetResponse = await fetchWithRetry(GOOGLE_SHEET_WEBHOOK_URL, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify(sheetPayload),
-            });
+            }, { maxRetries: 2, timeoutMs: 10000 });
 
             const sheetResult = await sheetResponse.text();
             console.log('Google Sheet API response:', sheetResponse.status, sheetResult);
@@ -828,13 +829,13 @@ Deno.serve(async (req) => {
 
           console.log('Sending YouTube WhatsApp confirmation to destination');
 
-          const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+          const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(whatsappPayload),
-          });
+          }, { maxRetries: 3, timeoutMs: 10000 });
 
           const whatsappResult = await whatsappResponse.text();
           console.log('WhatsApp API response:', whatsappResponse.status, whatsappResult);
@@ -877,13 +878,13 @@ Deno.serve(async (req) => {
 
           console.log('Sending data to YouTube Google Sheet for workshop:', normalizedWorkshopName);
 
-          const sheetResponse = await fetch(GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(sheetPayload),
-          });
+          const sheetResponse = await fetchWithRetry(GOOGLE_SHEET_YOUTUBE_WEBHOOK_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(sheetPayload),
+            }, { maxRetries: 2, timeoutMs: 10000 });
 
           const sheetResult = await sheetResponse.text();
           console.log('YouTube Google Sheet API response:', sheetResponse.status, sheetResult);
