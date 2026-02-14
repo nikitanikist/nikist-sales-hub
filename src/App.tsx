@@ -21,7 +21,7 @@ import Products from "./pages/Products";
 import Onboarding from "./pages/Onboarding";
 import Users from "./pages/Users";
 import Batches from "./pages/batches";
-import FuturesMentorship from "./pages/FuturesMentorship";
+import FuturesMentorship from "./pages/futures-mentorship";
 import HighFuture from "./pages/HighFuture";
 import DailyMoneyFlow from "./pages/DailyMoneyFlow";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
