@@ -277,17 +277,41 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Update running counts
-      await supabase.rpc("update_campaign_counts", { p_campaign_id: campaign.id }).catch(() => {
-        // Fallback: manual count update
-        supabase
+      // Count actual group statuses and finalize campaign
+      const { data: groupStats } = await supabase
+        .from("notification_campaign_groups")
+        .select("status")
+        .eq("campaign_id", campaign.id);
+
+      const finalSent = groupStats?.filter(g => g.status === "sent").length || 0;
+      const finalFailed = groupStats?.filter(g => g.status === "failed").length || 0;
+      const finalPending = groupStats?.filter(g => g.status === "pending").length || 0;
+
+      // Update campaign counts
+      await supabase
+        .from("notification_campaigns")
+        .update({
+          sent_count: finalSent,
+          failed_count: finalFailed,
+        })
+        .eq("id", campaign.id);
+
+      // If no more pending groups, finalize status
+      if (finalPending === 0) {
+        const finalStatus = finalFailed > 0 && finalSent > 0
+          ? "partial_failure"
+          : finalFailed > 0
+          ? "failed"
+          : "completed";
+
+        await supabase
           .from("notification_campaigns")
           .update({
-            sent_count: (campaign.sent_count || 0) + batchSent,
-            failed_count: (campaign.failed_count || 0) + batchFailed,
+            status: finalStatus,
+            completed_at: new Date().toISOString(),
           })
           .eq("id", campaign.id);
-      });
+      }
 
       results[campaign.id] = { sent: batchSent, failed: batchFailed };
     }
