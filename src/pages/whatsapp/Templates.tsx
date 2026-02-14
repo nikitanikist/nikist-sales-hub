@@ -1,46 +1,19 @@
 import { useState } from "react";
-import { useMessageTemplates, CreateTemplateInput } from "@/hooks/useMessageTemplates";
+import { useNavigate } from "react-router-dom";
+import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText } from "lucide-react";
 
 const Templates = () => {
-  const { templates, templatesLoading, createTemplate, isCreating, updateTemplate, isUpdating, deleteTemplate, isDeleting } = useMessageTemplates();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { templates, templatesLoading, deleteTemplate, isDeleting } = useMessageTemplates();
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [form, setForm] = useState<CreateTemplateInput>({ name: "", content: "" });
-
-  const openNew = () => {
-    setEditingId(null);
-    setForm({ name: "", content: "", description: "", media_url: "" });
-    setDialogOpen(true);
-  };
-
-  const openEdit = (id: string) => {
-    const tpl = templates.find((t) => t.id === id);
-    if (!tpl) return;
-    setEditingId(id);
-    setForm({ name: tpl.name, content: tpl.content, description: tpl.description || "", media_url: tpl.media_url || "" });
-    setDialogOpen(true);
-  };
-
-  const handleSave = async () => {
-    if (editingId) {
-      updateTemplate({ id: editingId, ...form });
-    } else {
-      await createTemplate(form);
-    }
-    setDialogOpen(false);
-  };
 
   if (templatesLoading) {
     return (
@@ -55,7 +28,7 @@ const Templates = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <PageHeader title="Message Templates" />
-        <Button onClick={openNew} className="gap-2">
+        <Button onClick={() => navigate("/whatsapp/templates/new")} className="gap-2">
           <Plus className="h-4 w-4" /> New Template
         </Button>
       </div>
@@ -67,13 +40,15 @@ const Templates = () => {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Content</TableHead>
+                <TableHead className="text-center">Media</TableHead>
                 <TableHead className="w-24">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {templates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
                     No templates yet. Create your first template.
                   </TableCell>
                 </TableRow>
@@ -84,9 +59,16 @@ const Templates = () => {
                     <TableCell className="text-sm text-muted-foreground max-w-[300px] truncate">
                       {t.content}
                     </TableCell>
+                    <TableCell className="text-center">
+                      {t.media_url ? (
+                        <Badge variant="outline" className="text-xs">Has media</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(t.id)}>
+                        <Button variant="ghost" size="icon" onClick={() => navigate(`/whatsapp/templates/${t.id}/edit`)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => setDeleteId(t.id)}>
@@ -101,35 +83,6 @@ const Templates = () => {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingId ? "Edit Template" : "New Template"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="tpl-name">Name</Label>
-              <Input id="tpl-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </div>
-            <div>
-              <Label htmlFor="tpl-content">Content</Label>
-              <Textarea id="tpl-content" value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="min-h-[100px]" />
-            </div>
-            <div>
-              <Label htmlFor="tpl-media">Media URL (optional)</Label>
-              <Input id="tpl-media" value={form.media_url || ""} onChange={(e) => setForm({ ...form, media_url: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={!form.name || !form.content || isCreating || isUpdating}>
-              {editingId ? "Save" : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete confirmation */}
       <ConfirmDeleteDialog

@@ -1,11 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWhatsAppSession } from "@/hooks/useWhatsAppSession";
-import { useWhatsAppGroups, WhatsAppGroup } from "@/hooks/useWhatsAppGroups";
+import { useWhatsAppGroups } from "@/hooks/useWhatsAppGroups";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useOrganization } from "@/hooks/useOrganization";
 import { supabase } from "@/integrations/supabase/client";
-import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +15,19 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Check, Search, Users, Send, Clock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Search, Users, Send, Clock, X, Loader2 } from "lucide-react";
+import { WhatsAppPreview } from "@/components/settings/WhatsAppPreview";
+import {
+  TemplateMediaUpload,
+  validateWhatsAppMedia,
+  getMediaType,
+  getMediaTypeFromUrl,
+  type MediaType,
+} from "@/components/settings/TemplateMediaUpload";
 
 type Step = 1 | 2 | 3 | 4;
+
+const STEP_LABELS = ["Select Groups", "Draft Message", "Configure", "Confirm"];
 
 const DELAY_OPTIONS = [
   { value: 1, label: "1 second" },
@@ -39,15 +48,19 @@ const SendNotification = () => {
   const [step, setStep] = useState<Step>(1);
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
   const [messageContent, setMessageContent] = useState("");
-  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaFileName, setMediaFileName] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<string>("");
   const [campaignName, setCampaignName] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [delaySeconds, setDelaySeconds] = useState(5);
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
   const [scheduledFor, setScheduledFor] = useState("");
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const connectedSessions = useMemo(
     () => sessions?.filter((s) => s.status === "connected") || [],
@@ -110,12 +123,91 @@ const SendNotification = () => {
     }
   };
 
+  // Media upload handler
+  const handleMediaSelect = async (file: File) => {
+    const validation = validateWhatsAppMedia(file);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      return;
+    }
+    if (!currentOrganization) return;
+
+    setIsUploading(true);
+    try {
+      const timestamp = Date.now();
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+      const filePath = `${currentOrganization.id}/${timestamp}_${sanitizedFileName}`;
+
+      const { data, error } = await supabase.storage
+        .from("template-media")
+        .upload(filePath, file, { cacheControl: "3600", upsert: false });
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage.from("template-media").getPublicUrl(data.path);
+
+      setMediaUrl(urlData.publicUrl);
+      setMediaFile(file);
+      setMediaFileName(file.name);
+      const type = getMediaType(file);
+      setMediaType(type);
+      toast.success("Media uploaded successfully");
+    } catch (err: any) {
+      toast.error("Failed to upload media", { description: err.message });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleMediaRemove = async () => {
+    if (mediaUrl) {
+      try {
+        const urlObj = new URL(mediaUrl);
+        const pathMatch = urlObj.pathname.match(/\/template-media\/(.+)$/);
+        if (pathMatch) {
+          const filePath = decodeURIComponent(pathMatch[1]);
+          await supabase.storage.from("template-media").remove([filePath]);
+        }
+      } catch (e) { /* ignore */ }
+    }
+    setMediaUrl(null);
+    setMediaFile(null);
+    setMediaFileName(null);
+    setMediaType("");
+  };
+
+  const handleLoadTemplate = (id: string) => {
+    const tpl = templates.find((t) => t.id === id);
+    if (tpl) {
+      setSelectedTemplateId(id);
+      setMessageContent(tpl.content);
+      if (tpl.media_url) {
+        setMediaUrl(tpl.media_url);
+        setMediaType(getMediaTypeFromUrl(tpl.media_url));
+        const urlParts = tpl.media_url.split("/");
+        setMediaFileName(urlParts[urlParts.length - 1]);
+      }
+    }
+  };
+
+  const handleClearTemplate = () => {
+    setSelectedTemplateId("");
+    setMessageContent("");
+    setMediaUrl(null);
+    setMediaFile(null);
+    setMediaFileName(null);
+    setMediaType("");
+  };
+
+  const currentMediaType: MediaType = mediaFile
+    ? getMediaType(mediaFile)
+    : getMediaTypeFromUrl(mediaUrl || null);
+
   const handleSubmit = async () => {
     if (!currentOrganization || !selectedSessionId) return;
     setIsSubmitting(true);
 
     try {
-      // Create campaign
       const { data: campaign, error: campaignError } = await supabase
         .from("notification_campaigns")
         .insert({
@@ -136,7 +228,6 @@ const SendNotification = () => {
 
       if (campaignError) throw campaignError;
 
-      // Create campaign groups
       const groupRows = selectedGroups.map((g) => ({
         campaign_id: campaign.id,
         group_id: g.id,
@@ -174,32 +265,53 @@ const SendNotification = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/whatsapp")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <PageHeader title="Send Notification" />
+        <h1 className="text-xl font-bold">Send Notification</h1>
       </div>
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-2">
-        {[1, 2, 3, 4].map((s) => (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                s === step
-                  ? "bg-primary text-primary-foreground"
-                  : s < step
-                  ? "bg-primary/20 text-primary"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {s < step ? <Check className="h-4 w-4" /> : s}
+      {/* Step indicator - labeled stepper */}
+      <div className="flex items-center justify-center gap-0">
+        {STEP_LABELS.map((label, i) => {
+          const s = (i + 1) as Step;
+          const isCompleted = s < step;
+          const isActive = s === step;
+          return (
+            <div key={s} className="flex items-center">
+              <div className="flex flex-col items-center gap-1.5">
+                <div
+                  className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                    isCompleted
+                      ? "bg-primary text-primary-foreground"
+                      : isActive
+                      ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {isCompleted ? <Check className="h-4 w-4" /> : s}
+                </div>
+                <span
+                  className={`text-xs font-medium whitespace-nowrap ${
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  {label}
+                </span>
+              </div>
+              {i < 3 && (
+                <div
+                  className={`h-0.5 w-10 sm:w-16 mx-1 mt-[-18px] ${
+                    isCompleted ? "bg-primary" : "bg-muted"
+                  }`}
+                />
+              )}
             </div>
-            {s < 4 && <div className={`h-0.5 w-8 ${s < step ? "bg-primary" : "bg-muted"}`} />}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Step 1: Select Groups */}
@@ -210,10 +322,9 @@ const SendNotification = () => {
             <CardDescription>Choose which groups to send the notification to</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Session filter */}
             <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
               <SelectTrigger className="w-full sm:w-[260px]">
-                <SelectValue placeholder="Select session" />
+                <SelectValue placeholder="Select number" />
               </SelectTrigger>
               <SelectContent>
                 {connectedSessions.map((s) => (
@@ -224,13 +335,11 @@ const SendNotification = () => {
               </SelectContent>
             </Select>
 
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search groups..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
 
-            {/* Select all */}
             <div className="flex items-center justify-between">
               <button onClick={toggleAll} className="text-sm text-primary hover:underline">
                 {selectedGroupIds.size === filteredGroups.length && filteredGroups.length > 0 ? "Deselect All" : "Select All"}
@@ -238,7 +347,6 @@ const SendNotification = () => {
               <Badge variant="secondary">{selectedGroupIds.size} selected</Badge>
             </div>
 
-            {/* Group list */}
             <div className="max-h-72 overflow-y-auto space-y-1 border rounded-md p-2">
               {filteredGroups.map((g) => (
                 <label
@@ -263,81 +371,81 @@ const SendNotification = () => {
         </Card>
       )}
 
-      {/* Step 2: Draft Message */}
+      {/* Step 2: Draft Message - Two Column */}
       {step === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Draft Message</CardTitle>
-            <CardDescription>Compose your notification message</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Template selector */}
-            {templates.length > 0 && (
-              <div>
-                <Label className="text-sm">Load from template</Label>
-                <Select onValueChange={(id) => {
-                  const tpl = templates.find((t) => t.id === id);
-                  if (tpl) {
-                    setMessageContent(tpl.content);
-                    if (tpl.media_url) {
-                      setMediaUrl(tpl.media_url);
-                      // Detect media type from extension
-                      const ext = tpl.media_url.split('.').pop()?.toLowerCase();
-                      if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) setMediaType('image');
-                      else if (['mp4', 'mov', 'avi'].includes(ext || '')) setMediaType('video');
-                      else setMediaType('document');
-                    }
-                  }
-                }}>
-                  <SelectTrigger className="w-full sm:w-[260px]">
-                    <SelectValue placeholder="Choose a template..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Compose Panel */}
+          <Card className="flex flex-col">
+            <CardHeader>
+              <CardTitle>Draft Message</CardTitle>
+              <CardDescription>Compose your notification message</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 flex-1 flex flex-col">
+              {/* Template selector with clear */}
+              {templates.length > 0 && (
+                <div>
+                  <Label className="text-sm">Load from template</Label>
+                  <div className="flex gap-2">
+                    <Select value={selectedTemplateId} onValueChange={handleLoadTemplate}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Choose a template..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedTemplateId && (
+                      <Button variant="ghost" size="icon" onClick={handleClearTemplate} title="Clear template">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
 
-            <div>
-              <Label htmlFor="message">Message</Label>
-              <Textarea
-                id="message"
-                value={messageContent}
-                onChange={(e) => setMessageContent(e.target.value)}
-                placeholder="Type your message here..."
-                className="min-h-[120px]"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Media Upload */}
               <div>
-                <Label htmlFor="mediaUrl">Media URL (optional)</Label>
-                <Input
-                  id="mediaUrl"
-                  value={mediaUrl}
-                  onChange={(e) => setMediaUrl(e.target.value)}
-                  placeholder="https://example.com/image.jpg"
+                <Label className="text-sm text-muted-foreground">Media Attachment (optional)</Label>
+                <TemplateMediaUpload
+                  mediaUrl={mediaUrl}
+                  mediaFile={mediaFile}
+                  fileName={mediaFileName}
+                  isUploading={isUploading}
+                  onSelect={handleMediaSelect}
+                  onRemove={handleMediaRemove}
                 />
               </div>
-              <div>
-                <Label htmlFor="mediaType">Media Type</Label>
-                <Select value={mediaType} onValueChange={setMediaType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="image">Image</SelectItem>
-                    <SelectItem value="video">Video</SelectItem>
-                    <SelectItem value="document">Document</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              {/* Message Content */}
+              <div className="flex-1 flex flex-col">
+                <Label htmlFor="message">Message</Label>
+                <Textarea
+                  id="message"
+                  value={messageContent}
+                  onChange={(e) => setMessageContent(e.target.value)}
+                  placeholder="Type your message here..."
+                  className="min-h-[160px] flex-1 resize-none"
+                />
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Preview Panel */}
+          <Card className="bg-[#efeae2] overflow-hidden">
+            <CardHeader className="pb-3 bg-white/80 backdrop-blur-sm">
+              <CardTitle className="text-lg font-semibold">Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <WhatsAppPreview
+                content={messageContent}
+                mediaUrl={mediaUrl}
+                mediaType={currentMediaType}
+              />
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Step 3: Configuration */}
@@ -413,52 +521,59 @@ const SendNotification = () => {
         </Card>
       )}
 
-      {/* Step 4: Confirmation */}
+      {/* Step 4: Confirmation - Two Column */}
       {step === 4 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Confirm & Send</CardTitle>
-            <CardDescription>Review your notification before sending</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Campaign</span>
-                <p className="font-medium">{campaignName}</p>
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Confirm & Send</CardTitle>
+              <CardDescription>Review your notification before sending</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                {[
+                  { label: "Campaign", value: campaignName },
+                  { label: "Groups", value: `${selectedGroups.length} groups` },
+                  { label: "Total Audience", value: `${totalAudience.toLocaleString()} members` },
+                  { label: "Delay", value: DELAY_OPTIONS.find((d) => d.value === delaySeconds)?.label },
+                  {
+                    label: "Schedule",
+                    value: sendMode === "now" ? "Send Now" : new Date(scheduledFor).toLocaleString(),
+                    icon: sendMode === "now" ? Send : Clock,
+                  },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                    <span className="text-sm text-muted-foreground">{item.label}</span>
+                    <span className="text-sm font-medium flex items-center gap-1.5">
+                      {item.icon && <item.icon className="h-3.5 w-3.5" />}
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <div>
-                <span className="text-muted-foreground">Groups</span>
-                <p className="font-medium">{selectedGroups.length}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Total Audience</span>
-                <p className="font-medium">{totalAudience.toLocaleString()} members</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Delay</span>
-                <p className="font-medium">{DELAY_OPTIONS.find((d) => d.value === delaySeconds)?.label}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Schedule</span>
-                <p className="font-medium flex items-center gap-1">
-                  {sendMode === "now" ? (
-                    <><Send className="h-3.5 w-3.5" /> Send Now</>
-                  ) : (
-                    <><Clock className="h-3.5 w-3.5" /> {new Date(scheduledFor).toLocaleString()}</>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="border rounded-md p-3 bg-muted/50">
-              <p className="text-xs text-muted-foreground mb-1">Message Preview</p>
-              <p className="text-sm whitespace-pre-wrap">{messageContent}</p>
               {mediaUrl && (
-                <Badge variant="outline" className="mt-2">{mediaType || "attachment"}: {mediaUrl.split("/").pop()}</Badge>
+                <Badge variant="outline" className="mt-2">
+                  {mediaType || "attachment"}: {mediaFileName || mediaUrl.split("/").pop()}
+                </Badge>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Message Preview */}
+          <Card className="bg-[#efeae2] overflow-hidden">
+            <CardHeader className="pb-3 bg-white/80 backdrop-blur-sm">
+              <CardTitle className="text-lg font-semibold">Message Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <WhatsAppPreview
+                content={messageContent}
+                mediaUrl={mediaUrl}
+                mediaType={currentMediaType}
+              />
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Navigation */}
@@ -477,8 +592,14 @@ const SendNotification = () => {
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? "Creating..." : sendMode === "schedule" ? "Schedule Campaign" : "Send Now"}
+          <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
+            {isSubmitting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Creating...</>
+            ) : sendMode === "schedule" ? (
+              <><Clock className="h-4 w-4" /> Schedule Campaign</>
+            ) : (
+              <><Send className="h-4 w-4" /> Send Now</>
+            )}
           </Button>
         )}
       </div>

@@ -41,6 +41,11 @@ export default function TemplateEditor() {
   const isEditing = !!id;
   const isSaving = isCreating || isUpdating;
 
+  // Determine back navigation based on current route
+  const isWhatsAppContext = window.location.pathname.startsWith('/whatsapp');
+  const backPath = isWhatsAppContext ? '/whatsapp/templates' : '/settings?tab=templates';
+  const backLabel = isWhatsAppContext ? 'Back to Templates' : 'Back to Templates';
+
   // Load existing template if editing
   useEffect(() => {
     if (id && templates.length > 0) {
@@ -177,7 +182,7 @@ export default function TemplateEditor() {
           media_url: mediaUrl,
         });
       }
-      navigate('/settings?tab=templates');
+      navigate(backPath);
     } catch (error) {
       console.error('Save error:', error);
     }
@@ -251,11 +256,11 @@ export default function TemplateEditor() {
         <div className="container max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Button
             variant="ghost"
-            onClick={() => navigate('/settings?tab=templates')}
+            onClick={() => navigate(backPath)}
             className="gap-2"
           >
             <ChevronLeft className="h-4 w-4" />
-            Back to Templates
+            {backLabel}
           </Button>
           <Button onClick={handleSave} disabled={isSaving} className="gap-2">
             {isSaving ? (

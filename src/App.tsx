@@ -95,6 +95,8 @@ const App = () => (
               <Route path="/whatsapp/campaigns" element={<ProtectedRoute><ErrorBoundary><Campaigns /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CampaignDetail /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/templates" element={<ProtectedRoute><ErrorBoundary><WhatsAppTemplates /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/templates/new" element={<ProtectedRoute><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/templates/:id/edit" element={<ProtectedRoute><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/scheduled" element={<ProtectedRoute><ErrorBoundary><ScheduledMessages /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/super-admin" element={<ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>} />
               <Route path="/super-admin/create-org" element={<ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>} />

@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
+import { WhatsAppPreview } from "@/components/settings/WhatsAppPreview";
+import { getMediaTypeFromUrl } from "@/components/settings/TemplateMediaUpload";
 
 const CampaignDetail = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -71,6 +73,8 @@ const CampaignDetail = () => {
   const totalDelivered = campaignGroups?.reduce((sum, g) => sum + ((g as any).delivered_count || 0), 0) || 0;
   const totalReads = campaignGroups?.reduce((sum, g) => sum + (g.read_count || 0), 0) || 0;
   const totalReactions = campaignGroups?.reduce((sum, g) => sum + (g.reaction_count || 0), 0) || 0;
+
+  const mediaType = campaign.media_type || getMediaTypeFromUrl(campaign.media_url || null);
 
   return (
     <div className="space-y-6">
@@ -158,16 +162,17 @@ const CampaignDetail = () => {
         </Card>
       </div>
 
-      {/* Message preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Message</CardTitle>
+      {/* Message preview - WhatsApp style */}
+      <Card className="bg-[#efeae2] overflow-hidden">
+        <CardHeader className="pb-3 bg-white/80 backdrop-blur-sm">
+          <CardTitle className="text-sm">Message Preview</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm whitespace-pre-wrap">{campaign.message_content}</p>
-          {campaign.media_url && (
-            <Badge variant="outline" className="mt-2">{campaign.media_type}: {campaign.media_url.split("/").pop()}</Badge>
-          )}
+        <CardContent className="p-4">
+          <WhatsAppPreview
+            content={campaign.message_content}
+            mediaUrl={campaign.media_url}
+            mediaType={mediaType as any}
+          />
         </CardContent>
       </Card>
 
