@@ -16,7 +16,7 @@ import Workshops from "./pages/workshops";
 import WorkshopDetail from "./pages/workshop-detail";
 import Sales from "./pages/Sales";
 import Funnels from "./pages/Funnels";
-import Calls from "./pages/Calls";
+import Calls from "./pages/calls";
 import Products from "./pages/Products";
 import Onboarding from "./pages/Onboarding";
 import Users from "./pages/Users";
