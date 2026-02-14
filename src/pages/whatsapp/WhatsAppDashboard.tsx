@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Users, MessageSquare, Search, RefreshCw } from "lucide-react";
+import { Send, Users, MessageSquare, Search, RefreshCw, Phone } from "lucide-react";
 
 const WhatsAppDashboard = () => {
   const navigate = useNavigate();
@@ -25,9 +25,9 @@ const WhatsAppDashboard = () => {
     [sessions]
   );
 
-  // Filter groups by selected session and search
+  // Filter groups: admin-only + selected session + search
   const filteredGroups = useMemo(() => {
-    let result = groups || [];
+    let result = (groups || []).filter((g) => g.is_admin);
     if (selectedSessionId !== "all") {
       result = result.filter((g) => g.session_id === selectedSessionId);
     }
@@ -64,7 +64,7 @@ const WhatsAppDashboard = () => {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Connected WhatsApp Sessions</h3>
+            <h3 className="text-lg font-semibold mb-2">No Connected WhatsApp Numbers</h3>
             <p className="text-muted-foreground mb-4 max-w-md">
               Connect a WhatsApp number from Settings → WhatsApp Connection to start managing groups and sending notifications.
             </p>
@@ -76,6 +76,30 @@ const WhatsAppDashboard = () => {
       </div>
     );
   }
+
+  const statCards = [
+    {
+      label: "Admin Groups",
+      value: filteredGroups.length,
+      icon: MessageSquare,
+      gradient: "from-primary/10 to-primary/5",
+      iconColor: "text-primary",
+    },
+    {
+      label: "Total Members",
+      value: totalMembers.toLocaleString(),
+      icon: Users,
+      gradient: "from-emerald-500/10 to-emerald-500/5",
+      iconColor: "text-emerald-500",
+    },
+    {
+      label: "Connected Numbers",
+      value: connectedSessions.length,
+      icon: Phone,
+      gradient: "from-blue-500/10 to-blue-500/5",
+      iconColor: "text-blue-500",
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -91,10 +115,10 @@ const WhatsAppDashboard = () => {
       <div className="flex flex-col sm:flex-row gap-3">
         <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
           <SelectTrigger className="w-full sm:w-[260px]">
-            <SelectValue placeholder="All sessions" />
+            <SelectValue placeholder="All Numbers" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Sessions</SelectItem>
+            <SelectItem value="all">All Numbers</SelectItem>
             {connectedSessions.map((s) => (
               <SelectItem key={s.id} value={s.id}>
                 {s.display_name || s.phone_number || s.id.slice(0, 8)}
@@ -118,30 +142,19 @@ const WhatsAppDashboard = () => {
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Groups</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredGroups.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Members</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalMembers.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Connected Numbers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{connectedSessions.length}</div>
-          </CardContent>
-        </Card>
+        {statCards.map((stat) => (
+          <Card key={stat.label} className={`bg-gradient-to-br ${stat.gradient} border-0 shadow-sm`}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <stat.icon className={`h-4 w-4 ${stat.iconColor}`} />
+                {stat.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stat.value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Search */}
@@ -164,14 +177,13 @@ const WhatsAppDashboard = () => {
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Group Name</TableHead>
                 <TableHead className="text-right">Members</TableHead>
-                <TableHead className="text-center">Admin</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredGroups.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    {search ? "No groups match your search" : "No groups found. Sync groups first."}
+                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                    {search ? "No groups match your search" : "No admin groups found. Sync groups first."}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -184,13 +196,6 @@ const WhatsAppDashboard = () => {
                         <Users className="h-3.5 w-3.5 text-muted-foreground" />
                         {group.participant_count}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {group.is_admin ? (
-                        <Badge variant="default" className="text-xs">Admin</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">Member</Badge>
-                      )}
                     </TableCell>
                   </TableRow>
                 ))
