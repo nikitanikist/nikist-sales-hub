@@ -28,7 +28,7 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import CohortPage from "./pages/CohortPage";
 import ManageCohorts from "./pages/ManageCohorts";
 import OrganizationSettings from "./pages/OrganizationSettings";
-import { WorkshopNotification } from "./pages/operations";
+import { WorkshopNotification, DeadLetterQueue } from "./pages/operations";
 import DynamicLinks from "./pages/operations/DynamicLinks";
 import LinkRedirect from "./pages/operations/LinkRedirect";
 import AppLayout from "./components/AppLayout";
@@ -80,6 +80,7 @@ const App = () => (
               <Route path="/workshops/:workshopId" element={<ModuleGuard moduleSlug="workshops"><ErrorBoundary><WorkshopDetail /></ErrorBoundary></ModuleGuard>} />
               <Route path="/operations/workshop-notification" element={<ModuleGuard moduleSlug="workshops"><ErrorBoundary><WorkshopNotification /></ErrorBoundary></ModuleGuard>} />
               <Route path="/operations/dynamic-links" element={<ProtectedRoute><ErrorBoundary><DynamicLinks /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/operations/dead-letter-queue" element={<ProtectedRoute adminOnly><ErrorBoundary><DeadLetterQueue /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/sales" element={<ErrorBoundary><Sales /></ErrorBoundary>} />
               <Route path="/funnels" element={<ErrorBoundary><Funnels /></ErrorBoundary>} />
               <Route path="/products" element={<ErrorBoundary><Products /></ErrorBoundary>} />

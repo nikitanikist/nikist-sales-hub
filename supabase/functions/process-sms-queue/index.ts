@@ -226,15 +226,52 @@ Deno.serve(async (req) => {
       if (result.status === 'rejected') {
         const retryCount = (msg.retry_count || 0) + 1;
         const maxRetries = 3;
+        const isFinalFailure = retryCount >= maxRetries;
+        const errorMessage = result.reason?.message || 'Unknown error';
 
         await supabase
           .from('scheduled_sms_messages')
           .update({
-            status: retryCount >= maxRetries ? 'failed' : 'pending',
+            status: isFinalFailure ? 'failed' : 'pending',
             retry_count: retryCount,
-            error_message: result.reason?.message || 'Unknown error',
+            error_message: errorMessage,
           })
           .eq('id', msg.id);
+
+        // Insert into dead letter queue on final failure
+        if (isFinalFailure) {
+          const lead = leadsMap.get(msg.lead_id);
+          const template = templatesMap.get(msg.template_id);
+
+          await supabase.from('dead_letter_queue').insert({
+            organization_id: msg.organization_id,
+            source_table: 'scheduled_sms_messages',
+            source_id: msg.id,
+            payload: {
+              lead_id: msg.lead_id,
+              template_id: msg.template_id,
+              variable_values: msg.variable_values,
+              scheduled_for: msg.scheduled_for,
+              workshop_id: msg.workshop_id,
+            },
+            retry_payload: {
+              type: 'fast2sms',
+              url: 'https://www.fast2sms.com/dev/bulkV2',
+              method: 'POST',
+              body: {
+                route: 'dlt_manual',
+                sender_id: FAST2SMS_SENDER_ID,
+                entity_id: FAST2SMS_ENTITY_ID,
+                template_id: template?.dlt_template_id,
+                numbers: lead?.phone ? lead.phone.replace(/\D/g, '').slice(-10) : '',
+              },
+            },
+            error_message: errorMessage,
+            retry_count: retryCount,
+          }).then(({ error: dlqError }) => {
+            if (dlqError) console.error('DLQ insert error:', dlqError);
+          });
+        }
       }
     }
 

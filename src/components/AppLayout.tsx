@@ -331,6 +331,7 @@ const AppLayoutContent = () => {
       children: [
         { title: "Workshop Notification", path: "/operations/workshop-notification", permissionKey: 'workshops' as PermissionKey, moduleSlug: 'workshops' },
         { title: "Dynamic Links", path: "/operations/dynamic-links", permissionKey: 'settings' as PermissionKey },
+        { title: "Dead Letter Queue", path: "/operations/dead-letter-queue", permissionKey: 'settings' as PermissionKey },
       ],
     },
     

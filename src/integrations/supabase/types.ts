@@ -1094,6 +1094,69 @@ export type Database = {
           },
         ]
       }
+      dead_letter_queue: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          payload: Json
+          retry_count: number
+          retry_payload: Json | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_id: string
+          source_table: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          payload: Json
+          retry_count?: number
+          retry_payload?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id: string
+          source_table: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          payload?: Json
+          retry_count?: number
+          retry_payload?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_id?: string
+          source_table?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dead_letter_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dead_letter_queue_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dynamic_links: {
         Row: {
           click_count: number
