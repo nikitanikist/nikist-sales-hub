@@ -13,7 +13,7 @@ import SalesClosers from "./pages/SalesClosers";
 import CloserAssignedCalls from "./pages/CloserAssignedCalls";
 import AllCloserCalls from "./pages/AllCloserCalls";
 import Workshops from "./pages/workshops";
-import WorkshopDetail from "./pages/WorkshopDetail";
+import WorkshopDetail from "./pages/workshop-detail";
 import Sales from "./pages/Sales";
 import Funnels from "./pages/Funnels";
 import Calls from "./pages/Calls";
