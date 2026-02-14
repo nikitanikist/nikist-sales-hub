@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.78.0";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -178,14 +179,14 @@ Deno.serve(async (req) => {
           message: fullMessage,
         });
 
-        const response = await fetch('https://www.fast2sms.com/dev/bulkV2', {
+        const response = await fetchWithRetry('https://www.fast2sms.com/dev/bulkV2', {
           method: 'POST',
           headers: {
             'authorization': FAST2SMS_API_KEY,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(fast2smsBody),
-        });
+        }, { maxRetries: 3, timeoutMs: 10000 });
 
         const responseText = await response.text();
         let responseData;

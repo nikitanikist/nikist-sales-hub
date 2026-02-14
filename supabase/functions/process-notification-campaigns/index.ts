@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithTimeout } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -168,14 +169,14 @@ Deno.serve(async (req) => {
             sendBody.mediaType = campaign.media_type || "document";
           }
 
-          const sendResp = await fetch(`${vpsUrl}/send`, {
+          const sendResp = await fetchWithTimeout(`${vpsUrl}/send`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               "X-API-Key": vpsApiKey,
             },
             body: JSON.stringify(sendBody),
-          });
+          }, 10000);
 
           const sendData = await sendResp.json();
 

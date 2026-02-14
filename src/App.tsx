@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ModuleGuard } from "@/components/ModuleGuard";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
@@ -52,41 +53,41 @@ const App = () => (
             {/* Public redirect route - no auth required */}
             <Route path="/link/:slug" element={<LinkRedirect />} />
             <Route element={<AppLayout />}>
-              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/leads" element={<Leads />} />
-              <Route path="/calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><Calls /></ModuleGuard>} />
-              <Route path="/sales-closers" element={<ModuleGuard moduleSlug="one-to-one-funnel"><SalesClosers /></ModuleGuard>} />
-              <Route path="/sales-closers/all-calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><AllCloserCalls /></ModuleGuard>} />
-              <Route path="/sales-closers/:closerId/calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><CloserAssignedCalls /></ModuleGuard>} />
+              <Route path="/" element={<ProtectedRoute><ErrorBoundary><Dashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/leads" element={<ErrorBoundary><Leads /></ErrorBoundary>} />
+              <Route path="/calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><ErrorBoundary><Calls /></ErrorBoundary></ModuleGuard>} />
+              <Route path="/sales-closers" element={<ModuleGuard moduleSlug="one-to-one-funnel"><ErrorBoundary><SalesClosers /></ErrorBoundary></ModuleGuard>} />
+              <Route path="/sales-closers/all-calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><ErrorBoundary><AllCloserCalls /></ErrorBoundary></ModuleGuard>} />
+              <Route path="/sales-closers/:closerId/calls" element={<ModuleGuard moduleSlug="one-to-one-funnel"><ErrorBoundary><CloserAssignedCalls /></ErrorBoundary></ModuleGuard>} />
               {/* Legacy routes - redirect to unified cohort pages */}
               <Route path="/batches" element={<Navigate to="/cohorts/insider-crypto-club" replace />} />
               <Route path="/futures-mentorship" element={<Navigate to="/cohorts/futures-mentorship" replace />} />
               <Route path="/high-future" element={<Navigate to="/cohorts/high-future" replace />} />
               {/* New unified cohort routes */}
-              <Route path="/cohorts/manage" element={<ProtectedRoute adminOnly><ModuleGuard moduleSlug="cohort-management"><ManageCohorts /></ModuleGuard></ProtectedRoute>} />
-              <Route path="/cohorts/:cohortSlug" element={<ProtectedRoute><ModuleGuard moduleSlug="cohort-management"><CohortPage /></ModuleGuard></ProtectedRoute>} />
-              <Route path="/daily-money-flow" element={<ModuleGuard moduleSlug="daily-money-flow"><DailyMoneyFlow /></ModuleGuard>} />
-              <Route path="/workshops" element={<ModuleGuard moduleSlug="workshops"><Workshops /></ModuleGuard>} />
-              <Route path="/workshops/:workshopId" element={<ModuleGuard moduleSlug="workshops"><WorkshopDetail /></ModuleGuard>} />
-              <Route path="/operations/workshop-notification" element={<ModuleGuard moduleSlug="workshops"><WorkshopNotification /></ModuleGuard>} />
-              <Route path="/operations/dynamic-links" element={<ProtectedRoute><DynamicLinks /></ProtectedRoute>} />
-              <Route path="/sales" element={<Sales />} />
-              <Route path="/funnels" element={<Funnels />} />
-              <Route path="/products" element={<Products />} />
-              <Route path="/users" element={<Users />} />
-              <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/settings" element={<ProtectedRoute adminOnly><OrganizationSettings /></ProtectedRoute>} />
-              <Route path="/settings/templates/new" element={<ProtectedRoute adminOnly><TemplateEditor /></ProtectedRoute>} />
-              <Route path="/settings/templates/:id" element={<ProtectedRoute adminOnly><TemplateEditor /></ProtectedRoute>} />
+              <Route path="/cohorts/manage" element={<ProtectedRoute adminOnly><ModuleGuard moduleSlug="cohort-management"><ErrorBoundary><ManageCohorts /></ErrorBoundary></ModuleGuard></ProtectedRoute>} />
+              <Route path="/cohorts/:cohortSlug" element={<ProtectedRoute><ModuleGuard moduleSlug="cohort-management"><ErrorBoundary><CohortPage /></ErrorBoundary></ModuleGuard></ProtectedRoute>} />
+              <Route path="/daily-money-flow" element={<ModuleGuard moduleSlug="daily-money-flow"><ErrorBoundary><DailyMoneyFlow /></ErrorBoundary></ModuleGuard>} />
+              <Route path="/workshops" element={<ModuleGuard moduleSlug="workshops"><ErrorBoundary><Workshops /></ErrorBoundary></ModuleGuard>} />
+              <Route path="/workshops/:workshopId" element={<ModuleGuard moduleSlug="workshops"><ErrorBoundary><WorkshopDetail /></ErrorBoundary></ModuleGuard>} />
+              <Route path="/operations/workshop-notification" element={<ModuleGuard moduleSlug="workshops"><ErrorBoundary><WorkshopNotification /></ErrorBoundary></ModuleGuard>} />
+              <Route path="/operations/dynamic-links" element={<ProtectedRoute><ErrorBoundary><DynamicLinks /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/sales" element={<ErrorBoundary><Sales /></ErrorBoundary>} />
+              <Route path="/funnels" element={<ErrorBoundary><Funnels /></ErrorBoundary>} />
+              <Route path="/products" element={<ErrorBoundary><Products /></ErrorBoundary>} />
+              <Route path="/users" element={<ErrorBoundary><Users /></ErrorBoundary>} />
+              <Route path="/onboarding" element={<ErrorBoundary><Onboarding /></ErrorBoundary>} />
+              <Route path="/settings" element={<ProtectedRoute adminOnly><ErrorBoundary><OrganizationSettings /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/settings/templates/new" element={<ProtectedRoute adminOnly><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/settings/templates/:id" element={<ProtectedRoute adminOnly><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               {/* WhatsApp Module */}
-              <Route path="/whatsapp" element={<ProtectedRoute><WhatsAppDashboard /></ProtectedRoute>} />
-              <Route path="/whatsapp/send-notification" element={<ProtectedRoute><SendNotification /></ProtectedRoute>} />
-              <Route path="/whatsapp/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
-              <Route path="/whatsapp/campaigns/:campaignId" element={<ProtectedRoute><CampaignDetail /></ProtectedRoute>} />
-              <Route path="/whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplates /></ProtectedRoute>} />
-              <Route path="/whatsapp/scheduled" element={<ProtectedRoute><ScheduledMessages /></ProtectedRoute>} />
-              <Route path="/super-admin" element={<SuperAdminDashboard />} />
-              <Route path="/super-admin/create-org" element={<SuperAdminDashboard />} />
+              <Route path="/whatsapp" element={<ProtectedRoute><ErrorBoundary><WhatsAppDashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/send-notification" element={<ProtectedRoute><ErrorBoundary><SendNotification /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/campaigns" element={<ProtectedRoute><ErrorBoundary><Campaigns /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CampaignDetail /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/templates" element={<ProtectedRoute><ErrorBoundary><WhatsAppTemplates /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/scheduled" element={<ProtectedRoute><ErrorBoundary><ScheduledMessages /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/super-admin" element={<ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>} />
+              <Route path="/super-admin/create-org" element={<ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

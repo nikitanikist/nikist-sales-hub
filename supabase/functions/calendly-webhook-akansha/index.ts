@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -201,43 +202,35 @@ serve(async (req) => {
 
     console.log('Parsed schedule:', { scheduledDate, scheduledTime });
 
-    // Step 4: Check if appointment already exists (avoid duplicates)
-    const { data: existingAppointment } = await supabase
-      .from('call_appointments')
-      .select('id')
-      .eq('calendly_event_uri', calendlyEventUri)
-      .maybeSingle();
-
-    if (existingAppointment) {
-      console.log('Appointment already exists for this Calendly event:', existingAppointment.id);
-      return new Response(
-        JSON.stringify({ message: 'Appointment already exists', appointment_id: existingAppointment.id }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // Step 4: Use UPSERT for idempotent processing (prevents race condition duplicates)
     // Step 5: Create call appointment
     const { data: appointment, error: appointmentError } = await supabase
       .from('call_appointments')
-      .insert({
-        lead_id: lead.id,
-        closer_id: closerId,
-        scheduled_date: scheduledDate,
-        scheduled_time: scheduledTime,
-        status: 'scheduled',
-        zoom_link: zoomLink,
-        calendly_event_uri: calendlyEventUri,
-        calendly_invitee_uri: calendlyInviteeUri,
-      })
+      .upsert(
+        {
+          lead_id: lead.id,
+          closer_id: closerId,
+          scheduled_date: scheduledDate,
+          scheduled_time: scheduledTime,
+          status: 'scheduled',
+          zoom_link: zoomLink,
+          calendly_event_uri: calendlyEventUri,
+          calendly_invitee_uri: calendlyInviteeUri,
+        },
+        {
+          onConflict: 'unique_calendly_event_uri',
+          ignoreDuplicates: false,
+        }
+      )
       .select()
       .single();
 
     if (appointmentError) {
-      console.error('Appointment creation error:', appointmentError);
+      console.error('Appointment upsert error:', appointmentError);
       throw appointmentError;
     }
 
-    console.log('Akansha appointment created:', appointment.id);
+    console.log('Appointment processed:', appointment.id);
 
     // Step 6: Send "Call Booked" WhatsApp message with Akansha's template
     let whatsappSent = false;
@@ -292,13 +285,13 @@ serve(async (req) => {
       console.log('Sending WhatsApp call booking notification (Akansha), template: 1_to_1_call_booking_crypto_nikist_video');
 
       try {
-        const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+        const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(whatsappPayload),
-        });
+        }, { maxRetries: 3, timeoutMs: 10000 });
 
         const whatsappResult = await whatsappResponse.json();
         console.log('WhatsApp API response (Akansha):', whatsappResult);
@@ -323,14 +316,14 @@ serve(async (req) => {
     let closerNotificationSent = false;
     try {
       console.log('Sending notification to closer for appointment:', appointment.id);
-      const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-closer-notification`, {
+      const notificationResponse = await fetchWithRetry(`${supabaseUrl}/functions/v1/send-closer-notification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
         body: JSON.stringify({ appointment_id: appointment.id }),
-      });
+      }, { maxRetries: 2, timeoutMs: 15000 });
       const notificationResult = await notificationResponse.json();
       console.log('Closer notification result:', notificationResult);
       closerNotificationSent = notificationResponse.ok;

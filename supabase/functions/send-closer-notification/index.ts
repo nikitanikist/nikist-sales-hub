@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -149,15 +150,15 @@ serve(async (req) => {
       ]
     };
 
-    console.log("Sending AiSensy request:", JSON.stringify(aiSensyPayload, null, 2));
+    console.log("Sending AiSensy request for closer notification");
 
-    const aiSensyResponse = await fetch("https://backend.aisensy.com/campaign/t1/api/v2", {
+    const aiSensyResponse = await fetchWithRetry("https://backend.aisensy.com/campaign/t1/api/v2", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(aiSensyPayload),
-    });
+    }, { maxRetries: 3, timeoutMs: 10000 });
 
     const aiSensyResult = await aiSensyResponse.json();
     console.log("AiSensy response:", JSON.stringify(aiSensyResult, null, 2));
