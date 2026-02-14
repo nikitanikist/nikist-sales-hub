@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.78.0";
+import { fetchWithTimeout } from '../_shared/fetchWithRetry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,7 +30,7 @@ function buildUrl(base: string, path: string): string {
   return `${cleanBase}${cleanPath}`;
 }
 
-// Try fetch with multiple auth header strategies
+// Try fetch with multiple auth header strategies (with timeout)
 async function fetchWithAuthRetry(
   url: string,
   method: string,
@@ -43,27 +44,24 @@ async function fetchWithAuthRetry(
     
     console.log(`VPS auth attempt ${i + 1}/${AUTH_STRATEGIES.length} using header: ${Object.keys(authHeaders)[0]}`);
     
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
         ...authHeaders,
       },
       body,
-    });
+    }, 10000);
     
     console.log(`VPS response status: ${response.status}`);
     
-    // If not 401, return immediately (could be success or other error)
     if (response.status !== 401) {
       return { response, strategyUsed: i };
     }
     
-    // Store last 401 response for fallback
     lastResponse = response;
   }
   
-  // All strategies returned 401
   console.log('All VPS auth strategies returned 401');
   return { response: lastResponse!, strategyUsed: -1 };
 }
@@ -89,7 +87,6 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Fetch pending messages that are due, including session data for VPS session ID
     const now = new Date().toISOString();
     const { data: pendingMessages, error: fetchError } = await supabase
       .from('scheduled_whatsapp_messages')
@@ -130,14 +127,11 @@ Deno.serve(async (req) => {
           throw new Error('Missing group configuration');
         }
 
-        // Get VPS session ID from session_data, fallback to local session ID with wa_ prefix
         const sessionData = group.whatsapp_sessions?.session_data as { vps_session_id?: string } | null;
         const vpsSessionId = sessionData?.vps_session_id || `wa_${group.session_id}`;
 
-        // Build full URL safely
         const vpsUrl = buildUrl(VPS_URL, '/send');
 
-        // Log media information for debugging
         console.log(`Message ${msg.id} media info:`, {
           hasMediaUrl: !!msg.media_url,
           mediaType: msg.media_type,
@@ -146,7 +140,7 @@ Deno.serve(async (req) => {
 
         const vpsBody = JSON.stringify({
           sessionId: vpsSessionId,
-          phone: group.group_jid,  // VPS expects "phone" field for recipient (works for both individual and group chats)
+          phone: group.group_jid,
           message: msg.message_content,
           ...(msg.media_url && { mediaUrl: msg.media_url }),
           ...(msg.media_type && { mediaType: msg.media_type }),
@@ -154,7 +148,6 @@ Deno.serve(async (req) => {
 
         console.log(`VPS request body for ${msg.id}:`, vpsBody);
 
-        // Send message to VPS with auth retry
         const { response, strategyUsed } = await fetchWithAuthRetry(
           vpsUrl,
           'POST',
@@ -174,7 +167,6 @@ Deno.serve(async (req) => {
 
         console.log(`Message ${msg.id} sent with auth strategy ${strategyUsed + 1}`);
 
-        // Update message status to sent
         await supabase
           .from('scheduled_whatsapp_messages')
           .update({

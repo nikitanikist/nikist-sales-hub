@@ -1,11 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { fetchWithRetry } from '../_shared/fetchWithRetry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Get Zoom access token using Server-to-Server OAuth from org integration config
 async function getZoomAccessToken(zoomConfig: { account_id: string; client_id: string; client_secret: string }): Promise<string> {
   const { account_id, client_id, client_secret } = zoomConfig;
 
@@ -15,14 +15,14 @@ async function getZoomAccessToken(zoomConfig: { account_id: string; client_id: s
 
   const credentials = btoa(`${client_id}:${client_secret}`);
   
-  const response = await fetch('https://zoom.us/oauth/token', {
+  const response = await fetchWithRetry('https://zoom.us/oauth/token', {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${credentials}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: `grant_type=account_credentials&account_id=${account_id}`,
-  });
+  }, { timeoutMs: 15000 });
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -34,24 +34,20 @@ async function getZoomAccessToken(zoomConfig: { account_id: string; client_id: s
   return data.access_token;
 }
 
-// Create Zoom meeting
 async function createZoomMeeting(
   accessToken: string, 
   topic: string, 
   scheduledDate: string, 
   scheduledTime: string
 ): Promise<{ join_url: string; meeting_id: string }> {
-  // Handle time in format HH:mm:ss or HH:mm
   const timeParts = scheduledTime.split(':');
   const hours = parseInt(timeParts[0], 10);
   const minutes = parseInt(timeParts[1], 10);
-  
-  // Send time directly as IST format without UTC conversion
   const startTime = `${scheduledDate}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
 
   console.log(`Creating Zoom meeting - IST Date: ${scheduledDate}, IST Time: ${scheduledTime}, Start Time for Zoom: ${startTime}`);
 
-  const response = await fetch('https://api.zoom.us/v2/users/me/meetings', {
+  const response = await fetchWithRetry('https://api.zoom.us/v2/users/me/meetings', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -59,9 +55,9 @@ async function createZoomMeeting(
     },
     body: JSON.stringify({
       topic: topic,
-      type: 2, // Scheduled meeting
+      type: 2,
       start_time: startTime,
-      duration: 90, // 90 minutes
+      duration: 90,
       timezone: 'Asia/Kolkata',
       settings: {
         host_video: true,
@@ -71,7 +67,7 @@ async function createZoomMeeting(
         mute_upon_entry: false,
       },
     }),
-  });
+  }, { timeoutMs: 15000 });
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -89,7 +85,6 @@ async function createZoomMeeting(
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }

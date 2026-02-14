@@ -1,20 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithRetry, fetchWithTimeout } from '../_shared/fetchWithRetry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Adesh's configuration
 const ADESH_EMAIL = "aadeshnikist@gmail.com";
 const VIDEO_URL = 'https://d3jt6ku4g6z5l8.cloudfront.net/VIDEO/66f4f03f444c5c0b8013168b/5384969_1706706new video 1 14.mp4';
 
-// Kamal's configuration (call booker notification)
 const KAMAL_NAME = "Kamal";
 const KAMAL_PHONE = "918285632307";
 
-// Get Zoom access token using Server-to-Server OAuth
 async function getZoomAccessToken(): Promise<string> {
   const accountId = Deno.env.get('ZOOM_ADESH_ACCOUNT_ID');
   const clientId = Deno.env.get('ZOOM_ADESH_CLIENT_ID');
@@ -28,14 +26,14 @@ async function getZoomAccessToken(): Promise<string> {
 
   const authHeader = btoa(`${clientId}:${clientSecret}`);
   
-  const tokenResponse = await fetch('https://zoom.us/oauth/token', {
+  const tokenResponse = await fetchWithRetry('https://zoom.us/oauth/token', {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${authHeader}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: `grant_type=account_credentials&account_id=${accountId}`,
-  });
+  }, { timeoutMs: 15000 });
 
   if (!tokenResponse.ok) {
     const errorText = await tokenResponse.text();
@@ -48,15 +46,12 @@ async function getZoomAccessToken(): Promise<string> {
   return tokenData.access_token;
 }
 
-// Create Zoom meeting
 async function createZoomMeeting(
   accessToken: string,
   customerName: string,
   scheduledDate: string,
   scheduledTime: string
 ): Promise<{ join_url: string; id: string }> {
-  // Parse time and send directly as IST format
-  // The timezone parameter in the Zoom API request will handle the interpretation
   const timeParts = scheduledTime.split(':');
   const hours = parseInt(timeParts[0], 10);
   const minutes = parseInt(timeParts[1], 10);
@@ -68,7 +63,7 @@ async function createZoomMeeting(
     duration: 90,
   });
 
-  const meetingResponse = await fetch('https://api.zoom.us/v2/users/me/meetings', {
+  const meetingResponse = await fetchWithRetry('https://api.zoom.us/v2/users/me/meetings', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -76,9 +71,9 @@ async function createZoomMeeting(
     },
     body: JSON.stringify({
       topic: `1:1 Call with ${customerName}`,
-      type: 2, // Scheduled meeting
+      type: 2,
       start_time: startTime,
-      duration: 90, // 1.5 hours
+      duration: 90,
       timezone: 'Asia/Kolkata',
       settings: {
         host_video: true,
@@ -87,12 +82,12 @@ async function createZoomMeeting(
         mute_upon_entry: false,
         watermark: false,
         use_pmi: false,
-        approval_type: 2, // No registration required
+        approval_type: 2,
         audio: 'both',
         auto_recording: 'cloud',
       },
     }),
-  });
+  }, { timeoutMs: 15000 });
 
   if (!meetingResponse.ok) {
     const errorText = await meetingResponse.text();
@@ -143,7 +138,6 @@ serve(async (req) => {
       user_id,
     });
 
-    // Validate required fields
     if (!lead_id || !closer_id || !scheduled_date || !scheduled_time) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),
@@ -151,7 +145,6 @@ serve(async (req) => {
       );
     }
 
-    // Get lead details
     const { data: lead, error: leadError } = await supabase
       .from('leads')
       .select('*')
@@ -166,7 +159,6 @@ serve(async (req) => {
       );
     }
 
-    // Verify closer is Adesh
     const { data: closer, error: closerError } = await supabase
       .from('profiles')
       .select('*')
@@ -191,10 +183,8 @@ serve(async (req) => {
 
     console.log('Lead found:', lead.contact_name);
 
-    // Step 1: Get Zoom access token
     const accessToken = await getZoomAccessToken();
 
-    // Step 2: Create Zoom meeting
     const meeting = await createZoomMeeting(
       accessToken,
       lead.contact_name,
@@ -202,13 +192,11 @@ serve(async (req) => {
       scheduled_time
     );
 
-    // Step 3: Update lead assignment
     await supabase
       .from('leads')
       .update({ assigned_to: closer_id })
       .eq('id', lead_id);
 
-    // Step 4: Create call appointment with Zoom link
     const { data: appointment, error: appointmentError } = await supabase
       .from('call_appointments')
       .insert({
@@ -230,14 +218,12 @@ serve(async (req) => {
 
     console.log('Appointment created with Zoom link:', appointment.id);
 
-    // Step 5: Send WhatsApp booking confirmation (same template as Akansha)
     let whatsappSent = false;
     const customerPhone = (lead.phone || '').replace(/\D/g, '');
 
     if (customerPhone && aisensyApiKey && aisensySource) {
       const phoneWithCountry = customerPhone.startsWith('91') ? customerPhone : `91${customerPhone}`;
 
-      // Format date and time for WhatsApp message
       const callDate = new Date(scheduled_date);
       const formattedDate = callDate.toLocaleDateString('en-IN', { 
         day: 'numeric', 
@@ -252,14 +238,6 @@ serve(async (req) => {
 
       console.log('Sending WhatsApp call booking notification (Adesh) to:', phoneWithCountry);
 
-      // Same template as Akansha: 1_to_1_call_booking_crypto_nikist_video
-      // 6 parameters:
-      // 1- Name of the customer
-      // 2- Our Crypto Expert (static)
-      // 3- Date of Call Booking
-      // 4- Time of Call Booking
-      // 5- you will get zoom link 30 minutes before the zoom call (static)
-      // 6- +919266395637 (static)
       const whatsappPayload = {
         apiKey: aisensyApiKey,
         campaignName: '1_to_1_call_booking_crypto_nikist_video',
@@ -271,31 +249,28 @@ serve(async (req) => {
           filename: 'booking_confirmation.mp4',
         },
         templateParams: [
-          lead.contact_name,               // {{1}} - Name
-          'Our Crypto Expert',             // {{2}} - Static text
-          formattedDate,                   // {{3}} - Date
-          formattedTime,                   // {{4}} - Time
-          'you will get zoom link 30 minutes before the zoom call', // {{5}} - Static
-          '+919266395637',                 // {{6}} - Contact number
+          lead.contact_name,
+          'Our Crypto Expert',
+          formattedDate,
+          formattedTime,
+          'you will get zoom link 30 minutes before the zoom call',
+          '+919266395637',
         ],
       };
 
       console.log('WhatsApp payload (Adesh):', JSON.stringify(whatsappPayload, null, 2));
 
       try {
-        const whatsappResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+        const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(whatsappPayload),
-        });
+        }, { timeoutMs: 10000 });
 
         const whatsappResult = await whatsappResponse.json();
         console.log('WhatsApp API response (Adesh):', whatsappResult);
         whatsappSent = whatsappResponse.ok;
 
-        // Update the call_booked reminder status to 'sent'
         if (whatsappSent) {
           await supabase
             .from('call_reminders')
@@ -310,18 +285,18 @@ serve(async (req) => {
       console.log('Skipping WhatsApp: missing phone or AiSensy config');
     }
 
-    // Step 6: Send notification to closer (Adesh)
+    // Send notification to closer (Adesh)
     let closerNotificationSent = false;
     try {
       console.log('Sending notification to closer for appointment:', appointment.id);
-      const notificationResponse = await fetch(`${supabaseUrl}/functions/v1/send-closer-notification`, {
+      const notificationResponse = await fetchWithTimeout(`${supabaseUrl}/functions/v1/send-closer-notification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${supabaseServiceKey}`,
         },
         body: JSON.stringify({ appointment_id: appointment.id }),
-      });
+      }, 15000);
       const notificationResult = await notificationResponse.json();
       console.log('Closer notification result:', notificationResult);
       closerNotificationSent = notificationResponse.ok;
@@ -329,12 +304,11 @@ serve(async (req) => {
       console.error('Error sending closer notification:', notificationError);
     }
 
-    // Step 7: Send notification to Kamal (call booker for Adesh)
+    // Send notification to Kamal
     let kamalNotificationSent = false;
     if (aisensyApiKey && aisensySource) {
       console.log('Sending notification to Kamal (call booker) for appointment:', appointment.id);
       
-      // Format date and time for the template
       const callDate = new Date(scheduled_date);
       const kamalFormattedDate = `${callDate.getDate()} ${['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][callDate.getMonth()]}`;
       
@@ -343,7 +317,6 @@ serve(async (req) => {
       const kamalDisplayHours = kamalHours % 12 || 12;
       const kamalFormattedTime = `${kamalDisplayHours}:${kamalMinutes.toString().padStart(2, '0')} ${kamalPeriod}`;
       
-      // Lead name with phone for identification
       const leadPhone = (lead.phone || '').replace(/\D/g, '');
       const leadNameWithPhone = leadPhone ? `${lead.contact_name} (+${leadPhone})` : lead.contact_name;
       
@@ -354,21 +327,21 @@ serve(async (req) => {
         userName: KAMAL_NAME,
         source: aisensySource,
         templateParams: [
-          KAMAL_NAME,           // {{1}} - Recipient name (Kamal)
-          leadNameWithPhone,    // {{2}} - Lead's name with phone
-          kamalFormattedDate,   // {{3}} - Meeting date
-          kamalFormattedTime,   // {{4}} - Meeting time
+          KAMAL_NAME,
+          leadNameWithPhone,
+          kamalFormattedDate,
+          kamalFormattedTime,
         ],
       };
       
       console.log('Kamal notification payload:', JSON.stringify(kamalPayload, null, 2));
       
       try {
-        const kamalResponse = await fetch('https://backend.aisensy.com/campaign/t1/api/v2', {
+        const kamalResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(kamalPayload),
-        });
+        }, { timeoutMs: 10000 });
         
         const kamalResult = await kamalResponse.json();
         console.log('Kamal notification response:', kamalResult);
