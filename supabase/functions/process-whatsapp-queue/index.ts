@@ -188,15 +188,55 @@ Deno.serve(async (req) => {
       if (result.status === 'rejected') {
         const retryCount = (msg.retry_count || 0) + 1;
         const maxRetries = 3;
+        const isFinalFailure = retryCount >= maxRetries;
+        const errorMessage = result.reason?.message || 'Unknown error';
 
         await supabase
           .from('scheduled_whatsapp_messages')
           .update({
-            status: retryCount >= maxRetries ? 'failed' : 'pending',
+            status: isFinalFailure ? 'failed' : 'pending',
             retry_count: retryCount,
-            error_message: result.reason?.message || 'Unknown error',
+            error_message: errorMessage,
           })
           .eq('id', msg.id);
+
+        // Insert into dead letter queue on final failure
+        if (isFinalFailure) {
+          const group = msg.whatsapp_groups;
+          const sessionData = group?.whatsapp_sessions?.session_data as { vps_session_id?: string } | null;
+          const vpsSessionId = sessionData?.vps_session_id || `wa_${group?.session_id}`;
+
+          await supabase.from('dead_letter_queue').insert({
+            organization_id: msg.organization_id,
+            source_table: 'scheduled_whatsapp_messages',
+            source_id: msg.id,
+            payload: {
+              group_jid: group?.group_jid,
+              session_id: group?.session_id,
+              message_content: msg.message_content,
+              media_url: msg.media_url,
+              media_type: msg.media_type,
+              scheduled_for: msg.scheduled_for,
+              workshop_id: msg.workshop_id,
+            },
+            retry_payload: {
+              type: 'vps',
+              url: `${VPS_URL}/send`,
+              method: 'POST',
+              body: {
+                sessionId: vpsSessionId,
+                phone: group?.group_jid,
+                message: msg.message_content,
+                ...(msg.media_url && { mediaUrl: msg.media_url }),
+                ...(msg.media_type && { mediaType: msg.media_type }),
+              },
+            },
+            error_message: errorMessage,
+            retry_count: retryCount,
+          }).then(({ error: dlqError }) => {
+            if (dlqError) console.error('DLQ insert error:', dlqError);
+          });
+        }
       }
     }
 

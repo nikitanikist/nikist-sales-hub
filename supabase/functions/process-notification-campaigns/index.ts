@@ -191,24 +191,82 @@ Deno.serve(async (req) => {
               .eq("id", group.id);
             batchSent++;
           } else {
+            const errorMsg = sendData.error || "Send failed";
             await supabase
               .from("notification_campaign_groups")
               .update({
                 status: "failed",
-                error_message: sendData.error || "Send failed",
+                error_message: errorMsg,
               })
               .eq("id", group.id);
             batchFailed++;
+
+            // Insert into dead letter queue
+            await supabase.from('dead_letter_queue').insert({
+              organization_id: campaign.organization_id,
+              source_table: 'notification_campaign_groups',
+              source_id: group.id,
+              payload: {
+                campaign_id: campaign.id,
+                group_jid: group.group_jid,
+                group_name: group.group_name,
+                message_content: campaign.message_content,
+                media_url: campaign.media_url,
+                media_type: campaign.media_type,
+              },
+              retry_payload: {
+                type: 'vps',
+                url: `${vpsUrl}/send`,
+                method: 'POST',
+                body: sendBody,
+              },
+              error_message: errorMsg,
+              retry_count: 1,
+            }).then(({ error: dlqError }) => {
+              if (dlqError) console.error('DLQ insert error:', dlqError);
+            });
           }
         } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : "Unknown error";
           await supabase
             .from("notification_campaign_groups")
             .update({
               status: "failed",
-              error_message: err instanceof Error ? err.message : "Unknown error",
+              error_message: errorMsg,
             })
             .eq("id", group.id);
           batchFailed++;
+
+          // Insert into dead letter queue
+          await supabase.from('dead_letter_queue').insert({
+            organization_id: campaign.organization_id,
+            source_table: 'notification_campaign_groups',
+            source_id: group.id,
+            payload: {
+              campaign_id: campaign.id,
+              group_jid: group.group_jid,
+              group_name: group.group_name,
+              message_content: campaign.message_content,
+              media_url: campaign.media_url,
+              media_type: campaign.media_type,
+            },
+            retry_payload: {
+              type: 'vps',
+              url: `${vpsUrl}/send`,
+              method: 'POST',
+              body: {
+                sessionId: vpsSessionId,
+                phone: group.group_jid,
+                message: campaign.message_content,
+                ...(campaign.media_url && { mediaUrl: campaign.media_url }),
+                ...(campaign.media_type && { mediaType: campaign.media_type || "document" }),
+              },
+            },
+            error_message: errorMsg,
+            retry_count: 1,
+          }).then(({ error: dlqError }) => {
+            if (dlqError) console.error('DLQ insert error:', dlqError);
+          });
         }
 
         // Delay between sends (skip after last one)
