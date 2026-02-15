@@ -104,14 +104,27 @@ const CampaignDetail = () => {
 
   const mediaType = campaign.media_type || getMediaTypeFromUrl(campaign.media_url || null);
 
+  const isRecentlySent = campaign.status === "sending" || campaign.status === "completed";
+  const isAwaitingDelivery = isRecentlySent && totalDelivered === 0 && sentCount > 0;
+  const isAwaitingReads = isRecentlySent && totalReads === 0 && sentCount > 0;
+  const isAwaitingReactions = isRecentlySent && totalReactions === 0 && sentCount > 0;
+  const isAwaitingAny = isAwaitingDelivery || isAwaitingReads || isAwaitingReactions;
+
+  const AwaitingValue = () => (
+    <div className="space-y-1">
+      <Skeleton className="h-7 w-14 rounded" />
+      <p className="text-xs text-muted-foreground animate-pulse">Fetching...</p>
+    </div>
+  );
+
   const statItems = [
     { label: "Audience", value: campaign.total_audience?.toLocaleString() || "0", icon: Users, color: "text-primary", bgTint: "bg-primary/10", borderColor: "border-l-primary", gradientFrom: "from-primary/5" },
     { label: "Sent", value: sentCount, icon: CheckCircle2, color: "text-violet-500", bgTint: "bg-violet-500/10", borderColor: "border-l-violet-500", gradientFrom: "from-violet-500/5" },
     { label: "Failed", value: failedCount, icon: XCircle, color: "text-destructive", bgTint: "bg-destructive/10", borderColor: "border-l-destructive", gradientFrom: "from-destructive/5" },
     { label: "Pending", value: pendingCount, icon: Clock, color: "text-muted-foreground", bgTint: "bg-muted", borderColor: "border-l-muted-foreground", gradientFrom: "from-muted-foreground/5" },
-    { label: "Delivered", value: totalDelivered, icon: CheckCheck, color: "text-emerald-500", bgTint: "bg-emerald-500/10", borderColor: "border-l-emerald-500", gradientFrom: "from-emerald-500/5" },
-    { label: "Read", value: totalReads, icon: Eye, color: "text-blue-500", bgTint: "bg-blue-500/10", borderColor: "border-l-blue-500", gradientFrom: "from-blue-500/5" },
-    { label: "Reactions", value: totalReactions, icon: SmilePlus, color: "text-amber-500", bgTint: "bg-amber-500/10", borderColor: "border-l-amber-500", gradientFrom: "from-amber-500/5" },
+    { label: "Delivered", value: isAwaitingDelivery ? null : totalDelivered, icon: CheckCheck, color: "text-emerald-500", bgTint: "bg-emerald-500/10", borderColor: "border-l-emerald-500", gradientFrom: "from-emerald-500/5", awaiting: isAwaitingDelivery },
+    { label: "Read", value: isAwaitingReads ? null : totalReads, icon: Eye, color: "text-blue-500", bgTint: "bg-blue-500/10", borderColor: "border-l-blue-500", gradientFrom: "from-blue-500/5", awaiting: isAwaitingReads },
+    { label: "Reactions", value: isAwaitingReactions ? null : totalReactions, icon: SmilePlus, color: "text-amber-500", bgTint: "bg-amber-500/10", borderColor: "border-l-amber-500", gradientFrom: "from-amber-500/5", awaiting: isAwaitingReactions },
   ];
 
   return (
@@ -139,13 +152,23 @@ const CampaignDetail = () => {
                       <stat.icon className={`h-6 w-6 ${stat.color}`} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-3xl font-bold leading-tight tracking-tight">{stat.value}</p>
+                      {stat.awaiting ? (
+                        <AwaitingValue />
+                      ) : (
+                        <p className="text-3xl font-bold leading-tight tracking-tight">{stat.value}</p>
+                      )}
                       <p className="text-sm text-muted-foreground font-medium">{stat.label}</p>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
+            {isAwaitingAny && (
+              <div className="flex items-center gap-2 mt-3 px-1">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground animate-pulse" />
+                <p className="text-xs text-muted-foreground">Delivery and read receipts may take a few minutes to update after sending.</p>
+              </div>
+            )}
           </div>
 
           {/* WhatsApp preview - portrait */}
@@ -208,6 +231,8 @@ const CampaignDetail = () => {
                     <TableCell className="text-right">
                       {g.delivered_count > 0 ? (
                         <span className="text-emerald-500 font-medium">{g.delivered_count}</span>
+                      ) : g.status === "sent" && isRecentlySent ? (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground text-xs"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />...</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -215,6 +240,8 @@ const CampaignDetail = () => {
                     <TableCell className="text-right">
                       {g.read_count > 0 ? (
                         <span className="text-blue-500 font-medium">{g.read_count}</span>
+                      ) : g.status === "sent" && isRecentlySent ? (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground text-xs"><span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />...</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
@@ -222,6 +249,8 @@ const CampaignDetail = () => {
                     <TableCell className="text-right">
                       {g.reaction_count > 0 ? (
                         <span className="text-amber-500 font-medium">{g.reaction_count}</span>
+                      ) : g.status === "sent" && isRecentlySent ? (
+                        <span className="inline-flex items-center gap-1 text-muted-foreground text-xs"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />...</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
