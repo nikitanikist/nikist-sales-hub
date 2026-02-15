@@ -96,7 +96,7 @@ async function getVpsSessionId(
 }
 
 interface VPSProxyRequest {
-  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'get-invite-link' | 'add-participants' | 'promote-participants' | 'get-participants' | 'sync-members';
+  action: 'connect' | 'status' | 'disconnect' | 'send' | 'health' | 'sync-groups' | 'create-community' | 'create-community-standalone' | 'get-invite-link' | 'add-participants' | 'promote-participants' | 'get-participants' | 'sync-members';
   sessionId?: string;
   organizationId?: string;
   groupId?: string;
@@ -107,6 +107,8 @@ interface VPSProxyRequest {
   name?: string;
   description?: string;
   phoneNumbers?: string[];
+  announcement?: boolean;
+  restrict?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -160,7 +162,7 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: VPSProxyRequest = await req.json();
-    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers } = body;
+    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers, announcement, restrict: restrictSetting } = body;
 
     if (!action) {
       return new Response(
@@ -563,6 +565,102 @@ Deno.serve(async (req) => {
             marked_left: markedLeftCount,
             total_in_group: vpsParticipants.length,
             group_name: participantsData?.groupName,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'create-community-standalone': {
+        if (!sessionId || !name || !organizationId) {
+          return new Response(
+            JSON.stringify({ error: 'Session ID, name, and organization ID are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        localSessionIdForDb = sessionId;
+        vpsSessionIdForVps = await getVpsSessionId(supabase, sessionId);
+        
+        if (!vpsSessionIdForVps) {
+          console.warn('No VPS session ID found in DB, using sessionId directly as fallback');
+          vpsSessionIdForVps = sessionId;
+        }
+
+        // Build VPS request
+        const communitySettings = {
+          announcement: announcement === true,
+          restrict: restrictSetting === true,
+        };
+
+        const createUrl = buildUrl(VPS_URL, '/create-community');
+        console.log(`Creating standalone community via VPS: ${createUrl}`);
+
+        const { response: createResponse } = await fetchWithAuthRetry(
+          createUrl,
+          'POST',
+          JSON.stringify({
+            sessionId: vpsSessionIdForVps,
+            name,
+            description: description || name,
+            settings: communitySettings,
+          }),
+          VPS_API_KEY
+        );
+
+        const createText = await createResponse.text();
+        const { parsed: createData, isJson: createIsJson } = safeJsonParse(createText);
+
+        if (!createResponse.ok || !createIsJson) {
+          console.error('VPS create-community failed:', truncate(createText));
+          return new Response(
+            JSON.stringify({
+              error: createIsJson ? (createData?.error || 'VPS create-community failed') : 'VPS returned non-JSON',
+              upstream: 'vps',
+              status: createResponse.status,
+            }),
+            { status: createResponse.status || 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('VPS create-community response:', JSON.stringify(createData));
+
+        // Extract IDs from VPS response
+        const communityId = createData?.communityId || createData?.community_id;
+        const announcementGroupId = createData?.announcementGroupId || createData?.announcement_group_id;
+        const inviteLink = createData?.inviteLink || createData?.invite_link || '';
+
+        // Insert the announcement group into whatsapp_groups (this is the sendable group)
+        if (announcementGroupId) {
+          const { error: insertError } = await supabase
+            .from('whatsapp_groups')
+            .insert({
+              organization_id: organizationId,
+              session_id: localSessionIdForDb,
+              group_jid: announcementGroupId,
+              group_name: name,
+              participant_count: 0,
+              is_active: true,
+              is_admin: true,
+              is_community: false,
+              is_community_announce: true,
+              invite_link: inviteLink || null,
+              synced_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+
+          if (insertError) {
+            console.error('Failed to insert community group into DB:', insertError);
+          } else {
+            console.log(`Inserted announcement group ${announcementGroupId} into whatsapp_groups`);
+          }
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            communityId,
+            announcementGroupId,
+            inviteLink,
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
