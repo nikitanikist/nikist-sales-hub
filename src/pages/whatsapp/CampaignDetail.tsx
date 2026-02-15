@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +18,8 @@ const CampaignDetail = () => {
   const navigate = useNavigate();
   const orgTz = useOrgTimezone();
 
+  const queryClient = useQueryClient();
+
   const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ["notification-campaign", campaignId],
     queryFn: async () => {
@@ -30,7 +33,27 @@ const CampaignDetail = () => {
       return data;
     },
     enabled: !!campaignId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status === "sending" ? 5000 : 30000;
+    },
   });
+
+  // Realtime subscription for campaign status updates
+  useEffect(() => {
+    if (!campaignId) return;
+    const channel = supabase
+      .channel(`campaign-${campaignId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "notification_campaigns", filter: `id=eq.${campaignId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["notification-campaign", campaignId] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [campaignId, queryClient]);
 
   const { data: campaignGroups, isLoading: groupsLoading } = useQuery({
     queryKey: ["notification-campaign-groups", campaignId],
@@ -75,7 +98,7 @@ const CampaignDetail = () => {
   const sentCount = campaignGroups?.filter((g) => g.status === "sent").length || 0;
   const failedCount = campaignGroups?.filter((g) => g.status === "failed").length || 0;
   const pendingCount = campaignGroups?.filter((g) => g.status === "pending").length || 0;
-  const totalDelivered = campaignGroups?.reduce((sum, g) => sum + ((g as any).delivered_count || 0), 0) || 0;
+  const totalDelivered = campaignGroups?.reduce((sum, g) => sum + (g.delivered_count || 0), 0) || 0;
   const totalReads = campaignGroups?.reduce((sum, g) => sum + (g.read_count || 0), 0) || 0;
   const totalReactions = campaignGroups?.reduce((sum, g) => sum + (g.reaction_count || 0), 0) || 0;
 
@@ -183,8 +206,8 @@ const CampaignDetail = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {(g as any).delivered_count > 0 ? (
-                        <span className="text-emerald-500 font-medium">{(g as any).delivered_count}</span>
+                      {g.delivered_count > 0 ? (
+                        <span className="text-emerald-500 font-medium">{g.delivered_count}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
