@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +31,31 @@ const Campaigns = () => {
   const orgTz = useOrgTimezone();
   const [activeFilter, setActiveFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Realtime subscription for campaign status updates
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+
+    const channel = supabase
+      .channel(`campaigns-realtime-${currentOrganization.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notification_campaigns',
+          filter: `organization_id=eq.${currentOrganization.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["notification-campaigns"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrganization?.id, queryClient]);
 
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ["notification-campaigns", currentOrganization?.id],
