@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useWhatsAppSession } from "@/hooks/useWhatsAppSession";
 import { useWhatsAppGroups } from "@/hooks/useWhatsAppGroups";
@@ -41,6 +42,7 @@ const DELAY_OPTIONS = [
 
 const SendNotification = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const orgTz = useOrgTimezone();
   const { sessions, sessionsLoading } = useWhatsAppSession();
@@ -249,6 +251,8 @@ const SendNotification = () => {
           ? "Campaign scheduled successfully!"
           : "Campaign started! Messages are being sent."
       );
+      queryClient.invalidateQueries({ queryKey: ["notification-campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["scheduled-campaigns"] });
       navigate("/whatsapp/campaigns");
     } catch (err: any) {
       toast.error("Failed to create campaign", { description: err.message });
