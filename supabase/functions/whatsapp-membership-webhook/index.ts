@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
   try {
     // Validate API key
     const apiKey = req.headers.get("x-api-key");
-    const expectedKey = Deno.env.get("WHATSAPP_VPS_API_KEY");
+    const expectedKey = Deno.env.get("WEBHOOK_SECRET_KEY");
 
     if (!apiKey || apiKey !== expectedKey) {
       console.error("Unauthorized: Invalid or missing API key");
