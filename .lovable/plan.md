@@ -1,57 +1,44 @@
 
 
-# WhatsApp Section -- Full UI/UX Polish
+# Fix: Campaign Scheduling Timezone Issue
 
-A comprehensive visual upgrade across all 6 WhatsApp pages to achieve a cohesive, premium SaaS look.
+## Root Cause
 
----
+The `datetime-local` HTML input produces a bare string like `"2025-02-15T02:28"` with **no timezone information**. This string is stored directly in the `scheduled_for` column. Two problems result:
 
-## Changes Overview
+1. **Storage**: The raw string is saved without converting to UTC. The database and the edge function (`process-notification-campaigns`) compare it against `new Date().toISOString()` (which is UTC), causing a mismatch. A campaign scheduled for 2:28 AM IST gets treated as 2:28 AM UTC (which is 7:58 AM IST).
 
-### 1. Page Background (All 6 Pages)
-Wrap each page's content in a `bg-slate-50/50` background container for a cohesive off-white canvas feel, matching professional dashboards.
+2. **Display**: The Campaigns and Scheduled Messages pages use `format(new Date(...), "MMM d, yyyy h:mm a")` which renders in the browser's local timezone -- inconsistent with the organization's configured timezone.
 
-### 2. Table Styling (All Pages with Tables)
-- Styled table headers with `bg-slate-50/80` background and `text-slate-500` text
-- Row hover effects with `hover:bg-slate-50/50 transition-colors`
-- Subtle row borders with `border-b border-slate-100`
-- Group name rows get a small gradient icon badge next to them (Dashboard groups table)
+## Solution
 
-### 3. Enhanced Empty States (Campaigns, Dashboard, Templates, Scheduled)
-- Large circular icon background (16x16 rounded-full)
-- Two-line copy: title + descriptive subtitle
-- CTA button in relevant empty states (e.g., "Send First Notification" on Campaigns)
-- Increased vertical padding (`py-16`)
+### 1. Fix storage (SendNotification.tsx)
 
-### 4. Campaign Detail -- Delivery Funnel Progress Bars
-Below the stat cards and preview, add a "Delivery Funnel" card with animated gradient progress bars for Delivered, Read, and Reactions -- showing both counts and percentages.
+When the user picks a datetime, treat it as the **organization's timezone** and convert to a proper UTC ISO string before saving. This uses the existing `fromOrgTime` utility from `timezoneUtils.ts` and the org timezone from `useOrgTimezone`.
 
-### 5. Send Notification -- Step Indicator Enhancement
-- Larger step circles (h-10 w-10)
-- Completed steps turn emerald green with shadow
-- Active step gets scale-110 with primary shadow
-- Inactive steps get subtle slate border
-- Thicker connector lines (h-1) with rounded ends
-- Labels use emerald for completed, primary for active
+- Import `useOrgTimezone` and `fromOrgTime`
+- In `handleSubmit`, convert `scheduledFor` to UTC:
+  ```
+  const scheduledDate = new Date(scheduledFor);  // browser parses as local
+  const utcDate = fromOrgTime(scheduledDate, orgTimezone);
+  scheduled_for: sendMode === "schedule" ? utcDate.toISOString() : null
+  ```
+- In the Step 4 confirmation display, show the time in org timezone using `formatInOrgTime`
 
-### 6. Button/CTA Polish (Dashboard, Templates)
-Primary action buttons get `shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30` for more visual weight.
+### 2. Fix display (Campaigns.tsx, ScheduledMessages.tsx, CampaignDetail.tsx)
 
-### 7. Scheduled Messages -- Summary Cards
-Add 3 stat cards at the top (Total Pending, Scheduled, Drafts) with gradient backgrounds and colored icons, matching the Dashboard stat card pattern.
+Replace all `format(new Date(c.scheduled_for), ...)` and `format(new Date(c.created_at), ...)` calls with `formatInOrgTime(c.scheduled_for, orgTimezone, "MMM d, yyyy h:mm a")` so times are always shown in the organization's timezone.
 
----
+- Import `useOrgTimezone` and `formatInOrgTime` in each page
+- Update all date formatting calls
 
 ## Files Modified
 
-| File | Changes |
-|------|---------|
-| WhatsAppDashboard.tsx | Background wrapper, table styling, empty state, button shadow |
-| Campaigns.tsx | Background wrapper, table styling, enhanced empty state with CTA |
-| CampaignDetail.tsx | Background wrapper, delivery funnel card, table styling |
-| SendNotification.tsx | Enhanced step indicator (emerald completed, larger, shadows) |
-| Templates.tsx | Background wrapper, table styling, enhanced empty state with CTA, button shadow |
-| ScheduledMessages.tsx | Background wrapper, summary stat cards, table styling, enhanced empty state |
+| File | Change |
+|------|--------|
+| `SendNotification.tsx` | Import timezone utils, convert `scheduledFor` to UTC before insert, fix confirmation display |
+| `Campaigns.tsx` | Import timezone utils, format `scheduled_for` and `created_at` with org timezone |
+| `ScheduledMessages.tsx` | Import timezone utils, format `scheduled_for` with org timezone |
+| `CampaignDetail.tsx` | Import timezone utils, format `sent_at` with org timezone |
 
-No database changes. No new components or dependencies.
-
+No database changes needed. The edge function already correctly compares against UTC -- the fix is ensuring we store proper UTC values.
