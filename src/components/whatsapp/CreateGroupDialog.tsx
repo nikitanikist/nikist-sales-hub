@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Copy, Check, Users, MessageSquare } from "lucide-react";
+import { Loader2, Copy, Check, Users, MessageSquare, Upload, X } from "lucide-react";
 
 interface CreateGroupDialogProps {
   open: boolean;
@@ -57,6 +57,9 @@ export function CreateGroupDialog({ open, onOpenChange }: CreateGroupDialogProps
   const [isCreating, setIsCreating] = useState(false);
   const [success, setSuccess] = useState<SuccessResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const connectedSessions = useMemo(
     () => sessions?.filter((s) => s.status === "connected") || [],
@@ -74,7 +77,50 @@ export function CreateGroupDialog({ open, onOpenChange }: CreateGroupDialogProps
         const tagName = tpl.tag?.name || "";
         setName(tagName);
         setDescription(tpl.description_template);
+        // Auto-fill profile picture from template
+        setProfilePictureUrl(tpl.profile_picture_url || null);
       }
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be less than 2MB");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `profile-pictures/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("community-templates")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("community-templates")
+        .getPublicUrl(filePath);
+
+      setProfilePictureUrl(publicUrl);
+      toast.success("Image uploaded");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Failed to upload image");
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -99,6 +145,7 @@ export function CreateGroupDialog({ open, onOpenChange }: CreateGroupDialogProps
           description: description.trim() || name.trim(),
           announcement,
           restrict,
+          profilePictureUrl: profilePictureUrl || undefined,
         },
       });
 
@@ -131,7 +178,6 @@ export function CreateGroupDialog({ open, onOpenChange }: CreateGroupDialogProps
   };
 
   const handleClose = () => {
-    // Reset state on close
     setType("community");
     setSessionId("");
     setTemplateId("none");
@@ -141,6 +187,7 @@ export function CreateGroupDialog({ open, onOpenChange }: CreateGroupDialogProps
     setRestrict(false);
     setSuccess(null);
     setCopied(false);
+    setProfilePictureUrl(null);
     onOpenChange(false);
   };
 
@@ -243,6 +290,54 @@ export function CreateGroupDialog({ open, onOpenChange }: CreateGroupDialogProps
               </div>
             )}
 
+            {/* Profile Picture */}
+            {type === "community" && (
+              <div className="space-y-2">
+                <Label>Profile Picture (optional)</Label>
+                <div className="flex items-center gap-3">
+                  {profilePictureUrl ? (
+                    <div className="relative">
+                      <img
+                        src={profilePictureUrl}
+                        alt="Profile"
+                        className="h-16 w-16 rounded-full object-cover border"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute -top-1 -right-1 h-5 w-5"
+                        onClick={() => setProfilePictureUrl(null)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-2" />
+                      )}
+                      Upload Image
+                    </Button>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Square image recommended. Max 2MB.</p>
+              </div>
+            )}
+
             {/* Name */}
             <div className="space-y-2">
               <Label>Name</Label>
@@ -268,20 +363,30 @@ export function CreateGroupDialog({ open, onOpenChange }: CreateGroupDialogProps
             {type === "community" && (
               <div className="space-y-3 rounded-lg border p-3">
                 <p className="text-sm font-medium text-muted-foreground">Community Settings</p>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="sw-announcement" className="font-normal text-sm">
-                    Announcement only
-                  </Label>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sw-announcement" className="font-normal text-sm">
+                      Announcement only
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Only admins can send messages in the group
+                    </p>
+                  </div>
                   <Switch
                     id="sw-announcement"
                     checked={announcement}
                     onCheckedChange={setAnnouncement}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="sw-restrict" className="font-normal text-sm">
-                    Restrict settings
-                  </Label>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="sw-restrict" className="font-normal text-sm">
+                      Restrict settings
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Only admins can edit community name, icon, and description
+                    </p>
+                  </div>
                   <Switch
                     id="sw-restrict"
                     checked={restrict}

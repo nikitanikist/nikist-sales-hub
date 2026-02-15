@@ -109,6 +109,7 @@ interface VPSProxyRequest {
   phoneNumbers?: string[];
   announcement?: boolean;
   restrict?: boolean;
+  profilePictureUrl?: string;
 }
 
 Deno.serve(async (req) => {
@@ -162,7 +163,7 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: VPSProxyRequest = await req.json();
-    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers, announcement, restrict: restrictSetting } = body;
+    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers, announcement, restrict: restrictSetting, profilePictureUrl } = body;
 
     if (!action) {
       return new Response(
@@ -603,6 +604,7 @@ Deno.serve(async (req) => {
             name,
             description: description || name,
             settings: communitySettings,
+            ...(profilePictureUrl && { profilePictureUrl }),
           }),
           VPS_API_KEY
         );
