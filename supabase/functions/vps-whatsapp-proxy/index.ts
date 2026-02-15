@@ -654,6 +654,35 @@ Deno.serve(async (req) => {
             console.error('Failed to insert community group into DB:', insertError);
           } else {
             console.log(`Inserted announcement group ${announcementGroupId} into whatsapp_groups`);
+
+            // Fetch participant count from VPS and update
+            try {
+              const participantsUrl = buildUrl(VPS_URL, `/groups/${vpsSessionIdForVps}/${encodeURIComponent(announcementGroupId)}/participants`);
+              console.log(`Fetching participant count from: ${participantsUrl}`);
+              const { response: partResp } = await fetchWithAuthRetry(participantsUrl, 'GET', undefined, VPS_API_KEY);
+              if (partResp.ok) {
+                const partText = await partResp.text();
+                const { parsed: partData, isJson: partIsJson } = safeJsonParse(partText);
+                const participants = partIsJson ? (partData?.participants || []) : [];
+                const count = Math.max(Array.isArray(participants) ? participants.length : 0, 1);
+                console.log(`Updating participant_count to ${count} for group ${announcementGroupId}`);
+                await supabase
+                  .from('whatsapp_groups')
+                  .update({ participant_count: count })
+                  .eq('group_jid', announcementGroupId)
+                  .eq('organization_id', organizationId);
+              } else {
+                console.warn('Failed to fetch participants after community creation, defaulting to 1');
+                await supabase
+                  .from('whatsapp_groups')
+                  .update({ participant_count: 1 })
+                  .eq('group_jid', announcementGroupId)
+                  .eq('organization_id', organizationId);
+              }
+            } catch (partErr) {
+              console.error('Error fetching participant count:', partErr);
+              // Non-blocking: community was created successfully
+            }
           }
         }
 
