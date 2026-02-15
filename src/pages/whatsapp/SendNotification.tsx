@@ -4,6 +4,7 @@ import { useWhatsAppSession } from "@/hooks/useWhatsAppSession";
 import { useWhatsAppGroups } from "@/hooks/useWhatsAppGroups";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useOrganization } from "@/hooks/useOrganization";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ const DELAY_OPTIONS = [
 const SendNotification = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
+  const orgTz = useOrgTimezone();
   const { sessions, sessionsLoading } = useWhatsAppSession();
   const { sendableGroups: groups, groupsLoading } = useWhatsAppGroups();
   const { templates } = useMessageTemplates();
@@ -218,7 +220,7 @@ const SendNotification = () => {
           media_url: mediaUrl || null,
           media_type: mediaType || null,
           delay_seconds: delaySeconds,
-          scheduled_for: sendMode === "schedule" ? scheduledFor : null,
+          scheduled_for: sendMode === "schedule" ? orgTz.fromOrgTime(new Date(scheduledFor)).toISOString() : null,
           status: sendMode === "schedule" ? "scheduled" : "sending",
           total_groups: selectedGroups.length,
           total_audience: totalAudience,
@@ -549,7 +551,7 @@ const SendNotification = () => {
                   { label: "Delay", value: DELAY_OPTIONS.find((d) => d.value === delaySeconds)?.label },
                   {
                     label: "Schedule",
-                    value: sendMode === "now" ? "Send Now" : new Date(scheduledFor).toLocaleString(),
+                    value: sendMode === "now" ? "Send Now" : orgTz.format(new Date(scheduledFor), "MMM d, yyyy h:mm a"),
                     icon: sendMode === "now" ? Send : Clock,
                   },
                 ].map((item) => (
