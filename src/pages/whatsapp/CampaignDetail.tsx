@@ -8,13 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, CheckCheck, MessageSquare } from "lucide-react";
-import { format } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { WhatsAppPreview } from "@/components/settings/WhatsAppPreview";
 import { getMediaTypeFromUrl } from "@/components/settings/TemplateMediaUpload";
 
 const CampaignDetail = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
+  const orgTz = useOrgTimezone();
 
   const { data: campaign, isLoading: campaignLoading } = useQuery({
     queryKey: ["notification-campaign", campaignId],
@@ -203,7 +204,7 @@ const CampaignDetail = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {g.sent_at ? format(new Date(g.sent_at), "h:mm a") : "—"}
+                      {g.sent_at ? orgTz.format(g.sent_at, "h:mm a") : "—"}
                     </TableCell>
                     <TableCell className="text-sm text-destructive max-w-[200px] truncate">
                       {g.error_message || "—"}

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDeleteDialog } from "@/components/ConfirmDeleteDialog";
-import { format } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { toast } from "sonner";
 import { CheckCircle2, Clock, Send, AlertTriangle, Trash2, LayoutList, List } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ const Campaigns = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const orgTz = useOrgTimezone();
   const [activeFilter, setActiveFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -194,11 +195,11 @@ const Campaigns = () => {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {c.scheduled_for
-                          ? format(new Date(c.scheduled_for), "MMM d, yyyy h:mm a")
+                          ? orgTz.format(c.scheduled_for, "MMM d, yyyy h:mm a")
                           : "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {format(new Date(c.created_at), "MMM d, yyyy h:mm a")}
+                        {orgTz.format(c.created_at, "MMM d, yyyy h:mm a")}
                       </TableCell>
                       <TableCell>
                         <Button

@@ -9,11 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { X, Clock, CalendarClock, FileEdit } from "lucide-react";
 
 const ScheduledMessages = () => {
   const { currentOrganization } = useOrganization();
+  const orgTz = useOrgTimezone();
   const queryClient = useQueryClient();
 
   const { data: campaigns, isLoading } = useQuery({
@@ -130,7 +131,7 @@ const ScheduledMessages = () => {
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell className="text-sm">
                         {c.scheduled_for
-                          ? format(new Date(c.scheduled_for), "MMM d, yyyy h:mm a")
+                          ? orgTz.format(c.scheduled_for, "MMM d, yyyy h:mm a")
                           : "—"}
                       </TableCell>
                       <TableCell className="text-center">{c.total_groups}</TableCell>
