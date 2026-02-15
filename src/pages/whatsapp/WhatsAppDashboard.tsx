@@ -11,7 +11,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Send, Users, MessageSquare, Search, RefreshCw, Phone, Plus } from "lucide-react";
-import { CreateGroupDialog } from "@/components/whatsapp/CreateGroupDialog";
 
 const WhatsAppDashboard = () => {
   const navigate = useNavigate();
@@ -19,7 +18,6 @@ const WhatsAppDashboard = () => {
   const { groups, groupsLoading, syncGroups, isSyncing } = useWhatsAppGroups();
   const [selectedSessionId, setSelectedSessionId] = useState<string>("all");
   const [search, setSearch] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
 
   const connectedSessions = useMemo(
     () => sessions?.filter((s) => s.status === "connected") || [],
@@ -111,7 +109,7 @@ const WhatsAppDashboard = () => {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => setCreateOpen(true)}
+              onClick={() => navigate("/whatsapp/create")}
               className="gap-2"
             >
               <Plus className="h-4 w-4" />
@@ -237,7 +235,7 @@ const WhatsAppDashboard = () => {
             </Table>
           </CardContent>
         </Card>
-        <CreateGroupDialog open={createOpen} onOpenChange={setCreateOpen} />
+        
       </div>
     </div>
   );
