@@ -36,7 +36,7 @@ import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
 import ProtectedRoute from "./components/ProtectedRoute";
 import TemplateEditor from "./pages/settings/TemplateEditor";
-import { WhatsAppDashboard, SendNotification, Campaigns, CampaignDetail, Templates as WhatsAppTemplates, ScheduledMessages } from "./pages/whatsapp";
+import { WhatsAppDashboard, SendNotification, CreateCommunity, Campaigns, CampaignDetail, Templates as WhatsAppTemplates, ScheduledMessages } from "./pages/whatsapp";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -91,6 +91,7 @@ const App = () => (
               <Route path="/settings/templates/:id" element={<ProtectedRoute adminOnly><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               {/* WhatsApp Module */}
               <Route path="/whatsapp" element={<ProtectedRoute><ErrorBoundary><WhatsAppDashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/whatsapp/create" element={<ProtectedRoute><ErrorBoundary><CreateCommunity /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/send-notification" element={<ProtectedRoute><ErrorBoundary><SendNotification /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/campaigns" element={<ProtectedRoute><ErrorBoundary><Campaigns /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CampaignDetail /></ErrorBoundary></ProtectedRoute>} />
