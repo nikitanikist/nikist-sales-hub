@@ -86,24 +86,52 @@ Deno.serve(async (req) => {
       );
     }
 
-    // DELIVERED events: always increment delivered_count atomically
+    // DELIVERED events: deduplicate via upsert, then recount
     if (payload.event === "delivered") {
-      const { data: newCount, error: rpcError } = await supabase.rpc(
-        "increment_delivered_count",
-        { p_group_id: campaignGroup.id }
-      );
-
-      if (rpcError) {
-        console.error("Error incrementing delivered count:", rpcError);
+      if (!payload.readerPhone) {
+        console.log("Skipped delivered event: no readerPhone for deduplication");
         return new Response(
-          JSON.stringify({ error: rpcError.message }),
+          JSON.stringify({ message: "Skipped: no readerPhone for delivered" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Upsert (deduplicated by unique constraint on campaign_group_id, reader_phone, receipt_type)
+      const { error: upsertError } = await supabase
+        .from("notification_campaign_reads")
+        .upsert(
+          {
+            campaign_group_id: campaignGroup.id,
+            reader_phone: payload.readerPhone,
+            read_at: payload.timestamp || new Date().toISOString(),
+            receipt_type: "delivered",
+          },
+          { onConflict: "campaign_group_id,reader_phone,receipt_type" }
+        );
+
+      if (upsertError) {
+        console.error("Error upserting delivered receipt:", upsertError);
+        return new Response(
+          JSON.stringify({ error: upsertError.message }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      console.log(`Delivered count incremented for group ${campaignGroup.id}, new count: ${newCount}`);
+      // Recount for accuracy
+      const { count } = await supabase
+        .from("notification_campaign_reads")
+        .select("*", { count: "exact", head: true })
+        .eq("campaign_group_id", campaignGroup.id)
+        .eq("receipt_type", "delivered");
+
+      await supabase
+        .from("notification_campaign_groups")
+        .update({ delivered_count: count || 0 })
+        .eq("id", campaignGroup.id);
+
+      console.log(`Delivered receipt recorded for group ${campaignGroup.id}, reader: ${payload.readerPhone}, count: ${count}`);
       return new Response(
-        JSON.stringify({ success: true, receipt_type: "delivered", count: newCount }),
+        JSON.stringify({ success: true, receipt_type: "delivered", count }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

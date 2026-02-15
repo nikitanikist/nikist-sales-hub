@@ -70,6 +70,7 @@ const Campaigns = () => {
       return data;
     },
     enabled: !!currentOrganization,
+    refetchInterval: 5000,
   });
 
   const deleteMutation = useMutation({
