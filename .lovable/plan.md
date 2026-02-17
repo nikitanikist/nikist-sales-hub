@@ -1,25 +1,41 @@
 
 
-# Remove Sign-Up Option from Login Page
+# Add Call Time to Pabbly Webhook Payload
 
 ## Summary
 
-Remove the Sign Up tab and form from the Auth page so that only the login form is shown. Since only the Super Admin can add new users, self-registration should not be available.
+Add the `call_time` field (from the existing `scheduled_time` column) to the Pabbly webhook payload so you can use both date and time in your Pabbly automations (e.g., "Your call was on Feb 15 at 2:30 PM").
 
 ## What Changes
 
-### File: `src/pages/Auth.tsx`
+### File: `src/pages/CloserAssignedCalls.tsx`
 
-- Remove the `Tabs`, `TabsList`, `TabsTrigger`, and `TabsContent` wrapper -- replace with just the login form directly
-- Remove all signup-related state (`fullName`, `isLogin`) and logic (the `signupSchema`, the `else` branch in `handleSubmit`)
-- Remove the `signUp` import from `useAuth`
-- Keep the login form, validation, and card layout exactly as they are today
+One line added to the `basePayload` object at ~line 687:
 
-The result will be a clean login-only page with email and password fields and a "Sign In" button -- no tabs, no sign-up option.
+```
+call_time: freshAppointment.scheduled_time
+```
+
+The payload will go from:
+```
+call_date: freshAppointment.scheduled_date,
+closer_name: closer?.full_name || 'Unknown'
+```
+to:
+```
+call_date: freshAppointment.scheduled_date,
+call_time: freshAppointment.scheduled_time,
+closer_name: closer?.full_name || 'Unknown'
+```
 
 ## What Does NOT Change
 
-- The `signUp` function stays in `useAuth.tsx` (the `manage-users` edge function or Super Admin flow may still use it internally)
-- No database, backend, or any other page is touched
-- All existing login behavior remains identical
+- No database changes -- `scheduled_time` already exists
+- No edge function changes -- `send-status-to-pabbly` forwards the full payload as-is
+- No other files, pages, or features are touched
+- All existing statuses (Converted, Not Converted, etc.) continue working exactly as before -- this is purely an additional field
+
+## After Deployment
+
+You will need to **re-capture the webhook response once** in Pabbly to see the new `call_time` field (value format: `"14:30:00"`). Then map it in your message templates.
 
