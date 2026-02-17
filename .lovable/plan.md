@@ -1,41 +1,49 @@
 
 
-# Add Call Time to Pabbly Webhook Payload
+# Update Call Status Dropdown: Add "No Show", Remove Legacy Statuses
 
 ## Summary
 
-Add the `call_time` field (from the existing `scheduled_time` column) to the Pabbly webhook payload so you can use both date and time in your Pabbly automations (e.g., "Your call was on Feb 15 at 2:30 PM").
+Clean up the call status dropdowns by removing three legacy options (Not Decided, So-So, Pending) and adding **No Show**. Historical records with old statuses will still display correctly.
 
-## What Changes
+## Step 1: Database Migration
 
-### File: `src/pages/CloserAssignedCalls.tsx`
+Add `no_show` to the `call_status` enum so it can be stored in the database. The legacy values stay in the enum to preserve historical data.
 
-One line added to the `basePayload` object at ~line 687:
-
-```
-call_time: freshAppointment.scheduled_time
+```sql
+ALTER TYPE public.call_status ADD VALUE IF NOT EXISTS 'no_show';
 ```
 
-The payload will go from:
-```
-call_date: freshAppointment.scheduled_date,
-closer_name: closer?.full_name || 'Unknown'
-```
-to:
-```
-call_date: freshAppointment.scheduled_date,
-call_time: freshAppointment.scheduled_time,
-closer_name: closer?.full_name || 'Unknown'
-```
+## Step 2: Update UI in Two Files
+
+### `src/pages/CloserAssignedCalls.tsx`
+
+1. Add `no_show` entry to `statusColors` map (red styling, like not_converted)
+2. Add `no_show: "No Show"` to `statusLabels` map
+3. **Filter dropdown** (~line 928-934): Remove `not_decided`, `so_so`, `pending` SelectItems; add `no_show`
+4. **Edit status dropdown** (~line 1252-1258): Same removal and addition
+
+### `src/pages/AllCloserCalls.tsx`
+
+1. Add `no_show` entry to `statusColors` map
+2. Add `no_show: "No Show"` to `statusLabels` map
+3. **Filter dropdown** (~line 667-673): Remove `not_decided`, `so_so`, `pending` SelectItems; add `no_show`
+4. **Edit status dropdown** (~line 892-898): Same removal and addition
 
 ## What Does NOT Change
 
-- No database changes -- `scheduled_time` already exists
-- No edge function changes -- `send-status-to-pabbly` forwards the full payload as-is
-- No other files, pages, or features are touched
-- All existing statuses (Converted, Not Converted, etc.) continue working exactly as before -- this is purely an additional field
+- Legacy values (`not_decided`, `so_so`, `pending`) stay in the color/label maps so old records still render with correct colors and labels
+- No other pages, edge functions, or webhook payloads are affected
+- The `call_time` field added earlier remains in place
 
-## After Deployment
+## Final Dropdown Order
 
-You will need to **re-capture the webhook response once** in Pabbly to see the new `call_time` field (value format: `"14:30:00"`). Then map it in your message templates.
+After the update, the status dropdowns will show:
+- Scheduled
+- Converted
+- Booking Amount
+- Not Converted
+- No Show (new)
+- Reschedule
+- Refunded
 
