@@ -1,44 +1,39 @@
 
 
-# Update Call Status Dropdown: Add "No Show", Remove Legacy Statuses
+# Update Call Status Dropdowns — Implementation Plan
 
-## Summary
+## Current State
+The dropdowns still show the old statuses: Not Decided, So-So, and Pending. No changes have been made yet — the previous plan was approved but the database update was not confirmed, so implementation did not proceed.
 
-Clean up the call status dropdowns by removing three legacy options (Not Decided, So-So, Pending) and adding **No Show**. Historical records with old statuses will still display correctly.
+## What Needs to Happen
 
-## Step 1: Database Migration
-
-Add `no_show` to the `call_status` enum so it can be stored in the database. The legacy values stay in the enum to preserve historical data.
+### 1. Database Update
+Add the `no_show` value to the call_status enum in the database. This is required before the UI can use it.
 
 ```sql
 ALTER TYPE public.call_status ADD VALUE IF NOT EXISTS 'no_show';
+NOTIFY pgrst, 'reload schema';
 ```
 
-## Step 2: Update UI in Two Files
+### 2. UI Updates in `src/pages/CloserAssignedCalls.tsx`
 
-### `src/pages/CloserAssignedCalls.tsx`
+- Add `no_show` to `statusColors` map (red styling)
+- Add `no_show: "No Show"` to `statusLabels` map
+- **Filter dropdown** (lines 928-934): Remove the three `SelectItem` entries for `not_decided`, `so_so`, `pending`; add one for `no_show`
+- **Edit status dropdown** (lines 1252-1258): Same removal and addition
 
-1. Add `no_show` entry to `statusColors` map (red styling, like not_converted)
-2. Add `no_show: "No Show"` to `statusLabels` map
-3. **Filter dropdown** (~line 928-934): Remove `not_decided`, `so_so`, `pending` SelectItems; add `no_show`
-4. **Edit status dropdown** (~line 1252-1258): Same removal and addition
+### 3. UI Updates in `src/pages/AllCloserCalls.tsx`
 
-### `src/pages/AllCloserCalls.tsx`
+- Add `no_show` to `statusColors` map (red styling)
+- Add `no_show: "No Show"` to `statusLabels` map
+- **Filter dropdown** (lines 667-672): Remove `not_decided`, `so_so`, `pending`; add `no_show`
+- **Edit status dropdown** (lines 892-897): Same removal and addition
 
-1. Add `no_show` entry to `statusColors` map
-2. Add `no_show: "No Show"` to `statusLabels` map
-3. **Filter dropdown** (~line 667-673): Remove `not_decided`, `so_so`, `pending` SelectItems; add `no_show`
-4. **Edit status dropdown** (~line 892-898): Same removal and addition
-
-## What Does NOT Change
-
-- Legacy values (`not_decided`, `so_so`, `pending`) stay in the color/label maps so old records still render with correct colors and labels
+## What Stays the Same
+- Legacy keys (`not_decided`, `so_so`, `pending`) remain in the `statusColors` and `statusLabels` maps so any historical records with those statuses still display with correct colors and labels
 - No other pages, edge functions, or webhook payloads are affected
-- The `call_time` field added earlier remains in place
 
 ## Final Dropdown Order
-
-After the update, the status dropdowns will show:
 - Scheduled
 - Converted
 - Booking Amount
