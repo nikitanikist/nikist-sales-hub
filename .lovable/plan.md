@@ -1,54 +1,23 @@
 
 
-# Update Call Status Dropdowns: Add "No Show", Remove Legacy Statuses
+# Fix: Add Organization ID to Pabbly Status Webhook Payload
 
-## Summary
+## What's Happening
+When a closer changes a call status on their assigned calls page, the app sends the update to the `send-status-to-pabbly` backend function. But it's not including the organization ID, so the function can't find the correct webhook URL in the database and falls back to a now-deleted environment variable.
 
-Remove three legacy status options (Not Decided, So-So, Pending) from the selection dropdowns and add **No Show**. Historical records with old statuses will still display correctly since we keep them in the color/label maps.
+## The Fix
+One file, one change: add `organization_id` to the webhook payload in `src/pages/CloserAssignedCalls.tsx`.
 
-## Step 1: Database Migration
+## Technical Details
 
-Add `no_show` to the `call_status` enum so the database accepts the new value. The three legacy values stay in the enum so existing data isn't broken.
+**File:** `src/pages/CloserAssignedCalls.tsx`
 
-```sql
-ALTER TYPE public.call_status ADD VALUE IF NOT EXISTS 'no_show';
-NOTIFY pgrst, 'reload schema';
-```
+In the `basePayload` object (around line 680), add `organization_id: organization?.id`. The component already imports and uses the `useOrganization` hook, so no new imports are needed.
 
-## Step 2: Update `src/pages/CloserAssignedCalls.tsx`
+This ensures both the "NEW workflow" and "OLD workflow" Pabbly calls (lines 710 and 726) include the organization ID, allowing the backend function to look up the active outgoing webhook from the database.
 
-**a) statusColors map (line 113):** Add `no_show` entry with red styling before the closing brace.
-
-**b) statusLabels map (line 129):** Add `no_show: "No Show"` entry before the closing brace.
-
-**c) Filter dropdown (lines 930-933):** Remove the three `SelectItem` entries for `not_decided`, `so_so`, and `pending`. Add one new entry for `no_show`.
-
-**d) Edit status dropdown (lines 1254-1257):** Remove the three `SelectItem` entries for `not_decided`, `so_so`, and `pending`. Add one new entry for `no_show`.
-
-## Step 3: Update `src/pages/AllCloserCalls.tsx`
-
-Same four changes:
-
-**a) statusColors map (line 113):** Add `no_show` entry with red styling.
-
-**b) statusLabels map (line 129):** Add `no_show: "No Show"`.
-
-**c) Filter dropdown (lines 669-672):** Remove `not_decided`, `so_so`, `pending` SelectItems. Add `no_show`.
-
-**d) Edit status dropdown (lines 894-897):** Remove `not_decided`, `so_so`, `pending` SelectItems. Add `no_show`.
-
-## What Does NOT Change
-
-- Legacy values (`not_decided`, `so_so`, `pending`) remain in `statusColors` and `statusLabels` maps so historical records display with correct colors and labels
-- No other pages, edge functions, or webhooks are affected
-
-## Final Dropdown Order
-
-- Scheduled
-- Converted (and variants)
-- Booking Amount
-- Not Converted
-- No Show (new)
-- Reschedule
-- Refunded
+## No Other Files Need Changes
+- `AllCloserCalls.tsx` does **not** call the Pabbly webhook, so no changes there
+- The backend function already supports `organization_id` — no changes needed
+- The database webhook record is already configured and active
 
