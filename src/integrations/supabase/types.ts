@@ -4202,6 +4202,7 @@ export type Database = {
         | "refunded"
         | "converted"
         | "discontinued"
+        | "no_show"
       lead_status:
         | "new"
         | "contacted"
@@ -4363,6 +4364,7 @@ export const Constants = {
         "refunded",
         "converted",
         "discontinued",
+        "no_show",
       ],
       lead_status: [
         "new",

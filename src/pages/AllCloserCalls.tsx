@@ -111,6 +111,7 @@ const statusColors: Record<CallStatus, string> = {
   pending: "bg-slate-100 text-slate-700 border-slate-200",
   refunded: "bg-pink-100 text-pink-700 border-pink-200",
   discontinued: "bg-red-100 text-red-700 border-red-200",
+  no_show: "bg-rose-100 text-rose-700 border-rose-200",
 };
 
 const statusLabels: Record<CallStatus, string> = {
@@ -127,6 +128,7 @@ const statusLabels: Record<CallStatus, string> = {
   pending: "Pending",
   refunded: "Refunded",
   discontinued: "Discontinued",
+  no_show: "No Show",
 };
 
 const ITEMS_PER_PAGE = 10;
@@ -666,10 +668,8 @@ const AllCloserCalls = () => {
                 <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
                 <SelectItem value="booking_amount">Booking Amount</SelectItem>
                 <SelectItem value="not_converted">Not Converted</SelectItem>
-                <SelectItem value="not_decided">Not Decided</SelectItem>
-                <SelectItem value="so_so">So-So</SelectItem>
+                <SelectItem value="no_show">No Show</SelectItem>
                 <SelectItem value="reschedule">Reschedule</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="refunded">Refunded</SelectItem>
               </SelectContent>
             </Select>
@@ -891,10 +891,8 @@ const AllCloserCalls = () => {
                                               <SelectItem value="converted_advance">Converted (Advance)</SelectItem>
                                               <SelectItem value="booking_amount">Booking Amount</SelectItem>
                                               <SelectItem value="not_converted">Not Converted</SelectItem>
-                                              <SelectItem value="not_decided">Not Decided</SelectItem>
-                                              <SelectItem value="so_so">So-So</SelectItem>
+                                              <SelectItem value="no_show">No Show</SelectItem>
                                               <SelectItem value="reschedule">Reschedule</SelectItem>
-                                              <SelectItem value="pending">Pending</SelectItem>
                                               <SelectItem value="refunded">Refunded</SelectItem>
                                             </SelectContent>
                                           </Select>
