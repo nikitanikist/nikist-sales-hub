@@ -687,7 +687,8 @@ const CloserAssignedCalls = () => {
           due_amount: freshAppointment.due_amount,
           call_date: freshAppointment.scheduled_date,
           call_time: freshAppointment.scheduled_time,
-          closer_name: closer?.full_name || 'Unknown'
+          closer_name: closer?.full_name || 'Unknown',
+          organization_id: currentOrganization?.id
         };
         
         // For new workflow converted calls, include batch info from fresh DB data
