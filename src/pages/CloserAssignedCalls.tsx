@@ -684,6 +684,7 @@ const CloserAssignedCalls = () => {
           cash_received: freshAppointment.cash_received,
           due_amount: freshAppointment.due_amount,
           call_date: freshAppointment.scheduled_date,
+          call_time: freshAppointment.scheduled_time,
           closer_name: closer?.full_name || 'Unknown'
         };
         
