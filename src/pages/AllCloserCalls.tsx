@@ -565,6 +565,16 @@ const AllCloserCalls = () => {
         return;
       }
     }
+
+    const remarksRequiredStatuses = ['not_converted', 'no_show', 'reschedule', 'refunded'];
+    if (remarksRequiredStatuses.includes(editData.status) && !editData.closer_remarks?.trim()) {
+      toast({ 
+        title: "Remarks Required", 
+        description: "Please add closer remarks for this status", 
+        variant: "destructive" 
+      });
+      return;
+    }
     
     setShowSaveConfirmation(true);
   };
@@ -955,7 +965,12 @@ const AllCloserCalls = () => {
                                         )}
                                       </div>
                                       <div className="space-y-2">
-                                        <Label>Closer Remarks</Label>
+                                         <Label>
+                                           Closer Remarks
+                                           {['not_converted', 'no_show', 'reschedule', 'refunded'].includes(editData.status) && (
+                                             <span className="text-destructive ml-1">*</span>
+                                           )}
+                                         </Label>
                                         <Textarea
                                           value={editData.closer_remarks}
                                           onChange={(e) => setEditData({ ...editData, closer_remarks: e.target.value })}
