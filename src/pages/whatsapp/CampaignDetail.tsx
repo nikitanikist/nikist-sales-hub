@@ -138,7 +138,7 @@ const CampaignDetail = () => {
     { label: "Sent", value: sentCount, icon: CheckCircle2, color: "text-violet-500", bgTint: "bg-violet-500/10", borderColor: "border-l-violet-500", gradientFrom: "from-violet-500/5" },
     { label: "Failed", value: failedCount, icon: XCircle, color: "text-destructive", bgTint: "bg-destructive/10", borderColor: "border-l-destructive", gradientFrom: "from-destructive/5" },
     { label: "Pending", value: pendingCount, icon: Clock, color: "text-muted-foreground", bgTint: "bg-muted", borderColor: "border-l-muted-foreground", gradientFrom: "from-muted-foreground/5" },
-    { label: "Not Yet Read", value: isAwaitingDelivery ? null : totalDelivered, icon: EyeOff, color: "text-emerald-500", bgTint: "bg-emerald-500/10", borderColor: "border-l-emerald-500", gradientFrom: "from-emerald-500/5", awaiting: isAwaitingDelivery },
+    { label: "Delivered, Not Yet Read", value: isAwaitingDelivery ? null : totalDelivered, icon: EyeOff, color: "text-emerald-500", bgTint: "bg-emerald-500/10", borderColor: "border-l-emerald-500", gradientFrom: "from-emerald-500/5", awaiting: isAwaitingDelivery },
     { label: "Read", value: isAwaitingReads ? null : totalReads, icon: Eye, color: "text-blue-500", bgTint: "bg-blue-500/10", borderColor: "border-l-blue-500", gradientFrom: "from-blue-500/5", awaiting: isAwaitingReads },
     { label: "Reactions", value: isAwaitingReactions ? null : totalReactions, icon: SmilePlus, color: "text-amber-500", bgTint: "bg-amber-500/10", borderColor: "border-l-amber-500", gradientFrom: "from-amber-500/5", awaiting: isAwaitingReactions },
   ];
@@ -221,7 +221,7 @@ const CampaignDetail = () => {
                   <TableHead className="text-slate-500 font-medium">Group</TableHead>
                   <TableHead className="text-right text-slate-500 font-medium">Members</TableHead>
                   <TableHead className="text-center text-slate-500 font-medium">Status</TableHead>
-                  <TableHead className="text-right text-slate-500 font-medium">Not Yet Read</TableHead>
+                  <TableHead className="text-right text-slate-500 font-medium">Delivered, Not Yet Read</TableHead>
                   <TableHead className="text-right text-slate-500 font-medium">Reads</TableHead>
                   <TableHead className="text-right text-slate-500 font-medium">Reactions</TableHead>
                   <TableHead className="text-slate-500 font-medium">Sent At</TableHead>
