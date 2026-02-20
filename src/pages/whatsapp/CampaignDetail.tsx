@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, CheckCheck, MessageSquare } from "lucide-react";
+import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, EyeOff, MessageSquare } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { WhatsAppPreview } from "@/components/settings/WhatsAppPreview";
 import { getMediaTypeFromUrl } from "@/components/settings/TemplateMediaUpload";
@@ -20,7 +21,9 @@ const CampaignDetail = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: campaign, isLoading: campaignLoading } = useQuery({
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+
+  const { data: campaign, isLoading: campaignLoading, dataUpdatedAt: campaignUpdatedAt } = useQuery({
     queryKey: ["notification-campaign", campaignId],
     queryFn: async () => {
       if (!campaignId) return null;
@@ -55,7 +58,7 @@ const CampaignDetail = () => {
     return () => { supabase.removeChannel(channel); };
   }, [campaignId, queryClient]);
 
-  const { data: campaignGroups, isLoading: groupsLoading } = useQuery({
+  const { data: campaignGroups, isLoading: groupsLoading, dataUpdatedAt: groupsUpdatedAt } = useQuery({
     queryKey: ["notification-campaign-groups", campaignId],
     queryFn: async () => {
       if (!campaignId) return [];
@@ -70,6 +73,19 @@ const CampaignDetail = () => {
     enabled: !!campaignId,
     refetchInterval: campaign?.status === "sending" ? 5000 : 30000,
   });
+
+  // Track the latest data update time
+  useEffect(() => {
+    const latest = Math.max(campaignUpdatedAt || 0, groupsUpdatedAt || 0);
+    if (latest > 0) setLastUpdated(new Date(latest));
+  }, [campaignUpdatedAt, groupsUpdatedAt]);
+
+  // Re-render relative time every 30s
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   if (campaignLoading || groupsLoading) {
     return (
@@ -122,7 +138,7 @@ const CampaignDetail = () => {
     { label: "Sent", value: sentCount, icon: CheckCircle2, color: "text-violet-500", bgTint: "bg-violet-500/10", borderColor: "border-l-violet-500", gradientFrom: "from-violet-500/5" },
     { label: "Failed", value: failedCount, icon: XCircle, color: "text-destructive", bgTint: "bg-destructive/10", borderColor: "border-l-destructive", gradientFrom: "from-destructive/5" },
     { label: "Pending", value: pendingCount, icon: Clock, color: "text-muted-foreground", bgTint: "bg-muted", borderColor: "border-l-muted-foreground", gradientFrom: "from-muted-foreground/5" },
-    { label: "Delivered", value: isAwaitingDelivery ? null : totalDelivered, icon: CheckCheck, color: "text-emerald-500", bgTint: "bg-emerald-500/10", borderColor: "border-l-emerald-500", gradientFrom: "from-emerald-500/5", awaiting: isAwaitingDelivery },
+    { label: "Not Yet Read", value: isAwaitingDelivery ? null : totalDelivered, icon: EyeOff, color: "text-emerald-500", bgTint: "bg-emerald-500/10", borderColor: "border-l-emerald-500", gradientFrom: "from-emerald-500/5", awaiting: isAwaitingDelivery },
     { label: "Read", value: isAwaitingReads ? null : totalReads, icon: Eye, color: "text-blue-500", bgTint: "bg-blue-500/10", borderColor: "border-l-blue-500", gradientFrom: "from-blue-500/5", awaiting: isAwaitingReads },
     { label: "Reactions", value: isAwaitingReactions ? null : totalReactions, icon: SmilePlus, color: "text-amber-500", bgTint: "bg-amber-500/10", borderColor: "border-l-amber-500", gradientFrom: "from-amber-500/5", awaiting: isAwaitingReactions },
   ];
@@ -169,6 +185,12 @@ const CampaignDetail = () => {
                 <p className="text-xs text-muted-foreground">Delivery and read receipts may take a few minutes to update after sending.</p>
               </div>
             )}
+            <div className="flex items-center gap-1.5 mt-2 px-1">
+              <Clock className="h-3 w-3 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                Last updated: {formatDistanceToNow(lastUpdated, { addSuffix: false })} ago
+              </p>
+            </div>
           </div>
 
           {/* WhatsApp preview - portrait */}
@@ -199,7 +221,7 @@ const CampaignDetail = () => {
                   <TableHead className="text-slate-500 font-medium">Group</TableHead>
                   <TableHead className="text-right text-slate-500 font-medium">Members</TableHead>
                   <TableHead className="text-center text-slate-500 font-medium">Status</TableHead>
-                  <TableHead className="text-right text-slate-500 font-medium">Delivered</TableHead>
+                  <TableHead className="text-right text-slate-500 font-medium">Not Yet Read</TableHead>
                   <TableHead className="text-right text-slate-500 font-medium">Reads</TableHead>
                   <TableHead className="text-right text-slate-500 font-medium">Reactions</TableHead>
                   <TableHead className="text-slate-500 font-medium">Sent At</TableHead>
