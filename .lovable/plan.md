@@ -1,156 +1,109 @@
 
 
-# Super Admin Dashboard Redesign - Multi-Page Layout with Enhanced Controls
+# Improve Subscription Plans Page - Currency Selection and Toggle-Based Features
 
 ## What's Changing
 
-The current Super Admin Dashboard is a single page with everything crammed together. We're splitting it into a proper multi-section layout with its own sidebar navigation, adding subscription plan editing, and introducing granular feature/permission controls per organization.
+The Plans page (`/super-admin/plans`) will be upgraded with:
+1. **Currency selector** on pricing fields (INR, USD, EUR, GBP, etc.)
+2. **Toggle-based features** instead of free-text inputs -- matching the same feature list used in the Organizations Features tab (sidebar permissions + integrations + modules)
+3. A `currency` column added to the `billing_plans` table
 
 ---
 
-## 1. Super Admin Sidebar Navigation
+## 1. Database Change
 
-Currently the sidebar only shows one item: "Super Admin Dashboard". We'll expand it to show multiple sections:
+Add a `currency` column to the `billing_plans` table:
 
-| Sidebar Item | Route | Purpose |
-|---|---|---|
-| Overview | `/super-admin` | Analytics dashboard (MRR, charts, renewals) |
-| Organizations | `/super-admin/organizations` | Org list + detail panel (current main content) |
-| Subscription Plans | `/super-admin/plans` | Edit/manage all 4 plans (pricing, limits, features) |
-| Notifications | `/super-admin/notifications` | View all billing notifications |
+```text
+ALTER TABLE billing_plans
+  ADD COLUMN currency TEXT NOT NULL DEFAULT 'INR';
+```
 
-**How:** Update `superAdminMenuItems` in `AppLayout.tsx` from 1 item to 4 items with sub-routes.
+No other schema changes needed -- the existing `plan_features` table already stores key-value pairs, and we'll use the same keys with `"true"/"false"` values for toggle features.
 
 ---
 
-## 2. Split SuperAdminDashboard into Separate Pages
+## 2. Pricing Tab Improvements
 
-### `/super-admin` - Overview Page (cleaned up)
-- Remove the "System Overview / Monitor all organizations..." header
-- Keep: MRR stats cards, Plan Distribution chart, Revenue Trend chart, Export buttons, Upcoming Renewals table
-- Add: "Create Organization" button stays here
-- Clean, focused analytics view
+Current layout has Plan Name, Monthly Price, Yearly Price, Description, and Active toggle.
 
-### `/super-admin/organizations` - Organizations Page (NEW)
-- Left panel: Organization list (with plan badges, status dots, trial countdown)
-- Right panel: Organization detail tabs (Details, Members, Features, Subscription, Usage)
-- This is essentially the bottom half of the current page, moved to its own route
+Updated layout:
 
-### `/super-admin/plans` - Subscription Plans Page (NEW)
-- List all 4 plans (Starter, Growth, Pro, Enterprise) as editable cards
-- For each plan, ability to:
-  - Edit name, description, monthly price, yearly price
-  - Edit all plan limits (WhatsApp numbers, team members, groups, campaigns, recipients, dynamic links)
-  - Edit plan features (analytics level, community creation, data export, support channel, etc.)
-  - Toggle plan active/inactive
-- "Add New Plan" button for creating custom plans
+| Field | Type |
+|---|---|
+| Plan Name | Text input |
+| Currency | Dropdown (INR, USD, EUR, GBP) |
+| Monthly Price | Number input with currency symbol prefix |
+| Yearly Price | Number input with currency symbol prefix |
+| Description | Text input |
+| Active | Toggle switch |
 
-### `/super-admin/notifications` - Notifications Page (NEW)
-- Full-page view of all subscription notifications (currently just a bell icon)
-- Filter by type (trial expiring, expired, limit approaching)
-- Mark as read/dismiss
+The currency selector will be a `Select` dropdown. The plan card display will also show the correct currency symbol based on the selected currency.
 
 ---
 
-## 3. Granular Feature Control per Organization
+## 3. Features Tab Overhaul
 
-Currently the "Features" tab only controls 4 high-level modules (One-to-One Sales Funnel, Cohort Management, Workshops, Daily Money Flow). The user wants to control individual sidebar sections and settings integrations.
+Replace the current free-text inputs with a **toggle-based layout** organized in sections -- mirroring the Organization Features tab structure:
 
-### Expand the Features Tab with Two Sections:
+**Section A: Core Modules**
+Toggles for each module from the `modules` table (One-to-One Sales Funnel, Cohort Management, Workshops, Daily Money Flow).
 
-**Section A: Core Modules** (existing - keep as is)
-- One-to-One Sales Funnel
-- Cohort Management
-- Workshops
-- Daily Money Flow
-
-**Section B: Sidebar Permissions** (NEW)
-Grouped toggles matching the sidebar structure from `permissions.ts`:
+**Section B: Sidebar Permissions**
+Grouped toggles matching `PERMISSION_GROUPS` from `permissions.ts`:
 - Finance (Daily Money Flow, Sales)
 - Customers (All Customers, Customer Insights)
 - Closers (1:1 Call Schedule, Sales Closers)
 - Funnels (All Workshops, Active Funnels, Products)
 - Cohort Batches
-- Operations (Workshop Notification, Dynamic Links, Dead Letter Queue)
-- WhatsApp (Dashboard, Campaigns, Templates)
-- Team Members
-- Settings
+- WhatsApp
+- Other (Dashboard, Team Members, Settings)
 
-This uses the existing `PERMISSION_GROUPS` from `src/lib/permissions.ts`. The super admin will be able to set *default permissions* for the organization -- essentially pre-configuring what the org admin can see and manage.
+**Section C: Integration Access**
+Toggles for: Calendly, WhatsApp (AISensy), Pabbly Webhook, Workshop Notifications
 
-**Implementation:** Add a new table `organization_feature_overrides` that stores per-org feature visibility. The sidebar filtering logic in `AppLayout.tsx` will check these overrides in addition to user permissions and module enablement.
+**Section D: Additional Features**
+Keep the existing features as toggles where applicable:
+- Analytics Level (dropdown: basic/standard/advanced)
+- Community Creation (toggle)
+- Data Export (toggle)
+- Custom Branding (toggle)
+- Support Channel (dropdown: email/chat/priority/dedicated)
+- Onboarding Minutes (number input)
 
-**Section C: Integration Access** (NEW)
-Toggle which integrations an org can configure in their Settings:
-- Calendly Integration
-- WhatsApp (AISensy) Connection
-- Pabbly Webhook
-- Workshop Notifications
+Each toggle ON means the feature is **included** in the plan. Toggle OFF means it is **not included**. When a new organization subscribes to this plan, these defaults will be pre-applied.
 
-**Implementation:** Add an `organization_settings` key like `disabled_integrations` (JSONB array) that the Settings page checks before showing integration tabs.
+The feature values will be stored in `plan_features` as before, using `"true"/"false"` for boolean features.
 
 ---
 
 ## Technical Details
 
-### New Routes in `App.tsx`
-```text
-/super-admin              -> SuperAdminOverview (analytics only)
-/super-admin/organizations -> SuperAdminOrganizations (org management)
-/super-admin/plans        -> SuperAdminPlans (plan editing)
-/super-admin/notifications -> SuperAdminNotifications (full notification list)
-```
-
-### New Files to Create (5 files)
-| File | Purpose |
-|---|---|
-| `src/pages/super-admin/SuperAdminOverview.tsx` | Analytics dashboard page |
-| `src/pages/super-admin/SuperAdminOrganizations.tsx` | Org list + detail management |
-| `src/pages/super-admin/SuperAdminPlans.tsx` | Plan editor (prices, limits, features) |
-| `src/pages/super-admin/SuperAdminNotifications.tsx` | Full notification page |
-| `src/pages/super-admin/index.ts` | Barrel exports |
-
 ### Files to Modify
+
 | File | Changes |
 |---|---|
-| `src/components/AppLayout.tsx` | Expand `superAdminMenuItems` to 4 items with icons (LayoutDashboard, Building2, CreditCard, Bell) |
-| `src/pages/SuperAdminDashboard.tsx` | Refactor -- split into the 4 new pages above, keep as redirect or overview |
-| `src/App.tsx` | Add new routes for `/super-admin/organizations`, `/super-admin/plans`, `/super-admin/notifications` |
-| `src/components/super-admin/SubscriptionNotifications.tsx` | Reuse for both bell icon and full page |
+| `src/pages/super-admin/SuperAdminPlans.tsx` | Complete overhaul of Features tab (toggles), add currency selector to Pricing tab, update plan cards to show currency symbol |
 
-### Database Changes
-One new table for granular feature overrides:
+### Migration
+One migration to add the `currency` column to `billing_plans`.
 
+### Currency Support
+A simple mapping object:
 ```text
-organization_feature_overrides
-  - id UUID PK
-  - organization_id UUID FK -> organizations(id) UNIQUE
-  - disabled_permissions TEXT[] (array of permission keys to hide)
-  - disabled_integrations TEXT[] (array of integration slugs to hide)
-  - created_at TIMESTAMPTZ
-  - updated_at TIMESTAMPTZ
+{ INR: "₹", USD: "$", EUR: "€", GBP: "£" }
 ```
 
-RLS: Super admins can manage all, org members can read their own.
+### Feature Keys for Plan-Level Toggles
+The plan_features rows will include keys like:
+- `perm_daily_money_flow`, `perm_customers`, `perm_whatsapp`, etc. (for sidebar permissions)
+- `integration_calendly`, `integration_aisensy`, etc. (for integrations)
+- `module_sales_funnel`, `module_cohort`, etc. (for modules)
+- Plus existing keys: `analytics`, `community_creation`, `data_export`, `custom_branding`, `support_channel`, `onboarding_minutes`
 
-### Plan Editing Logic
-The `SuperAdminPlans.tsx` page will:
-1. Fetch all plans from `billing_plans`
-2. Fetch limits from `plan_limits` grouped by plan
-3. Fetch features from `plan_features` grouped by plan
-4. Allow inline editing of prices, limits, and features
-5. Save changes with audit logging
-6. Support creating new custom plans
+Values: `"true"` / `"false"` for toggles, text for dropdowns/numbers.
 
----
-
-## Implementation Order
-
-1. Database migration (organization_feature_overrides table)
-2. Create 4 new super admin pages
-3. Update AppLayout sidebar for super admin navigation
-4. Update App.tsx routes
-5. Build SuperAdminPlans page with plan/limit/feature editing
-6. Enhance Features tab with granular permission and integration controls
-7. Wire up feature overrides into AppLayout sidebar filtering
+### New Plan Dialog
+The "Create New Plan" dialog will also be updated to include the currency selector.
 
