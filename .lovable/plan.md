@@ -1,52 +1,24 @@
 
 
-# Improve WhatsApp Groups UX in Webinar Detail Sheet
+# Fix: Real-time Member Count Updates on Webinar Page
 
-## Overview
+## Problem
 
-Simplify the WhatsApp Settings section so that linked groups are shown upfront as compact cards, and the full group picker (search, Select All, group list) is hidden behind an expandable dropdown that only appears when needed.
+The `whatsapp_groups` real-time subscription was added to `useWhatsAppGroups.ts`, but the Webinar Notification page uses a different hook (`useWebinarNotification`) with its own query key (`webinar-notifications`). When `participant_count` updates in the `whatsapp_groups` table, the webinar query is never invalidated, so the member count stays stale.
 
-## Current Behavior
+## Solution
 
-When the WhatsApp Settings section is expanded, the full `MultiGroupSelect` component is always visible -- showing Select All, search bar, and all 336 groups in a scrollable list. This is overwhelming when the group is already linked.
-
-## New Behavior
-
-1. **Selected groups shown as compact cards** -- Each linked group displays its name, member count, and a remove button. This is always visible.
-2. **Full group picker hidden by default** -- A "Add / Change Groups" button toggles the full MultiGroupSelect component. It collapses back after selection.
-3. **No changes to `MultiGroupSelect` itself** -- The component stays as-is (it is shared with workshops). Only the WebinarDetailSheet wrapper changes.
-
-## Visual Layout (After)
-
-```text
-WhatsApp Settings
-+-----------------------------------------+
-| Account: [Selected Account Dropdown]    |
-+-----------------------------------------+
-| Linked Groups (1)                       |
-| +-------------------------------------+ |
-| | Community Name          105 members | |
-| +-------------------------------------+ |
-|                                         |
-| [+ Add / Change Groups]  <- button     |
-|                                         |
-| (clicking reveals MultiGroupSelect)    |
-+-----------------------------------------+
-```
+Add a Supabase real-time subscription inside `useWebinarNotification` that listens for `UPDATE` events on `whatsapp_groups` (filtered by the current organization) and invalidates the `webinar-notifications` query key.
 
 ## Technical Details
 
-### File: `src/pages/webinar/WebinarDetailSheet.tsx`
+### File: `src/hooks/useWebinarNotification.ts`
 
-Changes in the WhatsApp Settings collapsible section (lines ~230-330):
+Inside the `useWebinarNotification` function, add a `useEffect` that:
 
-1. Add a `showGroupPicker` boolean state (default `false`)
-2. Replace the current direct rendering of `<MultiGroupSelect>` with:
-   - A "Linked Groups" subsection showing selected groups as styled cards with group name, participant count, and an X button to unlink
-   - A toggle button "Add / Change Groups" that sets `showGroupPicker = true`
-   - When `showGroupPicker` is true, render the existing `<MultiGroupSelect>` below
-3. Keep the "Create WhatsApp Group" / "Create Additional Group" buttons as-is
-4. The existing linked-groups summary block (lines 293-314) will be replaced by the new compact card layout
+1. Creates a Supabase channel listening for `postgres_changes` on `whatsapp_groups` (event: `UPDATE`, filter by `organization_id`)
+2. On any change, calls `queryClient.invalidateQueries({ queryKey: ['webinar-notifications'] })`
+3. Cleans up the channel on unmount
 
-No database or edge function changes required.
+This reuses the same real-time publication already enabled (`supabase_realtime` now includes `whatsapp_groups`). No database changes needed.
 
