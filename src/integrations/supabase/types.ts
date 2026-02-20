@@ -2460,6 +2460,41 @@ export type Database = {
           },
         ]
       }
+      organization_feature_overrides: {
+        Row: {
+          created_at: string
+          disabled_integrations: string[] | null
+          disabled_permissions: string[] | null
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          disabled_integrations?: string[] | null
+          disabled_permissions?: string[] | null
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          disabled_integrations?: string[] | null
+          disabled_permissions?: string[] | null
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_feature_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_features: {
         Row: {
           created_at: string | null
