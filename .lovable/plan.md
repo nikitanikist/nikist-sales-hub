@@ -1,284 +1,60 @@
 
+# Webinar Improvements: Community Creation, Table Enhancements, Invite Link
 
-# Build Webinar Notification Feature
+## What Changes
 
-## Overview
+1. **Community creation uses the same standalone method as the WhatsApp Dashboard** -- switching from the current `create-webinar-community` edge function (which calls VPS directly) to using the `vps-whatsapp-proxy` edge function with the `create-community-standalone` action. This ensures no General group is created, and `announcement` + `restrict` settings are applied. The `create-webinar-community` edge function will be refactored to call `vps-whatsapp-proxy` internally, or the frontend will call `vps-whatsapp-proxy` directly and then link the group to the webinar.
 
-A new **Webinar** module that mirrors the existing Workshop Notification system but operates independently. Webinars have their own database table, sidebar menu, creation flow, and notification pipeline. When a webinar is created, a WhatsApp community is automatically created and linked to it. Users can then send notification sequences to that community.
+2. **Table shows additional columns**: WhatsApp Community name (linked group), member count, and a copy invite link button.
 
----
+3. **Invite link stored and displayed** -- the community invite link is already stored in `whatsapp_groups.invite_link` during creation. The table will display a copy button for it.
 
-## 1. Database Changes
-
-### New Table: `webinars`
-
-| Column | Type | Default | Notes |
-|---|---|---|---|
-| id | UUID | gen_random_uuid() | Primary key |
-| title | TEXT | NOT NULL | Webinar name |
-| description | TEXT | nullable | Optional description |
-| start_date | TIMESTAMPTZ | NOT NULL | Start date and time |
-| end_date | TIMESTAMPTZ | NOT NULL | End date and time |
-| tag_id | UUID | nullable | FK to workshop_tags |
-| organization_id | UUID | NOT NULL | FK to organizations |
-| created_by | UUID | NOT NULL | FK to auth.users |
-| whatsapp_group_id | UUID | nullable | Legacy single group link |
-| whatsapp_session_id | UUID | nullable | Selected WhatsApp session |
-| community_group_id | UUID | nullable | Auto-created community |
-| automation_status | JSONB | `{"whatsapp_group_linked": false, "messages_scheduled": false}` | Tracks setup progress |
-| status | TEXT | 'planned' | planned/confirmed/completed/cancelled |
-| created_at | TIMESTAMPTZ | now() | |
-| updated_at | TIMESTAMPTZ | now() | |
-
-### New Table: `webinar_whatsapp_groups` (junction)
-
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| webinar_id | UUID | FK to webinars |
-| group_id | UUID | FK to whatsapp_groups |
-| created_at | TIMESTAMPTZ | |
-
-### New Table: `scheduled_webinar_messages`
-
-Same schema as `scheduled_whatsapp_messages` but with `webinar_id` instead of `workshop_id`:
-
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| organization_id | UUID | FK to organizations |
-| group_id | UUID | FK to whatsapp_groups |
-| webinar_id | UUID | FK to webinars |
-| message_type | TEXT | Step label |
-| message_content | TEXT | Processed content |
-| media_url | TEXT | nullable |
-| media_type | TEXT | nullable |
-| scheduled_for | TIMESTAMPTZ | When to send |
-| status | TEXT | pending/sending/sent/failed/cancelled |
-| sent_at | TIMESTAMPTZ | nullable |
-| error_message | TEXT | nullable |
-| retry_count | INT | default 0 |
-| created_by | UUID | nullable |
-| created_at | TIMESTAMPTZ | |
-
-### New Table: `webinar_sequence_variables`
-
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID | Primary key |
-| webinar_id | UUID | FK to webinars |
-| variable_key | TEXT | Variable name |
-| variable_value | TEXT | Value |
-| created_at | TIMESTAMPTZ | |
-| updated_at | TIMESTAMPTZ | |
-
-### RLS Policies
-
-All four tables will have RLS enabled with org-based isolation policies (select/insert/update/delete restricted to users belonging to the same organization), following the same pattern used for workshop tables.
-
-### Realtime
-
-Enable realtime on `scheduled_webinar_messages` for live checkpoint tracking.
-
-### Triggers
-
-- `update_updated_at_column` trigger on `webinars` and `webinar_sequence_variables`
+4. **Member count fetched and displayed** -- the `participant_count` from `whatsapp_groups` is shown in the table. It is already updated during sync and community creation.
 
 ---
 
-## 2. Auto Community Creation on Webinar Create
+## Technical Plan
 
-When a webinar is created with a tag:
+### 1. Refactor `create-webinar-community` Edge Function
 
-1. The frontend calls the existing `create-whatsapp-community` edge function (or a new `create-webinar-community` variant) passing the webinar ID, name, and org ID
-2. The edge function:
-   - Looks up the tag's community template
-   - Gets the org's community session and admin numbers
-   - Calls VPS `/create-community` with announcement-only settings (no General chat)
-   - Inserts the group into `whatsapp_groups`
-   - Links it via `webinar_whatsapp_groups`
-   - Updates `webinars.community_group_id`
+Update `supabase/functions/create-webinar-community/index.ts` to use the `vps-whatsapp-proxy` `create-community-standalone` action instead of calling VPS directly. This ensures:
+- `announcement: true` and `restrict: true` settings are passed (no General group)
+- Profile picture and description template variables are still resolved
+- The announcement group JID is stored (not the community parent)
+- Invite link and participant count are stored in `whatsapp_groups`
 
-A new edge function `create-webinar-community` will be created, closely mirroring `create-whatsapp-community` but referencing the `webinars` table instead of `workshops`.
+The refactored flow:
+1. Look up webinar, org, tag, and community template (same as now)
+2. Call `vps-whatsapp-proxy` with `action: 'create-community-standalone'` passing `announcement: true`, `restrict: true`, `name`, `description`, `profilePictureUrl`, `organizationId`, `sessionId`
+3. The proxy already inserts the group into `whatsapp_groups` with `invite_link` and fetches participant count
+4. After the proxy returns, link the group to the webinar via `webinar_whatsapp_groups` and update `webinars.community_group_id`
 
----
+### 2. Update `WebinarWithDetails` Type and Query
 
-## 3. Message Processing
+In `src/hooks/useWebinarNotification.ts`:
+- Expand the `WebinarWithDetails` interface to include community group details (group name, participant count, invite link)
+- Update the Supabase query to join `whatsapp_groups` via `community_group_id` to fetch `group_name`, `participant_count`, and `invite_link`
 
-A new edge function `process-webinar-queue` will be created, mirroring `process-whatsapp-queue` but reading from `scheduled_webinar_messages`. It will be triggered by a cron job every minute.
+### 3. Update Webinar Table UI
 
-### Migration for Cron Job
+In `src/pages/webinar/WebinarNotification.tsx`:
+- Add new table columns:
+  - **WhatsApp Community**: shows the linked community name (from `whatsapp_groups.group_name`)
+  - **Members**: shows `participant_count` from the linked group
+  - **Copy Link**: a button to copy the `invite_link` to clipboard
+- Add the same info to mobile cards
+- Show a "Creating..." indicator if community creation is in progress
 
-```text
-SELECT cron.schedule(
-  'process-webinar-queue',
-  '* * * * *',
-  $$SELECT net.http_post(
-    url := '...',
-    ...
-  )$$
-);
-```
+### 4. Deploy Updated Edge Function
 
----
-
-## 4. Sidebar and Routing
-
-### Sidebar Changes (`AppLayout.tsx`)
-
-Add a new top-level collapsible menu item "Webinar" with one child:
-
-```text
-{
-  title: "Webinar",
-  icon: Video (from lucide-react),
-  children: [
-    { title: "Webinar Notification", path: "/webinar/notification", permissionKey: 'webinar' }
-  ]
-}
-```
-
-### Permission Changes (`permissions.ts`)
-
-- Add `webinar` to `PERMISSION_KEYS`
-- Add route mapping: `/webinar/notification` -> `webinar`
-- Add to `PERMISSION_LABELS`: `'Webinar Notification'`
-- Add to `PERMISSION_GROUPS` under a new "Webinar" group
-- Add to `DEFAULT_PERMISSIONS` for admin and manager roles
-
-### Route Changes (`App.tsx`)
-
-```text
-<Route path="/webinar/notification" element={<ProtectedRoute><ErrorBoundary><WebinarNotification /></ErrorBoundary></ProtectedRoute>} />
-```
+Redeploy `create-webinar-community` after the refactor.
 
 ---
-
-## 5. Frontend Pages and Components
-
-### New Files
-
-| File | Purpose |
-|---|---|
-| `src/pages/webinar/WebinarNotification.tsx` | Main page with table of webinars and Create Webinar button |
-| `src/pages/webinar/index.ts` | Re-exports |
-| `src/hooks/useWebinarNotification.ts` | Data fetching, CRUD, messaging, community creation -- mirrors useWorkshopNotification |
-
-### WebinarNotification Page
-
-- **Create Webinar Dialog**: A popup with fields for:
-  - Webinar Name (text input)
-  - Start Date & Time (datetime-local input, timezone-aware)
-  - End Date & Time (datetime-local input, timezone-aware)
-  - Tag (select from existing workshop_tags)
-  - On submit: creates the webinar record, then automatically triggers community creation in the background
-
-- **Webinar Table**: Lists all webinars with columns:
-  - Date (start date/time)
-  - Webinar Name
-  - Tag
-  - Status (Assign Tag / Select Account / Select Groups / Run Sequence / Ready)
-  - Actions (Send WhatsApp Notification button, View details, Delete)
-
-- **Webinar Detail Sheet**: A slide-out panel (reusing the same collapsible section pattern from WorkshopDetailSheet) with:
-  - Overview section (date, community link)
-  - Tag section (select/change tag)
-  - WhatsApp Settings (select account, select groups)
-  - Run Sequence button (with variable injection dialog)
-  - Message Checkpoints (real-time delivery tracking)
-
-- **Analytics on messages**: After sending, the detail sheet shows:
-  - Total messages sent
-  - Delivered count
-  - Read count (not yet read = delivered minus read)
-  - Reactions count
-  - Sent timestamp
-  - Real-time updates via Supabase Realtime subscription
-
-### Reused Components
-
-The following existing components will be reused directly (they are generic enough):
-- `WorkshopTagBadge` (rename references to just "TagBadge" conceptually but reuse as-is)
-- `MessageCheckpoints` / `toCheckpoints`
-- `MessagingActions`
-- `SendMessageNowDialog`
-- `MultiGroupSelect`
-- `CollapsibleSection`
-- `SequenceVariablesDialog`
-- `MessagingProgressBanner`
-- `SequenceProgressButton`
-- `ConfirmDeleteDialog`
-
----
-
-## 6. Hook: `useWebinarNotification`
-
-This hook mirrors `useWorkshopNotification` with the following changes:
-- Queries `webinars` table instead of `workshops`
-- Creates scheduled messages in `scheduled_webinar_messages`
-- Links groups via `webinar_whatsapp_groups`
-- Calls `create-webinar-community` edge function
-- Subscribes to realtime on `scheduled_webinar_messages`
-
-Standalone hooks:
-- `useWebinarMessages(webinarId)` -- queries `scheduled_webinar_messages`
-- `useWebinarGroups(webinarId)` -- queries `webinar_whatsapp_groups`
-
----
-
-## 7. Edge Functions
-
-### `create-webinar-community/index.ts`
-
-Nearly identical to `create-whatsapp-community` but:
-- Reads from `webinars` table instead of `workshops`
-- Links via `webinar_whatsapp_groups` instead of `workshop_whatsapp_groups`
-- Updates `webinars.community_group_id`
-
-### `process-webinar-queue/index.ts`
-
-Nearly identical to `process-whatsapp-queue` but:
-- Reads from `scheduled_webinar_messages` instead of `scheduled_whatsapp_messages`
-
----
-
-## Technical Details
-
-### Files to Create
-
-| File | Description |
-|---|---|
-| `src/pages/webinar/WebinarNotification.tsx` | Main webinar notification page |
-| `src/pages/webinar/index.ts` | Exports |
-| `src/hooks/useWebinarNotification.ts` | All webinar data fetching and mutations |
-| `supabase/functions/create-webinar-community/index.ts` | Auto community creation for webinars |
-| `supabase/functions/process-webinar-queue/index.ts` | Cron-driven message processor |
-| Migration file | Tables, RLS, triggers, realtime, cron |
 
 ### Files to Modify
 
 | File | Changes |
 |---|---|
-| `src/components/AppLayout.tsx` | Add "Webinar" menu item with "Webinar Notification" child |
-| `src/lib/permissions.ts` | Add `webinar` permission key, route mapping, labels, groups, defaults |
-| `src/App.tsx` | Add `/webinar/notification` route |
-| `supabase/config.toml` | Add `[functions.create-webinar-community]` and `[functions.process-webinar-queue]` with `verify_jwt = false` |
-
-### Community Creation Behavior
-
-When a webinar is created:
-1. The webinar row is inserted into `webinars`
-2. If a tag is selected and the org has a community session configured, the `create-webinar-community` edge function is called asynchronously (fire-and-forget, matching the "best-effort" pattern used for workshops)
-3. The community is created with **announcement-only** settings and **no General chat** (matching the existing community creation logic that stores the announcement group JID)
-4. The community is automatically linked to the webinar
-
-### Sequence/Notification Flow
-
-1. User clicks "Send WhatsApp Notification" on a webinar
-2. Detail sheet opens showing tag, WhatsApp account, and linked groups
-3. User clicks "Run Sequence" -- the tag's template sequence is used
-4. Messages are scheduled into `scheduled_webinar_messages` with proper timezone handling
-5. `process-webinar-queue` cron picks them up and sends via VPS
-6. Real-time checkpoints show delivery progress
-7. Read receipts and reactions update via existing webhook infrastructure (webhooks will need a minor update to also check `scheduled_webinar_messages` for matching message tracking)
-
+| `supabase/functions/create-webinar-community/index.ts` | Refactor to use `vps-whatsapp-proxy` with `create-community-standalone` action, passing `announcement: true` and `restrict: true` |
+| `src/hooks/useWebinarNotification.ts` | Update `WebinarWithDetails` type to include community group info (name, participant_count, invite_link). Update query to join `whatsapp_groups` via `community_group_id` |
+| `src/pages/webinar/WebinarNotification.tsx` | Add WhatsApp Community, Members, and Copy Link columns to the table. Add same info to mobile cards |
