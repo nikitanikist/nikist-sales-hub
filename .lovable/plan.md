@@ -1,60 +1,52 @@
 
-# Webinar Improvements: Community Creation, Table Enhancements, Invite Link
 
-## What Changes
+# Improve WhatsApp Groups UX in Webinar Detail Sheet
 
-1. **Community creation uses the same standalone method as the WhatsApp Dashboard** -- switching from the current `create-webinar-community` edge function (which calls VPS directly) to using the `vps-whatsapp-proxy` edge function with the `create-community-standalone` action. This ensures no General group is created, and `announcement` + `restrict` settings are applied. The `create-webinar-community` edge function will be refactored to call `vps-whatsapp-proxy` internally, or the frontend will call `vps-whatsapp-proxy` directly and then link the group to the webinar.
+## Overview
 
-2. **Table shows additional columns**: WhatsApp Community name (linked group), member count, and a copy invite link button.
+Simplify the WhatsApp Settings section so that linked groups are shown upfront as compact cards, and the full group picker (search, Select All, group list) is hidden behind an expandable dropdown that only appears when needed.
 
-3. **Invite link stored and displayed** -- the community invite link is already stored in `whatsapp_groups.invite_link` during creation. The table will display a copy button for it.
+## Current Behavior
 
-4. **Member count fetched and displayed** -- the `participant_count` from `whatsapp_groups` is shown in the table. It is already updated during sync and community creation.
+When the WhatsApp Settings section is expanded, the full `MultiGroupSelect` component is always visible -- showing Select All, search bar, and all 336 groups in a scrollable list. This is overwhelming when the group is already linked.
 
----
+## New Behavior
 
-## Technical Plan
+1. **Selected groups shown as compact cards** -- Each linked group displays its name, member count, and a remove button. This is always visible.
+2. **Full group picker hidden by default** -- A "Add / Change Groups" button toggles the full MultiGroupSelect component. It collapses back after selection.
+3. **No changes to `MultiGroupSelect` itself** -- The component stays as-is (it is shared with workshops). Only the WebinarDetailSheet wrapper changes.
 
-### 1. Refactor `create-webinar-community` Edge Function
+## Visual Layout (After)
 
-Update `supabase/functions/create-webinar-community/index.ts` to use the `vps-whatsapp-proxy` `create-community-standalone` action instead of calling VPS directly. This ensures:
-- `announcement: true` and `restrict: true` settings are passed (no General group)
-- Profile picture and description template variables are still resolved
-- The announcement group JID is stored (not the community parent)
-- Invite link and participant count are stored in `whatsapp_groups`
+```text
+WhatsApp Settings
++-----------------------------------------+
+| Account: [Selected Account Dropdown]    |
++-----------------------------------------+
+| Linked Groups (1)                       |
+| +-------------------------------------+ |
+| | Community Name          105 members | |
+| +-------------------------------------+ |
+|                                         |
+| [+ Add / Change Groups]  <- button     |
+|                                         |
+| (clicking reveals MultiGroupSelect)    |
++-----------------------------------------+
+```
 
-The refactored flow:
-1. Look up webinar, org, tag, and community template (same as now)
-2. Call `vps-whatsapp-proxy` with `action: 'create-community-standalone'` passing `announcement: true`, `restrict: true`, `name`, `description`, `profilePictureUrl`, `organizationId`, `sessionId`
-3. The proxy already inserts the group into `whatsapp_groups` with `invite_link` and fetches participant count
-4. After the proxy returns, link the group to the webinar via `webinar_whatsapp_groups` and update `webinars.community_group_id`
+## Technical Details
 
-### 2. Update `WebinarWithDetails` Type and Query
+### File: `src/pages/webinar/WebinarDetailSheet.tsx`
 
-In `src/hooks/useWebinarNotification.ts`:
-- Expand the `WebinarWithDetails` interface to include community group details (group name, participant count, invite link)
-- Update the Supabase query to join `whatsapp_groups` via `community_group_id` to fetch `group_name`, `participant_count`, and `invite_link`
+Changes in the WhatsApp Settings collapsible section (lines ~230-330):
 
-### 3. Update Webinar Table UI
+1. Add a `showGroupPicker` boolean state (default `false`)
+2. Replace the current direct rendering of `<MultiGroupSelect>` with:
+   - A "Linked Groups" subsection showing selected groups as styled cards with group name, participant count, and an X button to unlink
+   - A toggle button "Add / Change Groups" that sets `showGroupPicker = true`
+   - When `showGroupPicker` is true, render the existing `<MultiGroupSelect>` below
+3. Keep the "Create WhatsApp Group" / "Create Additional Group" buttons as-is
+4. The existing linked-groups summary block (lines 293-314) will be replaced by the new compact card layout
 
-In `src/pages/webinar/WebinarNotification.tsx`:
-- Add new table columns:
-  - **WhatsApp Community**: shows the linked community name (from `whatsapp_groups.group_name`)
-  - **Members**: shows `participant_count` from the linked group
-  - **Copy Link**: a button to copy the `invite_link` to clipboard
-- Add the same info to mobile cards
-- Show a "Creating..." indicator if community creation is in progress
+No database or edge function changes required.
 
-### 4. Deploy Updated Edge Function
-
-Redeploy `create-webinar-community` after the refactor.
-
----
-
-### Files to Modify
-
-| File | Changes |
-|---|---|
-| `supabase/functions/create-webinar-community/index.ts` | Refactor to use `vps-whatsapp-proxy` with `create-community-standalone` action, passing `announcement: true` and `restrict: true` |
-| `src/hooks/useWebinarNotification.ts` | Update `WebinarWithDetails` type to include community group info (name, participant_count, invite_link). Update query to join `whatsapp_groups` via `community_group_id` |
-| `src/pages/webinar/WebinarNotification.tsx` | Add WhatsApp Community, Members, and Copy Link columns to the table. Add same info to mobile cards |
