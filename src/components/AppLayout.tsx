@@ -420,9 +420,12 @@ const AppLayoutContent = () => {
     return currentOrganization?.name || "CRM";
   };
 
-  // Super Admin specific menu - only show Super Admin Dashboard
+  // Super Admin specific menu - multi-page layout
   const superAdminMenuItems: MenuItem[] = [
-    { title: "Super Admin Dashboard", icon: Shield, path: "/super-admin" },
+    { title: "Overview", icon: LayoutDashboard, path: "/super-admin" },
+    { title: "Organizations", icon: Building2, path: "/super-admin/organizations" },
+    { title: "Subscription Plans", icon: DollarSign, path: "/super-admin/plans" },
+    { title: "Notifications", icon: Phone, path: "/super-admin/notifications" },
   ];
 
   // Use super admin menu if user is super admin, otherwise filter regular menu

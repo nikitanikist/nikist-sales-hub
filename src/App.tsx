@@ -24,7 +24,7 @@ import Batches from "./pages/batches";
 import FuturesMentorship from "./pages/futures-mentorship";
 import HighFuture from "./pages/HighFuture";
 import DailyMoneyFlow from "./pages/DailyMoneyFlow";
-import SuperAdminDashboard from "./pages/SuperAdminDashboard";
+import { SuperAdminOverview, SuperAdminOrganizations, SuperAdminPlans, SuperAdminNotifications } from "./pages/super-admin";
 import CohortPage from "./pages/CohortPage";
 import ManageCohorts from "./pages/ManageCohorts";
 import OrganizationSettings from "./pages/OrganizationSettings";
@@ -99,8 +99,10 @@ const App = () => (
               <Route path="/whatsapp/templates/new" element={<ProtectedRoute><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/templates/:id/edit" element={<ProtectedRoute><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/scheduled" element={<ProtectedRoute><ErrorBoundary><ScheduledMessages /></ErrorBoundary></ProtectedRoute>} />
-              <Route path="/super-admin" element={<ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>} />
-              <Route path="/super-admin/create-org" element={<ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>} />
+              <Route path="/super-admin" element={<ErrorBoundary><SuperAdminOverview /></ErrorBoundary>} />
+              <Route path="/super-admin/organizations" element={<ErrorBoundary><SuperAdminOrganizations /></ErrorBoundary>} />
+              <Route path="/super-admin/plans" element={<ErrorBoundary><SuperAdminPlans /></ErrorBoundary>} />
+              <Route path="/super-admin/notifications" element={<ErrorBoundary><SuperAdminNotifications /></ErrorBoundary>} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
