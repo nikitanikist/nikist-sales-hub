@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.whatsapp-message-error-webhook]
 verify_jwt = false
+
+[functions.check-subscription-status]
+verify_jwt = false

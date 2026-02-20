@@ -17,6 +17,11 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { StatsCardsSkeleton, TableSkeleton } from "@/components/skeletons";
 import { PageIntro } from "@/components/PageIntro";
+import AnalyticsDashboard from "@/components/super-admin/AnalyticsDashboard";
+import SubscriptionManager from "@/components/super-admin/SubscriptionManager";
+import UsageTracker from "@/components/super-admin/UsageTracker";
+import SubscriptionNotifications from "@/components/super-admin/SubscriptionNotifications";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
 
 const ROLE_OPTIONS = [
   { value: "viewer", label: "Viewer" },
@@ -64,6 +69,21 @@ interface OrganizationModule {
   modules: Module;
 }
 
+const PLAN_BADGE_COLORS: Record<string, string> = {
+  starter: "bg-muted text-muted-foreground",
+  growth: "bg-info/10 text-info",
+  pro: "bg-primary/10 text-primary",
+  enterprise: "bg-warning/10 text-warning-foreground",
+};
+
+const STATUS_DOTS: Record<string, string> = {
+  active: "bg-success",
+  trial: "bg-warning",
+  past_due: "bg-destructive",
+  cancelled: "bg-muted-foreground",
+  expired: "bg-muted-foreground",
+};
+
 const SuperAdminDashboard = () => {
   const { isSuperAdmin, isLoading: orgLoading, refreshOrganizations } = useOrganization();
   const navigate = useNavigate();
@@ -74,11 +94,12 @@ const SuperAdminDashboard = () => {
   const [orgModules, setOrgModules] = useState<OrganizationModule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [newOrgSlug, setNewOrgSlug] = useState("");
-  
-  // Add Member state - Create new user flow
+  const [newOrgPlanId, setNewOrgPlanId] = useState("");
+  const [newOrgTrial, setNewOrgTrial] = useState(true);
+
+  // Add Member state
   const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -88,6 +109,16 @@ const SuperAdminDashboard = () => {
   const [newMemberIsOrgAdmin, setNewMemberIsOrgAdmin] = useState(true);
   const [addingMember, setAddingMember] = useState(false);
 
+  const { subscriptions, plans } = useSubscriptions();
+
+  // Set default plan when plans load
+  useEffect(() => {
+    if (plans.length > 0 && !newOrgPlanId) {
+      const starter = plans.find((p) => p.slug === "starter");
+      if (starter) setNewOrgPlanId(starter.id);
+    }
+  }, [plans, newOrgPlanId]);
+
   useEffect(() => {
     if (!orgLoading && !isSuperAdmin) {
       toast.error("Access denied. Super Admin privileges required.");
@@ -95,7 +126,7 @@ const SuperAdminDashboard = () => {
     }
   }, [isSuperAdmin, orgLoading, navigate]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO: review this dependency. fetchOrganizations and fetchAllModules are non-memoized functions that trigger setState, adding them would cause infinite re-renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isSuperAdmin) {
       fetchOrganizations();
@@ -108,10 +139,7 @@ const SuperAdminDashboard = () => {
       .from("modules")
       .select("*")
       .order("display_order");
-    
-    if (!error && data) {
-      setAllModules(data as Module[]);
-    }
+    if (!error && data) setAllModules(data as Module[]);
   };
 
   const fetchOrganizations = async () => {
@@ -123,7 +151,6 @@ const SuperAdminDashboard = () => {
         .order("name");
 
       if (error) {
-        console.error("Error fetching organizations:", error);
         toast.error("Failed to load organizations: " + error.message);
         setOrganizations([]);
         return;
@@ -134,23 +161,15 @@ const SuperAdminDashboard = () => {
         return;
       }
 
-      // Get member counts for each org
       const orgsWithCounts = await Promise.all(
         orgs.map(async (org) => {
           try {
-            const { count, error: countError } = await supabase
+            const { count } = await supabase
               .from("organization_members")
-              .select("*", { count: "exact", head: true })
+              .select("id", { count: "exact", head: true })
               .eq("organization_id", org.id);
-
-            if (countError) {
-              console.warn(`Error fetching member count for ${org.name}:`, countError);
-              return { ...org, member_count: 0 };
-            }
-
             return { ...org, member_count: count || 0 };
-          } catch (err) {
-            console.warn(`Error fetching member count for ${org.name}:`, err);
+          } catch {
             return { ...org, member_count: 0 };
           }
         })
@@ -158,7 +177,6 @@ const SuperAdminDashboard = () => {
 
       setOrganizations(orgsWithCounts);
     } catch (error: any) {
-      console.error("Error fetching organizations:", error);
       toast.error("Failed to load organizations: " + (error?.message || "Unknown error"));
       setOrganizations([]);
     } finally {
@@ -168,51 +186,33 @@ const SuperAdminDashboard = () => {
 
   const fetchOrgDetails = async (org: Organization) => {
     setSelectedOrg(org);
-
     try {
-      // Fetch members
       const { data: members, error: membersError } = await supabase
         .from("organization_members")
-        .select(`
-          id,
-          user_id,
-          role,
-          is_org_admin,
-          created_at
-        `)
+        .select("id, user_id, role, is_org_admin, created_at")
         .eq("organization_id", org.id);
-
       if (membersError) throw membersError;
 
-      // Fetch profiles for members
       const memberUserIds = (members || []).map((m) => m.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, full_name, email")
         .in("id", memberUserIds);
 
-      const membersWithProfiles = (members || []).map((member) => ({
-        ...member,
-        profile: profiles?.find((p) => p.id === member.user_id),
-      }));
+      setOrgMembers(
+        (members || []).map((member) => ({
+          ...member,
+          profile: profiles?.find((p) => p.id === member.user_id),
+        }))
+      );
 
-      setOrgMembers(membersWithProfiles);
-
-      // Fetch organization modules
       const { data: modules, error: modulesError } = await supabase
         .from("organization_modules")
-        .select(`
-          id,
-          module_id,
-          is_enabled,
-          modules (*)
-        `)
+        .select("id, module_id, is_enabled, modules (*)")
         .eq("organization_id", org.id);
-
       if (modulesError) throw modulesError;
       setOrgModules((modules || []) as OrganizationModule[]);
     } catch (error) {
-      console.error("Error fetching org details:", error);
       toast.error("Failed to load organization details");
     }
   };
@@ -235,26 +235,64 @@ const SuperAdminDashboard = () => {
 
       if (error) throw error;
 
-      // Enable all modules for the new organization
+      // Enable all modules
       if (allModules.length > 0) {
-        const defaultModules = allModules.map((m) => ({
-          organization_id: data.id,
-          module_id: m.id,
-          is_enabled: true,
-          enabled_at: new Date().toISOString(),
-        }));
+        await supabase.from("organization_modules").insert(
+          allModules.map((m) => ({
+            organization_id: data.id,
+            module_id: m.id,
+            is_enabled: true,
+            enabled_at: new Date().toISOString(),
+          }))
+        );
+      }
 
-        await supabase.from("organization_modules").insert(defaultModules);
+      // Create subscription
+      if (newOrgPlanId) {
+        const now = new Date();
+        const subPayload: any = {
+          organization_id: data.id,
+          plan_id: newOrgPlanId,
+          status: newOrgTrial ? "trial" : "active",
+          billing_cycle: "monthly",
+          subscription_started_at: now.toISOString(),
+          current_period_start: now.toISOString(),
+          current_period_end: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        };
+
+        if (newOrgTrial) {
+          subPayload.trial_started_at = now.toISOString();
+          subPayload.trial_ends_at = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        }
+
+        const selectedPlan = plans.find((p) => p.id === newOrgPlanId);
+        if (selectedPlan) {
+          subPayload.current_price = selectedPlan.monthly_price;
+        }
+
+        const { data: subData, error: subError } = await supabase
+          .from("organization_subscriptions")
+          .insert(subPayload)
+          .select()
+          .single();
+
+        if (!subError && subData) {
+          await supabase.from("subscription_audit_log").insert({
+            subscription_id: subData.id,
+            action: "created",
+            new_value: { plan_id: newOrgPlanId, status: subPayload.status, trial: newOrgTrial },
+          });
+        }
       }
 
       toast.success("Organization created successfully");
       setShowCreateDialog(false);
       setNewOrgName("");
       setNewOrgSlug("");
+      setNewOrgTrial(true);
       fetchOrganizations();
       refreshOrganizations();
     } catch (error: any) {
-      console.error("Error creating organization:", error);
       toast.error(error.message || "Failed to create organization");
     }
   };
@@ -265,87 +303,54 @@ const SuperAdminDashboard = () => {
         .from("organizations")
         .update({ is_active: !org.is_active })
         .eq("id", org.id);
-
       if (error) throw error;
-
       toast.success(`Organization ${org.is_active ? "deactivated" : "activated"}`);
       fetchOrganizations();
-      if (selectedOrg?.id === org.id) {
-        setSelectedOrg({ ...org, is_active: !org.is_active });
-      }
-    } catch (error) {
-      console.error("Error toggling org status:", error);
+      if (selectedOrg?.id === org.id) setSelectedOrg({ ...org, is_active: !org.is_active });
+    } catch {
       toast.error("Failed to update organization status");
     }
   };
 
   const toggleModule = async (moduleId: string) => {
     if (!selectedOrg) return;
-
-    const existingOrgModule = orgModules.find((om) => om.module_id === moduleId);
-
+    const existing = orgModules.find((om) => om.module_id === moduleId);
     try {
-      if (existingOrgModule) {
-        // Update existing record
-        const { error } = await supabase
+      if (existing) {
+        await supabase
           .from("organization_modules")
-          .update({ 
-            is_enabled: !existingOrgModule.is_enabled,
-            enabled_at: !existingOrgModule.is_enabled ? new Date().toISOString() : null
-          })
-          .eq("id", existingOrgModule.id);
-
-        if (error) throw error;
+          .update({ is_enabled: !existing.is_enabled, enabled_at: !existing.is_enabled ? new Date().toISOString() : null })
+          .eq("id", existing.id);
       } else {
-        // Insert new record for this org + module
-        const { error } = await supabase
-          .from("organization_modules")
-          .insert({
-            organization_id: selectedOrg.id,
-            module_id: moduleId,
-            is_enabled: true,
-            enabled_at: new Date().toISOString(),
-          });
-
-        if (error) throw error;
+        await supabase.from("organization_modules").insert({
+          organization_id: selectedOrg.id,
+          module_id: moduleId,
+          is_enabled: true,
+          enabled_at: new Date().toISOString(),
+        });
       }
-
-      // Refresh modules for the selected org
       const { data: modules } = await supabase
         .from("organization_modules")
-        .select(`
-          id,
-          module_id,
-          is_enabled,
-          modules (*)
-        `)
+        .select("id, module_id, is_enabled, modules (*)")
         .eq("organization_id", selectedOrg.id);
-
       setOrgModules((modules || []) as OrganizationModule[]);
       toast.success("Module updated");
-    } catch (error) {
-      console.error("Error toggling module:", error);
+    } catch {
       toast.error("Failed to update module");
     }
   };
 
   const toggleOrgAdmin = async (member: OrganizationMember) => {
     try {
-      const { error } = await supabase
+      await supabase
         .from("organization_members")
         .update({ is_org_admin: !member.is_org_admin })
         .eq("id", member.id);
-
-      if (error) throw error;
-
       setOrgMembers((prev) =>
-        prev.map((m) =>
-          m.id === member.id ? { ...m, is_org_admin: !m.is_org_admin } : m
-        )
+        prev.map((m) => (m.id === member.id ? { ...m, is_org_admin: !m.is_org_admin } : m))
       );
       toast.success("Member updated");
-    } catch (error) {
-      console.error("Error updating member:", error);
+    } catch {
       toast.error("Failed to update member");
     }
   };
@@ -355,42 +360,30 @@ const SuperAdminDashboard = () => {
     setNewUserEmail("");
     setNewUserPhone("");
     setNewUserPassword("");
-    // Default to admin for first member, otherwise viewer
     const isFirstMember = orgMembers.length === 0;
     setNewMemberRole(isFirstMember ? "admin" : "viewer");
     setNewMemberIsOrgAdmin(isFirstMember);
   };
 
   const addMemberToOrg = async () => {
-    if (!selectedOrg) {
-      toast.error("No organization selected");
-      return;
-    }
-
+    if (!selectedOrg) return;
     if (!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim()) {
-      toast.error("Please fill in all required fields (Name, Email, Password)");
+      toast.error("Please fill in all required fields");
       return;
     }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newUserEmail.trim())) {
-      toast.error("Please enter a valid email address");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUserEmail.trim())) {
+      toast.error("Invalid email");
       return;
     }
-
-    // Password validation
     if (newUserPassword.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
     }
-
     setAddingMember(true);
     try {
-      // Create the user and add to organization via edge function
-      const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+      const { data, error: fnError } = await supabase.functions.invoke("manage-users", {
         body: {
-          action: 'create',
+          action: "create",
           organization_id: selectedOrg.id,
           email: newUserEmail.trim(),
           full_name: newUserName.trim(),
@@ -398,24 +391,24 @@ const SuperAdminDashboard = () => {
           password: newUserPassword,
           role: newMemberRole,
           is_org_admin: newMemberIsOrgAdmin,
-        }
+        },
       });
-
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
-
       toast.success("Client user created and added to organization successfully");
       setShowAddMemberDialog(false);
       resetAddMemberForm();
       fetchOrgDetails(selectedOrg);
       fetchOrganizations();
     } catch (error: any) {
-      console.error("Error creating user:", error);
       toast.error(error.message || "Failed to create user");
     } finally {
       setAddingMember(false);
     }
   };
+
+  // Get subscription info for org list badges
+  const getOrgSubscription = (orgId: string) => subscriptions.find((s) => s.organization_id === orgId);
 
   if (orgLoading || isLoading) {
     return (
@@ -424,24 +417,25 @@ const SuperAdminDashboard = () => {
           <div className="skeleton-shimmer h-8 w-8 rounded-lg" />
           <div className="skeleton-shimmer h-8 w-48 rounded" />
         </div>
-        <StatsCardsSkeleton count={4} />
+        <StatsCardsSkeleton count={5} />
         <TableSkeleton columns={5} rows={5} />
       </div>
     );
   }
 
-  if (!isSuperAdmin) {
-    return null;
-  }
+  if (!isSuperAdmin) return null;
 
   return (
     <div className="space-y-6">
-      <PageIntro
-        icon={Shield}
-        tagline="System Overview"
-        description="Monitor all organizations and platform health."
-        variant="rose"
-      />
+      <div className="flex items-center justify-between">
+        <PageIntro
+          icon={Shield}
+          tagline="System Overview"
+          description="Monitor all organizations and platform health."
+          variant="rose"
+        />
+        <SubscriptionNotifications />
+      </div>
 
       {/* Action Buttons */}
       <div className="flex justify-end">
@@ -455,9 +449,7 @@ const SuperAdminDashboard = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Organization</DialogTitle>
-              <DialogDescription>
-                Add a new organization to the platform
-              </DialogDescription>
+              <DialogDescription>Add a new organization to the platform</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -467,9 +459,7 @@ const SuperAdminDashboard = () => {
                   value={newOrgName}
                   onChange={(e) => {
                     setNewOrgName(e.target.value);
-                    setNewOrgSlug(
-                      e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-")
-                    );
+                    setNewOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-"));
                   }}
                   placeholder="Acme Corp"
                 />
@@ -483,62 +473,32 @@ const SuperAdminDashboard = () => {
                   placeholder="acme-corp"
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Plan</Label>
+                <Select value={newOrgPlanId} onValueChange={setNewOrgPlanId}>
+                  <SelectTrigger className="bg-background"><SelectValue placeholder="Select plan" /></SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    {plans.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="trial-toggle">Start with 30-day trial?</Label>
+                <Switch id="trial-toggle" checked={newOrgTrial} onCheckedChange={setNewOrgTrial} />
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                Cancel
-              </Button>
+              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
               <Button onClick={createOrganization}>Create</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Organizations</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{organizations.length}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Organizations</CardTitle>
-            <Check className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {organizations.filter((o) => o.is_active).length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Members</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {organizations.reduce((acc, o) => acc + (o.member_count || 0), 0)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inactive Organizations</CardTitle>
-            <X className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {organizations.filter((o) => !o.is_active).length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Analytics Dashboard */}
+      <AnalyticsDashboard totalOrgs={organizations.length} />
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -550,32 +510,50 @@ const SuperAdminDashboard = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y">
-              {organizations.map((org) => (
-                <div
-                  key={org.id}
-                  className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${
-                    selectedOrg?.id === org.id ? "bg-muted" : ""
-                  }`}
-                  onClick={() => fetchOrgDetails(org)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-                        <Building2 className="h-5 w-5 text-primary" />
+              {organizations.map((org) => {
+                const sub = getOrgSubscription(org.id);
+                return (
+                  <div
+                    key={org.id}
+                    className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${
+                      selectedOrg?.id === org.id ? "bg-muted" : ""
+                    }`}
+                    onClick={() => fetchOrgDetails(org)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+                          <Building2 className="h-5 w-5 text-primary" />
+                          {sub && (
+                            <span className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-card ${STATUS_DOTS[sub.status] || "bg-muted-foreground"}`} />
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{org.name}</p>
+                            {sub && (
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${PLAN_BADGE_COLORS[sub.billing_plans?.slug || ""] || "bg-muted text-muted-foreground"}`}>
+                                {sub.billing_plans?.name}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {org.member_count} member{org.member_count !== 1 ? "s" : ""}
+                            {sub?.status === "trial" && sub.trial_ends_at && (
+                              <span className="text-warning ml-1">
+                                · {Math.max(0, Math.ceil((new Date(sub.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))}d left
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{org.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {org.member_count} member{org.member_count !== 1 ? "s" : ""}
-                        </p>
-                      </div>
+                      <Badge variant={org.is_active ? "default" : "secondary"}>
+                        {org.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </div>
-                    <Badge variant={org.is_active ? "default" : "secondary"}>
-                      {org.is_active ? "Active" : "Inactive"}
-                    </Badge>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -596,19 +574,17 @@ const SuperAdminDashboard = () => {
                     <CardDescription>Slug: {selectedOrg.slug}</CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => toggleOrgStatus(selectedOrg)}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => toggleOrgStatus(selectedOrg)}>
                       {selectedOrg.is_active ? "Deactivate" : "Activate"}
                     </Button>
                   </div>
                 </div>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="details">Details</TabsTrigger>
                   <TabsTrigger value="members">Members</TabsTrigger>
                   <TabsTrigger value="features">Features</TabsTrigger>
+                  <TabsTrigger value="subscription">Subscription</TabsTrigger>
+                  <TabsTrigger value="usage">Usage</TabsTrigger>
                 </TabsList>
               </CardHeader>
               <CardContent>
@@ -616,9 +592,7 @@ const SuperAdminDashboard = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-muted-foreground">Created</Label>
-                      <p className="font-medium">
-                        {format(new Date(selectedOrg.created_at), "PPP")}
-                      </p>
+                      <p className="font-medium">{format(new Date(selectedOrg.created_at), "PPP")}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Members</Label>
@@ -626,9 +600,7 @@ const SuperAdminDashboard = () => {
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Status</Label>
-                      <p className="font-medium">
-                        {selectedOrg.is_active ? "Active" : "Inactive"}
-                      </p>
+                      <p className="font-medium">{selectedOrg.is_active ? "Active" : "Inactive"}</p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Modules Enabled</Label>
@@ -641,20 +613,15 @@ const SuperAdminDashboard = () => {
 
                 <TabsContent value="members">
                   <div className="flex justify-end mb-4">
-                    <Dialog 
-                      open={showAddMemberDialog} 
+                    <Dialog
+                      open={showAddMemberDialog}
                       onOpenChange={(open) => {
                         setShowAddMemberDialog(open);
-                        if (open) {
-                          resetAddMemberForm();
-                        }
+                        if (open) resetAddMemberForm();
                       }}
                     >
                       <DialogTrigger asChild>
-                        <Button size="sm">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Member
-                        </Button>
+                        <Button size="sm"><Plus className="mr-2 h-4 w-4" />Add Member</Button>
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
@@ -671,78 +638,39 @@ const SuperAdminDashboard = () => {
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
                             <Label htmlFor="new-user-name">Full Name *</Label>
-                            <Input
-                              id="new-user-name"
-                              value={newUserName}
-                              onChange={(e) => setNewUserName(e.target.value)}
-                              placeholder="John Doe"
-                            />
+                            <Input id="new-user-name" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="John Doe" />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="new-user-email">Email *</Label>
-                            <Input
-                              id="new-user-email"
-                              type="email"
-                              value={newUserEmail}
-                              onChange={(e) => setNewUserEmail(e.target.value)}
-                              placeholder="john@example.com"
-                            />
+                            <Input id="new-user-email" type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="john@example.com" />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="new-user-phone">Phone Number</Label>
-                            <Input
-                              id="new-user-phone"
-                              type="tel"
-                              value={newUserPhone}
-                              onChange={(e) => setNewUserPhone(e.target.value)}
-                              placeholder="+91 9876543210"
-                            />
+                            <Input id="new-user-phone" type="tel" value={newUserPhone} onChange={(e) => setNewUserPhone(e.target.value)} placeholder="+91 9876543210" />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="new-user-password">Password *</Label>
-                            <Input
-                              id="new-user-password"
-                              type="password"
-                              value={newUserPassword}
-                              onChange={(e) => setNewUserPassword(e.target.value)}
-                              placeholder="Minimum 6 characters"
-                            />
+                            <Input id="new-user-password" type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Minimum 6 characters" />
                           </div>
                           <div className="space-y-2">
                             <Label>Role</Label>
                             <Select value={newMemberRole} onValueChange={setNewMemberRole}>
-                              <SelectTrigger className="bg-background">
-                                <SelectValue />
-                              </SelectTrigger>
+                              <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                               <SelectContent className="bg-background z-50">
                                 {ROLE_OPTIONS.map((role) => (
-                                  <SelectItem key={role.value} value={role.value}>
-                                    {role.label}
-                                  </SelectItem>
+                                  <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="flex items-center justify-between">
                             <Label htmlFor="org-admin-switch">Make Organization Admin</Label>
-                            <Switch
-                              id="org-admin-switch"
-                              checked={newMemberIsOrgAdmin}
-                              onCheckedChange={setNewMemberIsOrgAdmin}
-                            />
+                            <Switch id="org-admin-switch" checked={newMemberIsOrgAdmin} onCheckedChange={setNewMemberIsOrgAdmin} />
                           </div>
                         </div>
                         <DialogFooter>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => setShowAddMemberDialog(false)}
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            onClick={addMemberToOrg} 
-                            disabled={!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim() || addingMember}
-                          >
+                          <Button variant="outline" onClick={() => setShowAddMemberDialog(false)}>Cancel</Button>
+                          <Button onClick={addMemberToOrg} disabled={!newUserName.trim() || !newUserEmail.trim() || !newUserPassword.trim() || addingMember}>
                             {addingMember ? "Creating..." : "Create User"}
                           </Button>
                         </DialogFooter>
@@ -761,18 +689,11 @@ const SuperAdminDashboard = () => {
                     <TableBody>
                       {orgMembers.map((member) => (
                         <TableRow key={member.id}>
-                          <TableCell className="font-medium">
-                            {member.profile?.full_name || "Unknown"}
-                          </TableCell>
+                          <TableCell className="font-medium">{member.profile?.full_name || "Unknown"}</TableCell>
                           <TableCell>{member.profile?.email || "—"}</TableCell>
+                          <TableCell><Badge variant="outline">{member.role}</Badge></TableCell>
                           <TableCell>
-                            <Badge variant="outline">{member.role}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Switch
-                              checked={member.is_org_admin}
-                              onCheckedChange={() => toggleOrgAdmin(member)}
-                            />
+                            <Switch checked={member.is_org_admin} onCheckedChange={() => toggleOrgAdmin(member)} />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -789,38 +710,31 @@ const SuperAdminDashboard = () => {
 
                 <TabsContent value="features">
                   <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      Enable or disable modules for this organization
-                    </p>
+                    <p className="text-sm text-muted-foreground">Enable or disable modules for this organization</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {allModules.map((module) => {
-                        const orgModule = orgModules.find(
-                          (om) => om.module_id === module.id
-                        );
+                        const orgModule = orgModules.find((om) => om.module_id === module.id);
                         const isEnabled = orgModule?.is_enabled ?? false;
-
                         return (
-                          <div
-                            key={module.id}
-                            className="flex items-center justify-between p-4 border rounded-lg"
-                          >
+                          <div key={module.id} className="flex items-center justify-between p-4 border rounded-lg">
                             <div className="space-y-1">
                               <span className="text-sm font-medium">{module.name}</span>
-                              {module.description && (
-                                <p className="text-xs text-muted-foreground">
-                                  {module.description}
-                                </p>
-                              )}
+                              {module.description && <p className="text-xs text-muted-foreground">{module.description}</p>}
                             </div>
-                            <Switch
-                              checked={isEnabled}
-                              onCheckedChange={() => toggleModule(module.id)}
-                            />
+                            <Switch checked={isEnabled} onCheckedChange={() => toggleModule(module.id)} />
                           </div>
                         );
                       })}
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="subscription">
+                  <SubscriptionManager organizationId={selectedOrg.id} organizationName={selectedOrg.name} />
+                </TabsContent>
+
+                <TabsContent value="usage">
+                  <UsageTracker organizationId={selectedOrg.id} />
                 </TabsContent>
               </CardContent>
             </Tabs>
