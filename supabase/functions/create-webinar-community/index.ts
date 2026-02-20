@@ -17,18 +17,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const VPS_URL = Deno.env.get('WHATSAPP_VPS_URL');
-    const VPS_API_KEY = Deno.env.get('WHATSAPP_VPS_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-    if (!VPS_URL || !VPS_API_KEY) {
-      console.log('WhatsApp VPS not configured, skipping community creation');
-      return new Response(
-        JSON.stringify({ success: false, skipped: true, reason: 'WhatsApp VPS not configured' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const body: CreateCommunityRequest = await req.json();
@@ -44,10 +35,6 @@ Deno.serve(async (req) => {
     console.log(`Creating WhatsApp community for webinar: ${webinarName} (${webinarId})`);
 
     // Get webinar details
-    let orgId = organizationId;
-    let webinarTagId: string | null = null;
-    let webinarStartDate: string | null = null;
-
     const { data: webinar, error: webinarError } = await supabase
       .from('webinars')
       .select('organization_id, tag_id, start_date')
@@ -62,14 +49,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    orgId = webinar.organization_id;
-    webinarTagId = webinar.tag_id;
-    webinarStartDate = webinar.start_date;
+    const orgId = webinar.organization_id;
 
     // Get org community session
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('community_session_id, community_admin_numbers')
+      .select('community_session_id')
       .eq('id', orgId)
       .single();
 
@@ -87,40 +72,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    const communityAdminNumbers = (org.community_admin_numbers as string[]) || [];
-
-    // Get VPS session
-    const { data: session, error: sessionError } = await supabase
-      .from('whatsapp_sessions')
-      .select('session_data, status')
-      .eq('id', org.community_session_id)
-      .single();
-
-    if (sessionError || !session || session.status !== 'connected') {
-      return new Response(
-        JSON.stringify({ success: false, skipped: true, reason: 'WhatsApp session not connected' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const sessionData = session.session_data as { vps_session_id?: string } | null;
-    const vpsSessionId = sessionData?.vps_session_id;
-    if (!vpsSessionId) {
-      return new Response(
-        JSON.stringify({ success: false, skipped: true, reason: 'Invalid session configuration' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Look up community template for this tag
     let communityDescription = `Community for ${webinarName}`;
     let profilePictureUrl: string | null = null;
 
-    if (webinarTagId) {
+    if (webinar.tag_id) {
       const { data: template } = await supabase
         .from('community_templates')
         .select('*')
-        .eq('tag_id', webinarTagId)
+        .eq('tag_id', webinar.tag_id)
         .maybeSingle();
 
       if (template) {
@@ -135,9 +95,9 @@ Deno.serve(async (req) => {
         }
 
         let startTime = '7:00 PM IST';
-        if (webinarStartDate) {
+        if (webinar.start_date) {
           try {
-            const date = new Date(webinarStartDate);
+            const date = new Date(webinar.start_date);
             const hours = date.getUTCHours() + 5;
             const adjustedHours = hours % 24;
             const minutes = (date.getUTCMinutes() + 30) % 60;
@@ -161,54 +121,72 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Call VPS to create community
-    const vpsUrl = VPS_URL.endsWith('/') ? VPS_URL.slice(0, -1) : VPS_URL;
-    const vpsPayload: Record<string, unknown> = {
-      sessionId: vpsSessionId,
+    // Delegate to vps-whatsapp-proxy with create-community-standalone action
+    // This ensures announcement + restrict settings are applied, no General group
+    // The proxy handles: VPS call, DB insert into whatsapp_groups, participant count fetch
+    const proxyUrl = `${SUPABASE_URL}/functions/v1/vps-whatsapp-proxy`;
+    
+    // We need a valid auth token to call the proxy. Use service role to get an admin context.
+    // Since the proxy requires user auth, we'll pass the original auth header if available,
+    // otherwise create a service-role client call.
+    const authHeader = req.headers.get('Authorization');
+    
+    const proxyPayload = {
+      action: 'create-community-standalone',
+      sessionId: org.community_session_id,
+      organizationId: orgId,
       name: webinarName,
       description: communityDescription,
-      adminNumbers: communityAdminNumbers,
+      announcement: true,
+      restrict: true,
+      ...(profilePictureUrl && { profilePictureUrl }),
     };
 
-    if (profilePictureUrl) vpsPayload.profilePictureUrl = profilePictureUrl;
+    console.log('Calling vps-whatsapp-proxy with create-community-standalone:', JSON.stringify(proxyPayload));
 
-    const vpsResponse = await fetch(`${vpsUrl}/create-community`, {
+    const proxyResponse = await fetch(proxyUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': VPS_API_KEY },
-      body: JSON.stringify(vpsPayload),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authHeader || `Bearer ${SUPABASE_ANON_KEY}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(proxyPayload),
     });
 
-    const vpsResult = await vpsResponse.json();
-    console.log('VPS response:', JSON.stringify(vpsResult, null, 2));
+    const proxyResult = await proxyResponse.json();
+    console.log('Proxy response:', JSON.stringify(proxyResult));
 
-    if (!vpsResponse.ok || !vpsResult.success) {
+    if (!proxyResponse.ok || !proxyResult.success) {
       return new Response(
-        JSON.stringify({ success: false, error: vpsResult.error || 'Failed to create community on VPS' }),
+        JSON.stringify({ success: false, error: proxyResult.error || 'Failed to create community via proxy' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Store using announcement group JID
-    const trackingGroupJid = vpsResult.announcementGroupId || vpsResult.groupId;
+    // The proxy already inserted the group into whatsapp_groups
+    // Now we need to find the inserted group and link it to the webinar
+    const announcementGroupId = proxyResult.announcementGroupId;
 
-    const { data: newGroup, error: groupInsertError } = await supabase
+    if (!announcementGroupId) {
+      return new Response(
+        JSON.stringify({ success: true, warning: 'Community created but no announcement group ID returned' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Find the group record by JID
+    const { data: groupRecord, error: groupFindError } = await supabase
       .from('whatsapp_groups')
-      .insert({
-        organization_id: orgId,
-        session_id: org.community_session_id,
-        group_jid: trackingGroupJid,
-        group_name: webinarName,
-        is_active: true,
-        is_admin: true,
-        participant_count: 1,
-        invite_link: vpsResult.inviteLink || null,
-      })
-      .select('id')
+      .select('id, invite_link, participant_count')
+      .eq('group_jid', announcementGroupId)
+      .eq('organization_id', orgId)
       .single();
 
-    if (groupInsertError) {
+    if (groupFindError || !groupRecord) {
+      console.error('Failed to find created group in DB:', groupFindError);
       return new Response(
-        JSON.stringify({ success: true, warning: 'Community created but failed to save to database' }),
+        JSON.stringify({ success: true, warning: 'Community created but failed to link to webinar' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -216,22 +194,21 @@ Deno.serve(async (req) => {
     // Link to webinar via junction table
     await supabase
       .from('webinar_whatsapp_groups')
-      .insert({ webinar_id: webinarId, group_id: newGroup.id });
+      .insert({ webinar_id: webinarId, group_id: groupRecord.id });
 
     // Update webinar community_group_id
     await supabase
       .from('webinars')
-      .update({ community_group_id: newGroup.id })
+      .update({ community_group_id: groupRecord.id })
       .eq('id', webinarId);
 
     return new Response(
       JSON.stringify({
         success: true,
-        groupId: newGroup.id,
-        groupJid: trackingGroupJid,
+        groupId: groupRecord.id,
+        groupJid: announcementGroupId,
         groupName: webinarName,
-        inviteLink: vpsResult.inviteLink,
-        adminInvitesSent: vpsResult.adminInvitesSent || false,
+        inviteLink: proxyResult.inviteLink || groupRecord.invite_link,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Video, Search, Eye, CheckCircle2, Tag, Smartphone, Users, Play, Trash2, Calendar, Plus } from 'lucide-react';
+import { Video, Search, Eye, CheckCircle2, Tag, Smartphone, Users, Play, Trash2, Calendar, Plus, Copy, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,6 +17,7 @@ import { PageIntro } from '@/components/PageIntro';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
 import { formatInOrgTime } from '@/lib/timezoneUtils';
 import { fromZonedTime } from 'date-fns-tz';
+import { toast } from 'sonner';
 import WebinarDetailSheet from './WebinarDetailSheet';
 
 function getStatusBadge(webinar: WebinarWithDetails) {
@@ -67,10 +68,32 @@ function isSetupComplete(webinar: WebinarWithDetails): boolean {
   return !!(webinar.tag_id && webinar.tag?.template_sequence_id && webinar.whatsapp_session_id && whatsapp_group_linked);
 }
 
+function CopyInviteLinkButton({ inviteLink }: { inviteLink: string | null | undefined }) {
+  if (!inviteLink) return <span className="text-xs text-muted-foreground">—</span>;
+  
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(inviteLink);
+    toast.success('Invite link copied');
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost" size="sm" onClick={handleCopy} className="h-7 gap-1.5 text-xs">
+          <Copy className="h-3 w-3" />
+          Copy
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Copy invite link</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export default function WebinarNotification() {
   const {
     webinars, webinarsLoading, orgTimezone, isRunningMessaging, subscribeToMessages,
-    deleteWebinar, isDeletingWebinar, createWebinar, isCreatingWebinar,
+    deleteWebinar, isDeletingWebinar, createWebinar, isCreatingWebinar, isCreatingCommunity,
   } = useWebinarNotification();
   const { tags } = useWorkshopTags();
 
@@ -253,7 +276,7 @@ export default function WebinarNotification() {
       {/* Webinar Table */}
       {webinarsLoading ? (
         <>
-          <div className="hidden sm:block"><TableSkeleton columns={5} rows={5} /></div>
+          <div className="hidden sm:block"><TableSkeleton columns={8} rows={5} /></div>
           <div className="sm:hidden"><MobileCardSkeleton count={3} /></div>
         </>
       ) : filteredWebinars.length === 0 ? (
@@ -274,6 +297,9 @@ export default function WebinarNotification() {
                   <TableHead>Date</TableHead>
                   <TableHead>Webinar Name</TableHead>
                   <TableHead>Tag</TableHead>
+                  <TableHead>WhatsApp Community</TableHead>
+                  <TableHead className="text-center">Members</TableHead>
+                  <TableHead className="text-center">Invite Link</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -281,6 +307,7 @@ export default function WebinarNotification() {
               <TableBody>
                 {filteredWebinars.map((webinar) => {
                   const setupComplete = isSetupComplete(webinar);
+                  const communityGroup = webinar.community_group;
                   return (
                     <TableRow key={webinar.id}>
                       <TableCell>
@@ -298,6 +325,31 @@ export default function WebinarNotification() {
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {communityGroup ? (
+                          <span className="text-sm font-medium truncate max-w-[160px] block">{communityGroup.group_name}</span>
+                        ) : isCreatingCommunity && webinar.tag_id ? (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Creating...
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {communityGroup ? (
+                          <Badge variant="secondary" className="font-mono text-xs">
+                            <Users className="h-3 w-3 mr-1" />
+                            {communityGroup.participant_count ?? 0}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <CopyInviteLinkButton inviteLink={communityGroup?.invite_link} />
                       </TableCell>
                       <TableCell className="text-center">{getStatusBadge(webinar)}</TableCell>
                       <TableCell className="text-right">
@@ -339,6 +391,7 @@ export default function WebinarNotification() {
           <div className="sm:hidden space-y-3">
             {filteredWebinars.map((webinar) => {
               const setupComplete = isSetupComplete(webinar);
+              const communityGroup = webinar.community_group;
               return (
                 <Card key={webinar.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
@@ -358,6 +411,23 @@ export default function WebinarNotification() {
                       <span className="text-xs text-muted-foreground">No tag</span>
                     )}
                   </div>
+                  {/* Community info */}
+                  {communityGroup && (
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-muted-foreground truncate max-w-[140px]">{communityGroup.group_name}</span>
+                      <Badge variant="secondary" className="font-mono text-[10px] h-5">
+                        <Users className="h-2.5 w-2.5 mr-0.5" />
+                        {communityGroup.participant_count ?? 0}
+                      </Badge>
+                      <CopyInviteLinkButton inviteLink={communityGroup.invite_link} />
+                    </div>
+                  )}
+                  {!communityGroup && isCreatingCommunity && webinar.tag_id && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Creating community...
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex-1">
                       <SequenceProgressButton
