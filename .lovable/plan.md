@@ -1,24 +1,46 @@
 
 
-# Fix: Real-time Member Count Updates on Webinar Page
+# Fix: Update `participant_count` in Real-Time After Join/Leave Events
 
 ## Problem
 
-The `whatsapp_groups` real-time subscription was added to `useWhatsAppGroups.ts`, but the Webinar Notification page uses a different hook (`useWebinarNotification`) with its own query key (`webinar-notifications`). When `participant_count` updates in the `whatsapp_groups` table, the webinar query is never invalidated, so the member count stays stale.
+The membership webhook correctly records join/leave events in the `workshop_group_members` table (2 members are there), but it **never updates** the `participant_count` column in `whatsapp_groups`. The UI reads from `whatsapp_groups.participant_count`, which remains at the initial value of `1`.
 
 ## Solution
 
-Add a Supabase real-time subscription inside `useWebinarNotification` that listens for `UPDATE` events on `whatsapp_groups` (filtered by the current organization) and invalidates the `webinar-notifications` query key.
+After every successful join or leave event in the webhook, recalculate the active member count from `workshop_group_members` and update the `participant_count` on the corresponding `whatsapp_groups` row.
 
 ## Technical Details
 
-### File: `src/hooks/useWebinarNotification.ts`
+### File: `supabase/functions/whatsapp-membership-webhook/index.ts`
 
-Inside the `useWebinarNotification` function, add a `useEffect` that:
+After each successful join upsert or leave update, add a count query and update:
 
-1. Creates a Supabase channel listening for `postgres_changes` on `whatsapp_groups` (event: `UPDATE`, filter by `organization_id`)
-2. On any change, calls `queryClient.invalidateQueries({ queryKey: ['webinar-notifications'] })`
-3. Cleans up the channel on unmount
+```typescript
+// After join/leave processing, update participant_count
+const { count } = await supabase
+  .from("workshop_group_members")
+  .select("*", { count: "exact", head: true })
+  .eq("group_jid", payload.groupJid)
+  .eq("status", "active");
 
-This reuses the same real-time publication already enabled (`supabase_realtime` now includes `whatsapp_groups`). No database changes needed.
+if (group?.id) {
+  await supabase
+    .from("whatsapp_groups")
+    .update({ participant_count: count || 0 })
+    .eq("id", group.id);
+}
+```
+
+This needs to be added in **both** code paths (the matched-session fallback path starting at line 161, and the direct-session path starting at line 248) after each join/leave block.
+
+### No other changes needed
+
+- Real-time subscription on `whatsapp_groups` is already enabled (previous migration).
+- The `useWebinarNotification` hook already listens for `UPDATE` events on `whatsapp_groups` and invalidates the query.
+- So once `participant_count` is updated in the DB, the UI will auto-refresh.
+
+### Summary of changes
+
+- **1 file modified**: `supabase/functions/whatsapp-membership-webhook/index.ts` -- add participant count recalculation after join/leave events in both code paths.
 
