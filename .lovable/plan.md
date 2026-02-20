@@ -1,38 +1,36 @@
 
-
-# Make Closer Remarks Mandatory for Negative Statuses
+# UI Improvement: Campaign Analytics Labels and Freshness Indicator
 
 ## Summary
-When a closer sets the status to **Not Converted**, **No Show**, **Rescheduled**, or **Refunded**, the "Closer Remarks" field will be required. The save will be blocked with a toast message if remarks are empty.
+Two changes to the Campaign Detail page to make the analytics clearer and more transparent.
 
-## Changes
+## Change 1: Rename "Delivered" to "Not Yet Read"
 
-### 1. `src/pages/CloserAssignedCalls.tsx` — `handleSave` function (around line 828)
+Since the current "Delivered" count only shows people who received the message but have NOT opened it, the label is misleading. Renaming it to "Not Yet Read" makes the meaning immediately obvious.
 
-Add a validation check after the existing batch/classes validations:
+**File:** `src/pages/whatsapp/CampaignDetail.tsx`
 
-```typescript
-const remarksRequiredStatuses = ['not_converted', 'no_show', 'reschedule', 'refunded'];
-if (remarksRequiredStatuses.includes(editData.status) && !editData.closer_remarks?.trim()) {
-  toast({ 
-    title: "Remarks Required", 
-    description: "Please add closer remarks for this status", 
-    variant: "destructive" 
-  });
-  return;
-}
+- Stat card label: "Delivered" becomes "Not Yet Read"
+- Table column header: "Delivered" becomes "Not Yet Read"
+- Icon stays the same (CheckCheck) but could optionally change to a more fitting one like `EyeOff`
+
+## Change 2: Add "Last Updated" Timestamp
+
+Add a small, subtle timestamp below the stats grid that shows when the data was last refreshed. This updates automatically whenever the React Query refetch fires (every 5 seconds during sending, every 30 seconds otherwise) or when a real-time event arrives.
+
+**File:** `src/pages/whatsapp/CampaignDetail.tsx`
+
+- Use the `dataUpdatedAt` property from the React Query result (already available from `useQuery`)
+- Display it as: "Last updated: 2 min ago" or "Last updated: just now"
+- Format the relative time using `date-fns` (already installed)
+- Place it below the stats grid, near the existing "receipts may take a few minutes" info banner
+
+**Example UI:**
+```
+[Stats Grid Cards]
+Last updated: just now                    (clock icon, muted text, small font)
 ```
 
-### 2. `src/pages/AllCloserCalls.tsx` — `handleSave` function (around line 567)
-
-Add the identical validation check after the existing batch/classes validations.
-
-### 3. Visual indicator (both files)
-
-Add a red asterisk or "(required)" label next to the "Closer Remarks" label when the selected status is one of the four mandatory statuses, so closers know before they try to save.
-
-## No other changes needed
-- No database changes required (the column already exists and accepts text)
-- No edge function changes needed
-- This applies to all closers equally since both pages share the same validation logic
-
+## No Backend Changes
+- No database or edge function modifications
+- The underlying data remains the same; only labels and display change
