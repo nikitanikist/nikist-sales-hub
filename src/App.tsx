@@ -36,6 +36,7 @@ import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
 import ProtectedRoute from "./components/ProtectedRoute";
 import TemplateEditor from "./pages/settings/TemplateEditor";
+import MyPlan from "./pages/MyPlan";
 import { WhatsAppDashboard, SendNotification, CreateCommunity, Campaigns, CampaignDetail, Templates as WhatsAppTemplates, ScheduledMessages } from "./pages/whatsapp";
 
 const queryClient = new QueryClient({
@@ -87,6 +88,7 @@ const App = () => (
               <Route path="/users" element={<ErrorBoundary><Users /></ErrorBoundary>} />
               <Route path="/onboarding" element={<ErrorBoundary><Onboarding /></ErrorBoundary>} />
               <Route path="/settings" element={<ProtectedRoute adminOnly><ErrorBoundary><OrganizationSettings /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/my-plan" element={<ProtectedRoute><ErrorBoundary><MyPlan /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/settings/templates/new" element={<ProtectedRoute adminOnly><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/settings/templates/:id" element={<ProtectedRoute adminOnly><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               {/* WhatsApp Module */}

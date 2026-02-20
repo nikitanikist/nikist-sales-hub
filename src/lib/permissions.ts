@@ -14,6 +14,7 @@ export const PERMISSION_KEYS = {
   users: 'users',
   settings: 'settings',
   whatsapp: 'whatsapp',
+  my_plan: 'my_plan',
 } as const;
 
 export type PermissionKey = typeof PERMISSION_KEYS[keyof typeof PERMISSION_KEYS];
@@ -42,6 +43,7 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/whatsapp/campaigns': PERMISSION_KEYS.whatsapp,
   '/whatsapp/templates': PERMISSION_KEYS.whatsapp,
   '/whatsapp/scheduled': PERMISSION_KEYS.whatsapp,
+  '/my-plan': PERMISSION_KEYS.my_plan,
 };
 
 // Permission labels for UI display
@@ -60,6 +62,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   users: 'Team Members',
   settings: 'Organization Settings',
   whatsapp: 'WhatsApp',
+  my_plan: 'My Plan',
 };
 
 // Permission groups for organized display (matches sidebar structure)
@@ -111,6 +114,7 @@ export const PERMISSION_GROUPS = [
       PERMISSION_KEYS.dashboard,
       PERMISSION_KEYS.users,
       PERMISSION_KEYS.settings,
+      PERMISSION_KEYS.my_plan,
     ],
   },
 ];
