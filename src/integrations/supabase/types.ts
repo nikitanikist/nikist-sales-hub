@@ -65,6 +65,7 @@ export type Database = {
       billing_plans: {
         Row: {
           created_at: string
+          currency: string
           description: string | null
           display_order: number
           id: string
@@ -78,6 +79,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          currency?: string
           description?: string | null
           display_order?: number
           id?: string
@@ -91,6 +93,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          currency?: string
           description?: string | null
           display_order?: number
           id?: string

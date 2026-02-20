@@ -1,0 +1,1 @@
+ALTER TABLE public.billing_plans ADD COLUMN currency TEXT NOT NULL DEFAULT 'INR';
