@@ -3198,6 +3198,82 @@ export type Database = {
           },
         ]
       }
+      scheduled_webinar_messages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          group_id: string
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message_content: string
+          message_type: string
+          organization_id: string
+          retry_count: number
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          group_id: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_content: string
+          message_type: string
+          organization_id: string
+          retry_count?: number
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          group_id?: string
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message_content?: string
+          message_type?: string
+          organization_id?: string
+          retry_count?: number
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          webinar_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_webinar_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_webinar_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_webinar_messages_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_whatsapp_messages: {
         Row: {
           created_at: string
@@ -3770,6 +3846,167 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webinar_sequence_variables: {
+        Row: {
+          created_at: string
+          id: string
+          updated_at: string
+          variable_key: string
+          variable_value: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          variable_key: string
+          variable_value?: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          updated_at?: string
+          variable_key?: string
+          variable_value?: string
+          webinar_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinar_sequence_variables_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webinar_whatsapp_groups: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          webinar_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          webinar_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          webinar_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinar_whatsapp_groups_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webinar_whatsapp_groups_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webinars: {
+        Row: {
+          automation_status: Json
+          community_group_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          end_date: string
+          id: string
+          organization_id: string
+          start_date: string
+          status: string
+          tag_id: string | null
+          title: string
+          updated_at: string
+          whatsapp_group_id: string | null
+          whatsapp_session_id: string | null
+        }
+        Insert: {
+          automation_status?: Json
+          community_group_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          end_date: string
+          id?: string
+          organization_id: string
+          start_date: string
+          status?: string
+          tag_id?: string | null
+          title: string
+          updated_at?: string
+          whatsapp_group_id?: string | null
+          whatsapp_session_id?: string | null
+        }
+        Update: {
+          automation_status?: Json
+          community_group_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          end_date?: string
+          id?: string
+          organization_id?: string
+          start_date?: string
+          status?: string
+          tag_id?: string | null
+          title?: string
+          updated_at?: string
+          whatsapp_group_id?: string | null
+          whatsapp_session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webinars_community_group_id_fkey"
+            columns: ["community_group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webinars_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webinars_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webinars_whatsapp_group_id_fkey"
+            columns: ["whatsapp_group_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webinars_whatsapp_session_id_fkey"
+            columns: ["whatsapp_session_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sessions"
             referencedColumns: ["id"]
           },
         ]
