@@ -62,6 +62,48 @@ export type Database = {
           },
         ]
       }
+      billing_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          is_custom: boolean
+          monthly_price: number
+          name: string
+          slug: string
+          updated_at: string
+          yearly_price: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          is_custom?: boolean
+          monthly_price?: number
+          name: string
+          slug: string
+          updated_at?: string
+          yearly_price?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          is_custom?: boolean
+          monthly_price?: number
+          name?: string
+          slug?: string
+          updated_at?: string
+          yearly_price?: number
+        }
+        Relationships: []
+      }
       call_appointments: {
         Row: {
           access_given: boolean | null
@@ -2581,6 +2623,141 @@ export type Database = {
           },
         ]
       }
+      organization_subscriptions: {
+        Row: {
+          admin_notes: string | null
+          billing_cycle: string
+          cancelled_reason: string | null
+          created_at: string
+          current_period_end: string
+          current_period_start: string
+          current_price: number | null
+          custom_limits: Json | null
+          custom_price: number | null
+          downgrade_date: string | null
+          id: string
+          next_payment_due: string | null
+          organization_id: string
+          plan_id: string
+          setup_fee: number | null
+          setup_fee_paid: boolean | null
+          status: string
+          subscription_started_at: string
+          trial_ends_at: string | null
+          trial_started_at: string | null
+          updated_at: string
+          upgrade_from_plan_id: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          billing_cycle?: string
+          cancelled_reason?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          current_price?: number | null
+          custom_limits?: Json | null
+          custom_price?: number | null
+          downgrade_date?: string | null
+          id?: string
+          next_payment_due?: string | null
+          organization_id: string
+          plan_id: string
+          setup_fee?: number | null
+          setup_fee_paid?: boolean | null
+          status?: string
+          subscription_started_at?: string
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          upgrade_from_plan_id?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          billing_cycle?: string
+          cancelled_reason?: string | null
+          created_at?: string
+          current_period_end?: string
+          current_period_start?: string
+          current_price?: number | null
+          custom_limits?: Json | null
+          custom_price?: number | null
+          downgrade_date?: string | null
+          id?: string
+          next_payment_due?: string | null
+          organization_id?: string
+          plan_id?: string
+          setup_fee?: number | null
+          setup_fee_paid?: boolean | null
+          status?: string
+          subscription_started_at?: string
+          trial_ends_at?: string | null
+          trial_started_at?: string | null
+          updated_at?: string
+          upgrade_from_plan_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_subscriptions_upgrade_from_plan_id_fkey"
+            columns: ["upgrade_from_plan_id"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_usage: {
+        Row: {
+          id: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          updated_at: string
+          usage_key: string
+          usage_value: number
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          period_end: string
+          period_start: string
+          updated_at?: string
+          usage_key: string
+          usage_value?: number
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          period_end?: string
+          period_start?: string
+          updated_at?: string
+          usage_key?: string
+          usage_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_usage_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_webhooks: {
         Row: {
           created_at: string | null
@@ -2680,6 +2857,70 @@ export type Database = {
             columns: ["community_session_id"]
             isOneToOne: false
             referencedRelation: "whatsapp_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_features: {
+        Row: {
+          description: string | null
+          feature_key: string
+          feature_value: string
+          id: string
+          plan_id: string
+        }
+        Insert: {
+          description?: string | null
+          feature_key: string
+          feature_value?: string
+          id?: string
+          plan_id: string
+        }
+        Update: {
+          description?: string | null
+          feature_key?: string
+          feature_value?: string
+          id?: string
+          plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_features_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_limits: {
+        Row: {
+          description: string | null
+          id: string
+          limit_key: string
+          limit_value: number
+          plan_id: string
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          limit_key: string
+          limit_value?: number
+          plan_id: string
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          limit_key?: string
+          limit_value?: number
+          plan_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_limits_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "billing_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -3122,6 +3363,169 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_audit_log: {
+        Row: {
+          action: string
+          id: string
+          new_value: Json | null
+          old_value: Json | null
+          performed_at: string
+          performed_by: string | null
+          subscription_id: string | null
+        }
+        Insert: {
+          action: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          performed_at?: string
+          performed_by?: string | null
+          subscription_id?: string | null
+        }
+        Update: {
+          action?: string
+          id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          performed_at?: string
+          performed_by?: string | null
+          subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_audit_log_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_audit_log_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "organization_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string | null
+          notification_type: string
+          organization_id: string
+          read_at: string | null
+          read_by: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          notification_type: string
+          organization_id: string
+          read_at?: string | null
+          read_by?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          notification_type?: string
+          organization_id?: string
+          read_at?: string | null
+          read_by?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_notifications_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_notifications_read_by_fkey"
+            columns: ["read_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          organization_id: string
+          payment_date: string
+          payment_method: string | null
+          payment_reference: string | null
+          payment_status: string
+          payment_type: string
+          recorded_by: string | null
+          subscription_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          payment_date?: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string
+          payment_type: string
+          recorded_by?: string | null
+          subscription_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          payment_date?: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_status?: string
+          payment_type?: string
+          recorded_by?: string | null
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_payments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_payments_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "organization_subscriptions"
             referencedColumns: ["id"]
           },
         ]
