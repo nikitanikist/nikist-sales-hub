@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -64,6 +65,31 @@ export function useWebinarNotification() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const orgTimezone = currentOrganization?.timezone || DEFAULT_TIMEZONE;
+
+  // Real-time subscription for whatsapp_groups updates (member count changes)
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+
+    const channel = supabase
+      .channel('webinar-whatsapp-groups-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_groups',
+          filter: `organization_id=eq.${currentOrganization.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['webinar-notifications', currentOrganization.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrganization?.id, queryClient]);
 
   const { data: webinars, isLoading: webinarsLoading, error } = useQuery({
     queryKey: ['webinar-notifications', currentOrganization?.id],
