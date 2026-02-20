@@ -192,7 +192,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        console.log(`Member joined: ${normalizedPhone} in group ${payload.groupJid}`);
+      console.log(`Member joined: ${normalizedPhone} in group ${payload.groupJid}`);
       } else if (payload.event === "leave") {
         // Update member to left status
         const { error: updateError } = await supabase
@@ -217,6 +217,22 @@ Deno.serve(async (req) => {
         }
 
         console.log(`Member left: ${normalizedPhone} from group ${payload.groupJid}`);
+      }
+
+      // Recalculate and update participant_count on whatsapp_groups
+      if (group?.id) {
+        const { count } = await supabase
+          .from("workshop_group_members")
+          .select("*", { count: "exact", head: true })
+          .eq("group_jid", payload.groupJid)
+          .eq("status", "active");
+
+        await supabase
+          .from("whatsapp_groups")
+          .update({ participant_count: count || 0 })
+          .eq("id", group.id);
+
+        console.log(`Updated participant_count to ${count} for group ${group.id}`);
       }
 
       return new Response(
@@ -304,6 +320,22 @@ Deno.serve(async (req) => {
       }
 
       console.log(`Member left: ${normalizedPhone} from group ${payload.groupJid}`);
+    }
+
+    // Recalculate and update participant_count on whatsapp_groups
+    if (group?.id) {
+      const { count } = await supabase
+        .from("workshop_group_members")
+        .select("*", { count: "exact", head: true })
+        .eq("group_jid", payload.groupJid)
+        .eq("status", "active");
+
+      await supabase
+        .from("whatsapp_groups")
+        .update({ participant_count: count || 0 })
+        .eq("id", group.id);
+
+      console.log(`Updated participant_count to ${count} for group ${group.id}`);
     }
 
     return new Response(
