@@ -151,6 +151,45 @@ serve(async (req) => {
 
       console.log(`Creating user: ${full_name} (${email}) with role: ${role} for org: ${organization_id}`);
 
+      // --- Limit enforcement: team_members ---
+      const { data: currentMembers } = await supabaseAdmin
+        .from('organization_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', organization_id);
+      const currentMemberCount = currentMembers ?? 0;
+
+      const { data: orgSub } = await supabaseAdmin
+        .from('organization_subscriptions')
+        .select('plan_id, custom_limits, status')
+        .eq('organization_id', organization_id)
+        .maybeSingle();
+
+      if (orgSub?.plan_id) {
+        const { data: limitRow } = await supabaseAdmin
+          .from('plan_limits')
+          .select('limit_value')
+          .eq('plan_id', orgSub.plan_id)
+          .eq('limit_key', 'team_members')
+          .maybeSingle();
+
+        if (limitRow) {
+          const customLimits = (orgSub.custom_limits || {}) as Record<string, number>;
+          const effectiveLimit = customLimits['team_members'] ?? limitRow.limit_value;
+          // Use count from the head query
+          const { count: memberCount } = await supabaseAdmin
+            .from('organization_members')
+            .select('id', { count: 'exact', head: true })
+            .eq('organization_id', organization_id);
+
+          if ((memberCount ?? 0) >= effectiveLimit) {
+            return new Response(
+              JSON.stringify({ error: `Team member limit reached (${effectiveLimit}). Please upgrade your plan.` }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      }
+
       // Check if user already exists in auth
       const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
       const existingUser = existingUsers?.users?.find(u => u.email === email);
