@@ -6,7 +6,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield, Rocket, Settings, Activity, MessageSquare, CreditCard } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield, Rocket, Settings, Activity, MessageSquare, CreditCard, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -351,6 +351,15 @@ const AppLayoutContent = () => {
         { title: "Dashboard", path: "/whatsapp", permissionKey: 'whatsapp' as PermissionKey },
         { title: "Campaigns", path: "/whatsapp/campaigns", permissionKey: 'whatsapp' as PermissionKey },
         { title: "Templates", path: "/whatsapp/templates", permissionKey: 'whatsapp' as PermissionKey },
+      ],
+    },
+    
+    // GROUP: Webinar
+    {
+      title: "Webinar",
+      icon: Video,
+      children: [
+        { title: "Webinar Notification", path: "/webinar/notification", permissionKey: 'webinar' as PermissionKey },
       ],
     },
     
