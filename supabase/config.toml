@@ -77,3 +77,9 @@ verify_jwt = false
 
 [functions.check-subscription-status]
 verify_jwt = false
+
+[functions.create-webinar-community]
+verify_jwt = false
+
+[functions.process-webinar-queue]
+verify_jwt = false
