@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock, Plus, Link2, Copy, ExternalLink, Loader2 } from 'lucide-react';
+import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock, Plus, Link2, Copy, ExternalLink, Loader2, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useWebinarNotification, useWebinarMessages, useWebinarGroups, WebinarWithDetails } from '@/hooks/useWebinarNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
@@ -32,6 +32,7 @@ export default function WebinarDetailSheet({ webinar, open, onOpenChange }: Webi
   const [sendNowDialogOpen, setSendNowDialogOpen] = useState(false);
   const [variablesDialogOpen, setVariablesDialogOpen] = useState(false);
   const [pendingManualVariables, setPendingManualVariables] = useState<string[]>([]);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
 
   const {
     updateTag, isUpdatingTag, updateSession, updateGroups, isUpdatingGroups,
@@ -260,17 +261,71 @@ export default function WebinarDetailSheet({ webinar, open, onOpenChange }: Webi
                 </Select>
               </div>
 
-              <MultiGroupSelect
-                groups={sessionGroups}
-                selectedGroupIds={selectedGroupIds}
-                onSelectionChange={handleGroupSelectionChange}
-                onSync={selectedSessionId ? () => syncGroups(selectedSessionId) : undefined}
-                isSyncing={isSyncing}
-                disabled={!selectedSessionId || isUpdatingGroups}
-                sessionId={selectedSessionId}
-              />
+              {/* Linked Groups Cards */}
+              {selectedGroupIds.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Linked Groups ({selectedGroupIds.length})
+                  </Label>
+                  <div className="space-y-2">
+                    {selectedGroupIds.map(id => {
+                      const group = sessionGroups.find(g => g.id === id);
+                      if (!group) return null;
+                      return (
+                        <div key={id} className="flex items-center justify-between gap-2 p-2.5 rounded-lg border bg-card">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm font-medium truncate">{group.group_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <Badge variant="secondary" className="text-xs">
+                              {group.participant_count ?? 0} members
+                            </Badge>
+                            <Button
+                              variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              onClick={() => {
+                                const newIds = selectedGroupIds.filter(gId => gId !== id);
+                                handleGroupSelectionChange(newIds);
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-              {selectedSessionId && selectedGroupIds.length === 0 && (
+              {/* Toggle Group Picker */}
+              {selectedSessionId && (
+                <Button
+                  variant="outline" size="sm"
+                  className="w-full gap-2"
+                  onClick={() => setShowGroupPicker(prev => !prev)}
+                >
+                  {showGroupPicker ? (
+                    <><ChevronUp className="h-4 w-4" />Hide Group Picker</>
+                  ) : (
+                    <><Plus className="h-4 w-4" />Add / Change Groups</>
+                  )}
+                </Button>
+              )}
+
+              {showGroupPicker && selectedSessionId && (
+                <MultiGroupSelect
+                  groups={sessionGroups}
+                  selectedGroupIds={selectedGroupIds}
+                  onSelectionChange={handleGroupSelectionChange}
+                  onSync={() => syncGroups(selectedSessionId)}
+                  isSyncing={isSyncing}
+                  disabled={isUpdatingGroups}
+                  sessionId={selectedSessionId}
+                />
+              )}
+
+              {selectedSessionId && selectedGroupIds.length === 0 && !showGroupPicker && (
                 <div className="p-3 border border-dashed border-muted-foreground/30 rounded-lg">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <Info className="h-4 w-4" />
@@ -287,29 +342,6 @@ export default function WebinarDetailSheet({ webinar, open, onOpenChange }: Webi
                       <><Plus className="h-4 w-4" />Create WhatsApp Group</>
                     )}
                   </Button>
-                </div>
-              )}
-
-              {selectedGroupIds.length > 0 && (
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 mb-2">
-                    {selectedGroupIds.length} Group{selectedGroupIds.length !== 1 ? 's' : ''} Linked
-                  </Badge>
-                  <div className="space-y-2">
-                    {selectedGroupIds.slice(0, 3).map(id => {
-                      const group = sessionGroups.find(g => g.id === id);
-                      if (!group) return null;
-                      return (
-                        <div key={id} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Users className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{group.group_name}</span>
-                        </div>
-                      );
-                    })}
-                    {selectedGroupIds.length > 3 && (
-                      <div className="text-xs text-muted-foreground">+{selectedGroupIds.length - 3} more</div>
-                    )}
-                  </div>
                 </div>
               )}
 
