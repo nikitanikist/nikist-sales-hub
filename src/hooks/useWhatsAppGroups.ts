@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -103,7 +104,31 @@ export function useWhatsAppGroups() {
     enabled: !!currentOrganization,
   });
 
-  // Sync groups from WhatsApp
+  // Realtime subscription for participant_count updates
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+
+    const channel = supabase
+      .channel('whatsapp-groups-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'whatsapp_groups',
+          filter: `organization_id=eq.${currentOrganization.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-groups', currentOrganization.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentOrganization?.id, queryClient]);
+
   const syncMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
