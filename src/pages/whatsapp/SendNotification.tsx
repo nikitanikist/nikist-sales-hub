@@ -6,6 +6,7 @@ import { useWhatsAppGroups } from "@/hooks/useWhatsAppGroups";
 import { useMessageTemplates } from "@/hooks/useMessageTemplates";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useOrgTimezone } from "@/hooks/useOrgTimezone";
+import { useLimitCheck } from "@/hooks/useLimitCheck";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ const SendNotification = () => {
   const { sessions, sessionsLoading } = useWhatsAppSession();
   const { sendableGroups: groups, groupsLoading } = useWhatsAppGroups();
   const { templates } = useMessageTemplates();
+  const { checkLimit } = useLimitCheck(currentOrganization?.id);
 
   const [step, setStep] = useState<Step>(1);
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
@@ -209,6 +211,16 @@ const SendNotification = () => {
 
   const handleSubmit = async () => {
     if (!currentOrganization || !selectedSessionId) return;
+
+    // Check campaign limit before creating
+    const { count: campaignCount } = await supabase
+      .from("notification_campaigns")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", currentOrganization.id)
+      .gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString());
+
+    if (!checkLimit("campaigns_per_month", campaignCount ?? 0)) return;
+
     setIsSubmitting(true);
 
     try {
