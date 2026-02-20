@@ -52,6 +52,12 @@ export interface WebinarWithDetails {
     group_name: string;
     group_jid: string;
   } | null;
+  community_group?: {
+    id: string;
+    group_name: string;
+    participant_count: number | null;
+    invite_link: string | null;
+  } | null;
 }
 
 export function useWebinarNotification() {
@@ -70,7 +76,8 @@ export function useWebinarNotification() {
           id, title, description, start_date, end_date, organization_id, tag_id, 
           whatsapp_group_id, whatsapp_session_id, community_group_id, automation_status, status,
           tag:workshop_tags(id, name, color, template_sequence_id),
-          whatsapp_group:whatsapp_groups!webinars_whatsapp_group_id_fkey(id, group_name, group_jid)
+          whatsapp_group:whatsapp_groups!webinars_whatsapp_group_id_fkey(id, group_name, group_jid),
+          community_group:whatsapp_groups!webinars_community_group_id_fkey(id, group_name, participant_count, invite_link)
         `)
         .eq('organization_id', currentOrganization.id)
         .order('start_date', { ascending: false });
