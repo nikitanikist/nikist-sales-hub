@@ -1,109 +1,74 @@
 
 
-# Improve Subscription Plans Page - Currency Selection and Toggle-Based Features
+# Add "My Plan" Page for Organization Admins
 
 ## What's Changing
 
-The Plans page (`/super-admin/plans`) will be upgraded with:
-1. **Currency selector** on pricing fields (INR, USD, EUR, GBP, etc.)
-2. **Toggle-based features** instead of free-text inputs -- matching the same feature list used in the Organizations Features tab (sidebar permissions + integrations + modules)
-3. A `currency` column added to the `billing_plans` table
+A new "My Plan" sidebar item and page will be added for organization admins/members. When they click it, they'll see their current subscription details -- plan name, status, billing cycle, pricing, and expiry/renewal dates.
 
 ---
 
-## 1. Database Change
+## 1. New Sidebar Item
 
-Add a `currency` column to the `billing_plans` table:
+Add a "My Plan" menu item to the regular (non-super-admin) sidebar in `AppLayout.tsx`, placed just above "Settings":
 
-```text
-ALTER TABLE billing_plans
-  ADD COLUMN currency TEXT NOT NULL DEFAULT 'INR';
-```
-
-No other schema changes needed -- the existing `plan_features` table already stores key-value pairs, and we'll use the same keys with `"true"/"false"` values for toggle features.
-
----
-
-## 2. Pricing Tab Improvements
-
-Current layout has Plan Name, Monthly Price, Yearly Price, Description, and Active toggle.
-
-Updated layout:
-
-| Field | Type |
+| Field | Value |
 |---|---|
-| Plan Name | Text input |
-| Currency | Dropdown (INR, USD, EUR, GBP) |
-| Monthly Price | Number input with currency symbol prefix |
-| Yearly Price | Number input with currency symbol prefix |
-| Description | Text input |
-| Active | Toggle switch |
-
-The currency selector will be a `Select` dropdown. The plan card display will also show the correct currency symbol based on the selected currency.
+| Title | My Plan |
+| Icon | CreditCard (from lucide-react) |
+| Path | /my-plan |
+| Permission | settings (reuse existing -- only admins see it) |
 
 ---
 
-## 3. Features Tab Overhaul
+## 2. New Page: `/my-plan`
 
-Replace the current free-text inputs with a **toggle-based layout** organized in sections -- mirroring the Organization Features tab structure:
+A read-only page showing the organization's current subscription. It will query `organization_subscriptions` joined with `billing_plans` filtered by the current organization ID.
 
-**Section A: Core Modules**
-Toggles for each module from the `modules` table (One-to-One Sales Funnel, Cohort Management, Workshops, Daily Money Flow).
+**Displayed Information:**
+- Plan name and tier badge (Starter / Growth / Pro / Enterprise)
+- Status badge (Active, Trial, Expired, Past Due)
+- Billing cycle (Monthly / Yearly)
+- Current price (with currency symbol)
+- Current period start and end dates
+- Next payment due date
+- Trial details (if on trial): trial start, trial end, days remaining
+- Subscription started date
 
-**Section B: Sidebar Permissions**
-Grouped toggles matching `PERMISSION_GROUPS` from `permissions.ts`:
-- Finance (Daily Money Flow, Sales)
-- Customers (All Customers, Customer Insights)
-- Closers (1:1 Call Schedule, Sales Closers)
-- Funnels (All Workshops, Active Funnels, Products)
-- Cohort Batches
-- WhatsApp
-- Other (Dashboard, Team Members, Settings)
-
-**Section C: Integration Access**
-Toggles for: Calendly, WhatsApp (AISensy), Pabbly Webhook, Workshop Notifications
-
-**Section D: Additional Features**
-Keep the existing features as toggles where applicable:
-- Analytics Level (dropdown: basic/standard/advanced)
-- Community Creation (toggle)
-- Data Export (toggle)
-- Custom Branding (toggle)
-- Support Channel (dropdown: email/chat/priority/dedicated)
-- Onboarding Minutes (number input)
-
-Each toggle ON means the feature is **included** in the plan. Toggle OFF means it is **not included**. When a new organization subscribes to this plan, these defaults will be pre-applied.
-
-The feature values will be stored in `plan_features` as before, using `"true"/"false"` for boolean features.
+**Layout:** A clean card-based layout with the plan name prominently displayed, status badge, and a details grid below.
 
 ---
 
 ## Technical Details
 
+### New Files
+
+| File | Purpose |
+|---|---|
+| `src/pages/MyPlan.tsx` | The plan details page |
+
 ### Files to Modify
 
 | File | Changes |
 |---|---|
-| `src/pages/super-admin/SuperAdminPlans.tsx` | Complete overhaul of Features tab (toggles), add currency selector to Pricing tab, update plan cards to show currency symbol |
+| `src/components/AppLayout.tsx` | Add "My Plan" menu item (CreditCard icon) before Settings in `allMenuItems` |
+| `src/App.tsx` | Add route `/my-plan` pointing to `MyPlan` component |
+| `src/lib/permissions.ts` | Add `my_plan` permission key, add to ROUTE_TO_PERMISSION, PERMISSION_LABELS, and DEFAULT_PERMISSIONS for admin role |
 
-### Migration
-One migration to add the `currency` column to `billing_plans`.
+### Data Fetching
 
-### Currency Support
-A simple mapping object:
+The page will use a hook that queries:
 ```text
-{ INR: "₹", USD: "$", EUR: "€", GBP: "£" }
+supabase
+  .from("organization_subscriptions")
+  .select("*, billing_plans!organization_subscriptions_plan_id_fkey(*)")
+  .eq("organization_id", currentOrganization.id)
+  .single()
 ```
 
-### Feature Keys for Plan-Level Toggles
-The plan_features rows will include keys like:
-- `perm_daily_money_flow`, `perm_customers`, `perm_whatsapp`, etc. (for sidebar permissions)
-- `integration_calendly`, `integration_aisensy`, etc. (for integrations)
-- `module_sales_funnel`, `module_cohort`, etc. (for modules)
-- Plus existing keys: `analytics`, `community_creation`, `data_export`, `custom_branding`, `support_channel`, `onboarding_minutes`
+This reuses the existing `organization_subscriptions` and `billing_plans` tables -- no database changes needed.
 
-Values: `"true"` / `"false"` for toggles, text for dropdowns/numbers.
+### No Database Migration Required
 
-### New Plan Dialog
-The "Create New Plan" dialog will also be updated to include the currency selector.
+All required tables and columns already exist (`organization_subscriptions`, `billing_plans` with `currency` column). RLS policies already allow org members to read their own subscription.
 
