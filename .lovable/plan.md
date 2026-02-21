@@ -1,33 +1,36 @@
 
 
-# Add Super Admin Controls for Funnels and Operations
+# Change Default Landing Page for Organization Admins
 
-## Current Situation
+## What Changes
 
-- **Funnels**: The `funnels` permission key already exists and is listed in `PERMISSION_GROUPS` under "Funnels". However, the "Funnels" group also bundles `workshops` and `products` -- so toggling `funnels` only hides the "Active Funnels" sub-menu, not the entire Funnels section. The Super Admin should already see this toggle, so it may just need clarification.
-- **Operations**: There is **no** `operations` permission key. The Operations sidebar items currently use `workshops` and `settings` as their permission keys, so there's no way to hide the Operations section independently.
+When a non-super-admin user logs in or navigates to `/`, instead of showing the Dashboard page, redirect them to `/whatsapp` (the WhatsApp Dashboard).
 
-## Changes
+## Technical Changes
 
-### 1. `src/lib/permissions.ts`
+### 1. `src/components/AppLayout.tsx`
 
-- Add `operations: 'operations'` to `PERMISSION_KEYS`
-- Add `operations: 'Operations'` to `PERMISSION_LABELS`
-- Add route mappings for `/operations/workshop-notification` and `/operations/dynamic-links` to the new `operations` key in `ROUTE_TO_PERMISSION`
-- Add a new "Operations" group to `PERMISSION_GROUPS` containing just the `operations` permission
-- Add `operations` to admin and manager `DEFAULT_PERMISSIONS`
+Add a redirect in the existing `useEffect` (around line 217): when the user is **not** a super admin, is on `/`, and has finished loading, navigate to `/whatsapp`.
 
-### 2. `src/components/AppLayout.tsx`
+```typescript
+// Existing: super admin -> /super-admin
+// New: regular users -> /whatsapp
+if (!roleLoading && !loading && user && !isSuperAdmin && location.pathname === "/") {
+  navigate("/whatsapp");
+}
+```
 
-- Change the `permissionKey` on the Operations sidebar children (`Workshop Notification` and `Dynamic Links`) from `'workshops'`/`'settings'` to `'operations'`
-- This allows the entire Operations section to be hidden by disabling the single `operations` permission
+### 2. `src/components/ProtectedRoute.tsx`
 
-### 3. No database changes needed
+Update the root route handler so that when a non-super-admin hits `/`, they get redirected to `/whatsapp` instead of rendering the Dashboard.
 
-The `disabled_permissions` column is a text array, so adding `'operations'` to it works automatically.
+### 3. Fallback redirects
 
-## Result
+Update places that redirect to `/` (e.g., `ModuleGuard.tsx` line 43) to redirect to `/whatsapp` instead, so disabled modules send users to the WhatsApp dashboard rather than the old dashboard.
 
-After this change, the Super Admin will see an "Operations" toggle in the Feature Overrides panel. Disabling it will hide the entire Operations section (Workshop Notification and Dynamic Links) from the organization's users.
+## Files
 
-The "Funnels" toggle (`funnels` key under the existing "Funnels" group) already exists -- if the Super Admin wants to hide just "Active Funnels", they toggle that off. Workshops and Products have their own independent toggles in the same group.
+- **Modified**: `src/components/AppLayout.tsx` -- add redirect from `/` to `/whatsapp` for non-super-admins
+- **Modified**: `src/components/ProtectedRoute.tsx` -- redirect `/` to `/whatsapp` for regular users
+- **Modified**: `src/components/ModuleGuard.tsx` -- change fallback redirect from `/` to `/whatsapp`
+
