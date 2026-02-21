@@ -44,6 +44,7 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/whatsapp/campaigns': PERMISSION_KEYS.whatsapp,
   '/whatsapp/templates': PERMISSION_KEYS.whatsapp,
   '/whatsapp/scheduled': PERMISSION_KEYS.whatsapp,
+  '/operations/dead-letter-queue': PERMISSION_KEYS.whatsapp,
   '/my-plan': PERMISSION_KEYS.my_plan,
   '/webinar/notification': PERMISSION_KEYS.webinar,
 };

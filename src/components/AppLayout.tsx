@@ -342,7 +342,7 @@ const AppLayoutContent = () => {
       children: [
         { title: "Workshop Notification", path: "/operations/workshop-notification", permissionKey: 'workshops' as PermissionKey, moduleSlug: 'workshops' },
         { title: "Dynamic Links", path: "/operations/dynamic-links", permissionKey: 'settings' as PermissionKey },
-        { title: "Dead Letter Queue", path: "/operations/dead-letter-queue", permissionKey: 'settings' as PermissionKey },
+        
       ],
     },
     
@@ -355,6 +355,7 @@ const AppLayoutContent = () => {
         { title: "Dashboard", path: "/whatsapp", permissionKey: 'whatsapp' as PermissionKey },
         { title: "Campaigns", path: "/whatsapp/campaigns", permissionKey: 'whatsapp' as PermissionKey },
         { title: "Templates", path: "/whatsapp/templates", permissionKey: 'whatsapp' as PermissionKey },
+        { title: "Dead Letter Queue", path: "/operations/dead-letter-queue", permissionKey: 'whatsapp' as PermissionKey },
       ],
     },
     
