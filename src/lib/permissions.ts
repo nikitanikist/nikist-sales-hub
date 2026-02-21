@@ -15,6 +15,7 @@ export const PERMISSION_KEYS = {
   settings: 'settings',
   whatsapp: 'whatsapp',
   webinar: 'webinar',
+  operations: 'operations',
   my_plan: 'my_plan',
 } as const;
 
@@ -45,6 +46,8 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/whatsapp/templates': PERMISSION_KEYS.whatsapp,
   '/whatsapp/scheduled': PERMISSION_KEYS.whatsapp,
   '/operations/dead-letter-queue': PERMISSION_KEYS.whatsapp,
+  '/operations/workshop-notification': PERMISSION_KEYS.operations,
+  '/operations/dynamic-links': PERMISSION_KEYS.operations,
   '/my-plan': PERMISSION_KEYS.my_plan,
   '/webinar/notification': PERMISSION_KEYS.webinar,
 };
@@ -66,6 +69,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   settings: 'Organization Settings',
   whatsapp: 'WhatsApp',
   webinar: 'Webinar Notification',
+  operations: 'Operations',
   my_plan: 'My Plan',
 };
 
@@ -119,6 +123,12 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    label: 'Operations',
+    permissions: [
+      PERMISSION_KEYS.operations,
+    ],
+  },
+  {
     label: 'Other',
     permissions: [
       PERMISSION_KEYS.dashboard,
@@ -146,6 +156,7 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSION_KEYS.products,
     PERMISSION_KEYS.whatsapp,
     PERMISSION_KEYS.webinar,
+    PERMISSION_KEYS.operations,
     // users - NOT included
   ],
   sales_rep: [
