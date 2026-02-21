@@ -16,6 +16,7 @@ import { WorkshopNotificationSettings } from "@/pages/settings/WorkshopNotificat
 import { AISensySettings } from "@/pages/settings/AISensySettings";
 import { PageIntro } from "@/components/PageIntro";
 import { CloserAssignments } from "@/components/settings/CloserAssignments";
+import { useOrgFeatureOverrides } from "@/hooks/useOrgFeatureOverrides";
 
 // Map sub-tabs to their parent main tab
 const getMainTab = (urlTab: string | null): string => {
@@ -49,6 +50,7 @@ const OrganizationSettings = () => {
   
   const { currentOrganization } = useOrganization();
   const { isSuperAdmin } = useUserRole();
+  const { isIntegrationDisabled } = useOrgFeatureOverrides();
   const queryClient = useQueryClient();
 
   // Fetch ALL integrations for the organization
@@ -219,10 +221,13 @@ const OrganizationSettings = () => {
               Modules
             </TabsTrigger>
           )}
-          <TabsTrigger value="integrations" className="gap-2">
-            <Puzzle className="h-4 w-4" />
-            Integrations
-          </TabsTrigger>
+          {/* Only show Integrations tab if at least one integration type is not disabled (or super admin) */}
+          {(isSuperAdmin || !(['zoom', 'calendly', 'whatsapp', 'aisensy', 'pabbly'].every(slug => isIntegrationDisabled(slug)))) && (
+            <TabsTrigger value="integrations" className="gap-2">
+              <Puzzle className="h-4 w-4" />
+              Integrations
+            </TabsTrigger>
+          )}
           <TabsTrigger value="team" className="gap-2">
             <Users className="h-4 w-4" />
             Team
@@ -250,46 +255,56 @@ const OrganizationSettings = () => {
           {/* Nested Tabs for Integration Types */}
           <Tabs defaultValue="zoom" className="space-y-4">
             <TabsList className="grid w-full grid-cols-5 max-w-2xl">
-              <TabsTrigger value="zoom" className="gap-2">
-                <Video className="h-4 w-4" />
-                Zoom
-                {groupedIntegrations.zoom.length > 0 && (
-                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                    {groupedIntegrations.zoom.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="calendly" className="gap-2">
-                <Calendar className="h-4 w-4" />
-                Calendly
-                {groupedIntegrations.calendly.length > 0 && (
-                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                    {groupedIntegrations.calendly.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="whatsapp" className="gap-2">
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp
-                {groupedIntegrations.whatsapp.length > 0 && (
-                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                    {groupedIntegrations.whatsapp.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="aisensy" className="gap-2">
-                <MessageCircle className="h-4 w-4" />
-                AISensy
-                {groupedIntegrations.aisensy.length > 0 && (
-                  <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
-                    {groupedIntegrations.aisensy.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="webhooks" className="gap-2">
-                <Webhook className="h-4 w-4" />
-                Pabbly
-              </TabsTrigger>
+              {(isSuperAdmin || !isIntegrationDisabled('zoom')) && (
+                <TabsTrigger value="zoom" className="gap-2">
+                  <Video className="h-4 w-4" />
+                  Zoom
+                  {groupedIntegrations.zoom.length > 0 && (
+                    <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                      {groupedIntegrations.zoom.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || !isIntegrationDisabled('calendly')) && (
+                <TabsTrigger value="calendly" className="gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Calendly
+                  {groupedIntegrations.calendly.length > 0 && (
+                    <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                      {groupedIntegrations.calendly.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || !isIntegrationDisabled('whatsapp')) && (
+                <TabsTrigger value="whatsapp" className="gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                  {groupedIntegrations.whatsapp.length > 0 && (
+                    <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                      {groupedIntegrations.whatsapp.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || !isIntegrationDisabled('aisensy')) && (
+                <TabsTrigger value="aisensy" className="gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  AISensy
+                  {groupedIntegrations.aisensy.length > 0 && (
+                    <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                      {groupedIntegrations.aisensy.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
+              {(isSuperAdmin || !isIntegrationDisabled('pabbly')) && (
+                <TabsTrigger value="webhooks" className="gap-2">
+                  <Webhook className="h-4 w-4" />
+                  Pabbly
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="zoom">
