@@ -340,8 +340,8 @@ const AppLayoutContent = () => {
       title: "Operations", 
       icon: Activity, 
       children: [
-        { title: "Workshop Notification", path: "/operations/workshop-notification", permissionKey: 'workshops' as PermissionKey, moduleSlug: 'workshops' },
-        { title: "Dynamic Links", path: "/operations/dynamic-links", permissionKey: 'settings' as PermissionKey },
+        { title: "Workshop Notification", path: "/operations/workshop-notification", permissionKey: 'operations' as PermissionKey, moduleSlug: 'workshops' },
+        { title: "Dynamic Links", path: "/operations/dynamic-links", permissionKey: 'operations' as PermissionKey },
         
       ],
     },
