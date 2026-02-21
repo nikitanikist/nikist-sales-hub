@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ROUTE_TO_PERMISSION, PermissionKey } from "@/lib/permissions";
+import { ROUTE_TO_PERMISSION, PermissionKey, getPermissionForRoute } from "@/lib/permissions";
+import { useOrgFeatureOverrides } from "@/hooks/useOrgFeatureOverrides";
 import { OrganizationSwitcher } from "@/components/OrganizationSwitcher";
 import { OrganizationProvider, useOrganization } from "@/hooks/useOrganization";
 import { supabase } from "@/integrations/supabase/client";
@@ -184,6 +185,7 @@ const AppLayoutContent = () => {
   const { isAdmin, isCloser, isManager, isSuperAdmin, isLoading: roleLoading, hasPermission } = useUserRole();
   const { currentOrganization, isSuperAdmin: orgIsSuperAdmin } = useOrganization();
   const { isModuleEnabled, isLoading: modulesLoading } = useModules();
+  const { isPermissionDisabled, isLoading: overridesLoading } = useOrgFeatureOverrides();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -223,29 +225,31 @@ const AppLayoutContent = () => {
 
   // Check route access based on permissions (skip for super admin routes)
   useEffect(() => {
-    if (roleLoading || loading || !user || isSuperAdminRoute) return;
+    if (roleLoading || loading || overridesLoading || !user || isSuperAdminRoute) return;
     
     const currentPath = location.pathname;
-    const permissionKey = ROUTE_TO_PERMISSION[currentPath];
+    const permissionKey = ROUTE_TO_PERMISSION[currentPath] || getPermissionForRoute(currentPath);
     
     // Skip permission check for paths without a permission mapping
     if (!permissionKey) return;
     
-    // Check if user has permission for current route
-    if (!hasPermission(permissionKey)) {
+    // Check if route is disabled at org level OR user lacks permission
+    const isOrgDisabled = !isSuperAdmin && isPermissionDisabled(permissionKey);
+    const lacksPermission = !hasPermission(permissionKey);
+    
+    if (isOrgDisabled || lacksPermission) {
       // Find first accessible route
       const accessibleRoute = Object.entries(ROUTE_TO_PERMISSION).find(
-        ([path, key]) => hasPermission(key)
+        ([path, key]) => hasPermission(key) && (isSuperAdmin || !isPermissionDisabled(key))
       );
       
       if (accessibleRoute) {
         navigate(accessibleRoute[0]);
       } else {
-        // No accessible routes - this shouldn't happen for valid users
         console.warn("User has no accessible routes");
       }
     }
-  }, [roleLoading, loading, user, location.pathname, hasPermission, navigate, isSuperAdminRoute]);
+  }, [roleLoading, loading, overridesLoading, user, location.pathname, hasPermission, isPermissionDisabled, navigate, isSuperAdminRoute, isSuperAdmin]);
 
   // Build dynamic cohort children from database (must be before early returns)
   const dynamicCohortChildren = useMemo(() => {
@@ -382,11 +386,20 @@ const AppLayoutContent = () => {
           return null;
         }
         
+        // Check org-level permission override for parent items (skip for super admins)
+        if (!isSuperAdmin && item.permissionKey && isPermissionDisabled(item.permissionKey)) {
+          return null;
+        }
+        
         if (item.children) {
-          // Filter children based on permissions AND their individual module requirements
+          // Filter children based on permissions, modules, AND org-level overrides
           const filteredChildren = item.children.filter(child => {
             // Check child-level module requirement
             if (child.moduleSlug && !isModuleEnabled(child.moduleSlug)) {
+              return false;
+            }
+            // Check org-level override (skip for super admins)
+            if (!isSuperAdmin && child.permissionKey && isPermissionDisabled(child.permissionKey)) {
               return false;
             }
             // Check permission
@@ -446,7 +459,7 @@ const AppLayoutContent = () => {
     : filterMenuItems(allMenuItems);
 
   // Early returns after all hooks
-  if (loading || roleLoading || modulesLoading) {
+  if (loading || roleLoading || modulesLoading || overridesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
