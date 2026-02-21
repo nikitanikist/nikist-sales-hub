@@ -7,8 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TableSkeleton, MobileCardSkeleton } from '@/components/skeletons';
-import { useWebinarNotification, WebinarWithDetails, useWebinarMessages } from '@/hooks/useWebinarNotification';
+import { useWebinarNotification, WebinarWithDetails, useWebinarMessages, WebinarScheduledMessage } from '@/hooks/useWebinarNotification';
 import { WorkshopTagBadge, MessagingProgressBanner, SequenceProgressButton } from '@/components/operations';
+import type { ScheduledMessage } from '@/hooks/useWorkshopNotification';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -66,6 +67,54 @@ function getStatusBadge(webinar: WebinarWithDetails) {
 function isSetupComplete(webinar: WebinarWithDetails): boolean {
   const { whatsapp_group_linked } = webinar.automation_status || {};
   return !!(webinar.tag_id && webinar.tag?.template_sequence_id && webinar.whatsapp_session_id && whatsapp_group_linked);
+}
+
+// Maps webinar messages to the ScheduledMessage format expected by SequenceProgressButton
+function mapWebinarMessages(msgs: WebinarScheduledMessage[] | undefined): ScheduledMessage[] {
+  if (!msgs) return [];
+  return msgs.map(m => ({
+    id: m.id,
+    organization_id: m.organization_id,
+    workshop_id: m.webinar_id,
+    group_id: m.group_id,
+    message_type: m.message_type,
+    message_content: m.message_content,
+    media_url: m.media_url,
+    media_type: m.media_type,
+    scheduled_for: m.scheduled_for,
+    status: m.status,
+    sent_at: m.sent_at,
+    error_message: m.error_message,
+    retry_count: m.retry_count,
+    created_by: m.created_by,
+    created_at: m.created_at,
+  }));
+}
+
+function WebinarSequenceButton({ webinar, onRun, onSetup, subscribeToMessages, variant = 'compact', className }: {
+  webinar: WebinarWithDetails;
+  onRun: () => void;
+  onSetup: () => void;
+  subscribeToMessages: (id: string) => () => void;
+  variant?: 'default' | 'compact';
+  className?: string;
+}) {
+  const { data: msgs } = useWebinarMessages(webinar.id);
+  const mapped = mapWebinarMessages(msgs);
+  const setupComplete = isSetupComplete(webinar);
+
+  return (
+    <SequenceProgressButton
+      workshopId={webinar.id}
+      isSetupComplete={setupComplete}
+      onRun={onRun}
+      onSetup={onSetup}
+      messages={mapped}
+      subscribeToMessages={subscribeToMessages}
+      variant={variant}
+      className={className}
+    />
+  );
 }
 
 function CopyInviteLinkButton({ inviteLink }: { inviteLink: string | null | undefined }) {
@@ -354,9 +403,8 @@ export default function WebinarNotification() {
                       <TableCell className="text-center">{getStatusBadge(webinar)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <SequenceProgressButton
-                            workshopId={webinar.id}
-                            isSetupComplete={setupComplete}
+                          <WebinarSequenceButton
+                            webinar={webinar}
                             onRun={() => handleRunSequence(webinar)}
                             onSetup={() => handleViewWebinar(webinar)}
                             subscribeToMessages={subscribeToMessages}
@@ -430,9 +478,8 @@ export default function WebinarNotification() {
                   )}
                   <div className="flex items-center gap-2 pt-1">
                     <div className="flex-1">
-                      <SequenceProgressButton
-                        workshopId={webinar.id}
-                        isSetupComplete={setupComplete}
+                      <WebinarSequenceButton
+                        webinar={webinar}
                         onRun={() => handleRunSequence(webinar)}
                         onSetup={() => handleViewWebinar(webinar)}
                         subscribeToMessages={subscribeToMessages}

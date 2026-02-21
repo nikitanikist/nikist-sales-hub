@@ -30,6 +30,7 @@ import ManageCohorts from "./pages/ManageCohorts";
 import OrganizationSettings from "./pages/OrganizationSettings";
 import { WorkshopNotification, DeadLetterQueue } from "./pages/operations";
 import WebinarNotification from "./pages/webinar/WebinarNotification";
+import WebinarMessageAnalytics from "./pages/webinar/WebinarMessageAnalytics";
 import DynamicLinks from "./pages/operations/DynamicLinks";
 import LinkRedirect from "./pages/operations/LinkRedirect";
 import AppLayout from "./components/AppLayout";
@@ -85,6 +86,7 @@ const App = () => (
               <Route path="/operations/dead-letter-queue" element={<ProtectedRoute adminOnly><ErrorBoundary><DeadLetterQueue /></ErrorBoundary></ProtectedRoute>} />
               {/* Webinar Module */}
               <Route path="/webinar/notification" element={<ProtectedRoute><ErrorBoundary><WebinarNotification /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/webinar/message/:messageId" element={<ProtectedRoute><ErrorBoundary><WebinarMessageAnalytics /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/sales" element={<ErrorBoundary><Sales /></ErrorBoundary>} />
               <Route path="/funnels" element={<ErrorBoundary><Funnels /></ErrorBoundary>} />
               <Route path="/products" element={<ErrorBoundary><Products /></ErrorBoundary>} />
