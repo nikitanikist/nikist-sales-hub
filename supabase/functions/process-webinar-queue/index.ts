@@ -125,9 +125,17 @@ Deno.serve(async (req) => {
           throw new Error(errorMessage);
         }
 
+        // Extract messageId from VPS response for analytics tracking
+        const messageId = isJson ? (responseData?.messageId || responseData?.key?.id || null) : null;
+
         await supabase
           .from('scheduled_webinar_messages')
-          .update({ status: 'sent', sent_at: new Date().toISOString(), error_message: null })
+          .update({ 
+            status: 'sent', 
+            sent_at: new Date().toISOString(), 
+            error_message: null,
+            message_id: messageId,
+          })
           .eq('id', msg.id);
 
         return { id: msg.id, status: 'sent' };

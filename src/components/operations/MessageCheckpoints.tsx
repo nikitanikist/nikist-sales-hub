@@ -1,7 +1,8 @@
-import { CheckCircle2, Circle, Clock, AlertCircle, XCircle, Loader2, X } from 'lucide-react';
+import { CheckCircle2, Circle, Clock, AlertCircle, XCircle, Loader2, X, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatInOrgTime, getTimezoneAbbreviation, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
 import { Button } from '@/components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 interface Checkpoint {
   id: string;
@@ -19,6 +20,7 @@ interface MessageCheckpointsProps {
   timezone?: string;
   onCancel?: (messageId: string) => void;
   isCancelling?: boolean;
+  showAnalytics?: boolean;
 }
 
 const statusConfig = {
@@ -60,7 +62,9 @@ export function MessageCheckpoints({
   timezone = DEFAULT_TIMEZONE,
   onCancel,
   isCancelling,
+  showAnalytics = false,
 }: MessageCheckpointsProps) {
+  const navigate = useNavigate();
   if (isLoading) {
     return (
       <div className="space-y-2 sm:space-y-3">
@@ -140,6 +144,17 @@ export function MessageCheckpoints({
               >
                 {config.label}
               </span>
+              {showAnalytics && checkpoint.status === 'sent' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground hover:text-primary"
+                  onClick={() => navigate(`/webinar/message/${checkpoint.id}`)}
+                  title="View analytics"
+                >
+                  <BarChart3 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                </Button>
+              )}
               {canCancel && (
                 <Button
                   variant="ghost"

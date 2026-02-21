@@ -378,6 +378,7 @@ export default function WebinarDetailSheet({ webinar, open, onOpenChange }: Webi
                 timezone={orgTimezone}
                 onCancel={cancelMessage}
                 isCancelling={isCancellingMessage}
+                showAnalytics={true}
               />
             </div>
           </CollapsibleSection>

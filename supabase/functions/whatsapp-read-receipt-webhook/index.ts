@@ -76,7 +76,34 @@ Deno.serve(async (req) => {
       .single();
 
     if (findError || !campaignGroup) {
-      console.log("No campaign group found for messageId:", payload.messageId);
+      // Fallback: check scheduled_webinar_messages
+      const { data: webinarMsg } = await supabase
+        .from("scheduled_webinar_messages")
+        .select("id")
+        .eq("message_id", payload.messageId)
+        .single();
+
+      if (webinarMsg) {
+        const field = payload.event === "delivered" ? "delivered_count" : "read_count";
+        const { data: current } = await supabase
+          .from("scheduled_webinar_messages")
+          .select(field)
+          .eq("id", webinarMsg.id)
+          .single();
+        
+        await supabase
+          .from("scheduled_webinar_messages")
+          .update({ [field]: ((current as any)?.[field] || 0) + 1 })
+          .eq("id", webinarMsg.id);
+        
+        console.log(`Webinar ${payload.event} receipt for msg ${webinarMsg.id}`);
+        return new Response(
+          JSON.stringify({ success: true, target: "webinar", receipt_type: payload.event }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log("No campaign group or webinar msg found for messageId:", payload.messageId);
       return new Response(
         JSON.stringify({ message: "No matching campaign group" }),
         {

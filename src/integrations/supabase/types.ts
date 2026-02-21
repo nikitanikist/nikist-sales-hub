@@ -3202,14 +3202,18 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          delivered_count: number
           error_message: string | null
           group_id: string
           id: string
           media_type: string | null
           media_url: string | null
           message_content: string
+          message_id: string | null
           message_type: string
           organization_id: string
+          reaction_count: number
+          read_count: number
           retry_count: number
           scheduled_for: string
           sent_at: string | null
@@ -3219,14 +3223,18 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          delivered_count?: number
           error_message?: string | null
           group_id: string
           id?: string
           media_type?: string | null
           media_url?: string | null
           message_content: string
+          message_id?: string | null
           message_type: string
           organization_id: string
+          reaction_count?: number
+          read_count?: number
           retry_count?: number
           scheduled_for: string
           sent_at?: string | null
@@ -3236,14 +3244,18 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          delivered_count?: number
           error_message?: string | null
           group_id?: string
           id?: string
           media_type?: string | null
           media_url?: string | null
           message_content?: string
+          message_id?: string | null
           message_type?: string
           organization_id?: string
+          reaction_count?: number
+          read_count?: number
           retry_count?: number
           scheduled_for?: string
           sent_at?: string | null
