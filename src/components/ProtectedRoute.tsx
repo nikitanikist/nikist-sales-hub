@@ -28,6 +28,11 @@ const ProtectedRoute = ({ children, adminOnly = false, requiredPermission }: Pro
     return <Navigate to="/super-admin" replace />;
   }
 
+  // Regular users landing on / should go to WhatsApp dashboard
+  if (!isSuperAdmin && location.pathname === "/") {
+    return <Navigate to="/whatsapp" replace />;
+  }
+
   // If this is an admin-only route and user is a closer, redirect to calls
   if (adminOnly && isCloser && !isAdmin && !isSuperAdmin) {
     return <Navigate to="/calls" replace />;

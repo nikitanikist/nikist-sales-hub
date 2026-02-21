@@ -40,7 +40,7 @@ export function ModuleGuard({ moduleSlug, children, fallback }: ModuleGuardProps
     }
     
     // Redirect to dashboard if module is not enabled
-    return <Navigate to="/" replace />;
+    return <Navigate to="/whatsapp" replace />;
   }
 
   return <>{children}</>;
