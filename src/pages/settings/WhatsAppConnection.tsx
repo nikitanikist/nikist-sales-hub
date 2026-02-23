@@ -28,6 +28,8 @@ export function WhatsAppConnection() {
     isDeletingSession,
     testVpsConnection,
     isTestingVps,
+    verifyingSessionIds,
+    verifiedStatuses,
   } = useWhatsAppSession();
 
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
@@ -305,20 +307,47 @@ export function WhatsAppConnection() {
             <>
               {connectedSessions.length > 0 ? (
                 <div className="space-y-3">
-                  {connectedSessions.map((session) => (
+                  {connectedSessions.map((session) => {
+                    const isVerifying = verifyingSessionIds.has(session.id);
+                    const vpsStatus = verifiedStatuses.get(session.id);
+                    const isVpsDisconnected = vpsStatus && vpsStatus !== 'connected';
+                    const lastError = (session as any).last_error;
+
+                    return (
                     <div
                       key={session.id}
                       className="flex items-center justify-between p-4 border rounded-lg bg-muted/30"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-3 w-3 rounded-full bg-primary" />
+                        {isVerifying ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
+                        ) : isVpsDisconnected ? (
+                          <div className="h-3 w-3 rounded-full bg-destructive" />
+                        ) : (
+                          <div className="h-3 w-3 rounded-full bg-primary" />
+                        )}
                         <div>
-                          <p className="font-medium">
-                            {session.phone_number || session.display_name || `Session ${session.id.slice(0, 8)}...`}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">
+                              {session.phone_number || session.display_name || `Session ${session.id.slice(0, 8)}...`}
+                            </p>
+                            {isVerifying && (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                                Verifying...
+                              </Badge>
+                            )}
+                            {isVpsDisconnected && (
+                              <Badge variant="destructive" className="text-xs">
+                                Disconnected — Reconnect needed
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             Last active: {format(new Date(session.updated_at), 'PP p')}
                           </p>
+                          {lastError && (
+                            <p className="text-xs text-destructive mt-1">{lastError}</p>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -350,7 +379,8 @@ export function WhatsAppConnection() {
                         </Button>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-6 text-muted-foreground">
