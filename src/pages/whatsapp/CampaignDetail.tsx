@@ -8,20 +8,82 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, EyeOff, MessageSquare } from "lucide-react";
+import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, EyeOff, MessageSquare, RotateCcw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { WhatsAppPreview } from "@/components/settings/WhatsAppPreview";
 import { getMediaTypeFromUrl } from "@/components/settings/TemplateMediaUpload";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { useOrganization } from "@/hooks/useOrganization";
 
 const CampaignDetail = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
   const orgTz = useOrgTimezone();
+  const { currentOrganization } = useOrganization();
 
   const queryClient = useQueryClient();
 
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [retrySessionId, setRetrySessionId] = useState<string>("");
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  // Fetch connected sessions for retry picker
+  const { data: connectedSessions } = useQuery({
+    queryKey: ["connected-sessions", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from("whatsapp_sessions")
+        .select("id, phone_number, status")
+        .eq("organization_id", currentOrganization.id)
+        .eq("status", "connected");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const handleRetryCampaign = async () => {
+    if (!retrySessionId || !campaignId) return;
+    setIsRetrying(true);
+    try {
+      // Update campaign session and reset status
+      const { error: campaignError } = await supabase
+        .from("notification_campaigns")
+        .update({
+          session_id: retrySessionId,
+          status: "sending" as any,
+          started_at: null,
+          completed_at: null,
+          sent_count: 0,
+          failed_count: 0,
+        })
+        .eq("id", campaignId);
+      if (campaignError) throw campaignError;
+
+      // Reset failed groups back to pending
+      const { error: groupsError } = await supabase
+        .from("notification_campaign_groups")
+        .update({ status: "pending" as any, error_message: null })
+        .eq("campaign_id", campaignId)
+        .in("status", ["failed"]);
+      if (groupsError) throw groupsError;
+
+      // Trigger the processor
+      await supabase.functions.invoke("process-notification-campaigns");
+
+      queryClient.invalidateQueries({ queryKey: ["notification-campaign", campaignId] });
+      queryClient.invalidateQueries({ queryKey: ["notification-campaign-groups", campaignId] });
+      toast.success("Campaign retry started!");
+      setRetrySessionId("");
+    } catch (err: any) {
+      toast.error("Failed to retry: " + err.message);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const { data: campaign, isLoading: campaignLoading, dataUpdatedAt: campaignUpdatedAt } = useQuery({
     queryKey: ["notification-campaign", campaignId],
@@ -146,7 +208,7 @@ const CampaignDetail = () => {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -mt-2 px-4 pt-2 sm:-mx-6 sm:px-6">
       <div className="space-y-6">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Button variant="ghost" size="icon" onClick={() => navigate("/whatsapp/campaigns")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -154,6 +216,26 @@ const CampaignDetail = () => {
           <Badge variant={campaign.status === "completed" ? "default" : campaign.status === "sending" ? "secondary" : "outline"}>
             {campaign.status}
           </Badge>
+          {(campaign.status === "failed" || campaign.status === "partial_failure") && (
+            <div className="flex items-center gap-2 ml-auto">
+              <Select value={retrySessionId} onValueChange={setRetrySessionId}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="Pick session" />
+                </SelectTrigger>
+                <SelectContent>
+                  {connectedSessions?.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.phone_number || s.id.slice(0, 8)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" onClick={handleRetryCampaign} disabled={!retrySessionId || isRetrying}>
+                <RotateCcw className="h-4 w-4 mr-1" />
+                {isRetrying ? "Retrying..." : "Retry"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Top row: Stats grid (left) + Preview (right) */}
