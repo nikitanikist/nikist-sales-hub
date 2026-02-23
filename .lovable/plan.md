@@ -1,83 +1,68 @@
 
 
-# Fix WhatsApp Session Status Sync and Error Tracking
+# Fix: Workshop Linked to Disconnected WhatsApp Session
 
-## Problem
+## Root Cause
 
-Messages are marked as "Sent" in the dashboard even when WhatsApp delivery fails silently. The VPS developer has already fixed the `/send` endpoint to return HTTP 503 on disconnected sessions. Now the CRM needs three fixes.
+The workshop "Crypto Wealth Masterclass (23RD February)" is linked to WhatsApp session `857bbdfb`, which is **dead on the VPS** (returns 404 "Session not found"). The 3 connected sessions you see on the Settings page are different sessions. When Send Now or the automated scheduler tries to send via the dead session, the VPS returns 503 and the message fails.
 
-## Changes
+The dashboard previously showed these as "Sent" because the old VPS returned HTTP 200 even on failure -- that was fixed by your VPS developer. Now it correctly shows "Failed" for the 6:00 PM message, but the earlier 1:00 PM and 4:00 PM were sent before the fix.
 
-### 1. Database Migration -- Add error tracking columns
+## Plan
 
-- `whatsapp_sessions`: add `last_error` (text) and `last_error_at` (timestamptz)
-- `scheduled_whatsapp_messages`: add `vps_error` (text)
+### 1. Immediate Data Fix -- Reassign workshop to a working session
 
-### 2. Session Verification on Page Load (`src/hooks/useWhatsAppSession.ts`)
+Update the workshop record to point to one of the 3 connected sessions. Need to know which phone number should be used:
+- `07e810ce` (phone: 919717817488)
+- `2d70b0ef` (phone: 971501785078)
+- `fd5cd67a` (phone: 919818861043)
 
-Add a `verifySession` function that calls the VPS `status` action for each "connected" session when the sessions list loads. If VPS reports the session is not actually connected:
-- Update the database status to match reality
-- Store the error in `last_error` / `last_error_at`
-- Invalidate the query cache so the UI reflects the real state
+Will update the workshop's `whatsapp_session_id` to the correct connected session.
 
-This runs once when the WhatsApp settings page loads (via a `useEffect` on the `sessions` data).
+### 2. Show Warning in Workshop Detail Sheet When Linked Session is Disconnected
 
-### 3. Show Real Status in Dashboard (`src/pages/settings/WhatsAppConnection.tsx`)
+In the Workshop Detail Sheet, check if the linked session's status is `connected`. If not, show a warning banner:
+- "The linked WhatsApp session is disconnected. Please select a different session to send messages."
+- Disable the Send Now button and messaging actions when the session is disconnected.
 
-Update the connected sessions list to show verification state:
-- While verifying: show a "Verifying..." badge with a spinner
-- If VPS confirms connected: show green "Connected" badge (as today)
-- If VPS reports disconnected: show red "Disconnected -- Reconnect needed" badge
-- If session has a `last_error`: show the error text below the session info
+### 3. Validate Session Before Sending (Send Now)
 
-### 4. Edge Function: Store VPS errors on send failure (`supabase/functions/process-whatsapp-queue/index.ts`)
+Before calling the VPS proxy in `sendMessageNow`, check the session status in the DB. If it's not `connected`, throw a clear error instead of attempting to send and getting a cryptic edge function error.
 
-When the VPS `/send` call fails (now returning 503), store the error response in the `vps_error` column of `scheduled_whatsapp_messages` alongside the existing `error_message`. This gives operators visibility into why a specific message failed.
+### 4. Auto-select Working Session in Workshop Detail Sheet
+
+When the linked session is disconnected but other connected sessions exist in the organization, auto-suggest or allow quick switching to a working session directly from the workshop detail sheet.
 
 ## Technical Details
 
-### Database Migration (SQL)
+### Files to modify:
+- `src/hooks/useWorkshopNotification.ts` -- add session status validation before send
+- `src/components/operations/WorkshopDetailSheet.tsx` -- show disconnected session warning, disable send actions, allow re-selection
+- `src/components/operations/MessagingActions.tsx` -- disable buttons when session is disconnected
 
+### Database update (one-time fix):
 ```sql
-ALTER TABLE whatsapp_sessions 
-  ADD COLUMN IF NOT EXISTS last_error text,
-  ADD COLUMN IF NOT EXISTS last_error_at timestamptz;
-
-ALTER TABLE scheduled_whatsapp_messages 
-  ADD COLUMN IF NOT EXISTS vps_error text;
+UPDATE workshops 
+SET whatsapp_session_id = '<correct_connected_session_id>'
+WHERE id = '47e38f71-42f9-4f44-9a8c-c62e70b5e74a';
 ```
 
-### Hook Changes (`useWhatsAppSession.ts`)
-
-- Add `verifyingSessionIds` state (Set) to track which sessions are being verified
-- Add `verifiedStatuses` state (Map of sessionId to VPS status)
-- Add `useEffect` that fires when `sessions` data loads: for each connected session, call `callVPSProxy('status', { sessionId })` and compare result
-- If mismatch, update DB via `supabase.from('whatsapp_sessions').update(...)` and invalidate query
-- Export `verifyingSessionIds` and `verifiedStatuses` for the UI
-
-### UI Changes (`WhatsAppConnection.tsx`)
-
-- Replace the static green dot with a dynamic badge:
-  - Verifying: amber "Verifying..." with spinner
-  - Verified connected: green dot (unchanged)
-  - Verified disconnected: red dot + "Disconnected" badge + error text
-- Show `last_error` text when present
-
-### Edge Function Changes (`process-whatsapp-queue/index.ts`)
-
-- In the error handler (line ~194), add `vps_error` field to the update:
+### Session validation in sendMessageNow:
 ```typescript
-.update({
-  status: isFinalFailure ? 'failed' : 'pending',
-  retry_count: retryCount,
-  error_message: errorMessage,
-  vps_error: errorMessage,  // NEW
-})
+// Before sending, verify session is connected
+const { data: sessionCheck } = await supabase
+  .from('whatsapp_sessions')
+  .select('status')
+  .eq('id', sessionId)
+  .single();
+
+if (sessionCheck?.status !== 'connected') {
+  throw new Error('WhatsApp session is disconnected. Please select a different session.');
+}
 ```
 
-## Files Modified
-
-- **New migration**: SQL to add 3 columns
-- `src/hooks/useWhatsAppSession.ts` -- session verification logic
-- `src/pages/settings/WhatsAppConnection.tsx` -- real status display
-- `supabase/functions/process-whatsapp-queue/index.ts` -- store VPS error on failure
+### Workshop Detail Sheet warning:
+- Query the session status alongside workshop data
+- Show an alert banner when status is not "connected"
+- Disable Send Now and Run Sequence buttons
+- Show a dropdown to quickly switch to a connected session
