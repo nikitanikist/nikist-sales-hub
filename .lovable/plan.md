@@ -1,68 +1,92 @@
 
 
-# Fix: Workshop Linked to Disconnected WhatsApp Session
+# Fix: Scheduled Messages Using Dead Session via Stale Group Link
 
 ## Root Cause
 
-The workshop "Crypto Wealth Masterclass (23RD February)" is linked to WhatsApp session `857bbdfb`, which is **dead on the VPS** (returns 404 "Session not found"). The 3 connected sessions you see on the Settings page are different sessions. When Send Now or the automated scheduler tries to send via the dead session, the VPS returns 503 and the message fails.
+The scheduled message processor (`process-whatsapp-queue`) resolves the WhatsApp session from the **group's** `session_id`, not the **workshop's** `whatsapp_session_id`. The workshop was reassigned to the working session `07e810ce`, but the linked group (`bc86835e`) still belongs to the dead session `857bbdfb`.
 
-The dashboard previously showed these as "Sent" because the old VPS returned HTTP 200 even on failure -- that was fixed by your VPS developer. Now it correctly shows "Failed" for the 6:00 PM message, but the earlier 1:00 PM and 4:00 PM were sent before the fix.
+Meanwhile, the same WhatsApp group already exists under the new session as `53b29ad9` (active, connected). The workshop just needs to be linked to this correct group record.
 
-## Plan
+Manual "Send Now" works because it uses the workshop's session ID directly.
 
-### 1. Immediate Data Fix -- Reassign workshop to a working session
+## Changes
 
-Update the workshop record to point to one of the 3 connected sessions. Need to know which phone number should be used:
-- `07e810ce` (phone: 919717817488)
-- `2d70b0ef` (phone: 971501785078)
-- `fd5cd67a` (phone: 919818861043)
+### 1. Immediate Data Fix (SQL)
 
-Will update the workshop's `whatsapp_session_id` to the correct connected session.
+- Update `workshop_whatsapp_groups` to link to the correct group `53b29ad9` (belonging to the active session)
+- Update the 3 pending scheduled messages to target the new group ID so they send correctly at 7:00, 7:05, 7:10 PM
 
-### 2. Show Warning in Workshop Detail Sheet When Linked Session is Disconnected
+```sql
+-- Re-link workshop to the correct group under the active session
+UPDATE workshop_whatsapp_groups 
+SET group_id = '53b29ad9-f47a-4782-b363-c4606c647e74'
+WHERE workshop_id = '47e38f71-42f9-4f44-9a8c-c62e70b5e74a' 
+  AND group_id = 'bc86835e-4c5f-4018-a3aa-79384a5a18c6';
 
-In the Workshop Detail Sheet, check if the linked session's status is `connected`. If not, show a warning banner:
-- "The linked WhatsApp session is disconnected. Please select a different session to send messages."
-- Disable the Send Now button and messaging actions when the session is disconnected.
+-- Fix pending messages so they use the active group
+UPDATE scheduled_whatsapp_messages 
+SET group_id = '53b29ad9-f47a-4782-b363-c4606c647e74'
+WHERE workshop_id = '47e38f71-42f9-4f44-9a8c-c62e70b5e74a' 
+  AND status = 'pending';
+```
 
-### 3. Validate Session Before Sending (Send Now)
+### 2. Edge Function Fix -- Resolve session from workshop (structural fix)
 
-Before calling the VPS proxy in `sendMessageNow`, check the session status in the DB. If it's not `connected`, throw a clear error instead of attempting to send and getting a cryptic edge function error.
+Modify `process-whatsapp-queue/index.ts` to resolve the session via the **workshop's** `whatsapp_session_id` instead of the group's `session_id`. This prevents future mismatches when a workshop is reassigned to a new session but old groups are still linked.
 
-### 4. Auto-select Working Session in Workshop Detail Sheet
+The query changes from:
+```
+whatsapp_groups!inner(group_jid, session_id, whatsapp_sessions!inner(session_data))
+```
+To also join via the workshop:
+```
+whatsapp_groups!inner(group_jid),
+workshops!inner(whatsapp_session_id, whatsapp_sessions:whatsapp_sessions!inner(session_data))
+```
 
-When the linked session is disconnected but other connected sessions exist in the organization, auto-suggest or allow quick switching to a working session directly from the workshop detail sheet.
+This way the edge function always uses the workshop's currently assigned session, matching what "Send Now" does.
 
 ## Technical Details
 
-### Files to modify:
-- `src/hooks/useWorkshopNotification.ts` -- add session status validation before send
-- `src/components/operations/WorkshopDetailSheet.tsx` -- show disconnected session warning, disable send actions, allow re-selection
-- `src/components/operations/MessagingActions.tsx` -- disable buttons when session is disconnected
+### File: `supabase/functions/process-whatsapp-queue/index.ts`
 
-### Database update (one-time fix):
-```sql
-UPDATE workshops 
-SET whatsapp_session_id = '<correct_connected_session_id>'
-WHERE id = '47e38f71-42f9-4f44-9a8c-c62e70b5e74a';
-```
+Update the query (lines 91-104) to join through the workshop instead of the group for session resolution:
 
-### Session validation in sendMessageNow:
 ```typescript
-// Before sending, verify session is connected
-const { data: sessionCheck } = await supabase
-  .from('whatsapp_sessions')
-  .select('status')
-  .eq('id', sessionId)
-  .single();
-
-if (sessionCheck?.status !== 'connected') {
-  throw new Error('WhatsApp session is disconnected. Please select a different session.');
-}
+const { data: pendingMessages, error: fetchError } = await supabase
+  .from('scheduled_whatsapp_messages')
+  .select(`
+    *,
+    whatsapp_groups!inner(group_jid),
+    workshops!inner(
+      whatsapp_session_id,
+      session:whatsapp_sessions!whatsapp_session_id(session_data)
+    )
+  `)
+  .eq('status', 'pending')
+  .lte('scheduled_for', now)
+  .order('scheduled_for', { ascending: true })
+  .limit(50);
 ```
 
-### Workshop Detail Sheet warning:
-- Query the session status alongside workshop data
-- Show an alert banner when status is not "connected"
-- Disable Send Now and Run Sequence buttons
-- Show a dropdown to quickly switch to a connected session
+Update session resolution (lines 125-131):
+
+```typescript
+const group = msg.whatsapp_groups;
+if (!group?.group_jid) {
+  throw new Error('Missing group configuration');
+}
+
+const workshop = msg.workshops;
+const sessionData = workshop?.session?.session_data as { vps_session_id?: string } | null;
+const vpsSessionId = sessionData?.vps_session_id || `wa_${workshop?.whatsapp_session_id}`;
+```
+
+And similarly update lines 206-208 in the DLQ section to use `workshop.whatsapp_session_id`.
+
+### Files Modified
+
+- **Database**: Two UPDATE statements (group link + pending messages)
+- `supabase/functions/process-whatsapp-queue/index.ts` -- resolve session from workshop instead of group
+
