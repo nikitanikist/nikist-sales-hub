@@ -5,7 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock, Plus, Link2, Copy, ExternalLink, Loader2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Users, Calendar, Tag, MessageCircle, Smartphone, Info, Clock, Plus, Link2, Copy, ExternalLink, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useWorkshopNotification, useWorkshopMessages, useWorkshopGroups, WorkshopWithDetails } from '@/hooks/useWorkshopNotification';
 import { useWorkshopTags } from '@/hooks/useWorkshopTags';
@@ -134,6 +135,11 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
   );
 
   const connectedSessions = sessions?.filter(s => s.status === 'connected') || [];
+  
+  // Check if the currently selected session is actually connected
+  const selectedSession = sessions?.find(s => s.id === selectedSessionId);
+  const isSessionDisconnected = selectedSessionId && selectedSession && selectedSession.status !== 'connected';
+  const isSessionMissing = selectedSessionId && !selectedSession;
 
   // Handle group selection change
   const handleGroupSelectionChange = (groupIds: string[]) => {
@@ -342,6 +348,15 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
             onToggle={toggleSection('whatsapp')}
           >
             <div className="space-y-4">
+              {/* Disconnected session warning */}
+              {(isSessionDisconnected || isSessionMissing) && (
+                <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    The linked WhatsApp session is disconnected. Please select a different account to send messages.
+                  </AlertDescription>
+                </Alert>
+              )}
               {/* Account Selection */}
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Account</Label>
@@ -565,6 +580,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
               hasSession={!!workshop.whatsapp_session_id}
               hasSequence={hasSequence}
               messages={messages}
+              isSessionDisconnected={!!isSessionDisconnected || !!isSessionMissing}
             />
           </div>
         </SheetFooter>

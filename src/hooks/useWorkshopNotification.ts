@@ -432,15 +432,20 @@ export function useWorkshopNotification() {
         throw new Error('Group not found');
       }
 
-      // Get the session's VPS session ID
+      // Get the session's VPS session ID and verify it's connected
       const { data: session, error: sessionError } = await supabase
         .from('whatsapp_sessions')
-        .select('session_data')
+        .select('session_data, status')
         .eq('id', sessionId)
         .single();
 
       if (sessionError || !session?.session_data) {
         throw new Error('WhatsApp session not found');
+      }
+
+      // Check session is connected before attempting to send
+      if (session.status !== 'connected') {
+        throw new Error('WhatsApp session is disconnected. Please select a different session in the workshop settings.');
       }
 
       // Verify session has VPS ID configured (edge function will look it up)
