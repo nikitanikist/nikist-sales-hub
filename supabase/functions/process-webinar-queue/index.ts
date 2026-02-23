@@ -69,10 +69,10 @@ Deno.serve(async (req) => {
       .from('scheduled_webinar_messages')
       .select(`
         *,
-        whatsapp_groups!inner(
-          group_jid, 
-          session_id,
-          whatsapp_sessions!inner(session_data)
+        whatsapp_groups!inner(group_jid),
+        webinars!inner(
+          whatsapp_session_id,
+          session:whatsapp_sessions!whatsapp_session_id(session_data)
         )
       `)
       .eq('status', 'pending')
@@ -100,10 +100,12 @@ Deno.serve(async (req) => {
     const results = await Promise.allSettled(
       pendingMessages.map(async (msg) => {
         const group = msg.whatsapp_groups;
-        if (!group?.group_jid || !group?.session_id) throw new Error('Missing group configuration');
+        const webinar = msg.webinars;
+        if (!group?.group_jid) throw new Error('Missing group configuration');
+        if (!webinar?.whatsapp_session_id) throw new Error('Missing webinar session configuration');
 
-        const sessionData = group.whatsapp_sessions?.session_data as { vps_session_id?: string } | null;
-        const vpsSessionId = sessionData?.vps_session_id || `wa_${group.session_id}`;
+        const sessionData = webinar.session?.session_data as { vps_session_id?: string } | null;
+        const vpsSessionId = sessionData?.vps_session_id || `wa_${webinar.whatsapp_session_id}`;
 
         const vpsUrl = buildUrl(VPS_URL, '/send');
         const vpsBody = JSON.stringify({
@@ -162,8 +164,9 @@ Deno.serve(async (req) => {
 
         if (isFinalFailure) {
           const group = msg.whatsapp_groups;
-          const sessionData = group?.whatsapp_sessions?.session_data as { vps_session_id?: string } | null;
-          const vpsSessionId = sessionData?.vps_session_id || `wa_${group?.session_id}`;
+          const webinar = msg.webinars;
+          const sessionData = webinar?.session?.session_data as { vps_session_id?: string } | null;
+          const vpsSessionId = sessionData?.vps_session_id || `wa_${webinar?.whatsapp_session_id}`;
 
           await supabase.from('dead_letter_queue').insert({
             organization_id: msg.organization_id,

@@ -4850,6 +4850,10 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      migrate_whatsapp_session: {
+        Args: { p_new_session_id: string; p_old_session_id: string }
+        Returns: Json
+      }
       search_leads: {
         Args: { p_organization_id?: string; search_query: string }
         Returns: {
