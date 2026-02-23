@@ -14,6 +14,7 @@ interface MessagingActionsProps {
   hasSession: boolean;
   hasSequence: boolean;
   messages?: ScheduledMessage[];
+  isSessionDisconnected?: boolean;
 }
 
 interface MessageStats {
@@ -50,6 +51,7 @@ export function MessagingActions({
   hasSession,
   hasSequence,
   messages,
+  isSessionDisconnected = false,
 }: MessagingActionsProps) {
   const stats = calculateStats(messages);
   
@@ -64,17 +66,19 @@ export function MessagingActions({
     ? Math.round((activeCount / totalActiveMessages) * 100) 
     : 0;
 
-  const canRunSequence = hasGroups && hasSequence && !isRunningSequence && !isSendingNow;
-  const canSendNow = hasGroups && hasSession && !isRunningSequence && !isSendingNow;
+  const canRunSequence = hasGroups && hasSequence && !isRunningSequence && !isSendingNow && !isSessionDisconnected;
+  const canSendNow = hasGroups && hasSession && !isRunningSequence && !isSendingNow && !isSessionDisconnected;
 
   // Helper for disabled reason
   const getSequenceDisabledReason = () => {
+    if (isSessionDisconnected) return 'WhatsApp session is disconnected';
     if (!hasGroups) return 'Select at least one WhatsApp group';
     if (!hasSequence) return 'Assign a tag with a template sequence first';
     return '';
   };
 
   const getSendNowDisabledReason = () => {
+    if (isSessionDisconnected) return 'WhatsApp session is disconnected';
     if (!hasSession) return 'Select a WhatsApp account first';
     if (!hasGroups) return 'Select at least one WhatsApp group';
     return '';
