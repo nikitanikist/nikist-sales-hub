@@ -197,6 +197,7 @@ Deno.serve(async (req) => {
             status: isFinalFailure ? 'failed' : 'pending',
             retry_count: retryCount,
             error_message: errorMessage,
+            vps_error: errorMessage,
           })
           .eq('id', msg.id);
 

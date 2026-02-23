@@ -3302,6 +3302,7 @@ export type Database = {
           scheduled_for: string
           sent_at: string | null
           status: string
+          vps_error: string | null
           workshop_id: string | null
         }
         Insert: {
@@ -3319,6 +3320,7 @@ export type Database = {
           scheduled_for: string
           sent_at?: string | null
           status?: string
+          vps_error?: string | null
           workshop_id?: string | null
         }
         Update: {
@@ -3336,6 +3338,7 @@ export type Database = {
           scheduled_for?: string
           sent_at?: string | null
           status?: string
+          vps_error?: string | null
           workshop_id?: string | null
         }
         Relationships: [
@@ -4192,6 +4195,8 @@ export type Database = {
           display_name: string | null
           id: string
           last_active_at: string | null
+          last_error: string | null
+          last_error_at: string | null
           organization_id: string
           phone_number: string | null
           qr_code: string | null
@@ -4206,6 +4211,8 @@ export type Database = {
           display_name?: string | null
           id?: string
           last_active_at?: string | null
+          last_error?: string | null
+          last_error_at?: string | null
           organization_id: string
           phone_number?: string | null
           qr_code?: string | null
@@ -4220,6 +4227,8 @@ export type Database = {
           display_name?: string | null
           id?: string
           last_active_at?: string | null
+          last_error?: string | null
+          last_error_at?: string | null
           organization_id?: string
           phone_number?: string | null
           qr_code?: string | null

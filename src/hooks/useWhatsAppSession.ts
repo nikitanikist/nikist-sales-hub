@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -446,7 +446,6 @@ export function useWhatsAppSession() {
     );
     
     if (staleSessions.length > 0) {
-      // Clean up stale sessions silently
       supabase
         .from('whatsapp_sessions')
         .delete()
@@ -456,6 +455,61 @@ export function useWhatsAppSession() {
         });
     }
   }, [sessions, currentOrganization, queryClient]);
+
+  // Session verification: check VPS status for "connected" sessions on page load
+  const [verifyingSessionIds, setVerifyingSessionIds] = useState<Set<string>>(new Set());
+  const [verifiedStatuses, setVerifiedStatuses] = useState<Map<string, string>>(new Map());
+  const verifiedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!sessions || !currentOrganization) return;
+
+    const connectedToVerify = sessions.filter(
+      s => s.status === 'connected' && !verifiedRef.current.has(s.id)
+    );
+    if (connectedToVerify.length === 0) return;
+
+    // Mark all as verifying
+    setVerifyingSessionIds(prev => {
+      const next = new Set(prev);
+      connectedToVerify.forEach(s => next.add(s.id));
+      return next;
+    });
+
+    // Verify each session
+    connectedToVerify.forEach(async (session) => {
+      verifiedRef.current.add(session.id);
+      try {
+        const data = await callVPSProxy('status', { sessionId: session.id });
+        const vpsStatus = data?.status || 'unknown';
+
+        setVerifiedStatuses(prev => new Map(prev).set(session.id, vpsStatus));
+
+        if (vpsStatus !== 'connected') {
+          // Session is stale — update DB
+          await supabase
+            .from('whatsapp_sessions')
+            .update({
+              status: vpsStatus === 'unknown' ? 'disconnected' : vpsStatus,
+              last_error: data?.error || `VPS reports status: ${vpsStatus}`,
+              last_error_at: new Date().toISOString(),
+            } as any)
+            .eq('id', session.id);
+
+          queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+        }
+      } catch (err) {
+        console.error(`Session ${session.id} verification failed:`, err);
+        setVerifiedStatuses(prev => new Map(prev).set(session.id, 'error'));
+      } finally {
+        setVerifyingSessionIds(prev => {
+          const next = new Set(prev);
+          next.delete(session.id);
+          return next;
+        });
+      }
+    });
+  }, [sessions, currentOrganization, callVPSProxy, queryClient]);
 
   return {
     sessions,
@@ -471,5 +525,8 @@ export function useWhatsAppSession() {
     // Test VPS Connection
     testVpsConnection: testVpsMutation.mutateAsync,
     isTestingVps: testVpsMutation.isPending,
+    // Session verification state
+    verifyingSessionIds,
+    verifiedStatuses,
   };
 }
