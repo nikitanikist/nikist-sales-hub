@@ -1,53 +1,152 @@
 
 
-# Fix: Failed WhatsApp Campaign Linked to Dead Session
+# Automatic Session Migration When a Phone Number Reconnects
 
 ## Problem
 
-The campaign "6:57 we are live" failed because it was created using session `857bbdfb` (now dead/disconnected). The `process-notification-campaigns` edge function correctly detected the disconnected session and marked everything as failed. Unlike the workshop scheduler, campaigns store `session_id` directly on the campaign record.
+When a WhatsApp session disconnects and the same phone number reconnects (creating a new session ID), all references to the old session remain stale across the system. This causes:
+- Scheduled workshop messages to fail
+- Scheduled webinar messages to fail  
+- WhatsApp campaigns to fail
+- Groups to appear missing/inactive
+- Manual intervention required every time
 
-The campaign creation page already filters to connected sessions only, so new campaigns won't have this issue. The fix needed is for this specific failed campaign and to add a "Retry with different session" capability.
+## Root Cause
 
-## Changes
+The system creates a brand new session record (new UUID) each time a phone reconnects. Nothing propagates this new ID to the 5 tables that hold references to the old session:
 
-### 1. Immediate Data Fix (SQL)
-
-Reset the failed campaign to use the working session `07e810ce` and re-queue it:
-
-```sql
--- Update campaign to use the working session and reset to 'sending'
-UPDATE notification_campaigns 
-SET session_id = '07e810ce-e7c3-4b42-accb-de65d4dbf226',
-    status = 'sending',
-    started_at = NULL,
-    completed_at = NULL,
-    sent_count = 0,
-    failed_count = 0
-WHERE id = '6ecf2cb1-891e-4cc8-8d6a-a1c298aeaebe';
-
--- Reset the failed group back to pending
-UPDATE notification_campaign_groups 
-SET status = 'pending',
-    error_message = NULL
-WHERE campaign_id = '6ecf2cb1-891e-4cc8-8d6a-a1c298aeaebe';
+```text
+workshops.whatsapp_session_id
+webinars.whatsapp_session_id
+whatsapp_groups.session_id
+notification_campaigns.session_id (pending/sending only)
+organizations.community_session_id
 ```
 
-This will cause the next scheduled invocation of `process-notification-campaigns` to pick it up and re-send using the working session.
+## Solution: Auto-Migration on Session Connect
 
-### 2. UI: Add "Retry Campaign" button on Campaign Detail page
+When a new session becomes `connected` and we detect its `phone_number` matches an older disconnected session for the same organization, automatically migrate all references from the old session to the new one.
 
-On the `CampaignDetail.tsx` page, when a campaign has status `failed` or `partial_failure`, show a "Retry" button that:
-- Lets the user pick a connected session
-- Resets the campaign status to `sending` and failed groups back to `pending`
-- Triggers the processor
+### Implementation
 
-### Technical Details
+#### 1. New Database Function: `migrate_whatsapp_session`
 
-**File: `src/pages/whatsapp/CampaignDetail.tsx`**
-- Add a retry button visible when `campaign.status === 'failed' || campaign.status === 'partial_failure'`
-- Show a session picker dropdown (filtered to connected sessions)
-- On click: update campaign's `session_id`, reset status to `sending`, reset failed groups to `pending`
-- Call `process-notification-campaigns` edge function to start processing immediately
+A PostgreSQL function that takes `old_session_id` and `new_session_id` and atomically updates all references:
 
-**No edge function changes needed** -- the `process-notification-campaigns` logic is already correct; it properly checks session status before sending. The issue was purely stale data.
+```sql
+CREATE OR REPLACE FUNCTION migrate_whatsapp_session(
+  p_old_session_id UUID, 
+  p_new_session_id UUID
+) RETURNS JSONB AS $$
+DECLARE
+  result JSONB := '{}'::jsonb;
+  cnt INTEGER;
+BEGIN
+  -- Migrate workshops
+  UPDATE workshops SET whatsapp_session_id = p_new_session_id
+  WHERE whatsapp_session_id = p_old_session_id;
+  GET DIAGNOSTICS cnt = ROW_COUNT;
+  result := result || jsonb_build_object('workshops', cnt);
 
+  -- Migrate webinars
+  UPDATE webinars SET whatsapp_session_id = p_new_session_id
+  WHERE whatsapp_session_id = p_old_session_id;
+  GET DIAGNOSTICS cnt = ROW_COUNT;
+  result := result || jsonb_build_object('webinars', cnt);
+
+  -- Migrate active/pending campaigns only
+  UPDATE notification_campaigns SET session_id = p_new_session_id
+  WHERE session_id = p_old_session_id 
+    AND status IN ('pending', 'sending', 'scheduled');
+  GET DIAGNOSTICS cnt = ROW_COUNT;
+  result := result || jsonb_build_object('campaigns', cnt);
+
+  -- Migrate organization community session
+  UPDATE organizations SET community_session_id = p_new_session_id
+  WHERE community_session_id = p_old_session_id;
+  GET DIAGNOSTICS cnt = ROW_COUNT;
+  result := result || jsonb_build_object('organizations', cnt);
+
+  -- Migrate groups (reactivate under new session)
+  UPDATE whatsapp_groups 
+  SET session_id = p_new_session_id, is_active = true
+  WHERE session_id = p_old_session_id;
+  GET DIAGNOSTICS cnt = ROW_COUNT;
+  result := result || jsonb_build_object('groups', cnt);
+
+  -- Update pending scheduled messages (workshop + webinar)
+  UPDATE scheduled_whatsapp_messages swm
+  SET group_id = ng.id
+  FROM whatsapp_groups og
+  JOIN whatsapp_groups ng ON ng.group_jid = og.group_jid 
+    AND ng.session_id = p_new_session_id
+  WHERE swm.group_id = og.id 
+    AND og.session_id = p_old_session_id  -- before migration
+    AND swm.status = 'pending';
+
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+#### 2. Update `vps-whatsapp-proxy` Edge Function (Status Check Handler)
+
+In the status check handler (~line 790), when a session transitions to `connected` and has a `phone_number`, check for older disconnected sessions with the same phone number in the same organization and call the migration function.
+
+```typescript
+// After updating session status to 'connected'...
+if (dbStatus === 'connected' && responseData?.phoneNumber) {
+  // Find old disconnected sessions with same phone number in same org
+  const { data: oldSessions } = await supabase
+    .from('whatsapp_sessions')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('phone_number', responseData.phoneNumber)
+    .eq('status', 'disconnected')
+    .neq('id', localSessionIdForDb);
+
+  if (oldSessions?.length) {
+    for (const old of oldSessions) {
+      const { data: migrationResult } = await supabase
+        .rpc('migrate_whatsapp_session', {
+          p_old_session_id: old.id,
+          p_new_session_id: localSessionIdForDb
+        });
+      console.log(`Migrated session ${old.id} -> ${localSessionIdForDb}:`, migrationResult);
+    }
+  }
+}
+```
+
+#### 3. Fix `process-webinar-queue` (Same Bug as Workshop Queue)
+
+The webinar queue processor resolves the session from the group instead of the webinar, same as the workshop bug we just fixed. Update it to resolve from the webinar's `whatsapp_session_id`.
+
+Change the query from:
+```typescript
+whatsapp_groups!inner(group_jid, session_id, whatsapp_sessions!inner(session_data))
+```
+To:
+```typescript
+whatsapp_groups!inner(group_jid),
+webinars!inner(
+  whatsapp_session_id,
+  session:whatsapp_sessions!whatsapp_session_id(session_data)
+)
+```
+
+## Files Modified
+
+1. **New migration** -- Create `migrate_whatsapp_session` database function
+2. **`supabase/functions/vps-whatsapp-proxy/index.ts`** -- Add auto-migration logic in the status check handler when a session connects
+3. **`supabase/functions/process-webinar-queue/index.ts`** -- Fix session resolution to use webinar's session (same fix as workshop queue)
+
+## What This Solves
+
+After this change, when a user's phone disconnects and they reconnect (even with a new session ID):
+- All workshops automatically point to the new session
+- All webinars automatically point to the new session
+- All pending campaigns automatically point to the new session
+- The organization's community session automatically updates
+- All groups migrate to the new session and are reactivated
+- No manual intervention needed -- everything "just works"
