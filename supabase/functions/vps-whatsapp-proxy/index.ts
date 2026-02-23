@@ -833,6 +833,36 @@ Deno.serve(async (req) => {
       if (updateError) {
         console.error('Failed to update session status:', updateError);
       }
+
+      // Auto-migrate references when a session connects and matches an old disconnected session's phone number
+      if (dbStatus === 'connected' && responseData?.phoneNumber) {
+        try {
+          const { data: oldSessions } = await supabase
+            .from('whatsapp_sessions')
+            .select('id')
+            .eq('organization_id', organizationId)
+            .eq('phone_number', responseData.phoneNumber)
+            .eq('status', 'disconnected')
+            .neq('id', localSessionIdForDb);
+
+          if (oldSessions?.length) {
+            for (const old of oldSessions) {
+              const { data: migrationResult, error: migrationError } = await supabase
+                .rpc('migrate_whatsapp_session', {
+                  p_old_session_id: old.id,
+                  p_new_session_id: localSessionIdForDb
+                });
+              if (migrationError) {
+                console.error(`Session migration failed ${old.id} -> ${localSessionIdForDb}:`, migrationError);
+              } else {
+                console.log(`Auto-migrated session ${old.id} -> ${localSessionIdForDb}:`, JSON.stringify(migrationResult));
+              }
+            }
+          }
+        } catch (migErr) {
+          console.error('Session migration check failed:', migErr);
+        }
+      }
       
       // Return enriched response with QR code (try multiple field names)
       return new Response(
