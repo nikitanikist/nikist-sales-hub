@@ -92,10 +92,10 @@ Deno.serve(async (req) => {
       .from('scheduled_whatsapp_messages')
       .select(`
         *,
-        whatsapp_groups!inner(
-          group_jid, 
-          session_id,
-          whatsapp_sessions!inner(session_data)
+        whatsapp_groups!inner(group_jid),
+        workshops!inner(
+          whatsapp_session_id,
+          session:whatsapp_sessions!whatsapp_session_id(session_data)
         )
       `)
       .eq('status', 'pending')
@@ -123,12 +123,13 @@ Deno.serve(async (req) => {
     const results = await Promise.allSettled(
       pendingMessages.map(async (msg) => {
         const group = msg.whatsapp_groups;
-        if (!group?.group_jid || !group?.session_id) {
+        if (!group?.group_jid) {
           throw new Error('Missing group configuration');
         }
 
-        const sessionData = group.whatsapp_sessions?.session_data as { vps_session_id?: string } | null;
-        const vpsSessionId = sessionData?.vps_session_id || `wa_${group.session_id}`;
+        const workshop = msg.workshops;
+        const sessionData = workshop?.session?.session_data as { vps_session_id?: string } | null;
+        const vpsSessionId = sessionData?.vps_session_id || `wa_${workshop?.whatsapp_session_id}`;
 
         const vpsUrl = buildUrl(VPS_URL, '/send');
 
@@ -204,8 +205,9 @@ Deno.serve(async (req) => {
         // Insert into dead letter queue on final failure
         if (isFinalFailure) {
           const group = msg.whatsapp_groups;
-          const sessionData = group?.whatsapp_sessions?.session_data as { vps_session_id?: string } | null;
-          const vpsSessionId = sessionData?.vps_session_id || `wa_${group?.session_id}`;
+          const workshop = msg.workshops;
+          const sessionData = workshop?.session?.session_data as { vps_session_id?: string } | null;
+          const vpsSessionId = sessionData?.vps_session_id || `wa_${workshop?.whatsapp_session_id}`;
 
           await supabase.from('dead_letter_queue').insert({
             organization_id: msg.organization_id,
@@ -213,7 +215,7 @@ Deno.serve(async (req) => {
             source_id: msg.id,
             payload: {
               group_jid: group?.group_jid,
-              session_id: group?.session_id,
+              session_id: workshop?.whatsapp_session_id,
               message_content: msg.message_content,
               media_url: msg.media_url,
               media_type: msg.media_type,
