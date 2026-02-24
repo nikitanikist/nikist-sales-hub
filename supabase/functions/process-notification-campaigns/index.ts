@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 const BATCH_SIZE = 10;
+const STALE_THRESHOLD_MINUTES = 5;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,13 +20,33 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Find campaigns that need processing
+    const jobId = crypto.randomUUID();
+
+    // === STALE RECOVERY ===
+    // Reset groups stuck in 'processing' for more than 5 minutes back to 'pending'
+    const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000).toISOString();
+    
+    await supabase
+      .from("notification_campaign_groups")
+      .update({ status: "pending", processing_started_at: null })
+      .eq("status", "processing")
+      .lt("processing_started_at", staleThreshold);
+
+    // Reset campaign-level locks that are stale
+    await supabase
+      .from("notification_campaigns")
+      .update({ processing_by: null, processing_started_at: null })
+      .not("processing_by", "is", null)
+      .lt("processing_started_at", staleThreshold);
+
+    // Find campaigns that need processing (exclude ones already being processed)
     const { data: campaigns, error: fetchError } = await supabase
       .from("notification_campaigns")
       .select("*")
       .or(
         `status.eq.sending,and(status.eq.scheduled,scheduled_for.lte.${new Date().toISOString()})`
       )
+      .is("processing_by", null)
       .limit(5);
 
     if (fetchError) {
@@ -45,158 +66,234 @@ Deno.serve(async (req) => {
     const results: Record<string, { sent: number; failed: number }> = {};
 
     for (const campaign of campaigns) {
-      // If scheduled, move to sending
-      if (campaign.status === "scheduled") {
-        await supabase
-          .from("notification_campaigns")
-          .update({ status: "sending", started_at: new Date().toISOString() })
-          .eq("id", campaign.id);
-      } else if (!campaign.started_at) {
-        await supabase
-          .from("notification_campaigns")
-          .update({ started_at: new Date().toISOString() })
-          .eq("id", campaign.id);
-      }
+      // === CAMPAIGN-LEVEL LOCK ===
+      // Atomically claim this campaign by setting processing_by only if it's still null
+      const { data: lockResult, error: lockError } = await supabase
+        .from("notification_campaigns")
+        .update({ processing_by: jobId, processing_started_at: new Date().toISOString() })
+        .eq("id", campaign.id)
+        .is("processing_by", null)
+        .select("id")
+        .maybeSingle();
 
-      // Get session's VPS session ID
-      const { data: sessionData } = await supabase
-        .from("whatsapp_sessions")
-        .select("session_data, status")
-        .eq("id", campaign.session_id)
-        .single();
-
-      if (!sessionData || sessionData.status !== "connected") {
-        // Session disconnected — mark remaining groups as failed
-        await supabase
-          .from("notification_campaign_groups")
-          .update({
-            status: "failed",
-            error_message: "WhatsApp session disconnected",
-          })
-          .eq("campaign_id", campaign.id)
-          .eq("status", "pending");
-
-        const { count: failedCount } = await supabase
-          .from("notification_campaign_groups")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", campaign.id)
-          .eq("status", "failed");
-
-        const { count: sentCount } = await supabase
-          .from("notification_campaign_groups")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", campaign.id)
-          .eq("status", "sent");
-
-        await supabase
-          .from("notification_campaigns")
-          .update({
-            status: sentCount && sentCount > 0 ? "partial_failure" : "failed",
-            completed_at: new Date().toISOString(),
-            sent_count: sentCount || 0,
-            failed_count: failedCount || 0,
-          })
-          .eq("id", campaign.id);
-
-        results[campaign.id] = { sent: 0, failed: failedCount || 0 };
+      if (lockError || !lockResult) {
+        // Another job already claimed this campaign — skip it
+        console.log(`Campaign ${campaign.id} already locked by another job, skipping`);
         continue;
       }
 
-      const vpsSessionId =
-        (sessionData.session_data as any)?.vps_session_id || campaign.session_id;
+      try {
+        // If scheduled, move to sending
+        if (campaign.status === "scheduled") {
+          await supabase
+            .from("notification_campaigns")
+            .update({ status: "sending", started_at: new Date().toISOString() })
+            .eq("id", campaign.id);
+        } else if (!campaign.started_at) {
+          await supabase
+            .from("notification_campaigns")
+            .update({ started_at: new Date().toISOString() })
+            .eq("id", campaign.id);
+        }
 
-      // Get next batch of pending groups
-      const { data: pendingGroups } = await supabase
-        .from("notification_campaign_groups")
-        .select("*")
-        .eq("campaign_id", campaign.id)
-        .eq("status", "pending")
-        .order("created_at", { ascending: true })
-        .limit(BATCH_SIZE);
+        // Get session's VPS session ID
+        const { data: sessionData } = await supabase
+          .from("whatsapp_sessions")
+          .select("session_data, status")
+          .eq("id", campaign.session_id)
+          .single();
 
-      if (!pendingGroups || pendingGroups.length === 0) {
-        // No more pending — finalize
-        const { count: sentCount } = await supabase
+        if (!sessionData || sessionData.status !== "connected") {
+          // Session disconnected — mark remaining pending groups as failed
+          await supabase
+            .from("notification_campaign_groups")
+            .update({
+              status: "failed",
+              error_message: "WhatsApp session disconnected",
+            })
+            .eq("campaign_id", campaign.id)
+            .in("status", ["pending", "processing"]);
+
+          const { count: failedCount } = await supabase
+            .from("notification_campaign_groups")
+            .select("*", { count: "exact", head: true })
+            .eq("campaign_id", campaign.id)
+            .eq("status", "failed");
+
+          const { count: sentCount } = await supabase
+            .from("notification_campaign_groups")
+            .select("*", { count: "exact", head: true })
+            .eq("campaign_id", campaign.id)
+            .eq("status", "sent");
+
+          await supabase
+            .from("notification_campaigns")
+            .update({
+              status: sentCount && sentCount > 0 ? "partial_failure" : "failed",
+              completed_at: new Date().toISOString(),
+              sent_count: sentCount || 0,
+              failed_count: failedCount || 0,
+            })
+            .eq("id", campaign.id);
+
+          results[campaign.id] = { sent: 0, failed: failedCount || 0 };
+          continue;
+        }
+
+        const vpsSessionId =
+          (sessionData.session_data as any)?.vps_session_id || campaign.session_id;
+
+        // === CLAIM-BEFORE-SEND: Atomically claim pending groups ===
+        const now = new Date().toISOString();
+        const { data: claimedGroups, error: claimError } = await supabase
           .from("notification_campaign_groups")
-          .select("*", { count: "exact", head: true })
+          .update({ status: "processing", processing_started_at: now })
           .eq("campaign_id", campaign.id)
-          .eq("status", "sent");
+          .eq("status", "pending")
+          .order("created_at", { ascending: true })
+          .limit(BATCH_SIZE)
+          .select("*");
 
-        const { count: failedCount } = await supabase
-          .from("notification_campaign_groups")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", campaign.id)
-          .eq("status", "failed");
+        if (claimError) {
+          console.error("Error claiming groups:", claimError);
+          continue;
+        }
 
-        const finalStatus =
-          failedCount && failedCount > 0 ? "partial_failure" : "completed";
+        if (!claimedGroups || claimedGroups.length === 0) {
+          // No more pending — check if any are still processing (from another batch)
+          const { count: processingCount } = await supabase
+            .from("notification_campaign_groups")
+            .select("*", { count: "exact", head: true })
+            .eq("campaign_id", campaign.id)
+            .eq("status", "processing");
 
-        await supabase
-          .from("notification_campaigns")
-          .update({
-            status: finalStatus,
-            completed_at: new Date().toISOString(),
-            sent_count: sentCount || 0,
-            failed_count: failedCount || 0,
-          })
-          .eq("id", campaign.id);
-
-        results[campaign.id] = {
-          sent: sentCount || 0,
-          failed: failedCount || 0,
-        };
-        continue;
-      }
-
-      // Process batch
-      const vpsUrl = Deno.env.get("WHATSAPP_VPS_URL")!;
-      const vpsApiKey = Deno.env.get("WHATSAPP_VPS_API_KEY")!;
-      let batchSent = 0;
-      let batchFailed = 0;
-
-      for (let i = 0; i < pendingGroups.length; i++) {
-        const group = pendingGroups[i];
-
-        try {
-          const sendBody: Record<string, unknown> = {
-            sessionId: vpsSessionId,
-            phone: group.group_jid,
-            message: campaign.message_content,
-          };
-
-          if (campaign.media_url) {
-            sendBody.mediaUrl = campaign.media_url;
-            sendBody.mediaType = campaign.media_type || "document";
+          if (processingCount && processingCount > 0) {
+            // Still processing elsewhere, don't finalize yet
+            results[campaign.id] = { sent: 0, failed: 0 };
+            continue;
           }
 
-          const sendResp = await fetchWithTimeout(`${vpsUrl}/send`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-API-Key": vpsApiKey,
-            },
-            body: JSON.stringify(sendBody),
-          }, 10000);
+          // Finalize
+          const { count: sentCount } = await supabase
+            .from("notification_campaign_groups")
+            .select("*", { count: "exact", head: true })
+            .eq("campaign_id", campaign.id)
+            .eq("status", "sent");
 
-          const sendData = await sendResp.json();
+          const { count: failedCount } = await supabase
+            .from("notification_campaign_groups")
+            .select("*", { count: "exact", head: true })
+            .eq("campaign_id", campaign.id)
+            .eq("status", "failed");
 
-          if (sendData.success) {
-            await supabase
-              .from("notification_campaign_groups")
-              .update({
-                status: "sent",
-                sent_at: new Date().toISOString(),
-                message_id: sendData.messageId || null,
-              })
-              .eq("id", group.id);
-            batchSent++;
-          } else {
-            const errorMsg = sendData.error || "Send failed";
+          const finalStatus =
+            failedCount && failedCount > 0 ? "partial_failure" : "completed";
+
+          await supabase
+            .from("notification_campaigns")
+            .update({
+              status: finalStatus,
+              completed_at: new Date().toISOString(),
+              sent_count: sentCount || 0,
+              failed_count: failedCount || 0,
+            })
+            .eq("id", campaign.id);
+
+          results[campaign.id] = {
+            sent: sentCount || 0,
+            failed: failedCount || 0,
+          };
+          continue;
+        }
+
+        // Process claimed groups
+        const vpsUrl = Deno.env.get("WHATSAPP_VPS_URL")!;
+        const vpsApiKey = Deno.env.get("WHATSAPP_VPS_API_KEY")!;
+        let batchSent = 0;
+        let batchFailed = 0;
+
+        for (let i = 0; i < claimedGroups.length; i++) {
+          const group = claimedGroups[i];
+
+          try {
+            const sendBody: Record<string, unknown> = {
+              sessionId: vpsSessionId,
+              phone: group.group_jid,
+              message: campaign.message_content,
+            };
+
+            if (campaign.media_url) {
+              sendBody.mediaUrl = campaign.media_url;
+              sendBody.mediaType = campaign.media_type || "document";
+            }
+
+            const sendResp = await fetchWithTimeout(`${vpsUrl}/send`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-API-Key": vpsApiKey,
+              },
+              body: JSON.stringify(sendBody),
+            }, 10000);
+
+            const sendData = await sendResp.json();
+
+            if (sendData.success) {
+              await supabase
+                .from("notification_campaign_groups")
+                .update({
+                  status: "sent",
+                  sent_at: new Date().toISOString(),
+                  message_id: sendData.messageId || null,
+                  processing_started_at: null,
+                })
+                .eq("id", group.id);
+              batchSent++;
+            } else {
+              const errorMsg = sendData.error || "Send failed";
+              await supabase
+                .from("notification_campaign_groups")
+                .update({
+                  status: "failed",
+                  error_message: errorMsg,
+                  processing_started_at: null,
+                })
+                .eq("id", group.id);
+              batchFailed++;
+
+              // Insert into dead letter queue
+              await supabase.from('dead_letter_queue').insert({
+                organization_id: campaign.organization_id,
+                source_table: 'notification_campaign_groups',
+                source_id: group.id,
+                payload: {
+                  campaign_id: campaign.id,
+                  group_jid: group.group_jid,
+                  group_name: group.group_name,
+                  message_content: campaign.message_content,
+                  media_url: campaign.media_url,
+                  media_type: campaign.media_type,
+                },
+                retry_payload: {
+                  type: 'vps',
+                  url: `${vpsUrl}/send`,
+                  method: 'POST',
+                  body: sendBody,
+                },
+                error_message: errorMsg,
+                retry_count: 1,
+              }).then(({ error: dlqError }) => {
+                if (dlqError) console.error('DLQ insert error:', dlqError);
+              });
+            }
+          } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Unknown error";
             await supabase
               .from("notification_campaign_groups")
               .update({
                 status: "failed",
                 error_message: errorMsg,
+                processing_started_at: null,
               })
               .eq("id", group.id);
             batchFailed++;
@@ -218,7 +315,13 @@ Deno.serve(async (req) => {
                 type: 'vps',
                 url: `${vpsUrl}/send`,
                 method: 'POST',
-                body: sendBody,
+                body: {
+                  sessionId: vpsSessionId,
+                  phone: group.group_jid,
+                  message: campaign.message_content,
+                  ...(campaign.media_url && { mediaUrl: campaign.media_url }),
+                  ...(campaign.media_type && { mediaType: campaign.media_type || "document" }),
+                },
               },
               error_message: errorMsg,
               retry_count: 1,
@@ -226,94 +329,61 @@ Deno.serve(async (req) => {
               if (dlqError) console.error('DLQ insert error:', dlqError);
             });
           }
-        } catch (err) {
-          const errorMsg = err instanceof Error ? err.message : "Unknown error";
-          await supabase
-            .from("notification_campaign_groups")
-            .update({
-              status: "failed",
-              error_message: errorMsg,
-            })
-            .eq("id", group.id);
-          batchFailed++;
 
-          // Insert into dead letter queue
-          await supabase.from('dead_letter_queue').insert({
-            organization_id: campaign.organization_id,
-            source_table: 'notification_campaign_groups',
-            source_id: group.id,
-            payload: {
-              campaign_id: campaign.id,
-              group_jid: group.group_jid,
-              group_name: group.group_name,
-              message_content: campaign.message_content,
-              media_url: campaign.media_url,
-              media_type: campaign.media_type,
-            },
-            retry_payload: {
-              type: 'vps',
-              url: `${vpsUrl}/send`,
-              method: 'POST',
-              body: {
-                sessionId: vpsSessionId,
-                phone: group.group_jid,
-                message: campaign.message_content,
-                ...(campaign.media_url && { mediaUrl: campaign.media_url }),
-                ...(campaign.media_type && { mediaType: campaign.media_type || "document" }),
-              },
-            },
-            error_message: errorMsg,
-            retry_count: 1,
-          }).then(({ error: dlqError }) => {
-            if (dlqError) console.error('DLQ insert error:', dlqError);
-          });
+          // Delay between sends (skip after last one)
+          if (i < claimedGroups.length - 1 && campaign.delay_seconds > 0) {
+            await new Promise((r) =>
+              setTimeout(r, campaign.delay_seconds * 1000)
+            );
+          }
         }
 
-        // Delay between sends (skip after last one)
-        if (i < pendingGroups.length - 1 && campaign.delay_seconds > 0) {
-          await new Promise((r) =>
-            setTimeout(r, campaign.delay_seconds * 1000)
-          );
-        }
-      }
+        // Count actual group statuses and finalize campaign
+        const { data: groupStats } = await supabase
+          .from("notification_campaign_groups")
+          .select("status")
+          .eq("campaign_id", campaign.id);
 
-      // Count actual group statuses and finalize campaign
-      const { data: groupStats } = await supabase
-        .from("notification_campaign_groups")
-        .select("status")
-        .eq("campaign_id", campaign.id);
+        const finalSent = groupStats?.filter(g => g.status === "sent").length || 0;
+        const finalFailed = groupStats?.filter(g => g.status === "failed").length || 0;
+        const finalPending = groupStats?.filter(g => g.status === "pending").length || 0;
+        const finalProcessing = groupStats?.filter(g => g.status === "processing").length || 0;
 
-      const finalSent = groupStats?.filter(g => g.status === "sent").length || 0;
-      const finalFailed = groupStats?.filter(g => g.status === "failed").length || 0;
-      const finalPending = groupStats?.filter(g => g.status === "pending").length || 0;
-
-      // Update campaign counts
-      await supabase
-        .from("notification_campaigns")
-        .update({
-          sent_count: finalSent,
-          failed_count: finalFailed,
-        })
-        .eq("id", campaign.id);
-
-      // If no more pending groups, finalize status
-      if (finalPending === 0) {
-        const finalStatus = finalFailed > 0 && finalSent > 0
-          ? "partial_failure"
-          : finalFailed > 0
-          ? "failed"
-          : "completed";
-
+        // Update campaign counts
         await supabase
           .from("notification_campaigns")
           .update({
-            status: finalStatus,
-            completed_at: new Date().toISOString(),
+            sent_count: finalSent,
+            failed_count: finalFailed,
           })
           .eq("id", campaign.id);
-      }
 
-      results[campaign.id] = { sent: batchSent, failed: batchFailed };
+        // If no more pending or processing groups, finalize status
+        if (finalPending === 0 && finalProcessing === 0) {
+          const finalStatus = finalFailed > 0 && finalSent > 0
+            ? "partial_failure"
+            : finalFailed > 0
+            ? "failed"
+            : "completed";
+
+          await supabase
+            .from("notification_campaigns")
+            .update({
+              status: finalStatus,
+              completed_at: new Date().toISOString(),
+            })
+            .eq("id", campaign.id);
+        }
+
+        results[campaign.id] = { sent: batchSent, failed: batchFailed };
+      } finally {
+        // === RELEASE CAMPAIGN LOCK ===
+        await supabase
+          .from("notification_campaigns")
+          .update({ processing_by: null, processing_started_at: null })
+          .eq("id", campaign.id)
+          .eq("processing_by", jobId);
+      }
     }
 
     return new Response(JSON.stringify({ processed: Object.keys(results).length, results }), {

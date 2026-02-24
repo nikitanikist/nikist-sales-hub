@@ -2203,6 +2203,7 @@ export type Database = {
           id: string
           member_count: number
           message_id: string | null
+          processing_started_at: string | null
           reaction_count: number
           read_count: number
           sent_at: string | null
@@ -2219,6 +2220,7 @@ export type Database = {
           id?: string
           member_count?: number
           message_id?: string | null
+          processing_started_at?: string | null
           reaction_count?: number
           read_count?: number
           sent_at?: string | null
@@ -2235,6 +2237,7 @@ export type Database = {
           id?: string
           member_count?: number
           message_id?: string | null
+          processing_started_at?: string | null
           reaction_count?: number
           read_count?: number
           sent_at?: string | null
@@ -2340,6 +2343,8 @@ export type Database = {
           message_content: string
           name: string
           organization_id: string
+          processing_by: string | null
+          processing_started_at: string | null
           scheduled_for: string | null
           sent_count: number
           session_id: string
@@ -2360,6 +2365,8 @@ export type Database = {
           message_content: string
           name: string
           organization_id: string
+          processing_by?: string | null
+          processing_started_at?: string | null
           scheduled_for?: string | null
           sent_count?: number
           session_id: string
@@ -2380,6 +2387,8 @@ export type Database = {
           message_content?: string
           name?: string
           organization_id?: string
+          processing_by?: string | null
+          processing_started_at?: string | null
           scheduled_for?: string | null
           sent_count?: number
           session_id?: string
