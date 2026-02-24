@@ -1,47 +1,45 @@
 
 
-# Fix: Post-Login Redirect and Sidebar Menu Flicker
+# WhatsApp Disconnection UX Improvements
 
-## What's Happening
+## What We're Building
 
-**Issue 1 -- Wrong landing page after login:**
-When you log in as the onepercentclub.io organization, you're landing on the Team Members page (`/users`) instead of going to the first meaningful page for your org. This happens because:
-- After login, the app always goes to `/`
-- Then it redirects to `/whatsapp` (hardcoded default)
-- Then it detects WhatsApp is not accessible for this org and bounces again to the first available route (`/users`)
+Three changes to improve the experience when a WhatsApp session drops:
 
-This multi-hop redirect should instead go directly to the first page you actually have access to.
+### 1. Dashboard Disconnection Banner
 
-**Issue 2 -- Menu flicker on page refresh:**
-On refresh, the sidebar briefly flashes all menus (Dashboard, Customers, etc.) before settling on the correct restricted set. This happens because the organization-level feature overrides load slightly after the role/permissions data, creating a brief window where the sidebar renders without the org restrictions applied.
+When a user lands on the WhatsApp Dashboard and their session(s) are disconnected, show a prominent error banner at the top (before the stats cards) with:
+- A warning icon and message: "Your WhatsApp account (916290859215) is disconnected"
+- A "Go to Settings" button that navigates to the Settings page where they can reconnect
 
-## Plan
+Currently, the dashboard only checks for `connectedSessions.length === 0` and shows a generic empty state. We need to also detect sessions that exist but are disconnected and show the banner instead of (or alongside) the empty state.
 
-### 1. Smart redirect after login (AppLayout.tsx)
+### 2. Replace "Sync Groups" with "Reconnect" for Disconnected Sessions (Settings Page)
 
-Instead of always redirecting `/` to `/whatsapp`, calculate the first accessible route based on the user's actual permissions and org feature overrides, then redirect there. This eliminates the multi-hop bounce.
+On the WhatsApp Connection settings card, when a session shows "Disconnected -- Reconnect needed":
+- Hide the "Sync Groups" button (syncing a disconnected session makes no sense)
+- Show a "Reconnect" button instead that opens the QR code dialog, pre-targeting that specific session ID
 
-### 2. Smart redirect after login (ProtectedRoute.tsx)
+### 3. Silent VPS Error Toasts During Verification
 
-Same fix -- instead of hardcoding `Navigate to="/whatsapp"`, compute the first accessible route dynamically.
-
-### 3. Prevent sidebar flicker (AppLayout.tsx)
-
-Ensure the loading screen stays visible until ALL async data is fully resolved -- including the organization context itself (`currentOrganization`). Currently, if the organization loads a frame after the role, the sidebar renders unfiltered menus briefly. Adding `!currentOrganization` (for non-super-admins) to the loading condition will prevent this.
+Add a `silent` option to `callVPSProxy` so that automatic session verification on page load does not trigger the "VPS Endpoint Not Found (404)" toast. The verification logic already handles the error gracefully by updating the DB.
 
 ## Technical Details
 
-**Files to modify:**
+**File: `src/pages/whatsapp/WhatsAppDashboard.tsx`**
+- Track ALL sessions (not just connected) and disconnected sessions separately
+- After the loading skeleton check (line 56), before the `connectedSessions.length === 0` empty state, add a new condition: if there are disconnected sessions, show an Alert banner with the phone number and a "Go to Settings" button
+- Adjust the empty state logic so the dashboard still renders stats/groups if there are connected sessions, even if some are disconnected
 
-1. **`src/components/AppLayout.tsx`**
-   - Add a helper function `getFirstAccessibleRoute()` that iterates through `ROUTE_TO_PERMISSION` entries and returns the first route where `hasPermission(key)` is true and `isPermissionDisabled(key)` is false
-   - In the `/` redirect `useEffect` (line 217-225): replace `navigate("/whatsapp")` with `navigate(getFirstAccessibleRoute())`
-   - In the loading guard (line 467): add `(!isSuperAdmin && !currentOrganization)` to keep the loading screen until the org context is ready
+**File: `src/pages/settings/WhatsAppConnection.tsx`**
+- In the connected sessions list (lines 311-384), when `isVpsDisconnected` is true for a session:
+  - Replace the "Sync Groups" button with a "Reconnect" button
+  - The Reconnect button calls `connect()` (or a new reconnect function) and opens the QR dialog, targeting the existing session
+- Keep the "Disconnect" button visible so users can still fully remove the session
 
-2. **`src/components/ProtectedRoute.tsx`**
-   - Replace the hardcoded `<Navigate to="/whatsapp" replace />` (line 37) with logic that computes the first accessible route using the same permission checks
-   - This requires importing `useOrgFeatureOverrides` and `ROUTE_TO_PERMISSION` to determine the correct landing page
-
-3. **`src/pages/Auth.tsx`** (no changes needed)
-   - Auth already navigates to `/`, which is correct -- the downstream redirects will handle the rest
+**File: `src/hooks/useWhatsAppSession.ts`**
+- Modify `callVPSProxy` (line 305) to accept an optional third parameter `options?: { silent?: boolean }`
+- When `silent` is true, skip the `toast.error()` calls at lines 324 and 333, but still throw the error for callers to handle
+- Update the verification `useEffect` (line 483) to call `callVPSProxy('status', { sessionId }, { silent: true })`
+- Update `refreshSession` (line 531) to also use `{ silent: true }`
 
