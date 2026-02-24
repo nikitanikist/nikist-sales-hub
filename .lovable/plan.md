@@ -1,45 +1,64 @@
 
 
-# WhatsApp Disconnection UX Improvements
+# Fix: Prevent Duplicate Campaign Messages (Race Condition)
 
-## What We're Building
+## The Problem
 
-Three changes to improve the experience when a WhatsApp session drops:
+When you send a campaign, the same message gets delivered 2-4 times to each group. This happens because:
 
-### 1. Dashboard Disconnection Banner
+1. A background job runs **every minute** to process campaigns
+2. Your campaign with 8 groups and a 15-second delay takes about **2 minutes** to complete
+3. While the first job is still sending, a second job starts and picks up the **same groups** (they're still marked as "pending")
+4. Both jobs send the message to the same groups, causing duplicates
 
-When a user lands on the WhatsApp Dashboard and their session(s) are disconnected, show a prominent error banner at the top (before the stats cards) with:
-- A warning icon and message: "Your WhatsApp account (916290859215) is disconnected"
-- A "Go to Settings" button that navigates to the Settings page where they can reconnect
+## The Fix
 
-Currently, the dashboard only checks for `connectedSessions.length === 0` and shows a generic empty state. We need to also detect sessions that exist but are disconnected and show the banner instead of (or alongside) the empty state.
-
-### 2. Replace "Sync Groups" with "Reconnect" for Disconnected Sessions (Settings Page)
-
-On the WhatsApp Connection settings card, when a session shows "Disconnected -- Reconnect needed":
-- Hide the "Sync Groups" button (syncing a disconnected session makes no sense)
-- Show a "Reconnect" button instead that opens the QR code dialog, pre-targeting that specific session ID
-
-### 3. Silent VPS Error Toasts During Verification
-
-Add a `silent` option to `callVPSProxy` so that automatic session verification on page load does not trigger the "VPS Endpoint Not Found (404)" toast. The verification logic already handles the error gracefully by updating the DB.
+Add a "claim" step: before sending to a group, the system will **atomically mark it as "processing"** so no other job can pick it up. This is a standard pattern for preventing concurrent processing of the same work item.
 
 ## Technical Details
 
-**File: `src/pages/whatsapp/WhatsAppDashboard.tsx`**
-- Track ALL sessions (not just connected) and disconnected sessions separately
-- After the loading skeleton check (line 56), before the `connectedSessions.length === 0` empty state, add a new condition: if there are disconnected sessions, show an Alert banner with the phone number and a "Go to Settings" button
-- Adjust the empty state logic so the dashboard still renders stats/groups if there are connected sessions, even if some are disconnected
+### 1. Add a "processing" status for campaign groups
 
-**File: `src/pages/settings/WhatsAppConnection.tsx`**
-- In the connected sessions list (lines 311-384), when `isVpsDisconnected` is true for a session:
-  - Replace the "Sync Groups" button with a "Reconnect" button
-  - The Reconnect button calls `connect()` (or a new reconnect function) and opens the QR dialog, targeting the existing session
-- Keep the "Disconnect" button visible so users can still fully remove the session
+Create a database migration to add `processing` as a valid status value, and add a `processing_started_at` timestamp column to detect stale claims (in case a job crashes mid-send).
 
-**File: `src/hooks/useWhatsAppSession.ts`**
-- Modify `callVPSProxy` (line 305) to accept an optional third parameter `options?: { silent?: boolean }`
-- When `silent` is true, skip the `toast.error()` calls at lines 324 and 333, but still throw the error for callers to handle
-- Update the verification `useEffect` (line 483) to call `callVPSProxy('status', { sessionId }, { silent: true })`
-- Update `refreshSession` (line 531) to also use `{ silent: true }`
+### 2. Update the edge function (`supabase/functions/process-notification-campaigns/index.ts`)
+
+**Claim-before-send pattern:**
+- When fetching pending groups, immediately update their status from `pending` to `processing` in a single atomic operation
+- Only process groups that were successfully claimed (status changed from `pending` to `processing`)
+- After sending, update from `processing` to `sent` or `failed`
+- Add a stale claim recovery: if a group has been `processing` for more than 5 minutes, reset it back to `pending` (handles crashed jobs)
+
+The key change (pseudocode):
+```text
+BEFORE (race-prone):
+  1. SELECT groups WHERE status = 'pending'
+  2. Send message to each group
+  3. UPDATE group SET status = 'sent'
+  (Another job can SELECT the same groups between steps 1 and 3)
+
+AFTER (safe):
+  1. UPDATE groups SET status = 'processing' WHERE status = 'pending' RETURNING *
+  2. Send message to each claimed group
+  3. UPDATE group SET status = 'sent'
+  (Another job's UPDATE in step 1 returns 0 rows -- nothing to process)
+```
+
+### 3. Add campaign-level lock
+
+Before processing a campaign, atomically set a `processing_by` field with a unique job ID. If it's already set (another job is working on it), skip that campaign entirely. Clear it when done.
+
+### 4. Update finalization logic
+
+Update the campaign completion check to account for the new `processing` status -- a campaign isn't done if groups are still in `processing` state.
+
+### 5. Stale lock recovery
+
+Add a cleanup step at the start of each job invocation: any groups stuck in `processing` for more than 5 minutes get reset to `pending`. This handles edge cases where a job crashes or times out.
+
+## Files to Change
+
+- **New migration**: Add `processing` status, `processing_started_at` column, and `processing_by` column to relevant tables
+- **`supabase/functions/process-notification-campaigns/index.ts`**: Implement claim-before-send, campaign-level lock, and stale recovery
+- **`src/pages/whatsapp/CampaignDetail.tsx`**: Update the retry logic to also reset `processing` groups back to `pending`
 
