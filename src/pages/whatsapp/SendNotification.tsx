@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { extractVariables, getVariableLabel, replaceVariables } from "@/lib/templateVariables";
 import { useNavigate } from "react-router-dom";
 import { useWhatsAppSession } from "@/hooks/useWhatsAppSession";
 import { useWhatsAppGroups } from "@/hooks/useWhatsAppGroups";
@@ -67,6 +68,13 @@ const SendNotification = () => {
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+
+  // Detect variables in message content
+  const detectedVariables = useMemo(() => {
+    if (!messageContent.trim()) return [];
+    return extractVariables(messageContent);
+  }, [messageContent]);
 
   const connectedSessions = useMemo(
     () => sessions?.filter((s) => s.status === "connected") || [],
@@ -124,7 +132,13 @@ const SendNotification = () => {
       case 1: return selectedGroupIds.size > 0;
       case 2: return messageContent.trim().length > 0;
       case 3: return !!selectedSessionId && !!campaignName.trim() && (sendMode === "now" || !!scheduledFor);
-      case 4: return true;
+      case 4: {
+        // If there are detected variables, all must have values
+        if (detectedVariables.length > 0) {
+          return detectedVariables.every(v => variableValues[v]?.trim());
+        }
+        return true;
+      }
       default: return false;
     }
   };
@@ -230,7 +244,7 @@ const SendNotification = () => {
           organization_id: currentOrganization.id,
           session_id: selectedSessionId,
           name: campaignName,
-          message_content: messageContent,
+          message_content: detectedVariables.length > 0 ? replaceVariables(messageContent, variableValues) : messageContent,
           media_url: mediaUrl || null,
           media_type: mediaType || null,
           delay_seconds: delaySeconds,
@@ -559,6 +573,24 @@ const SendNotification = () => {
               <CardDescription>Review your notification before sending</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Variable inputs */}
+              {detectedVariables.length > 0 && (
+                <div className="space-y-3 p-3 border border-primary/20 bg-primary/5 rounded-lg">
+                  <p className="text-sm font-medium text-primary">Message Variables</p>
+                  <p className="text-xs text-muted-foreground">Fill in the values for template variables found in your message</p>
+                  {detectedVariables.map((v) => (
+                    <div key={v} className="space-y-1">
+                      <Label className="text-sm">{getVariableLabel(v)}</Label>
+                      <Input
+                        value={variableValues[v] || ""}
+                        onChange={(e) => setVariableValues(prev => ({ ...prev, [v]: e.target.value }))}
+                        placeholder={`Enter ${getVariableLabel(v).toLowerCase()}...`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {[
                   { label: "Campaign", value: campaignName },
@@ -595,7 +627,7 @@ const SendNotification = () => {
             </CardHeader>
             <CardContent className="p-4">
               <WhatsAppPreview
-                content={messageContent}
+                content={detectedVariables.length > 0 ? replaceVariables(messageContent, variableValues) : messageContent}
                 mediaUrl={mediaUrl}
                 mediaType={currentMediaType}
               />

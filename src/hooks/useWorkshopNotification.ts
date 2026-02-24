@@ -296,6 +296,20 @@ export function useWorkshopNotification() {
         (existingMessages || []).map(m => `${m.message_type}|${m.group_id}`)
       );
       
+      // Fetch saved variables from the database as fallback (outside loop)
+      const { data: savedVarsData } = await supabase
+        .from('workshop_sequence_variables')
+        .select('variable_key, variable_value')
+        .eq('workshop_id', workshopId);
+      
+      const savedVarsMap: Record<string, string> = {};
+      (savedVarsData || []).forEach(v => {
+        savedVarsMap[v.variable_key] = v.variable_value;
+      });
+      
+      // Merge: manual variables override saved ones
+      const mergedVariables = { ...savedVarsMap, ...manualVariables };
+
       // Create scheduled messages for each step for each group
       const messagesToCreate = [];
       for (const step of sequenceData.steps) {
@@ -315,7 +329,7 @@ export function useWorkshopNotification() {
         
         // Skip if scheduled time is in the past
         if (isBefore(scheduledForUTC, now)) continue;
-        
+
         // Apply template variables - format dates in org timezone
         const templateContent = step.template?.content || '';
         let processedContent = templateContent
@@ -323,8 +337,8 @@ export function useWorkshopNotification() {
           .replace(/{date}/gi, format(workshopDateInOrgTz, 'MMMM d, yyyy'))
           .replace(/{time}/gi, format(workshopDateInOrgTz, 'h:mm a'));
         
-        // Apply manual variables
-        for (const [key, value] of Object.entries(manualVariables)) {
+        // Apply merged variables
+        for (const [key, value] of Object.entries(mergedVariables)) {
           processedContent = processedContent.replace(
             new RegExp(`\\{${key}\\}`, 'gi'),
             value

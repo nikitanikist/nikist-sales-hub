@@ -19,6 +19,7 @@ import { MultiGroupSelect } from '@/components/operations/MultiGroupSelect';
 import { CollapsibleSection } from '@/components/operations/CollapsibleSection';
 import { SequenceVariablesDialog } from '@/components/operations/SequenceVariablesDialog';
 import { formatInOrgTime } from '@/lib/timezoneUtils';
+import { useSequenceVariables } from '@/hooks/useSequenceVariables';
 import { extractSequenceVariables } from '@/lib/templateVariables';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -48,8 +49,7 @@ export default function WebinarDetailSheet({ webinar, open, onOpenChange }: Webi
   const { data: messages, isLoading: messagesLoading } = useWebinarMessages(webinar?.id || null);
   const { data: linkedGroups } = useWebinarGroups(webinar?.id || null);
 
-  // Simple variables map (could add a useWebinarSequenceVariables hook later)
-  const variablesMap: Record<string, string> = {};
+  const { variablesMap, saveVariables, isSaving } = useSequenceVariables(webinar?.id || null, 'webinar');
 
   useEffect(() => {
     if (!webinar?.id || !open) return;
@@ -117,17 +117,27 @@ export default function WebinarDetailSheet({ webinar, open, onOpenChange }: Webi
       return;
     }
 
-    const { data: sequenceData } = await supabase
+    const { data: sequenceData, error: seqError } = await supabase
       .from('template_sequences')
       .select(`steps:template_sequence_steps(template:whatsapp_message_templates(content))`)
       .eq('id', webinar.tag.template_sequence_id)
       .single();
 
+    if (seqError) {
+      toast.error('Failed to load sequence templates', { description: seqError.message });
+      return;
+    }
+
     if (sequenceData?.steps) {
       const { manual } = extractSequenceVariables(sequenceData.steps);
       if (manual.length > 0) {
-        setPendingManualVariables(manual);
-        setVariablesDialogOpen(true);
+        const allCovered = manual.every(v => variablesMap[v]?.trim());
+        if (!allCovered) {
+          setPendingManualVariables(manual);
+          setVariablesDialogOpen(true);
+          return;
+        }
+        runMessaging({ webinarId: webinar.id, webinar, groupIds: selectedGroupIds, manualVariables: variablesMap });
         return;
       }
     }
@@ -136,6 +146,9 @@ export default function WebinarDetailSheet({ webinar, open, onOpenChange }: Webi
   };
 
   const handleVariablesSubmit = async (variables: Record<string, string>) => {
+    // Save variables to database
+    await saveVariables({ workshopId: webinar.id, variables });
+    
     runMessaging({
       webinarId: webinar.id, webinar, groupIds: selectedGroupIds, manualVariables: variables,
     });

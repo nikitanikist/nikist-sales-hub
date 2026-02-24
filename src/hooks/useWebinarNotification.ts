@@ -240,6 +240,20 @@ export function useWebinarNotification() {
       
       const existingCombos = new Set((existingMessages || []).map(m => `${m.message_type}|${m.group_id}`));
       
+      // Fetch saved variables from the database as fallback (outside loop)
+      const { data: savedVarsData } = await supabase
+        .from('webinar_sequence_variables')
+        .select('variable_key, variable_value')
+        .eq('webinar_id', webinarId);
+      
+      const savedVarsMap: Record<string, string> = {};
+      (savedVarsData || []).forEach(v => {
+        savedVarsMap[v.variable_key] = v.variable_value;
+      });
+      
+      // Merge: manual variables override saved ones
+      const mergedVariables = { ...savedVarsMap, ...manualVariables };
+
       const messagesToCreate = [];
       for (const step of sequenceData.steps) {
         const typeKey = step.time_label || `step_${step.step_order}`;
@@ -252,7 +266,7 @@ export function useWebinarNotification() {
         
         const scheduledForUTC = fromZonedTime(scheduledInOrgTz, orgTimezone);
         if (isBefore(scheduledForUTC, now)) continue;
-        
+
         const templateContent = step.template?.content || '';
         let processedContent = templateContent
           .replace(/{webinar_name}/gi, webinar.title)
@@ -260,7 +274,7 @@ export function useWebinarNotification() {
           .replace(/{date}/gi, format(webinarDateInOrgTz, 'MMMM d, yyyy'))
           .replace(/{time}/gi, format(webinarDateInOrgTz, 'h:mm a'));
         
-        for (const [key, value] of Object.entries(manualVariables)) {
+        for (const [key, value] of Object.entries(mergedVariables)) {
           processedContent = processedContent.replace(new RegExp(`\\{${key}\\}`, 'gi'), value);
         }
         
