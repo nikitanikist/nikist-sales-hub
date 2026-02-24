@@ -166,6 +166,12 @@ const SendNotification = () => {
 
       const { data: urlData } = supabase.storage.from("template-media").getPublicUrl(data.path);
 
+      // Verify the file is actually accessible
+      const verifyResponse = await fetch(urlData.publicUrl, { method: "HEAD" });
+      if (!verifyResponse.ok) {
+        throw new Error("Upload verification failed - file not accessible");
+      }
+
       setMediaUrl(urlData.publicUrl);
       setMediaFile(file);
       setMediaFileName(file.name);
