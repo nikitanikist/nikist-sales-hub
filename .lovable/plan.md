@@ -1,67 +1,65 @@
 
-# Fix: Template Variables Not Being Replaced in Workshop/Webinar Messages
+
+# Fix: Login Stuck on "Signing in..." Forever
 
 ## The Problem
 
-When you run a sequence for a workshop or webinar, variables like `{zoom_link}` are sent as literal text instead of being replaced with the actual Zoom link you entered. The database confirms this -- today's workshop messages all contain `{zoom_link}` as plain text.
+The "Sign In" button stays stuck on "Signing in..." because the authentication request never completes. The network requests show repeated "Failed to fetch" errors to the backend, meaning the request hangs indefinitely and the button never resets.
 
-## Root Cause
+## Root Causes
 
-There are **three related bugs** causing this:
+1. **No timeout on sign-in**: If the network request hangs (no response at all), the `await signIn()` never resolves, so `setLoading(false)` in the `finally` block never runs. The button stays disabled with "Signing in..." forever.
 
-### Bug 1: Silent failure skips the variable dialog
-When you click "Run the Messaging", the code fetches the sequence templates to check for variables. But if this database fetch fails for any reason, the error is silently ignored and the sequence runs immediately with **no variables at all**. The code does not check for errors:
+2. **Stale service worker interference**: The PWA service worker caches all JS/CSS/HTML files but doesn't exclude backend API requests from its navigation fallback. A stale or misconfigured service worker can interfere with fetch requests to the auth endpoint.
 
-```text
-const { data: sequenceData } = await supabase...  // error is ignored!
-if (sequenceData?.steps) { ... detect variables ... }
-// Falls through to run with empty variables
-```
-
-### Bug 2: Saved variables are never reused
-Even when a user has previously saved `zoom_link` for a workshop, re-running the sequence does NOT use those saved values. The `runMessaging` function only uses variables passed directly from the dialog -- it never looks up previously saved values from `workshop_sequence_variables`.
-
-### Bug 3: Webinar variables are never saved
-The webinar `handleVariablesSubmit` calls `runMessaging` but does NOT call `saveVariables`. So webinar variable values are lost after each run and cannot be reused.
+3. **Stale refresh token loop**: There's an invalid refresh token (`ddifeamml345`) stored in localStorage that keeps failing. This creates a background retry loop that may interfere with new login attempts.
 
 ## The Fix
 
-### 1. Add error handling in variable detection (both Workshop and Webinar)
+### 1. Add a timeout to the sign-in request
 
-**Files: `src/components/operations/WorkshopDetailSheet.tsx` and `src/pages/webinar/WebinarDetailSheet.tsx`**
+**File: `src/pages/Auth.tsx`**
 
-In `handleRunSequence`, check the error from the sequence data fetch. If it fails, show a toast error and stop -- do not silently fall through to running without variables.
+Wrap the `signIn` call with a timeout (15 seconds). If the request doesn't complete in time, show an error message and reset the button so the user can try again.
 
-### 2. Use saved variables as fallback in `runMessaging`
+```text
+BEFORE:
+  const { error } = await signIn(email, password);
 
-**Files: `src/hooks/useWorkshopNotification.ts` and `src/hooks/useWebinarNotification.ts`**
+AFTER:
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error("Request timed out")), 15000)
+  );
+  const { error } = await Promise.race([signIn(email, password), timeoutPromise]);
+```
 
-Before applying template variables, look up any previously saved values from `workshop_sequence_variables` (or `webinar_sequence_variables`). Merge them with the `manualVariables` parameter, with manual values taking priority. This ensures that if a user previously entered `zoom_link`, it gets used even on re-runs.
+### 2. Clear stale auth state on the login page
 
-The updated flow in `runMessagingMutation`:
-1. Fetch saved variables from the database for this workshop/webinar
-2. Merge: `{ ...savedVariables, ...manualVariables }` (manual overrides saved)
-3. Replace auto-filled variables (workshop_name, date, time)
-4. Replace all merged manual variables
+**File: `src/pages/Auth.tsx`**
 
-### 3. Save webinar variables in the dialog submit
+When the Auth page mounts (and the user is not already logged in), clear any stale Supabase session from localStorage. This prevents the background refresh loop from interfering with fresh login attempts.
 
-**File: `src/pages/webinar/WebinarDetailSheet.tsx`**
+### 3. Exclude auth API from service worker caching
 
-Add `saveVariables` call in `handleVariablesSubmit`, matching the workshop implementation. Import and use `useSequenceVariables` (or a webinar-specific equivalent).
+**File: `vite.config.ts`**
 
-### 4. Add the campaign Send Notification variable replacement
+Add `navigateFallbackDenylist` to the workbox config to ensure the service worker never intercepts requests to the Supabase auth endpoints:
 
-**File: `src/pages/whatsapp/SendNotification.tsx`**
+```text
+workbox: {
+  navigateFallbackDenylist: [/^\/auth/, /supabase/],
+  ...existing config
+}
+```
 
-- Detect `{variable}` patterns in the message using `extractVariables`
-- Show input fields for each variable in the confirmation step
-- Replace variables before saving the campaign `message_content`
+### 4. Add a "retry" fallback on the login page
+
+**File: `src/pages/Auth.tsx`**
+
+If sign-in fails due to a network error or timeout, show a helpful message like "Connection failed. Please check your internet and try again." with the button re-enabled so the user can retry immediately.
 
 ## Files to Change
 
-- `src/components/operations/WorkshopDetailSheet.tsx` -- Add error handling for sequence fetch
-- `src/pages/webinar/WebinarDetailSheet.tsx` -- Add error handling + save variables on submit
-- `src/hooks/useWorkshopNotification.ts` -- Fetch and merge saved variables before replacement
-- `src/hooks/useWebinarNotification.ts` -- Fetch and merge saved variables before replacement
-- `src/pages/whatsapp/SendNotification.tsx` -- Add variable detection and replacement for campaigns
+- **`src/pages/Auth.tsx`** -- Add timeout, stale session cleanup, better error messages
+- **`vite.config.ts`** -- Add `navigateFallbackDenylist` for auth/API routes
+
