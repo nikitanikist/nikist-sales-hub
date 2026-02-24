@@ -213,16 +213,48 @@ const AppLayoutContent = () => {
     }
   }, [user, loading, navigate]);
 
+  // Helper: find the first route the user actually has access to
+  const getFirstAccessibleRoute = (): string => {
+    // Preferred route order (matches sidebar visual order, skipping "/" which is Dashboard beta)
+    const preferredRoutes = [
+      '/whatsapp',
+      '/leads',
+      '/calls',
+      '/workshops',
+      '/sales',
+      '/funnels',
+      '/products',
+      '/daily-money-flow',
+      '/onboarding',
+      '/sales-closers',
+      '/users',
+      '/settings',
+      '/my-plan',
+      '/operations/workshop-notification',
+      '/operations/dynamic-links',
+      '/webinar/notification',
+    ];
+
+    for (const route of preferredRoutes) {
+      const permKey = ROUTE_TO_PERMISSION[route];
+      if (!permKey) continue;
+      if (hasPermission(permKey) && !isPermissionDisabled(permKey)) {
+        return route;
+      }
+    }
+    return '/whatsapp'; // ultimate fallback
+  };
+
   // Auto-redirect super admins to /super-admin when they land on /
   useEffect(() => {
-    if (!roleLoading && !loading && user && location.pathname === "/") {
+    if (!roleLoading && !loading && !overridesLoading && user && location.pathname === "/") {
       if (isSuperAdmin) {
         navigate("/super-admin");
       } else {
-        navigate("/whatsapp");
+        navigate(getFirstAccessibleRoute());
       }
     }
-  }, [isSuperAdmin, roleLoading, loading, user, location.pathname, navigate]);
+  }, [isSuperAdmin, roleLoading, loading, overridesLoading, user, location.pathname, navigate, hasPermission, isPermissionDisabled]);
 
   // Skip permission checks for super admin routes
   const isSuperAdminRoute = location.pathname.startsWith("/super-admin");
@@ -464,7 +496,7 @@ const AppLayoutContent = () => {
     : filterMenuItems(allMenuItems);
 
   // Early returns after all hooks
-  if (loading || roleLoading || modulesLoading || overridesLoading) {
+  if (loading || roleLoading || modulesLoading || overridesLoading || (!isSuperAdmin && !currentOrganization && user)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-4">
