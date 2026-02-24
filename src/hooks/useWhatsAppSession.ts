@@ -465,7 +465,7 @@ export function useWhatsAppSession() {
     if (!sessions || !currentOrganization) return;
 
     const connectedToVerify = sessions.filter(
-      s => s.status === 'connected' && !verifiedRef.current.has(s.id)
+      s => (s.status === 'connected' || s.status === 'connecting') && !verifiedRef.current.has(s.id)
     );
     if (connectedToVerify.length === 0) return;
 
@@ -485,7 +485,20 @@ export function useWhatsAppSession() {
 
         setVerifiedStatuses(prev => new Map(prev).set(session.id, vpsStatus));
 
-        if (vpsStatus !== 'connected') {
+        if (vpsStatus === 'connected') {
+          // VPS says connected — if DB doesn't reflect that, update it
+          if (session.status !== 'connected') {
+            await supabase
+              .from('whatsapp_sessions')
+              .update({
+                status: 'connected',
+                phone_number: data?.phoneNumber || session.phone_number,
+                connected_at: new Date().toISOString(),
+              } as any)
+              .eq('id', session.id);
+            queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+          }
+        } else {
           // Session is stale — update DB
           await supabase
             .from('whatsapp_sessions')
@@ -511,6 +524,49 @@ export function useWhatsAppSession() {
     });
   }, [sessions, currentOrganization, callVPSProxy, queryClient]);
 
+  // Manual refresh: re-verify a single session against VPS
+  const refreshSession = useCallback(async (sessionId: string) => {
+    setVerifyingSessionIds(prev => new Set(prev).add(sessionId));
+    try {
+      const data = await callVPSProxy('status', { sessionId });
+      const vpsStatus = data?.status || 'unknown';
+      setVerifiedStatuses(prev => new Map(prev).set(sessionId, vpsStatus));
+
+      if (vpsStatus === 'connected') {
+        const session = sessions?.find(s => s.id === sessionId);
+        if (session && session.status !== 'connected') {
+          await supabase
+            .from('whatsapp_sessions')
+            .update({
+              status: 'connected',
+              phone_number: data?.phoneNumber || session.phone_number,
+              connected_at: new Date().toISOString(),
+            } as any)
+            .eq('id', sessionId);
+        }
+      } else {
+        await supabase
+          .from('whatsapp_sessions')
+          .update({
+            status: vpsStatus === 'unknown' ? 'disconnected' : vpsStatus,
+            last_error: data?.error || `VPS reports status: ${vpsStatus}`,
+            last_error_at: new Date().toISOString(),
+          } as any)
+          .eq('id', sessionId);
+      }
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+    } catch (err) {
+      console.error(`Manual refresh for ${sessionId} failed:`, err);
+      setVerifiedStatuses(prev => new Map(prev).set(sessionId, 'error'));
+    } finally {
+      setVerifyingSessionIds(prev => {
+        const next = new Set(prev);
+        next.delete(sessionId);
+        return next;
+      });
+    }
+  }, [callVPSProxy, sessions, queryClient]);
+
   return {
     sessions,
     sessionsLoading,
@@ -528,5 +584,6 @@ export function useWhatsAppSession() {
     // Session verification state
     verifyingSessionIds,
     verifiedStatuses,
+    refreshSession,
   };
 }

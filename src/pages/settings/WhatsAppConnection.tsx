@@ -30,6 +30,7 @@ export function WhatsAppConnection() {
     isTestingVps,
     verifyingSessionIds,
     verifiedStatuses,
+    refreshSession,
   } = useWhatsAppSession();
 
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
@@ -427,6 +428,20 @@ export function WhatsAppConnection() {
                       <Badge variant="secondary">
                         {session.status}
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => refreshSession(session.id)}
+                        disabled={verifyingSessionIds.has(session.id)}
+                        className="h-8 w-8"
+                        title="Re-check VPS status"
+                      >
+                        {verifyingSessionIds.has(session.id) ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                        )}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
