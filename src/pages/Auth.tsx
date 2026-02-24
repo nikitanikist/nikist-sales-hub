@@ -27,17 +27,9 @@ const Auth = () => {
   // Clear stale auth state on mount to prevent background refresh loops
   useEffect(() => {
     if (!user) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session) {
-          // No valid session — clear any stale tokens from localStorage
-          const keys = Object.keys(localStorage);
-          keys.forEach((key) => {
-            if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
-              localStorage.removeItem(key);
-            }
-          });
-        }
-      });
+      // Force local sign-out to clear any corrupt/stale tokens
+      // This stops the auto-refresh retry loop without a network request
+      supabase.auth.signOut({ scope: 'local' });
     }
   }, [user]);
 
