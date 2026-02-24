@@ -87,6 +87,14 @@ export function TemplateMediaUpload({
 }: TemplateMediaUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [imageError, setImageError] = useState(false);
+
+  // Reset image error state when URL changes
+  const prevUrlRef = useRef(mediaUrl);
+  if (prevUrlRef.current !== mediaUrl) {
+    prevUrlRef.current = mediaUrl;
+    setImageError(false);
+  }
 
   const mediaType = mediaFile ? getMediaType(mediaFile) : getMediaTypeFromUrl(mediaUrl);
   const displayName = mediaFile?.name || fileName || 'Media';
@@ -122,11 +130,18 @@ export function TemplateMediaUpload({
         <div className="flex items-center gap-3">
           {/* Thumbnail */}
           {mediaType === 'image' && (
-            <img
-              src={mediaUrl}
-              alt="Preview"
-              className="h-12 w-12 rounded object-cover border"
-            />
+            imageError ? (
+              <div className="h-12 w-12 rounded bg-muted flex items-center justify-center border">
+                <Image className="h-6 w-6 text-muted-foreground" />
+              </div>
+            ) : (
+              <img
+                src={mediaUrl}
+                alt="Preview"
+                className="h-12 w-12 rounded object-cover border"
+                onError={() => setImageError(true)}
+              />
+            )
           )}
           {mediaType === 'video' && (
             <div className="h-12 w-12 rounded bg-blue-100 flex items-center justify-center border">
