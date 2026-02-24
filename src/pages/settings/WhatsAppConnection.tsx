@@ -352,19 +352,38 @@ export function WhatsAppConnection() {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => syncGroups(session.id)}
-                          disabled={isSyncing}
-                        >
-                          {isSyncing ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                          )}
-                          Sync Groups
-                        </Button>
+                        {isVpsDisconnected ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              connect();
+                              setQrDialogOpen(true);
+                            }}
+                            disabled={isConnecting}
+                          >
+                            {isConnecting ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <QrCode className="h-4 w-4 mr-2" />
+                            )}
+                            Reconnect
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => syncGroups(session.id)}
+                            disabled={isSyncing}
+                          >
+                            {isSyncing ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                            )}
+                            Sync Groups
+                          </Button>
+                        )}
                         <Button
                           variant="destructive"
                           size="sm"

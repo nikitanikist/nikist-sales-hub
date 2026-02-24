@@ -302,7 +302,7 @@ export function useWhatsAppSession() {
   });
 
   // Helper to call VPS proxy - defined after mutations to avoid hook order issues
-  const callVPSProxy = useCallback(async (action: string, params: Record<string, unknown> = {}) => {
+  const callVPSProxy = useCallback(async (action: string, params: Record<string, unknown> = {}, options?: { silent?: boolean }) => {
     const organizationId = orgIdRef.current;
     if (!organizationId) throw new Error('No organization selected');
     
@@ -321,7 +321,9 @@ export function useWhatsAppSession() {
       const errorData = await parseInvokeError(response.error, (response as any).response);
       if (errorData.upstream === 'vps') {
         const { title, description } = parseVpsError(errorData, action);
-        toast.error(title, { description });
+        if (!options?.silent) {
+          toast.error(title, { description });
+        }
         throw new Error(description);
       }
       throw response.error;
@@ -330,7 +332,9 @@ export function useWhatsAppSession() {
     // Check for upstream VPS errors in the response
     if (response.data?.upstream === 'vps' && response.data?.status && response.data.status >= 400) {
       const { title, description } = parseVpsError(response.data, action);
-      toast.error(title, { description });
+      if (!options?.silent) {
+        toast.error(title, { description });
+      }
       throw new Error(description);
     }
     
@@ -480,7 +484,7 @@ export function useWhatsAppSession() {
     connectedToVerify.forEach(async (session) => {
       verifiedRef.current.add(session.id);
       try {
-        const data = await callVPSProxy('status', { sessionId: session.id });
+        const data = await callVPSProxy('status', { sessionId: session.id }, { silent: true });
         const vpsStatus = data?.status || 'unknown';
 
         setVerifiedStatuses(prev => new Map(prev).set(session.id, vpsStatus));
@@ -528,7 +532,7 @@ export function useWhatsAppSession() {
   const refreshSession = useCallback(async (sessionId: string) => {
     setVerifyingSessionIds(prev => new Set(prev).add(sessionId));
     try {
-      const data = await callVPSProxy('status', { sessionId });
+      const data = await callVPSProxy('status', { sessionId }, { silent: true });
       const vpsStatus = data?.status || 'unknown';
       setVerifiedStatuses(prev => new Map(prev).set(sessionId, vpsStatus));
 
