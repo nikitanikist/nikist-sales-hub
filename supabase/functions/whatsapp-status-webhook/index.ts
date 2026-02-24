@@ -71,6 +71,22 @@ Deno.serve(async (req) => {
       updatePayload.last_error_at = null;
     }
 
+    // If connecting with a phone number, clear it from old sessions first
+    // to avoid unique constraint violation
+    if (status === 'connected' && phoneNumber && session.organization_id) {
+      const { error: clearError } = await supabase
+        .from('whatsapp_sessions')
+        .update({ phone_number: null })
+        .eq('organization_id', session.organization_id)
+        .eq('phone_number', phoneNumber)
+        .neq('id', session.id);
+      if (clearError) {
+        console.error('Failed to clear old phone numbers:', clearError);
+      } else {
+        console.log(`Cleared phone number ${phoneNumber} from old sessions in org ${session.organization_id}`);
+      }
+    }
+
     // Update the session
     const { error: updateError } = await supabase
       .from('whatsapp_sessions')
