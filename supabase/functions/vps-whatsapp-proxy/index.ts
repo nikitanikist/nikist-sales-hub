@@ -587,6 +587,22 @@ Deno.serve(async (req) => {
           vpsSessionIdForVps = sessionId;
         }
 
+        // Fetch community admin numbers from organization settings
+        let adminNumbers: string[] = [];
+        try {
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('community_admin_numbers')
+            .eq('id', organizationId)
+            .single();
+          if (orgData?.community_admin_numbers && Array.isArray(orgData.community_admin_numbers)) {
+            adminNumbers = orgData.community_admin_numbers.filter((n: string) => n && n.trim());
+            console.log(`Found ${adminNumbers.length} community admin numbers for org ${organizationId}`);
+          }
+        } catch (err) {
+          console.warn('Failed to fetch community_admin_numbers, proceeding without:', err);
+        }
+
         // Build VPS request
         const communitySettings = {
           announcement: announcement === true,
@@ -605,6 +621,7 @@ Deno.serve(async (req) => {
             description: description || name,
             settings: communitySettings,
             ...(profilePictureUrl && { profilePictureUrl }),
+            ...(adminNumbers.length > 0 && { adminNumbers }),
           }),
           VPS_API_KEY
         );
@@ -692,6 +709,8 @@ Deno.serve(async (req) => {
             communityId,
             announcementGroupId,
             inviteLink,
+            adminInvitesSent: createData?.adminInvitesSent || false,
+            adminNumbersInvited: createData?.adminNumbersInvited || [],
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
