@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,12 +15,31 @@ const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+const SIGN_IN_TIMEOUT_MS = 15000;
+
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { signIn, user } = useAuth();
   const navigate = useNavigate();
+
+  // Clear stale auth state on mount to prevent background refresh loops
+  useEffect(() => {
+    if (!user) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) {
+          // No valid session — clear any stale tokens from localStorage
+          const keys = Object.keys(localStorage);
+          keys.forEach((key) => {
+            if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
+              localStorage.removeItem(key);
+            }
+          });
+        }
+      });
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -38,15 +58,27 @@ const Auth = () => {
         return;
       }
 
-      const { error } = await signIn(email, password);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), SIGN_IN_TIMEOUT_MS)
+      );
+
+      const { error } = await Promise.race([
+        signIn(email, password),
+        timeoutPromise,
+      ]);
+
       if (error) {
         toast.error(error.message);
       } else {
         toast.success("Welcome back!");
         navigate("/");
       }
-    } catch (error) {
-      toast.error("An unexpected error occurred");
+    } catch (error: any) {
+      if (error?.message === "timeout") {
+        toast.error("Connection timed out. Please check your internet and try again.");
+      } else {
+        toast.error("Connection failed. Please check your internet and try again.");
+      }
     } finally {
       setLoading(false);
     }
