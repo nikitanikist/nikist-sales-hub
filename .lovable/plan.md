@@ -1,56 +1,64 @@
 
-# Fix: Sessions Stuck in "Connecting" Due to Unique Constraint Conflict
 
-## Problem
+# Add Missing Performance Indexes
 
-When you scan a QR code and WhatsApp connects, the dashboard shows "Connected successfully!" (toast), but the session stays as "connecting" in the Session History. This happens every time you reconnect a phone number that was previously used.
+## Status of All 7 Tasks
 
-**Root cause**: There is a database rule that says "only one session per organization can have a given phone number." When the new session tries to save the phone number, an old session already has it claimed. The save fails silently, so the new session is never updated to "connected" in the database.
+| # | Task | Status |
+|---|------|--------|
+| 1 | whatsapp-status-webhook | Already deployed and working |
+| 2 | Database sync (4 sessions) | All 4 sessions already show `connected` |
+| 3 | VPS health check in CRM | Already implemented (page-load + refresh button) |
+| 4 | Remove hardcoded API keys | Already using `WEBHOOK_SECRET_KEY` env var |
+| 5 | Database indexes | **Partially done -- a few missing** |
+| 6 | useToast memory leak | Already fixed (empty `[]` dependency) |
+| 7 | Calendly webhook idempotency | Already using upsert with unique constraint |
 
-The edge function logs confirm this:
+## What Still Needs Doing
+
+### Add missing composite indexes for performance
+
+The following indexes already exist:
+- `idx_leads_email`, `idx_leads_phone`, `idx_leads_status`, `idx_leads_org_created_desc`
+- `idx_appointments_closer`, `idx_appointments_date`, `idx_appointments_status`
+- `idx_emi_payments_appointment`, `idx_emi_payments_organization_id`
+
+The following are **missing** and would improve performance:
+
+```sql
+-- WhatsApp sessions: fast webhook lookup by vps_session_id in JSONB
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_whatsapp_sessions_vps_id
+  ON public.whatsapp_sessions((session_data->>'vps_session_id'));
+
+-- WhatsApp sessions: phone + status for constraint-clearing queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_whatsapp_sessions_phone_status
+  ON public.whatsapp_sessions(phone_number, status);
+
+-- Leads: org + status composite for filtered queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_org_status
+  ON public.leads(organization_id, status);
+
+-- EMI payments: pending due date for reminder processing
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_emi_pending_due
+  ON public.emi_payments(due_date) WHERE payment_status = 'pending';
+
+-- EMI payments: student + status for detail pages
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_emi_student_status
+  ON public.emi_payments(student_id, payment_status);
+
+-- Call appointments: composite closer+status+date for closer metrics
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_appointments_closer_status_date
+  ON public.call_appointments(closer_id, status, scheduled_date DESC);
+
+-- Call appointments: org+date for daily views
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_appointments_org_date
+  ON public.call_appointments(organization_id, scheduled_date DESC);
 ```
-Failed to update session status: duplicate key value violates unique constraint 
-"whatsapp_sessions_organization_id_phone_number_key"
-```
 
-## Solution
+### Technical Details
 
-Before updating a newly connected session with the phone number, clear the phone number from any old sessions in the same organization. This lets the new session claim the phone number without conflict.
+- Uses `CREATE INDEX CONCURRENTLY` so the tables remain fully available during index creation
+- All indexes are `IF NOT EXISTS` for safety
+- The `idx_whatsapp_sessions_vps_id` index is especially important since every webhook call does a JSONB text lookup
+- The partial index `idx_emi_pending_due` only indexes pending payments, keeping it small and fast
 
-### Changes
-
-#### 1. `supabase/functions/vps-whatsapp-proxy/index.ts` -- Status handler (around line 813)
-
-Before the existing `supabase.update()` call that sets `phone_number`, add a step to nullify the phone number on old sessions:
-
-```typescript
-// If this session is now connected with a phone number,
-// clear that phone number from any OTHER sessions in the same org
-// to avoid the unique constraint violation
-if (dbStatus === 'connected' && responseData?.phoneNumber) {
-  await supabase
-    .from('whatsapp_sessions')
-    .update({ phone_number: null })
-    .eq('organization_id', organizationId)
-    .eq('phone_number', responseData.phoneNumber)
-    .neq('id', localSessionIdForDb);
-}
-```
-
-This goes right before the existing update (line 828) so the constraint is cleared before the new phone number is set.
-
-#### 2. `supabase/functions/whatsapp-status-webhook/index.ts` -- Same fix for webhook path
-
-Apply the same "clear old phone numbers first" logic in the webhook handler, so that when the VPS triggers the webhook directly, the same constraint issue doesn't block the update.
-
-#### 3. Clean up existing stuck data
-
-Run a one-time cleanup to fix the currently stuck sessions:
-- Null out phone numbers on old `connecting` sessions that are blocking new ones
-- This will allow the refresh button (already built) to resolve the stuck sessions
-
-## Result
-
-- Reconnecting a phone number that was previously used will work without getting stuck
-- The "Connected successfully" toast will match reality -- the DB will actually be updated
-- Old sessions won't block new ones from claiming their phone number
