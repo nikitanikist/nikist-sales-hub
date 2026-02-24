@@ -174,7 +174,7 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
     }
 
     // Fetch the sequence steps to extract variables
-    const { data: sequenceData } = await supabase
+    const { data: sequenceData, error: seqError } = await supabase
       .from('template_sequences')
       .select(`
         steps:template_sequence_steps(
@@ -184,13 +184,25 @@ export function WorkshopDetailSheet({ workshop, open, onOpenChange }: WorkshopDe
       .eq('id', workshop.tag.template_sequence_id)
       .single();
 
+    if (seqError) {
+      toast.error('Failed to load sequence templates', { description: seqError.message });
+      return;
+    }
+
     if (sequenceData?.steps) {
       const { manual } = extractSequenceVariables(sequenceData.steps);
       
       if (manual.length > 0) {
-        // Show dialog for manual variables
-        setPendingManualVariables(manual);
-        setVariablesDialogOpen(true);
+        // Check if we have saved variables that cover all manual ones
+        const allCovered = manual.every(v => variablesMap[v]?.trim());
+        if (!allCovered) {
+          // Show dialog for manual variables
+          setPendingManualVariables(manual);
+          setVariablesDialogOpen(true);
+          return;
+        }
+        // All variables already saved, use them directly
+        runMessaging({ workshopId: workshop.id, workshop, groupIds: selectedGroupIds, manualVariables: variablesMap });
         return;
       }
     }
