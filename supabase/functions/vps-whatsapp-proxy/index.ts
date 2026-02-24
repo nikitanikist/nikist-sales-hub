@@ -810,6 +810,23 @@ Deno.serve(async (req) => {
       
       console.log(`VPS status: ${vpsStatus}, DB status: ${dbStatus}, QR present: ${!!qrCodeValue}, QR type: ${typeof qrCodeValue}`);
       
+      // If this session is now connected with a phone number,
+      // clear that phone number from any OTHER sessions in the same org
+      // to avoid the unique constraint violation
+      if (dbStatus === 'connected' && responseData?.phoneNumber) {
+        const { error: clearError } = await supabase
+          .from('whatsapp_sessions')
+          .update({ phone_number: null })
+          .eq('organization_id', organizationId)
+          .eq('phone_number', responseData.phoneNumber)
+          .neq('id', localSessionIdForDb);
+        if (clearError) {
+          console.error('Failed to clear old phone numbers:', clearError);
+        } else {
+          console.log(`Cleared phone number ${responseData.phoneNumber} from old sessions in org ${organizationId}`);
+        }
+      }
+
       const updatePayload: Record<string, unknown> = {
         status: dbStatus,
         phone_number: responseData?.phoneNumber || null,
@@ -823,6 +840,13 @@ Deno.serve(async (req) => {
         // Set QR expiry (typically 60 seconds)
         updatePayload.qr_expires_at = new Date(Date.now() + 60000).toISOString();
         console.log(`Storing QR code (length: ${qrCodeValue.length})`);
+      }
+
+      // Set connected_at when transitioning to connected
+      if (dbStatus === 'connected') {
+        updatePayload.connected_at = new Date().toISOString();
+        updatePayload.last_error = null;
+        updatePayload.last_error_at = null;
       }
       
       const { error: updateError } = await supabase
