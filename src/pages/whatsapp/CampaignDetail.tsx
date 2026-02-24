@@ -63,12 +63,12 @@ const CampaignDetail = () => {
         .eq("id", campaignId);
       if (campaignError) throw campaignError;
 
-      // Reset failed groups back to pending
+      // Reset failed and processing groups back to pending
       const { error: groupsError } = await supabase
         .from("notification_campaign_groups")
-        .update({ status: "pending" as any, error_message: null })
+        .update({ status: "pending" as any, error_message: null, processing_started_at: null } as any)
         .eq("campaign_id", campaignId)
-        .in("status", ["failed"]);
+        .in("status", ["failed", "processing"]);
       if (groupsError) throw groupsError;
 
       // Trigger the processor
