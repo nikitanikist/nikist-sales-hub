@@ -1,40 +1,67 @@
 
 
-# Create `whatsapp-status-webhook` Edge Function
+# Fix: Sessions Stuck in "Connecting" When Actually Connected
 
-Your VPS developer has set up a webhook that fires when WhatsApp connects. We need to create a new edge function to receive it and update the database.
+## Problem
 
-## What it does
+The session `a545e2c1-...` is actually connected on the VPS, but the database still shows `connecting`. This happens because:
 
-When the VPS detects a WhatsApp session connects, it sends a webhook with the session ID, status, and phone number. This edge function will:
+1. The page-load verification only checks sessions with `status = 'connected'` -- it skips `connecting` sessions entirely
+2. The new webhook hasn't been triggered by the VPS for this session yet
+3. The polling only runs during an active connection attempt (when the user clicks "Connect"), not for sessions already in the history list
 
-1. Receive the payload from the VPS
-2. Find the matching session in the database (matching by the VPS session ID stored in `session_data`)
-3. Update the session status to `connected`, set the phone number, and update timestamps
-4. Trigger the auto-migration logic we already built (migrate old disconnected sessions with the same phone number to the new one)
+## Solution
 
-## Important detail
+Expand the page-load verification to also check `connecting` sessions against the VPS. If the VPS reports `connected`, update the DB accordingly and trigger auto-migration.
 
-The VPS sends a `sessionId` like `wa_a545e2c1-...` which is stored inside the `session_data` JSONB column as `vps_session_id` -- it is NOT the database UUID `id`. So the lookup must filter by `session_data->>'vps_session_id'`.
+### Changes
 
-## Changes
+#### 1. `src/hooks/useWhatsAppSession.ts` -- Verify `connecting` sessions too
 
-### 1. New file: `supabase/functions/whatsapp-status-webhook/index.ts`
+Update the verification filter (line 467-468) from:
 
-- Receives POST with `{ sessionId, status, phoneNumber, timestamp }`
-- Authenticates via `WEBHOOK_SECRET_KEY` header (optional, for security) or open like other VPS webhooks
-- Finds the session row where `session_data->>'vps_session_id' = sessionId`
-- Updates `status`, `phone_number`, `last_active_at`, `connected_at` (if connected)
-- If status is `connected` and phone number is present, runs the same auto-migration logic (calls `migrate_whatsapp_session` RPC for any old disconnected sessions with the same phone number in the same org)
+```typescript
+const connectedToVerify = sessions.filter(
+  s => s.status === 'connected' && !verifiedRef.current.has(s.id)
+);
+```
 
-### 2. Update `supabase/config.toml`
+To:
 
-- Add `[functions.whatsapp-status-webhook]` with `verify_jwt = false` (VPS calls this, no JWT)
+```typescript
+const connectedToVerify = sessions.filter(
+  s => (s.status === 'connected' || s.status === 'connecting') && !verifiedRef.current.has(s.id)
+);
+```
 
-### Technical details
+Also update the stale-session handler (line 488) to handle the case where VPS reports `connected` for a `connecting` session -- update the DB to `connected` and set phone number:
 
-- Uses `session_data->>vps_session_id` filter via `.filter('session_data->>vps_session_id', 'eq', sessionId)` on the Supabase client
-- CORS headers included for consistency
-- No JWT verification (VPS is the caller)
-- Logs the webhook payload and migration results for debugging
+```typescript
+if (vpsStatus === 'connected') {
+  // Session is connected on VPS but DB might not know yet
+  if (session.status !== 'connected') {
+    await supabase
+      .from('whatsapp_sessions')
+      .update({
+        status: 'connected',
+        phone_number: data?.phoneNumber || session.phone_number,
+        connected_at: new Date().toISOString(),
+      })
+      .eq('id', session.id);
+    queryClient.invalidateQueries({ queryKey: ['whatsapp-sessions'] });
+  }
+} else {
+  // existing stale-session logic...
+}
+```
+
+#### 2. `src/pages/settings/WhatsAppConnection.tsx` -- Add refresh button to session history
+
+Add a small refresh/retry button next to each session in the history list so the user can manually trigger a status recheck without reloading the entire page.
+
+## Result
+
+- On page load, `connecting` sessions are verified against the VPS
+- If VPS says `connected`, the DB is updated immediately and the session moves from "Session History" to the active sessions list
+- A manual refresh button provides an escape hatch for any stuck state
 
