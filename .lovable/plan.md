@@ -1,43 +1,33 @@
 
 
-# Fix: Allow Deleting WhatsApp Session History
+# Fix: Remove Outdated Check Constraint on Dynamic Links
 
 ## Problem
 
-When you delete a session from Session History, it tries to cascade-delete the associated WhatsApp groups. However, several tables reference `whatsapp_groups` without proper `ON DELETE` rules, so the database blocks the delete with a foreign key violation.
+The `dynamic_links` table has a check constraint (`dynamic_links_destination_check`) that enforces an XOR rule: either `destination_url` OR `whatsapp_group_id` must be set, but not both, and not neither.
 
-The problematic constraints (all missing `ON DELETE CASCADE` or `SET NULL`):
+Since the system was refactored to store WhatsApp invite URLs directly in `destination_url` (decoupled from `whatsapp_group_id`), this constraint now blocks link creation because `destination_url` is always set and `whatsapp_group_id` is always NULL -- but the constraint doesn't allow both to be in that state when the other is also NULL... actually it does allow that case. Let me re-read.
 
-| Table | Constraint | Current Rule |
-|-------|-----------|-------------|
-| `notification_campaign_groups` | `group_id` | RESTRICT (blocks delete) |
-| `webinars` | `whatsapp_group_id` | RESTRICT |
-| `webinars` | `community_group_id` | RESTRICT |
-| `webinar_whatsapp_groups` | `group_id` | RESTRICT |
-| `scheduled_webinar_messages` | `group_id` | RESTRICT |
+The constraint is: `(destination_url IS NOT NULL AND whatsapp_group_id IS NULL) OR (destination_url IS NULL AND whatsapp_group_id IS NOT NULL)`. This means having `destination_url` set and `whatsapp_group_id` NULL should be valid. The error likely occurs when **both** are being set (destination_url filled AND whatsapp_group_id filled), or when **neither** is set.
 
-Tables that are already fine (no changes needed):
-- `scheduled_whatsapp_messages` -- ON DELETE CASCADE
-- `workshops` -- ON DELETE SET NULL
-- `workshop_whatsapp_groups` -- ON DELETE CASCADE
-- `whatsapp_group_admins` -- ON DELETE CASCADE
-- `dynamic_links` -- ON DELETE SET NULL
-- `workshop_group_members` -- ON DELETE SET NULL
+Looking at the current flow: when a WhatsApp group is selected, the system fetches the invite URL and puts it in `destination_url`, but the `whatsapp_group_id` column might still be getting populated in the insert/update query, causing both to be non-null and violating the constraint.
 
 ## Solution
 
-Run a database migration to update the foreign key constraints so deleting a group (and by extension, deleting a session) works cleanly.
-
 ### Database Migration
 
-For each problematic constraint, drop and re-create it with the appropriate `ON DELETE` behavior:
+Drop the outdated check constraint and replace it with a simpler one that just requires `destination_url` to always be present (since all links now store their full URL directly):
 
-- **`notification_campaign_groups.group_id`** -- Use `SET NULL`. Campaign history should be preserved (for analytics), but the group reference should be cleared.
-- **`webinars.whatsapp_group_id`** -- Use `SET NULL`. The webinar record stays, just unlinked from the deleted group.
-- **`webinars.community_group_id`** -- Use `SET NULL`. Same reasoning.
-- **`webinar_whatsapp_groups.group_id`** -- Use `CASCADE`. This is a junction table; if the group is gone, the link row has no purpose.
-- **`scheduled_webinar_messages.group_id`** -- Use `CASCADE`. Pending messages for a deleted group should be removed.
+```sql
+ALTER TABLE public.dynamic_links
+  DROP CONSTRAINT dynamic_links_destination_check;
 
-### No Frontend Changes Needed
+ALTER TABLE public.dynamic_links
+  ADD CONSTRAINT dynamic_links_destination_check
+  CHECK (destination_url IS NOT NULL);
+```
 
-The existing delete logic in `useWhatsAppSession.ts` already handles the delete call and shows success/error toasts. Once the database constraints are fixed, it will just work.
+### Frontend Code Check
+
+Verify the `CreateLinkDialog` component and `useDynamicLinks` hook to ensure `whatsapp_group_id` is not being sent in insert/update calls. If it is, remove it so only `destination_url` is populated.
+
