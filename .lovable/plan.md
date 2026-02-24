@@ -1,65 +1,47 @@
 
 
-# Fix: Clean Up Stale WhatsApp Sessions and Prevent Future Deletion Errors
+# Fix: Post-Login Redirect and Sidebar Menu Flicker
 
-## Problem
+## What's Happening
 
-There are two issues:
+**Issue 1 -- Wrong landing page after login:**
+When you log in as the onepercentclub.io organization, you're landing on the Team Members page (`/users`) instead of going to the first meaningful page for your org. This happens because:
+- After login, the app always goes to `/`
+- Then it redirects to `/whatsapp` (hardcoded default)
+- Then it detects WhatsApp is not accessible for this org and bounces again to the first available route (`/users`)
 
-1. **Cannot delete old session history** -- When you try to delete a WhatsApp session, the database cascade tries to delete its linked `whatsapp_groups`, which in turn tries to `SET NULL` on `notification_campaign_groups.group_id`. But `group_id` is a `NOT NULL` column, so the operation fails with a constraint violation.
+This multi-hop redirect should instead go directly to the first page you actually have access to.
 
-2. **Runtime errors on page load** -- Stale sessions (status: `connecting`, `qr_pending`, `disconnected`) cause the frontend to check their status against the VPS, which returns 404 "Session not found", flooding the console with errors.
+**Issue 2 -- Menu flicker on page refresh:**
+On refresh, the sidebar briefly flashes all menus (Dashboard, Customers, etc.) before settling on the correct restricted set. This happens because the organization-level feature overrides load slightly after the role/permissions data, creating a brief window where the sidebar renders without the org restrictions applied.
 
-## Root Cause
+## Plan
 
-The foreign key `notification_campaign_groups_group_id_fkey` is defined as `ON DELETE SET NULL`, but the `group_id` column has a `NOT NULL` constraint. These two rules contradict each other.
+### 1. Smart redirect after login (AppLayout.tsx)
 
-## What Needs to Happen
+Instead of always redirecting `/` to `/whatsapp`, calculate the first accessible route based on the user's actual permissions and org feature overrides, then redirect there. This eliminates the multi-hop bounce.
 
-### Step 1: Database Migration
+### 2. Smart redirect after login (ProtectedRoute.tsx)
 
-Change the foreign key on `notification_campaign_groups.group_id` from `ON DELETE SET NULL` to `ON DELETE CASCADE`. This way, when a whatsapp_group is deleted (because its session was deleted), the related campaign group records are also cleaned up. This is safe because the campaign data is historical and tied to that specific group -- if the group no longer exists, the campaign-group link is meaningless.
+Same fix -- instead of hardcoding `Navigate to="/whatsapp"`, compute the first accessible route dynamically.
 
-### Step 2: Clean Up Stale Sessions
+### 3. Prevent sidebar flicker (AppLayout.tsx)
 
-Delete all 9 stale sessions that are not connected and have no phone number:
-
-| Session ID | Status |
-|---|---|
-| 303d5044-... | qr_pending |
-| 07e810ce-... | connecting |
-| 8842d937-... | qr_pending |
-| caae7ecf-... | qr_pending |
-| 2d70b0ef-... | connecting |
-| c330db9f-... | qr_pending |
-| 857bbdfb-... | disconnected |
-| fc78d08a-... | disconnected |
-| fd5cd67a-... | connecting |
-
-These sessions have no phone number and are not connected. Their linked groups (580 total) and campaign-group references (37 total) will be cascade-deleted. There are zero pending scheduled messages tied to these groups, so no active functionality is affected.
-
-### Step 3: No Code Changes Needed
-
-The frontend delete button already calls a simple `DELETE FROM whatsapp_sessions WHERE id = ?`. Once the FK constraint is fixed, this will work correctly. The runtime 404 errors will also stop because the stale sessions will no longer exist.
+Ensure the loading screen stays visible until ALL async data is fully resolved -- including the organization context itself (`currentOrganization`). Currently, if the organization loads a frame after the role, the sidebar renders unfiltered menus briefly. Adding `!currentOrganization` (for non-super-admins) to the loading condition will prevent this.
 
 ## Technical Details
 
-**Migration SQL:**
+**Files to modify:**
 
-```sql
--- Fix the contradictory FK constraint
-ALTER TABLE notification_campaign_groups
-  DROP CONSTRAINT notification_campaign_groups_group_id_fkey;
+1. **`src/components/AppLayout.tsx`**
+   - Add a helper function `getFirstAccessibleRoute()` that iterates through `ROUTE_TO_PERMISSION` entries and returns the first route where `hasPermission(key)` is true and `isPermissionDisabled(key)` is false
+   - In the `/` redirect `useEffect` (line 217-225): replace `navigate("/whatsapp")` with `navigate(getFirstAccessibleRoute())`
+   - In the loading guard (line 467): add `(!isSuperAdmin && !currentOrganization)` to keep the loading screen until the org context is ready
 
-ALTER TABLE notification_campaign_groups
-  ADD CONSTRAINT notification_campaign_groups_group_id_fkey
-  FOREIGN KEY (group_id) REFERENCES whatsapp_groups(id) ON DELETE CASCADE;
+2. **`src/components/ProtectedRoute.tsx`**
+   - Replace the hardcoded `<Navigate to="/whatsapp" replace />` (line 37) with logic that computes the first accessible route using the same permission checks
+   - This requires importing `useOrgFeatureOverrides` and `ROUTE_TO_PERMISSION` to determine the correct landing page
 
--- Clean up stale sessions (cascade will handle groups and campaign_groups)
-DELETE FROM whatsapp_sessions
-WHERE status IN ('qr_pending', 'connecting', 'disconnected')
-  AND phone_number IS NULL;
-```
-
-**Impact:** Only historical/orphaned data is removed. All 5 currently connected sessions are untouched.
+3. **`src/pages/Auth.tsx`** (no changes needed)
+   - Auth already navigates to `/`, which is correct -- the downstream redirects will handle the rest
 
