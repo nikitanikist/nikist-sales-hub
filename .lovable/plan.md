@@ -1,64 +1,67 @@
 
-
-# Fix: Prevent Duplicate Campaign Messages (Race Condition)
+# Fix: Template Variables Not Being Replaced in Workshop/Webinar Messages
 
 ## The Problem
 
-When you send a campaign, the same message gets delivered 2-4 times to each group. This happens because:
+When you run a sequence for a workshop or webinar, variables like `{zoom_link}` are sent as literal text instead of being replaced with the actual Zoom link you entered. The database confirms this -- today's workshop messages all contain `{zoom_link}` as plain text.
 
-1. A background job runs **every minute** to process campaigns
-2. Your campaign with 8 groups and a 15-second delay takes about **2 minutes** to complete
-3. While the first job is still sending, a second job starts and picks up the **same groups** (they're still marked as "pending")
-4. Both jobs send the message to the same groups, causing duplicates
+## Root Cause
+
+There are **three related bugs** causing this:
+
+### Bug 1: Silent failure skips the variable dialog
+When you click "Run the Messaging", the code fetches the sequence templates to check for variables. But if this database fetch fails for any reason, the error is silently ignored and the sequence runs immediately with **no variables at all**. The code does not check for errors:
+
+```text
+const { data: sequenceData } = await supabase...  // error is ignored!
+if (sequenceData?.steps) { ... detect variables ... }
+// Falls through to run with empty variables
+```
+
+### Bug 2: Saved variables are never reused
+Even when a user has previously saved `zoom_link` for a workshop, re-running the sequence does NOT use those saved values. The `runMessaging` function only uses variables passed directly from the dialog -- it never looks up previously saved values from `workshop_sequence_variables`.
+
+### Bug 3: Webinar variables are never saved
+The webinar `handleVariablesSubmit` calls `runMessaging` but does NOT call `saveVariables`. So webinar variable values are lost after each run and cannot be reused.
 
 ## The Fix
 
-Add a "claim" step: before sending to a group, the system will **atomically mark it as "processing"** so no other job can pick it up. This is a standard pattern for preventing concurrent processing of the same work item.
+### 1. Add error handling in variable detection (both Workshop and Webinar)
 
-## Technical Details
+**Files: `src/components/operations/WorkshopDetailSheet.tsx` and `src/pages/webinar/WebinarDetailSheet.tsx`**
 
-### 1. Add a "processing" status for campaign groups
+In `handleRunSequence`, check the error from the sequence data fetch. If it fails, show a toast error and stop -- do not silently fall through to running without variables.
 
-Create a database migration to add `processing` as a valid status value, and add a `processing_started_at` timestamp column to detect stale claims (in case a job crashes mid-send).
+### 2. Use saved variables as fallback in `runMessaging`
 
-### 2. Update the edge function (`supabase/functions/process-notification-campaigns/index.ts`)
+**Files: `src/hooks/useWorkshopNotification.ts` and `src/hooks/useWebinarNotification.ts`**
 
-**Claim-before-send pattern:**
-- When fetching pending groups, immediately update their status from `pending` to `processing` in a single atomic operation
-- Only process groups that were successfully claimed (status changed from `pending` to `processing`)
-- After sending, update from `processing` to `sent` or `failed`
-- Add a stale claim recovery: if a group has been `processing` for more than 5 minutes, reset it back to `pending` (handles crashed jobs)
+Before applying template variables, look up any previously saved values from `workshop_sequence_variables` (or `webinar_sequence_variables`). Merge them with the `manualVariables` parameter, with manual values taking priority. This ensures that if a user previously entered `zoom_link`, it gets used even on re-runs.
 
-The key change (pseudocode):
-```text
-BEFORE (race-prone):
-  1. SELECT groups WHERE status = 'pending'
-  2. Send message to each group
-  3. UPDATE group SET status = 'sent'
-  (Another job can SELECT the same groups between steps 1 and 3)
+The updated flow in `runMessagingMutation`:
+1. Fetch saved variables from the database for this workshop/webinar
+2. Merge: `{ ...savedVariables, ...manualVariables }` (manual overrides saved)
+3. Replace auto-filled variables (workshop_name, date, time)
+4. Replace all merged manual variables
 
-AFTER (safe):
-  1. UPDATE groups SET status = 'processing' WHERE status = 'pending' RETURNING *
-  2. Send message to each claimed group
-  3. UPDATE group SET status = 'sent'
-  (Another job's UPDATE in step 1 returns 0 rows -- nothing to process)
-```
+### 3. Save webinar variables in the dialog submit
 
-### 3. Add campaign-level lock
+**File: `src/pages/webinar/WebinarDetailSheet.tsx`**
 
-Before processing a campaign, atomically set a `processing_by` field with a unique job ID. If it's already set (another job is working on it), skip that campaign entirely. Clear it when done.
+Add `saveVariables` call in `handleVariablesSubmit`, matching the workshop implementation. Import and use `useSequenceVariables` (or a webinar-specific equivalent).
 
-### 4. Update finalization logic
+### 4. Add the campaign Send Notification variable replacement
 
-Update the campaign completion check to account for the new `processing` status -- a campaign isn't done if groups are still in `processing` state.
+**File: `src/pages/whatsapp/SendNotification.tsx`**
 
-### 5. Stale lock recovery
-
-Add a cleanup step at the start of each job invocation: any groups stuck in `processing` for more than 5 minutes get reset to `pending`. This handles edge cases where a job crashes or times out.
+- Detect `{variable}` patterns in the message using `extractVariables`
+- Show input fields for each variable in the confirmation step
+- Replace variables before saving the campaign `message_content`
 
 ## Files to Change
 
-- **New migration**: Add `processing` status, `processing_started_at` column, and `processing_by` column to relevant tables
-- **`supabase/functions/process-notification-campaigns/index.ts`**: Implement claim-before-send, campaign-level lock, and stale recovery
-- **`src/pages/whatsapp/CampaignDetail.tsx`**: Update the retry logic to also reset `processing` groups back to `pending`
-
+- `src/components/operations/WorkshopDetailSheet.tsx` -- Add error handling for sequence fetch
+- `src/pages/webinar/WebinarDetailSheet.tsx` -- Add error handling + save variables on submit
+- `src/hooks/useWorkshopNotification.ts` -- Fetch and merge saved variables before replacement
+- `src/hooks/useWebinarNotification.ts` -- Fetch and merge saved variables before replacement
+- `src/pages/whatsapp/SendNotification.tsx` -- Add variable detection and replacement for campaigns
