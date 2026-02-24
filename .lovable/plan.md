@@ -1,152 +1,40 @@
 
 
-# Automatic Session Migration When a Phone Number Reconnects
+# Create `whatsapp-status-webhook` Edge Function
 
-## Problem
+Your VPS developer has set up a webhook that fires when WhatsApp connects. We need to create a new edge function to receive it and update the database.
 
-When a WhatsApp session disconnects and the same phone number reconnects (creating a new session ID), all references to the old session remain stale across the system. This causes:
-- Scheduled workshop messages to fail
-- Scheduled webinar messages to fail  
-- WhatsApp campaigns to fail
-- Groups to appear missing/inactive
-- Manual intervention required every time
+## What it does
 
-## Root Cause
+When the VPS detects a WhatsApp session connects, it sends a webhook with the session ID, status, and phone number. This edge function will:
 
-The system creates a brand new session record (new UUID) each time a phone reconnects. Nothing propagates this new ID to the 5 tables that hold references to the old session:
+1. Receive the payload from the VPS
+2. Find the matching session in the database (matching by the VPS session ID stored in `session_data`)
+3. Update the session status to `connected`, set the phone number, and update timestamps
+4. Trigger the auto-migration logic we already built (migrate old disconnected sessions with the same phone number to the new one)
 
-```text
-workshops.whatsapp_session_id
-webinars.whatsapp_session_id
-whatsapp_groups.session_id
-notification_campaigns.session_id (pending/sending only)
-organizations.community_session_id
-```
+## Important detail
 
-## Solution: Auto-Migration on Session Connect
+The VPS sends a `sessionId` like `wa_a545e2c1-...` which is stored inside the `session_data` JSONB column as `vps_session_id` -- it is NOT the database UUID `id`. So the lookup must filter by `session_data->>'vps_session_id'`.
 
-When a new session becomes `connected` and we detect its `phone_number` matches an older disconnected session for the same organization, automatically migrate all references from the old session to the new one.
+## Changes
 
-### Implementation
+### 1. New file: `supabase/functions/whatsapp-status-webhook/index.ts`
 
-#### 1. New Database Function: `migrate_whatsapp_session`
+- Receives POST with `{ sessionId, status, phoneNumber, timestamp }`
+- Authenticates via `WEBHOOK_SECRET_KEY` header (optional, for security) or open like other VPS webhooks
+- Finds the session row where `session_data->>'vps_session_id' = sessionId`
+- Updates `status`, `phone_number`, `last_active_at`, `connected_at` (if connected)
+- If status is `connected` and phone number is present, runs the same auto-migration logic (calls `migrate_whatsapp_session` RPC for any old disconnected sessions with the same phone number in the same org)
 
-A PostgreSQL function that takes `old_session_id` and `new_session_id` and atomically updates all references:
+### 2. Update `supabase/config.toml`
 
-```sql
-CREATE OR REPLACE FUNCTION migrate_whatsapp_session(
-  p_old_session_id UUID, 
-  p_new_session_id UUID
-) RETURNS JSONB AS $$
-DECLARE
-  result JSONB := '{}'::jsonb;
-  cnt INTEGER;
-BEGIN
-  -- Migrate workshops
-  UPDATE workshops SET whatsapp_session_id = p_new_session_id
-  WHERE whatsapp_session_id = p_old_session_id;
-  GET DIAGNOSTICS cnt = ROW_COUNT;
-  result := result || jsonb_build_object('workshops', cnt);
+- Add `[functions.whatsapp-status-webhook]` with `verify_jwt = false` (VPS calls this, no JWT)
 
-  -- Migrate webinars
-  UPDATE webinars SET whatsapp_session_id = p_new_session_id
-  WHERE whatsapp_session_id = p_old_session_id;
-  GET DIAGNOSTICS cnt = ROW_COUNT;
-  result := result || jsonb_build_object('webinars', cnt);
+### Technical details
 
-  -- Migrate active/pending campaigns only
-  UPDATE notification_campaigns SET session_id = p_new_session_id
-  WHERE session_id = p_old_session_id 
-    AND status IN ('pending', 'sending', 'scheduled');
-  GET DIAGNOSTICS cnt = ROW_COUNT;
-  result := result || jsonb_build_object('campaigns', cnt);
+- Uses `session_data->>vps_session_id` filter via `.filter('session_data->>vps_session_id', 'eq', sessionId)` on the Supabase client
+- CORS headers included for consistency
+- No JWT verification (VPS is the caller)
+- Logs the webhook payload and migration results for debugging
 
-  -- Migrate organization community session
-  UPDATE organizations SET community_session_id = p_new_session_id
-  WHERE community_session_id = p_old_session_id;
-  GET DIAGNOSTICS cnt = ROW_COUNT;
-  result := result || jsonb_build_object('organizations', cnt);
-
-  -- Migrate groups (reactivate under new session)
-  UPDATE whatsapp_groups 
-  SET session_id = p_new_session_id, is_active = true
-  WHERE session_id = p_old_session_id;
-  GET DIAGNOSTICS cnt = ROW_COUNT;
-  result := result || jsonb_build_object('groups', cnt);
-
-  -- Update pending scheduled messages (workshop + webinar)
-  UPDATE scheduled_whatsapp_messages swm
-  SET group_id = ng.id
-  FROM whatsapp_groups og
-  JOIN whatsapp_groups ng ON ng.group_jid = og.group_jid 
-    AND ng.session_id = p_new_session_id
-  WHERE swm.group_id = og.id 
-    AND og.session_id = p_old_session_id  -- before migration
-    AND swm.status = 'pending';
-
-  RETURN result;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
-
-#### 2. Update `vps-whatsapp-proxy` Edge Function (Status Check Handler)
-
-In the status check handler (~line 790), when a session transitions to `connected` and has a `phone_number`, check for older disconnected sessions with the same phone number in the same organization and call the migration function.
-
-```typescript
-// After updating session status to 'connected'...
-if (dbStatus === 'connected' && responseData?.phoneNumber) {
-  // Find old disconnected sessions with same phone number in same org
-  const { data: oldSessions } = await supabase
-    .from('whatsapp_sessions')
-    .select('id')
-    .eq('organization_id', organizationId)
-    .eq('phone_number', responseData.phoneNumber)
-    .eq('status', 'disconnected')
-    .neq('id', localSessionIdForDb);
-
-  if (oldSessions?.length) {
-    for (const old of oldSessions) {
-      const { data: migrationResult } = await supabase
-        .rpc('migrate_whatsapp_session', {
-          p_old_session_id: old.id,
-          p_new_session_id: localSessionIdForDb
-        });
-      console.log(`Migrated session ${old.id} -> ${localSessionIdForDb}:`, migrationResult);
-    }
-  }
-}
-```
-
-#### 3. Fix `process-webinar-queue` (Same Bug as Workshop Queue)
-
-The webinar queue processor resolves the session from the group instead of the webinar, same as the workshop bug we just fixed. Update it to resolve from the webinar's `whatsapp_session_id`.
-
-Change the query from:
-```typescript
-whatsapp_groups!inner(group_jid, session_id, whatsapp_sessions!inner(session_data))
-```
-To:
-```typescript
-whatsapp_groups!inner(group_jid),
-webinars!inner(
-  whatsapp_session_id,
-  session:whatsapp_sessions!whatsapp_session_id(session_data)
-)
-```
-
-## Files Modified
-
-1. **New migration** -- Create `migrate_whatsapp_session` database function
-2. **`supabase/functions/vps-whatsapp-proxy/index.ts`** -- Add auto-migration logic in the status check handler when a session connects
-3. **`supabase/functions/process-webinar-queue/index.ts`** -- Fix session resolution to use webinar's session (same fix as workshop queue)
-
-## What This Solves
-
-After this change, when a user's phone disconnects and they reconnect (even with a new session ID):
-- All workshops automatically point to the new session
-- All webinars automatically point to the new session
-- All pending campaigns automatically point to the new session
-- The organization's community session automatically updates
-- All groups migrate to the new session and are reactivated
-- No manual intervention needed -- everything "just works"
