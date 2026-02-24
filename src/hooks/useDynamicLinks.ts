@@ -19,15 +19,13 @@ export interface DynamicLink {
 
 export interface CreateLinkData {
   slug: string;
-  destination_url?: string;
-  whatsapp_group_id?: string;
+  destination_url: string;
 }
 
 export interface UpdateLinkData {
   id: string;
   slug?: string;
-  destination_url?: string | null;
-  whatsapp_group_id?: string | null;
+  destination_url?: string;
   is_active?: boolean;
 }
 
@@ -66,8 +64,7 @@ export function useDynamicLinks() {
         .insert({
           organization_id: currentOrganization.id,
           slug: data.slug.toLowerCase().trim(),
-          destination_url: data.destination_url || null,
-          whatsapp_group_id: data.whatsapp_group_id || null,
+          destination_url: data.destination_url,
           created_by: user.id,
         })
         .select()

@@ -195,8 +195,7 @@ export function CreateLinkDialog({ open, onOpenChange, editingLink }: CreateLink
       updateLink({
         id: editingLink.id,
         slug: slug.trim(),
-        destination_url: destinationType === 'url' ? destinationUrl.trim() : fetchedInviteLink,
-        whatsapp_group_id: null, // No longer needed - we store the URL directly
+        destination_url: destinationType === 'url' ? destinationUrl.trim() : fetchedInviteLink!,
       });
     } else {
       // Create new link - store invite link directly as destination_url
