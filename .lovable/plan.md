@@ -1,36 +1,43 @@
 
 
-# Fix: Login Failing Due to Stale Token Retry Loop
+# Fix: Broken Template Media Preview and Silent Upload Failures
 
-## The Problem
+## What Happened
 
-The browser has a corrupt refresh token (`ddifeamml345`) stored in localStorage. The Supabase client has `autoRefreshToken: true`, so it picks up this token on page load and enters an endless retry loop of failed refresh requests. This consumes the network connection and prevents the actual sign-in request from completing, causing the 15-second timeout every time.
+The "last notification" template has a media URL saved (`1769899496226_last_notification.png`), but the actual file does not exist in storage. This means the upload either failed silently or the file was deleted, but the URL was kept in the database. The preview shows a broken image icon because it tries to load a URL that returns a 404.
 
-The current cleanup code (clearing `sb-*-auth-token` from localStorage) races with the Supabase client -- by the time our cleanup runs, the client has already loaded the bad token into memory and is retrying.
+## Two Issues to Fix
 
-## The Fix
+### 1. Broken image preview -- no fallback for missing files
 
-### File: `src/pages/Auth.tsx`
+**File: `src/components/settings/TemplateMediaUpload.tsx`**
 
-**Replace the localStorage cleanup with a proper local sign-out:**
+The `<img>` tag at line 125-129 has no `onError` handler. When the image URL is broken (404), it shows the browser's default broken-image icon with no way to recover.
 
-Instead of manually clearing localStorage keys, call `supabase.auth.signOut({ scope: 'local' })` on mount. This:
-- Clears the in-memory session in the Supabase client (stops the retry loop)
-- Clears the localStorage tokens
-- Does NOT make a network request (local scope only)
+**Fix:** Add an `onError` handler on the `<img>` tag that replaces the broken image with a placeholder icon (the `Image` icon from lucide-react), matching the style of the video/document fallbacks already in the component.
 
-The updated `useEffect` on mount:
+### 2. No upload verification -- silent failures
 
-```text
-useEffect(() => {
-  if (!user) {
-    // Force local sign-out to clear any corrupt/stale tokens
-    // This stops the auto-refresh retry loop
-    supabase.auth.signOut({ scope: 'local' });
-  }
-}, [user]);
+**File: `src/pages/settings/TemplateEditor.tsx`**
+
+The `uploadMedia` function (lines 78-104) uploads the file and then calls `getPublicUrl()` to construct the URL. But `getPublicUrl()` does not verify the file exists -- it just builds a URL string. If the upload partially fails (network glitch, timeout), the code still returns a URL and shows "Media uploaded successfully", even though the file isn't actually in storage.
+
+**Fix:** After upload, add a HEAD request to verify the file is accessible before returning the URL. If the file is not reachable, throw an error so the toast shows "Failed to upload media" and the broken URL is never saved.
+
+```
+// After getting the public URL:
+const verifyResponse = await fetch(urlData.publicUrl, { method: 'HEAD' });
+if (!verifyResponse.ok) {
+  throw new Error('Upload verification failed - file not accessible');
+}
 ```
 
-This is a single-line change that fully resets the client state, unlike the current approach which only clears localStorage while the client still holds the bad token in memory.
+### 3. Immediate data fix
 
-No other files need to change.
+The existing template "last notification" (ID: `7c7787ef-...`) has a broken `media_url`. The user needs to re-upload the image. No migration needed -- the user can simply open the template editor, remove the broken media, and upload the file again.
+
+## Files to Change
+
+- `src/components/settings/TemplateMediaUpload.tsx` -- Add `onError` fallback on the image preview
+- `src/pages/settings/TemplateEditor.tsx` -- Add upload verification after `getPublicUrl()`
+- `src/pages/whatsapp/SendNotification.tsx` -- Same upload verification fix (uses the same pattern)
