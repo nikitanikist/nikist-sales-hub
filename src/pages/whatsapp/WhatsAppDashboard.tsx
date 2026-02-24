@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Send, Users, MessageSquare, Search, RefreshCw, Phone, Plus } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Send, Users, MessageSquare, Search, RefreshCw, Phone, Plus, AlertTriangle, Settings } from "lucide-react";
 
 const WhatsAppDashboard = () => {
   const navigate = useNavigate();
@@ -21,6 +22,11 @@ const WhatsAppDashboard = () => {
 
   const connectedSessions = useMemo(
     () => sessions?.filter((s) => s.status === "connected") || [],
+    [sessions]
+  );
+
+  const disconnectedSessions = useMemo(
+    () => sessions?.filter((s) => s.status === "disconnected") || [],
     [sessions]
   );
 
@@ -55,7 +61,7 @@ const WhatsAppDashboard = () => {
     );
   }
 
-  if (connectedSessions.length === 0) {
+  if (connectedSessions.length === 0 && disconnectedSessions.length === 0) {
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -mt-2 px-4 pt-2 sm:-mx-6 sm:px-6">
         <div className="space-y-6">
@@ -72,6 +78,36 @@ const WhatsAppDashboard = () => {
               </Button>
             </CardContent>
           </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (connectedSessions.length === 0 && disconnectedSessions.length > 0) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -mt-2 px-4 pt-2 sm:-mx-6 sm:px-6">
+        <div className="space-y-6">
+          <PageHeader title="WhatsApp" />
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>WhatsApp Disconnected</AlertTitle>
+            <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
+              <span>
+                Your WhatsApp account{disconnectedSessions.length > 1 ? 's' : ''}{' '}
+                {disconnectedSessions.map(s => s.phone_number || s.display_name || s.id.slice(0, 8)).join(', ')}{' '}
+                {disconnectedSessions.length > 1 ? 'are' : 'is'} disconnected. Reconnect to resume messaging.
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/settings")}
+                className="gap-2 shrink-0 border-destructive/50 text-destructive hover:bg-destructive/10"
+              >
+                <Settings className="h-4 w-4" />
+                Go to Settings
+              </Button>
+            </AlertDescription>
+          </Alert>
         </div>
       </div>
     );
@@ -104,6 +140,30 @@ const WhatsAppDashboard = () => {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -mt-2 px-4 pt-2 sm:-mx-6 sm:px-6">
       <div className="space-y-6">
+        {/* Disconnection banner when some sessions are disconnected */}
+        {disconnectedSessions.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>WhatsApp Disconnected</AlertTitle>
+            <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-3 mt-1">
+              <span>
+                Your WhatsApp account{disconnectedSessions.length > 1 ? 's' : ''}{' '}
+                {disconnectedSessions.map(s => s.phone_number || s.display_name || s.id.slice(0, 8)).join(', ')}{' '}
+                {disconnectedSessions.length > 1 ? 'are' : 'is'} disconnected. Reconnect to resume messaging.
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("/settings")}
+                className="gap-2 shrink-0 border-destructive/50 text-destructive hover:bg-destructive/10"
+              >
+                <Settings className="h-4 w-4" />
+                Go to Settings
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <PageHeader title="WhatsApp Dashboard" />
           <div className="flex gap-2">
