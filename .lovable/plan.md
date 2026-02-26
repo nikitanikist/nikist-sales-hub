@@ -1,28 +1,38 @@
 
-# Fix: Bolna Integration — Two Bugs
+# Fix: start-voice-campaign Edge Function — Same Column Name Bug
 
-## Problem 1: "Bolna integration not configured" in Create Broadcast
+## Problem
 
-The `list-bolna-agents` edge function queries the `organization_integrations` table using wrong column names:
-- Uses `.eq("type", "bolna")` but the column is `integration_type`
-- Selects `uses_env_secrets` which doesn't exist in the table
+The `start-voice-campaign` edge function has the identical bug we just fixed in `list-bolna-agents`:
+- Line 50: `.eq("type", "bolna")` should be `.eq("integration_type", "bolna")`
+- Line 48: selects `uses_env_secrets` which doesn't exist in the table
 
-This causes the query to return no results, triggering the "not configured" error even though the Bolna integration exists in the database with a valid API key.
+Because of this, the function can't find your Bolna integration, returns an error, and the campaign stays in "draft" status. The frontend shows a success toast for campaign creation but logs the start failure separately — so it appears to succeed but nothing actually happens.
 
-**Fix**: Update `supabase/functions/list-bolna-agents/index.ts`:
-- Change `.eq("type", "bolna")` to `.eq("integration_type", "bolna")`
-- Remove `uses_env_secrets` from the select and simplify the API key resolution to just read `config.api_key` directly (matching how the integration is stored)
+## Fix (1 file)
 
-## Problem 2: "Unknown integration type" when testing connection
+**`supabase/functions/start-voice-campaign/index.ts`** (lines 46-68):
 
-The `TestConnectionButton` component has cases for zoom, calendly, whatsapp, and aisensy, but no `case "bolna"`. When you click "Test Connection" for a Bolna integration, it falls through to the `default` case which throws "Unknown integration type".
+1. Change `.eq("type", "bolna")` to `.eq("integration_type", "bolna")`
+2. Remove `uses_env_secrets` from the select
+3. Simplify API key resolution to read `config.api_key` directly (same pattern as the list-bolna-agents fix)
 
-**Fix**: Add a `case "bolna"` block in `src/components/settings/TestConnectionButton.tsx` that:
-- Validates the `api_key` field is present
-- Calls the `list-bolna-agents` edge function to verify the API key works
-- Shows success with the number of agents found, or an error if the call fails
+```typescript
+// Before (broken):
+.select("config, uses_env_secrets")
+.eq("type", "bolna")
 
-## Files Changed
+// After (fixed):
+.select("config")
+.eq("integration_type", "bolna")
+```
 
-1. `supabase/functions/list-bolna-agents/index.ts` — Fix column names in database query
-2. `src/components/settings/TestConnectionButton.tsx` — Add Bolna test connection handler
+And simplify the key resolution:
+```typescript
+const bolnaApiKey = config.api_key || "";
+const bolnaAgentId = campaign.bolna_agent_id || config.agent_id || "";
+```
+
+## Expected Result
+
+After deploying, creating a broadcast and clicking start will correctly find the Bolna integration, create the batch via Bolna API, and transition the campaign from "draft" to "running" with calls moving to "queued" status.
