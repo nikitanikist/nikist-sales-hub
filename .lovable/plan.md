@@ -1,88 +1,38 @@
 
 
-# Fix Voice Campaign Data Not Saving (Duration, Cost, Outcome, Counters)
+# Fix Campaign Scheduling Failure
 
-## Root Cause Analysis
+## Root Cause
 
-After investigating the webhook logs, I found **two bugs** that explain ALL the symptoms:
+The "Scheduled time should be at least 2 minutes in the future" error happens because:
 
-### Bug 1: PostgreSQL Integer Type Error (causes missing outcome, duration, cost, transcript, and zero counters)
+1. The schedule timestamp is computed at line 122 (121s in the future)
+2. Then a 3-second delay happens at line 120
+3. Then the batch creation API call takes several seconds
+4. By the time the schedule API receives the timestamp, only ~115 seconds remain -- below Bolna's 2-minute minimum
 
-The logs show repeated errors:
-```
-transition_call_to_terminal error: invalid input syntax for type integer: "0.0"
-```
-
-Bolna sends `duration` as a float (e.g., `0.0`), but the database function parameter `p_duration` is declared as `integer`. PostgreSQL rejects the value at the RPC boundary -- **before** the function body runs (where the `FLOOR()` cast would have fixed it). 
-
-Because the atomic function fails, the webhook falls back to a basic update that only sets `status` and `call_ended_at`. This means:
-- Outcome: never saved (shows "--")
-- Duration: never saved (shows "--")  
-- Cost: never saved at call level (shows "--")
-- Transcript: never saved
-- Counters: never incremented (calls_completed stays 0, confirmed stays 0, etc.)
-- Progress: stays at 0%
-
-Then when a second webhook arrives, the call is already terminal, so `wasFirst=false` and counters still don't increment.
-
-### Bug 2: Cost Accumulates on Every Webhook (causes cost doubling)
-
-The `add_campaign_cost` RPC call is placed **outside** the `wasFirst` check (line 298). This means every webhook from Bolna adds cost to the campaign total, even duplicate ones. With 2 contacts and ~4 webhooks each, cost doubles or triples.
+The timestamp is generated too early, before the batch creation and delays eat into the buffer.
 
 ## Fix
 
-**File: `supabase/functions/bolna-webhook/index.ts`**
+Two changes in `supabase/functions/start-voice-campaign/index.ts`:
 
-### Change 1: Cast duration to integer in JavaScript before passing to RPC
+1. **Move timestamp generation AFTER the 3-second delay** -- compute it right before the schedule call, not before
+2. **Increase buffer to 150 seconds** (2 minutes 30 seconds) to account for network latency
 
-```typescript
-// Before the RPC call, add:
-const safeDuration = Math.floor(Number(duration) || 0);
-const safeCost = Number(cost) || 0;
+```text
+Before (broken):
+  Line 122: Generate timestamp (121s future)  <-- clock starts
+  Line 120: Wait 3 seconds                    <-- 3s consumed
+  Lines 102-117: Create batch API call         <-- 2-5s consumed
+  Line 136: Schedule call                      <-- only ~113s left, REJECTED
 
-// Then pass safeDuration and safeCost to the RPC:
-p_duration: safeDuration,
-p_cost: safeCost,
+After (fixed):
+  Lines 102-117: Create batch API call
+  Line 120: Wait 3 seconds
+  NEW: Generate timestamp (150s future)        <-- clock starts HERE
+  Line 136: Schedule call                      <-- full 150s available
 ```
 
-This ensures PostgreSQL receives a clean integer, preventing the type error that breaks everything.
-
-### Change 2: Move cost accumulation inside the `wasFirst` check
-
-Move `add_campaign_cost` from its current position (always runs) to inside the `if (wasFirst)` block, so cost is only added once per call:
-
-```typescript
-if (wasFirst) {
-  // Increment counters...
-  
-  // Add cost only once
-  if (safeCost > 0) {
-    await supabase.rpc("add_campaign_cost", { 
-      p_campaign_id: callRecord.campaign_id, 
-      p_cost: safeCost 
-    });
-  }
-}
-```
-
-Remove the standalone `add_campaign_cost` call that currently runs unconditionally.
-
-## What This Fixes
-
-| Symptom | Cause | Fixed By |
-|---------|-------|----------|
-| Outcome showing "--" | RPC fails, fallback skips outcome | Change 1 |
-| Duration showing "--" | RPC fails, fallback skips duration | Change 1 |
-| Cost showing "--" in table | RPC fails, fallback skips cost | Change 1 |
-| Transcript not saved | RPC fails, fallback skips transcript | Change 1 |
-| Counters all zero | RPC fails, wasFirst never true | Change 1 |
-| Progress 0% | Counters zero | Change 1 |
-| Campaign cost doubling | add_campaign_cost runs on every webhook | Change 2 |
-| Cost mismatch list vs detail | Cost keeps incrementing on re-open | Change 2 |
-
-## Status Flickering on Re-open
-
-When you leave the detail page and return, React Query refetches fresh data. During that brief refetch, the component may show stale cached data momentarily. This is normal React Query behavior and not a bug -- once the refetch completes (fraction of a second), the correct data appears.
-
-No database migration needed -- the existing function is fine, the problem is the JavaScript passing a float where an integer is expected.
+This is a one-line move + one number change. No database migration needed.
 
