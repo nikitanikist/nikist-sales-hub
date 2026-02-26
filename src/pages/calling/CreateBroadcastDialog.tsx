@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCreateBroadcast } from "@/hooks/useCreateBroadcast";
 import { WorkshopSelector } from "./components/WorkshopSelector";
 import { CsvUploader } from "./components/CsvUploader";
-import { ArrowLeft, ArrowRight, Rocket, Calendar } from "lucide-react";
+import { ArrowLeft, ArrowRight, Rocket, Calendar, Loader2, AlertCircle, Settings } from "lucide-react";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+
 
 interface Props {
   open: boolean;
@@ -21,6 +24,11 @@ interface Contact {
   name: string;
   phone: string;
   lead_id?: string;
+}
+
+interface BolnaAgent {
+  id: string;
+  name: string;
 }
 
 export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
@@ -34,9 +42,53 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const [whatsappTemplate, setWhatsappTemplate] = useState<string>("");
   const [scheduleMode, setScheduleMode] = useState<"now" | "schedule">("now");
   const [scheduledAt, setScheduledAt] = useState<string>("");
+  const [bolnaAgentId, setBolnaAgentId] = useState<string>("");
+
+  // Bolna agents state
+  const [agents, setAgents] = useState<BolnaAgent[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [bolnaNotConfigured, setBolnaNotConfigured] = useState(false);
 
   const createBroadcast = useCreateBroadcast();
   const navigate = useNavigate();
+
+  // Fetch Bolna agents when step 2 is reached
+  useEffect(() => {
+    if (step === 2 && agents.length === 0 && !agentsLoading && !agentsError) {
+      fetchAgents();
+    }
+  }, [step]);
+
+  const fetchAgents = async () => {
+    setAgentsLoading(true);
+    setAgentsError(null);
+    setBolnaNotConfigured(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("list-bolna-agents");
+      if (error) {
+        setAgentsError("Failed to fetch agents. Please try again.");
+        return;
+      }
+      if (data?.error === "bolna_not_configured") {
+        setBolnaNotConfigured(true);
+        return;
+      }
+      if (data?.agents && data.agents.length > 0) {
+        setAgents(data.agents);
+        // Auto-select first agent
+        if (!bolnaAgentId) {
+          setBolnaAgentId(data.agents[0].id);
+        }
+      } else {
+        setAgentsError("No agents found in your Bolna account.");
+      }
+    } catch (err) {
+      setAgentsError("Failed to fetch agents.");
+    } finally {
+      setAgentsLoading(false);
+    }
+  };
 
   const reset = () => {
     setStep(1);
@@ -49,6 +101,11 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     setWhatsappTemplate("");
     setScheduleMode("now");
     setScheduledAt("");
+    setBolnaAgentId("");
+    setAgents([]);
+    setAgentsLoading(false);
+    setAgentsError(null);
+    setBolnaNotConfigured(false);
   };
 
   const handleSubmit = async () => {
@@ -60,6 +117,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
       whatsapp_template_id: whatsappTemplate || undefined,
       scheduled_at: scheduleMode === "schedule" ? scheduledAt : undefined,
       contacts,
+      bolna_agent_id: bolnaAgentId || undefined,
     });
     onOpenChange(false);
     reset();
@@ -70,7 +128,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
 
   const canProceed = () => {
     if (step === 1) return contacts.length > 0;
-    if (step === 2) return true;
+    if (step === 2) return !!bolnaAgentId;
     if (step === 3) return true;
     if (step === 4) return scheduleMode === "now" || (scheduleMode === "schedule" && scheduledAt);
     return false;
@@ -129,12 +187,51 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
               </div>
               <div>
                 <Label>Bolna Agent</Label>
-                <Select defaultValue="workshop_reminder">
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="workshop_reminder">Workshop Reminder Agent</SelectItem>
-                  </SelectContent>
-                </Select>
+                {agentsLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading agents from Bolna...
+                  </div>
+                ) : bolnaNotConfigured ? (
+                  <Alert variant="destructive" className="mt-1">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>Bolna integration not configured.</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="ml-2"
+                        onClick={() => {
+                          onOpenChange(false);
+                          navigate("/settings?tab=integrations");
+                        }}
+                      >
+                        <Settings className="h-3 w-3 mr-1" /> Go to Settings
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                ) : agentsError ? (
+                  <Alert variant="destructive" className="mt-1">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>{agentsError}</span>
+                      <Button variant="outline" size="sm" className="ml-2" onClick={fetchAgents}>
+                        Retry
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Select value={bolnaAgentId} onValueChange={setBolnaAgentId}>
+                    <SelectTrigger><SelectValue placeholder="Select an agent" /></SelectTrigger>
+                    <SelectContent>
+                      {agents.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
+                          {agent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div className="bg-muted rounded-md p-3 text-sm">
                 <p className="text-muted-foreground">Preview: Agent will say:</p>
