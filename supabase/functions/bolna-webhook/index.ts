@@ -45,10 +45,6 @@ Deno.serve(async (req) => {
 
       if (tool_name === "mark_attendance") {
         const outcome = body.outcome || "confirmed";
-        const counterField = outcome === "confirmed" ? "calls_confirmed"
-          : outcome === "not_interested" ? "calls_not_interested"
-          : outcome === "angry" ? "calls_not_interested" // count angry as not_interested for counter
-          : "calls_completed";
 
         await supabase.from("voice_campaign_calls").update({
           outcome,
@@ -59,7 +55,13 @@ Deno.serve(async (req) => {
         console.log(`mark_attendance: ${outcome} for call ${call_id}`);
 
       } else if (tool_name === "reschedule_lead") {
-        const rescheduleDay = body.reschedule_day || "Unknown";
+        // Fix 3: Check multiple field names Bolna might use
+        const rescheduleDay = body.reschedule_day
+          || body.day
+          || body.preferred_day
+          || body.arguments?.reschedule_day
+          || body.arguments?.day
+          || "Unknown";
 
         await supabase.from("voice_campaign_calls").update({
           outcome: "rescheduled",
@@ -172,7 +174,6 @@ Deno.serve(async (req) => {
       const cleanPhone = toNumber.replace(/^\+/, "");
       const phoneVariants = [toNumber, cleanPhone, `+91${cleanPhone.replace(/^91/, "")}`];
 
-      // Find campaigns with this batch
       let campaignFilter: any = supabase.from("voice_campaign_calls").select("*");
       
       if (batchId) {
@@ -187,7 +188,6 @@ Deno.serve(async (req) => {
       }
 
       for (const phoneVariant of phoneVariants) {
-        // Include terminal statuses so Bolna retries can match already-processed calls
         const { data } = await campaignFilter.eq("contact_phone", phoneVariant).order("updated_at", { ascending: false }).limit(1).single();
         if (data) {
           callRecord = data;
@@ -214,75 +214,101 @@ Deno.serve(async (req) => {
     };
     const mappedStatus = statusMap[callStatus] || "completed";
 
-    // Determine outcome if not already set
-    let outcome = callRecord.outcome;
-    if (!outcome && mappedStatus === "completed") {
+    // Determine outcome if not already set by tool call
+    let outcome: string | null = null;
+    if (mappedStatus === "completed") {
       if (extractedData?.attendance) {
         outcome = extractedData.attendance;
       } else {
         outcome = "no_response";
       }
     }
-    if (!outcome && (mappedStatus === "no-answer" || mappedStatus === "busy")) {
+    if (mappedStatus === "no-answer" || mappedStatus === "busy") {
       outcome = "no_response";
     }
 
-    // Update call record
-    await supabase.from("voice_campaign_calls").update({
-      bolna_call_id: executionId || callRecord.bolna_call_id,
-      status: mappedStatus,
-      outcome: outcome || callRecord.outcome,
-      call_duration_seconds: duration,
-      total_cost: cost,
-      transcript: transcript || callRecord.transcript,
-      recording_url: recordingUrl || callRecord.recording_url,
-      extracted_data: extractedData || callRecord.extracted_data,
-      call_ended_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", callRecord.id);
-
-    // Update campaign cost (no erroneous counter increment)
-    if (cost > 0) {
-      const { data: currentCampaign } = await supabase
-        .from("voice_campaigns")
-        .select("total_cost")
-        .eq("id", callRecord.campaign_id)
-        .single();
-      
-      if (currentCampaign) {
-        await supabase.from("voice_campaigns").update({
-          total_cost: (currentCampaign.total_cost || 0) + cost,
-          updated_at: new Date().toISOString(),
-        }).eq("id", callRecord.campaign_id);
-      }
-    }
-
-    // Only update counters if call was NOT already in a terminal status (idempotent)
     const terminalStatuses = ["completed", "no-answer", "failed", "busy", "cancelled"];
-    const wasAlreadyTerminal = terminalStatuses.includes(callRecord.status);
 
-    if (!wasAlreadyTerminal && terminalStatuses.includes(mappedStatus)) {
-      // Increment calls_completed exactly once per call reaching terminal state
-      await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_completed" });
+    if (terminalStatuses.includes(mappedStatus)) {
+      // ── Fix 1: Use atomic DB function for terminal transition ──
+      const { data: transitionResult, error: transErr } = await supabase.rpc("transition_call_to_terminal", {
+        p_call_id: callRecord.id,
+        p_status: mappedStatus,
+        p_outcome: outcome,
+        p_bolna_call_id: executionId || null,
+        p_duration: duration || 0,
+        p_cost: cost || 0,
+        p_transcript: transcript || null,
+        p_recording_url: recordingUrl || null,
+        p_extracted_data: extractedData || null,
+      });
 
-      // Update outcome-based counter (if not already done by tool call)
-      if (outcome && !callRecord.outcome) {
-        const counterMap: Record<string, string> = {
-          confirmed: "calls_confirmed",
-          rescheduled: "calls_rescheduled",
-          not_interested: "calls_not_interested",
-          angry: "calls_not_interested",
-          no_response: "calls_no_answer",
-          no_answer: "calls_no_answer",
-        };
-        const field = counterMap[outcome];
-        if (field) {
-          await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: field });
+      if (transErr) {
+        console.error("transition_call_to_terminal error:", transErr);
+        // Fallback: just update without counter logic
+        await supabase.from("voice_campaign_calls").update({
+          bolna_call_id: executionId || callRecord.bolna_call_id,
+          status: mappedStatus,
+          call_ended_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", callRecord.id);
+      } else {
+        const row = transitionResult?.[0];
+        const wasFirst = row?.was_first_transition;
+
+        console.log(`Transition result: wasFirst=${wasFirst}, outcome=${outcome}, callId=${callRecord.id}`);
+
+        // Set call_ended_at separately (not in the atomic function)
+        await supabase.from("voice_campaign_calls").update({
+          call_ended_at: new Date().toISOString(),
+        }).eq("id", callRecord.id);
+
+        if (wasFirst) {
+          // Increment calls_completed exactly once
+          await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_completed" });
+
+          // Use the outcome from the transition (which uses COALESCE, preserving tool call data)
+          const finalOutcome = row?.previous_outcome || outcome;
+          if (finalOutcome) {
+            const counterMap: Record<string, string> = {
+              confirmed: "calls_confirmed",
+              rescheduled: "calls_rescheduled",
+              not_interested: "calls_not_interested",
+              angry: "calls_not_interested",
+              no_response: "calls_no_answer",
+              no_answer: "calls_no_answer",
+            };
+            const field = counterMap[finalOutcome];
+            if (field) {
+              await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: field });
+            }
+          }
+        } else {
+          // Not first transition — only update transcript/cost if better data
+          if (transcript && !callRecord.transcript) {
+            await supabase.from("voice_campaign_calls").update({
+              transcript,
+              updated_at: new Date().toISOString(),
+            }).eq("id", callRecord.id);
+          }
         }
       }
+
+      // ── Fix 2: Atomic cost accumulation ──
+      if (cost > 0) {
+        await supabase.rpc("add_campaign_cost", { p_campaign_id: callRecord.campaign_id, p_cost: cost });
+      }
+
+    } else {
+      // Non-terminal status (ringing, in-progress, etc.) — just update
+      await supabase.from("voice_campaign_calls").update({
+        bolna_call_id: executionId || callRecord.bolna_call_id,
+        status: mappedStatus,
+        updated_at: new Date().toISOString(),
+      }).eq("id", callRecord.id);
     }
 
-    // Clean up stale queued calls (invalid numbers Bolna skipped)
+    // ── Fix 4: Stale call cleanup with reduced 5-minute timeout ──
     const { data: campaignInfo } = await supabase
       .from("voice_campaigns")
       .select("started_at")
@@ -290,29 +316,32 @@ Deno.serve(async (req) => {
       .single();
 
     if (campaignInfo?.started_at) {
-      const tenMinutesAfterStart = new Date(new Date(campaignInfo.started_at).getTime() + 10 * 60 * 1000).toISOString();
+      const fiveMinutesAfterStart = new Date(new Date(campaignInfo.started_at).getTime() + 5 * 60 * 1000).toISOString();
       const now = new Date().toISOString();
 
-      if (now > tenMinutesAfterStart) {
+      if (now > fiveMinutesAfterStart) {
         const { data: staleCalls } = await supabase
           .from("voice_campaign_calls")
           .select("id")
           .eq("campaign_id", callRecord.campaign_id)
           .in("status", ["queued", "pending"])
-          .lt("created_at", tenMinutesAfterStart);
+          .lt("created_at", fiveMinutesAfterStart);
 
         if (staleCalls && staleCalls.length > 0) {
           const staleIds = staleCalls.map(c => c.id);
-          await supabase.from("voice_campaign_calls").update({
-            status: "failed",
-            outcome: "invalid_number",
-            updated_at: now,
-          }).in("id", staleIds);
 
-          // Increment counters for each stale call
-          for (const _ of staleIds) {
-            await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_completed" });
-            await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_no_answer" });
+          // Use atomic transition for each stale call too
+          for (const staleId of staleIds) {
+            const { data: staleResult } = await supabase.rpc("transition_call_to_terminal", {
+              p_call_id: staleId,
+              p_status: "failed",
+              p_outcome: "invalid_number",
+            });
+            const staleRow = staleResult?.[0];
+            if (staleRow?.was_first_transition) {
+              await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_completed" });
+              await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_no_answer" });
+            }
           }
           console.log(`Marked ${staleIds.length} stale queued calls as failed`);
         }
