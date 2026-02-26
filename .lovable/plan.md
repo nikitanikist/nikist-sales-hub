@@ -1,46 +1,27 @@
 
-# Add "Retry" Button for Draft/Failed Calling Campaigns
+# Fix: WhatsApp Groups List Truncated at 1000 Rows
 
 ## Problem
-When a campaign stays in "draft" status (e.g., because of the Bolna integration bug we just fixed), there's no way to retry it. The only option is to create a new broadcast from scratch.
+The WhatsApp groups query in `useWhatsAppGroups.ts` already correctly filters to only show groups from connected sessions (via an `!inner` join). However, the `.limit(1000)` on line 97 truncates the results, hiding groups like "Nikist Times" that fall beyond the 1000th row alphabetically.
 
-## Solution
-Add a "Retry" button on both the campaign list and the campaign detail page for campaigns with status "draft" or "failed". Clicking it re-invokes the `start-voice-campaign` edge function with the existing campaign ID.
+## Fix (1 file, 1 line)
 
-## Changes
+**`src/hooks/useWhatsAppGroups.ts`** (line 97):
 
-### 1. Campaign List Page (`src/pages/calling/CallingCampaigns.tsx`)
-- Add a retry button (RefreshCw icon) in the Actions column for campaigns with status "draft" or "failed"
-- On click, invoke `start-voice-campaign` with the campaign's ID, then refetch the list
-- Show loading state on the button while retrying
+Replace `.limit(1000)` with `.range(0, 4999)` to reliably fetch up to 5000 groups. The `.range()` method uses the HTTP Range header, which is more reliable than `.limit()` for exceeding the default PostgREST 1000-row cap.
 
-### 2. Campaign Detail Page (`src/pages/calling/CallingCampaignDetail.tsx`)
-- Add a "Retry Campaign" button (alongside the existing "Stop Campaign" button area) when status is "draft" or "failed"
-- Same logic: invoke `start-voice-campaign`, then refetch campaign and calls data
-- Show loading spinner during the retry
+```text
+// Before:
+.limit(1000);
 
-### 3. No backend changes needed
-The `start-voice-campaign` edge function already accepts a `campaign_id` and re-reads the campaign data. It will work correctly for retrying a draft campaign now that the integration query bug is fixed.
-
-## Technical Details
-
-**Campaign List — Actions column addition:**
-```
-{(c.status === "draft" || c.status === "failed") && (
-  <Button variant="ghost" size="sm" onClick={(e) => handleRetry(e, c.id)}>
-    <RefreshCw className="h-3.5 w-3.5" />
-  </Button>
-)}
+// After:
+.range(0, 4999);
 ```
 
-**Campaign Detail — header area addition:**
-```
-{(currentCampaign.status === "draft" || currentCampaign.status === "failed") && (
-  <Button size="sm" onClick={handleRetry}>
-    <RefreshCw className="h-4 w-4 mr-2" />
-    Retry Campaign
-  </Button>
-)}
-```
+## What's already working
+- The query already uses `whatsapp_sessions!inner(status)` with `.eq('session.status', 'connected')` -- so groups from disconnected sessions are already excluded
+- The `is_active: true` filter is also in place
+- No backend or database changes needed
 
-Both handlers call `supabase.functions.invoke("start-voice-campaign", { body: { campaign_id } })` and show success/error toasts.
+## Result
+After this change, all admin groups from connected sessions (currently 991 for Nikist) will load in the dashboard, and "Nikist Times" will appear in searches.
