@@ -30,6 +30,8 @@ const CampaignDetail = () => {
   const [retrySessionId, setRetrySessionId] = useState<string>("");
   const [isRetrying, setIsRetrying] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isManualConfirming, setIsManualConfirming] = useState(false);
+  const [showManualFallback, setShowManualFallback] = useState(false);
 
   // Fetch connected sessions for retry picker
   const { data: connectedSessions } = useQuery({
@@ -92,16 +94,48 @@ const CampaignDetail = () => {
     setIsVerifying(true);
     try {
       const { data, error } = await supabase.functions.invoke("verify-campaign-status", {
+        body: { campaign_id: campaignId, manual_confirm: false },
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["notification-campaign", campaignId] });
+      queryClient.invalidateQueries({ queryKey: ["notification-campaign-groups", campaignId] });
+      
+      const verified = data?.verified || 0;
+      const stillFailed = data?.still_failed || 0;
+      
+      if (stillFailed > 0) {
+        setShowManualFallback(true);
+        toast.info(`${verified} of ${data?.total || 0} groups verified via VPS. ${stillFailed} still failed.`);
+      } else if (verified > 0) {
+        setShowManualFallback(false);
+        toast.success(`All ${verified} groups verified via VPS! Analytics now active.`);
+      } else {
+        setShowManualFallback(true);
+        toast.warning("VPS has no record of these messages. Use 'Mark as Delivered' for manual confirmation.");
+      }
+    } catch (err: any) {
+      toast.error("Failed to verify: " + err.message);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleManualConfirm = async () => {
+    if (!campaignId) return;
+    setIsManualConfirming(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-campaign-status", {
         body: { campaign_id: campaignId, manual_confirm: true },
       });
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["notification-campaign", campaignId] });
       queryClient.invalidateQueries({ queryKey: ["notification-campaign-groups", campaignId] });
-      toast.success(`${data?.updated || 0} groups marked as delivered`);
+      setShowManualFallback(false);
+      toast.success(`${data?.updated || 0} remaining groups marked as delivered`);
     } catch (err: any) {
-      toast.error("Failed to verify: " + err.message);
+      toast.error("Failed to confirm: " + err.message);
     } finally {
-      setIsVerifying(false);
+      setIsManualConfirming(false);
     }
   };
 
@@ -254,28 +288,34 @@ const CampaignDetail = () => {
                 <RotateCcw className="h-4 w-4 mr-1" />
                 {isRetrying ? "Retrying..." : "Retry"}
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={isVerifying || failedCount === 0}>
-                    <ShieldCheck className="h-4 w-4 mr-1" />
-                    {isVerifying ? "Verifying..." : "Mark as Delivered"}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Mark failed groups as delivered?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will mark {failedCount} failed group(s) as successfully delivered. Only use this if you've confirmed in WhatsApp that the messages were actually received. No messages will be resent.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleVerifyStatus}>
-                      Yes, mark as delivered
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button size="sm" variant="default" onClick={handleVerifyStatus} disabled={isVerifying || failedCount === 0}>
+                <ShieldCheck className="h-4 w-4 mr-1" />
+                {isVerifying ? "Verifying..." : "Verify Status"}
+              </Button>
+              {showManualFallback && failedCount > 0 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="outline" disabled={isManualConfirming}>
+                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                      {isManualConfirming ? "Confirming..." : "Mark Remaining as Delivered"}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Mark remaining failed groups as delivered?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        VPS couldn't verify {failedCount} group(s). This will mark them as delivered without recovering message IDs — analytics (read receipts, reactions) won't work for these groups.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleManualConfirm}>
+                        Yes, mark as delivered
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           )}
         </div>
