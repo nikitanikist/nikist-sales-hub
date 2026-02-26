@@ -230,14 +230,18 @@ Deno.serve(async (req) => {
     const terminalStatuses = ["completed", "no-answer", "failed", "busy", "cancelled"];
 
     if (terminalStatuses.includes(mappedStatus)) {
+      // Cast duration to integer and cost to number before passing to RPC
+      const safeDuration = Math.floor(Number(duration) || 0);
+      const safeCost = Number(cost) || 0;
+
       // ── Fix 1: Use atomic DB function for terminal transition ──
       const { data: transitionResult, error: transErr } = await supabase.rpc("transition_call_to_terminal", {
         p_call_id: callRecord.id,
         p_status: mappedStatus,
         p_outcome: outcome,
         p_bolna_call_id: executionId || null,
-        p_duration: duration || 0,
-        p_cost: cost || 0,
+        p_duration: safeDuration,
+        p_cost: safeCost,
         p_transcript: transcript || null,
         p_recording_url: recordingUrl || null,
         p_extracted_data: extractedData || null,
@@ -283,6 +287,11 @@ Deno.serve(async (req) => {
               await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: field });
             }
           }
+
+          // ── Fix 2: Add cost only once per call (inside wasFirst) ──
+          if (safeCost > 0) {
+            await supabase.rpc("add_campaign_cost", { p_campaign_id: callRecord.campaign_id, p_cost: safeCost });
+          }
         } else {
           // Not first transition — only update transcript/cost if better data
           if (transcript && !callRecord.transcript) {
@@ -292,11 +301,6 @@ Deno.serve(async (req) => {
             }).eq("id", callRecord.id);
           }
         }
-      }
-
-      // ── Fix 2: Atomic cost accumulation ──
-      if (cost > 0) {
-        await supabase.rpc("add_campaign_cost", { p_campaign_id: callRecord.campaign_id, p_cost: cost });
       }
 
     } else {
