@@ -119,13 +119,14 @@ Deno.serve(async (req) => {
     // Step 2: Schedule batch — wait a moment for Bolna to process the batch
     await new Promise(resolve => setTimeout(resolve, 3000));
 
-    const rawTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
+    const rawTime = campaign.scheduled_at || new Date(Date.now() + 30000).toISOString();
     // Convert JS ISO format to Python-compatible: remove ms and replace Z with +00:00
     const scheduleTime = rawTime.replace(/\.\d{3}Z$/, '+00:00').replace(/Z$/, '+00:00');
     console.log(`Scheduling batch ${batchId} at: ${scheduleTime}`);
 
     const scheduleForm = new FormData();
     scheduleForm.append("scheduled_at", scheduleTime);
+    scheduleForm.append("bypass_call_guardrails", "true");
 
     // Use plain fetch (no retry) — Bolna schedule endpoint may not be idempotent
     let scheduleRes: Response;
