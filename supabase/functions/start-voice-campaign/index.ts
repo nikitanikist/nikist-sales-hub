@@ -118,8 +118,8 @@ Deno.serve(async (req) => {
 
     // Step 2: Schedule batch (immediately or at scheduled_at)
     const scheduleForm = new FormData();
-    // Use 30 seconds in the future for immediate start — Bolna rejects past timestamps
-    const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 30000).toISOString();
+    // Use 150 seconds (2.5 min) in the future — Bolna requires at least 2 min buffer
+    const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
     scheduleForm.append("scheduled_at", scheduleTime);
 
     console.log(`Scheduling batch ${batchId} at: ${scheduleTime}`);
