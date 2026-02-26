@@ -40,6 +40,9 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import TemplateEditor from "./pages/settings/TemplateEditor";
 import MyPlan from "./pages/MyPlan";
 import { WhatsAppDashboard, SendNotification, CreateCommunity, Campaigns, CampaignDetail, Templates as WhatsAppTemplates, ScheduledMessages } from "./pages/whatsapp";
+import CallingDashboard from "./pages/calling/CallingDashboard";
+import CallingCampaigns from "./pages/calling/CallingCampaigns";
+import CallingCampaignDetail from "./pages/calling/CallingCampaignDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +109,10 @@ const App = () => (
               <Route path="/whatsapp/templates/new" element={<ProtectedRoute><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/templates/:id/edit" element={<ProtectedRoute><ErrorBoundary><TemplateEditor /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/whatsapp/scheduled" element={<ProtectedRoute><ErrorBoundary><ScheduledMessages /></ErrorBoundary></ProtectedRoute>} />
+              {/* Calling Module */}
+              <Route path="/calling/dashboard" element={<ProtectedRoute><ErrorBoundary><CallingDashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/calling/campaigns" element={<ProtectedRoute><ErrorBoundary><CallingCampaigns /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/calling/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CallingCampaignDetail /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/super-admin" element={<ErrorBoundary><SuperAdminOverview /></ErrorBoundary>} />
               <Route path="/super-admin/organizations" element={<ErrorBoundary><SuperAdminOrganizations /></ErrorBoundary>} />
               <Route path="/super-admin/plans" element={<ErrorBoundary><SuperAdminPlans /></ErrorBoundary>} />

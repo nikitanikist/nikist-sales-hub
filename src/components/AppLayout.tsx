@@ -404,6 +404,17 @@ const AppLayoutContent = () => {
       ],
     },
     
+    // GROUP: Calling
+    {
+      title: "Calling",
+      icon: Phone,
+      permissionKey: 'calling' as PermissionKey,
+      children: [
+        { title: "Dashboard", path: "/calling/dashboard", permissionKey: 'calling' as PermissionKey },
+        { title: "Campaigns", path: "/calling/campaigns", permissionKey: 'calling' as PermissionKey },
+      ],
+    },
+    
     // Standalone: Team Members (renamed from "Users")
     { title: "Team Members", icon: UsersRound, path: "/users", permissionKey: 'users' as PermissionKey },
     
