@@ -6,7 +6,7 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Settings, Building2, Blocks, Puzzle, Users, Video, Calendar, MessageCircle, Webhook, Bell } from "lucide-react";
+import { Settings, Building2, Blocks, Puzzle, Users, Video, Calendar, MessageCircle, Webhook, Bell, Phone } from "lucide-react";
 import { IntegrationSection } from "@/components/settings/IntegrationSection";
 import { GeneralSettings } from "@/pages/settings/GeneralSettings";
 import { ModulesSettings } from "@/pages/settings/ModulesSettings";
@@ -71,11 +71,12 @@ const OrganizationSettings = () => {
 
   // Group integrations by base type
   const groupedIntegrations = useMemo(() => {
-    const groups: Record<"zoom" | "calendly" | "whatsapp" | "aisensy", Integration[]> = {
+    const groups: Record<"zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna", Integration[]> = {
       zoom: [],
       calendly: [],
       whatsapp: [],
       aisensy: [],
+      bolna: [],
     };
 
     integrations?.forEach((integration) => {
@@ -86,6 +87,8 @@ const OrganizationSettings = () => {
         groups.calendly.push(integration);
       } else if (type.startsWith("aisensy")) {
         groups.aisensy.push(integration);
+      } else if (type.startsWith("bolna")) {
+        groups.bolna.push(integration);
       } else if (type.startsWith("whatsapp")) {
         groups.whatsapp.push(integration);
       }
@@ -222,7 +225,7 @@ const OrganizationSettings = () => {
             </TabsTrigger>
           )}
           {/* Only show Integrations tab if at least one integration type is not disabled (or super admin) */}
-          {(isSuperAdmin || !(['zoom', 'calendly', 'whatsapp', 'aisensy', 'pabbly'].every(slug => isIntegrationDisabled(slug)))) && (
+          {(isSuperAdmin || !(['zoom', 'calendly', 'whatsapp', 'aisensy', 'bolna', 'pabbly'].every(slug => isIntegrationDisabled(slug)))) && (
             <TabsTrigger value="integrations" className="gap-2">
               <Puzzle className="h-4 w-4" />
               Integrations
@@ -254,7 +257,7 @@ const OrganizationSettings = () => {
         <TabsContent value="integrations" className="space-y-6">
           {/* Nested Tabs for Integration Types */}
           <Tabs defaultValue="zoom" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5 max-w-2xl">
+            <TabsList className="grid w-full grid-cols-6 max-w-3xl">
               {(isSuperAdmin || !isIntegrationDisabled('zoom')) && (
                 <TabsTrigger value="zoom" className="gap-2">
                   <Video className="h-4 w-4" />
@@ -299,6 +302,17 @@ const OrganizationSettings = () => {
                   )}
                 </TabsTrigger>
               )}
+              {(isSuperAdmin || !isIntegrationDisabled('bolna')) && (
+                <TabsTrigger value="bolna" className="gap-2">
+                  <Phone className="h-4 w-4" />
+                  Calling
+                  {groupedIntegrations.bolna.length > 0 && (
+                    <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                      {groupedIntegrations.bolna.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
               {(isSuperAdmin || !isIntegrationDisabled('pabbly')) && (
                 <TabsTrigger value="webhooks" className="gap-2">
                   <Webhook className="h-4 w-4" />
@@ -334,6 +348,16 @@ const OrganizationSettings = () => {
             <TabsContent value="aisensy">
               <AISensySettings
                 integrations={integrations || []}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                isSaving={saveMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="bolna">
+              <IntegrationSection
+                type="bolna"
+                integrations={groupedIntegrations.bolna}
                 onSave={handleSave}
                 onDelete={handleDelete}
                 isSaving={saveMutation.isPending}
