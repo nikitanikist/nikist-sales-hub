@@ -1,68 +1,74 @@
 
+# Upgrade Verify Campaign Status to Tier 1 (VPS Verification)
 
-# Add "Fetch Status" Button for False-Failed Campaigns
+## What Changes
 
-## Problem
-Campaigns show as "failed" because the VPS took too long to respond (timeout), but messages were actually delivered. Retrying would send duplicate messages, which is harmful. You need a safe way to verify and correct the status.
+The VPS developer has built a `/message-status` endpoint that returns the `messageId` for messages that were actually delivered. We will update the system to:
 
-## How It Works
-A new "Fetch Status" button appears on failed/partial_failure campaigns. When clicked:
-1. It calls a new backend function that asks the VPS "did this message actually get sent to this group?"
-2. If the VPS confirms delivery, the group status is updated from "failed" to "sent" (no message is resent)
-3. Campaign-level counts and status are recalculated automatically
-4. Read/delivered/reaction receipts will then start flowing in normally via existing webhooks
+1. **Try VPS verification first** -- query each failed group's delivery status from the VPS
+2. **Store the recovered `messageId`** -- so read receipts, delivery receipts, and reaction webhooks start working for those groups
+3. **Fall back to manual confirmation** -- for groups where VPS doesn't have the messageId (e.g., after VPS restart)
 
-## Changes
+## How It Will Work
 
-### 1. New Edge Function: `verify-campaign-status`
-- Accepts a `campaign_id`
-- For each group marked "failed" in that campaign, calls the VPS `/message-status` endpoint (or similar) with the `group_jid` and `session_id` to check if the message was actually delivered
-- If VPS doesn't have a status endpoint, falls back to a simpler approach: re-query the VPS `/check-message` endpoint. If no such endpoint exists on the VPS, we use a **manual confirmation** approach instead (the button marks groups as "sent" based on your confirmation, since you already verified delivery in WhatsApp)
-- Updates groups from "failed" to "sent" where confirmed
-- Recalculates campaign `sent_count`, `failed_count`, and `status`
+When you click "Verify Status" on a failed/partial campaign:
+- The system calls VPS `/message-status` for each failed group using the campaign's `session_id` and each group's `group_jid`
+- If VPS confirms delivery and returns a `messageId`, the group is marked as "sent" WITH the messageId stored -- enabling analytics (read, delivered, reactions)
+- Groups where VPS has no record remain failed, and you get a summary showing how many were auto-verified vs still unresolved
+- For remaining unresolved groups, you can still use "Mark as Delivered" (Tier 2) as a fallback
 
-### 2. UI: "Fetch Status" / "Mark as Delivered" Button
-On the campaign detail page (`CampaignDetail.tsx`), alongside the existing Retry button for failed campaigns:
-- Add a "Verify Status" button that calls the new edge function
-- Shows a loading state while checking
-- Displays a toast with results ("3 of 5 groups confirmed as delivered")
-- Campaign stats refresh automatically after
+## UI Changes
 
-### 3. Approach Decision
-Since the VPS may not have a `/message-status` endpoint, the implementation will use a **two-tier approach**:
-- **Tier 1**: Try VPS `/message-status` endpoint -- if it exists, use real verification
-- **Tier 2 (fallback)**: If the VPS doesn't support status checks, show a "Mark as Delivered" confirmation dialog that lets you manually confirm that failed groups were actually delivered (since you've already verified in WhatsApp)
+The current single "Mark as Delivered" button will be replaced with two options:
+- **"Verify Status"** (primary) -- calls VPS to auto-verify and recover messageIds
+- **"Mark as Delivered"** (secondary, shown after verify if some groups remain failed) -- manual confirmation for groups VPS couldn't verify
 
 ## Technical Details
 
-### Edge Function (`supabase/functions/verify-campaign-status/index.ts`)
-```text
-Input: { campaign_id: string, manual_confirm?: boolean }
+### Edge Function Update (`supabase/functions/verify-campaign-status/index.ts`)
 
-Steps:
-1. Fetch campaign + session info
-2. Get all "failed" groups for this campaign
-3. If manual_confirm=true, mark all failed groups as "sent"
-4. If manual_confirm=false, try VPS /message-status for each group
-5. Recalculate campaign: sent_count, failed_count, status
-6. Release: set status to "completed" if all sent, "partial_failure" if mixed
+The function will support two modes via the request body:
+
+**Mode 1: `manual_confirm: false` (default) -- VPS Verification**
+```text
+1. Fetch campaign + session_id
+2. Get all failed groups for this campaign
+3. For each failed group, POST to VPS /message-status with { sessionId, groupJid }
+4. If VPS returns { found: true, messageId }, update group:
+   - status -> "sent"
+   - message_id -> recovered messageId (enables analytics webhooks)
+   - sent_at -> VPS timestamp or now
+   - error_message -> null
+5. Recalculate campaign sent_count, failed_count, status
+6. Return: { verified: X, still_failed: Y, total: Z }
 ```
 
-### UI Changes (`CampaignDetail.tsx`)
-- Add "Verify Status" button next to the retry section
-- On click: call verify-campaign-status edge function
-- Show confirmation dialog: "You confirmed these messages were received. Mark X failed groups as delivered?"
-- After success: invalidate queries to refresh stats
+**Mode 2: `manual_confirm: true` -- Manual Fallback (unchanged)**
+- Marks all remaining failed groups as "sent" without messageId
+- Analytics won't work for these, but counts are corrected
 
-### Config
-- Add `verify_jwt = false` entry in `supabase/config.toml`
+### VPS Call Pattern
+```text
+POST {WHATSAPP_VPS_URL}/message-status
+Headers: { "X-API-Key": WHATSAPP_VPS_API_KEY, "Content-Type": "application/json" }
+Body: { "sessionId": "...", "groupJid": "..." }
+Response: { "success": true, "found": true, "messageId": "...", "status": "sent", "timestamp": ... }
+```
 
-## Files to Create/Modify
-| File | Action |
+Uses existing `WHATSAPP_VPS_URL` and `WHATSAPP_VPS_API_KEY` secrets (already configured).
+
+### UI Update (`src/pages/whatsapp/CampaignDetail.tsx`)
+
+- Rename existing button from "Mark as Delivered" to "Verify Status"
+- Change `handleVerifyStatus` to call with `manual_confirm: false` first
+- Show results toast: "4 of 6 groups verified via VPS. 2 groups still failed."
+- If groups remain failed after verification, show a secondary "Mark Remaining as Delivered" button for Tier 2 fallback
+- After Tier 1 verify, the button text updates to reflect remaining unverified groups
+
+### Files to Modify
+| File | Change |
 |------|--------|
-| `supabase/functions/verify-campaign-status/index.ts` | Create -- new edge function |
-| `supabase/config.toml` | Add verify_jwt config (auto-managed, just noting) |
-| `src/pages/whatsapp/CampaignDetail.tsx` | Add Verify Status button + handler |
+| `supabase/functions/verify-campaign-status/index.ts` | Add VPS /message-status calls with messageId recovery |
+| `src/pages/whatsapp/CampaignDetail.tsx` | Split into Verify (Tier 1) + Mark as Delivered (Tier 2) buttons |
 
-No database migration needed -- we're only updating existing `status` fields.
-
+No database changes needed -- `message_id` column already exists on `notification_campaign_groups`.
