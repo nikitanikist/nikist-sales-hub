@@ -110,3 +110,6 @@ verify_jwt = false
 
 [functions.list-bolna-agents]
 verify_jwt = false
+
+[functions.verify-campaign-status]
+verify_jwt = false
