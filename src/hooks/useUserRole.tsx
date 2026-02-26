@@ -17,7 +17,7 @@ interface UseUserRoleReturn {
   hasPermission: (key: PermissionKey) => boolean;
 }
 
-export const useUserRole = (): UseUserRoleReturn => {
+export const useUserRole = (organizationId?: string | null): UseUserRoleReturn => {
   const { user } = useAuth();
   const [role, setRole] = useState<UserRole>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -78,7 +78,7 @@ export const useUserRole = (): UseUserRoleReturn => {
         }
 
         // Get the current organization from localStorage
-        const currentOrgId = localStorage.getItem("lovable_current_org_id");
+        const currentOrgId = organizationId ?? localStorage.getItem("lovable_current_org_id");
 
         let fetchedRole: UserRole = null;
 
@@ -167,7 +167,7 @@ export const useUserRole = (): UseUserRoleReturn => {
     };
 
     fetchUserRole();
-  }, [user?.email]);
+  }, [user?.email, organizationId]);
 
   const hasPermission = (key: PermissionKey): boolean => {
     // Admins and super admins always have all permissions
