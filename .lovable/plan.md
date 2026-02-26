@@ -1,38 +1,37 @@
 
 
-# Fix Campaign Scheduling Failure
+# Increase WhatsApp VPS Timeout to Prevent False Failures
 
-## Root Cause
+## Problem
 
-The "Scheduled time should be at least 2 minutes in the future" error happens because:
+WhatsApp campaigns are marked as "failed" in the dashboard even though messages were actually delivered. This happens because the VPS takes longer than 10 seconds to respond (it waits for WhatsApp delivery confirmation before returning), and our system times out and records it as a failure.
 
-1. The schedule timestamp is computed at line 122 (121s in the future)
-2. Then a 3-second delay happens at line 120
-3. Then the batch creation API call takes several seconds
-4. By the time the schedule API receives the timestamp, only ~115 seconds remain -- below Bolna's 2-minute minimum
-
-The timestamp is generated too early, before the batch creation and delays eat into the buffer.
+The Feb 23rd campaigns ("AI Metal Trading Bootcamp Research Form", "24hr msg", "before 24hr msg") all show failed_count=1, sent_count=0 -- but messages were received in WhatsApp groups.
 
 ## Fix
 
-Two changes in `supabase/functions/start-voice-campaign/index.ts`:
+**File: `supabase/functions/process-whatsapp-queue/index.ts`**
 
-1. **Move timestamp generation AFTER the 3-second delay** -- compute it right before the schedule call, not before
-2. **Increase buffer to 150 seconds** (2 minutes 30 seconds) to account for network latency
-
-```text
-Before (broken):
-  Line 122: Generate timestamp (121s future)  <-- clock starts
-  Line 120: Wait 3 seconds                    <-- 3s consumed
-  Lines 102-117: Create batch API call         <-- 2-5s consumed
-  Line 136: Schedule call                      <-- only ~113s left, REJECTED
-
-After (fixed):
-  Lines 102-117: Create batch API call
-  Line 120: Wait 3 seconds
-  NEW: Generate timestamp (150s future)        <-- clock starts HERE
-  Line 136: Schedule call                      <-- full 150s available
+Change line 54 from:
+```typescript
+}, 10000);
+```
+to:
+```typescript
+}, 30000);
 ```
 
-This is a one-line move + one number change. No database migration needed.
+This increases the timeout from 10 seconds to 30 seconds for the VPS `/send` endpoint. The VPS is working correctly -- it just sometimes takes longer than 10s, especially for media messages.
+
+## What This Fixes
+
+- Campaigns will no longer be falsely marked as "failed" when messages are actually delivered
+- No changes needed on the VPS side
+- All other WhatsApp-related timeouts (reminders, closer notifications, etc.) remain at 10s since those are simpler API calls
+
+## Note on Old Failed Campaigns
+
+The 3 campaigns from Feb 23rd that show as "failed" cannot be retroactively corrected -- they were already finalized. But this fix prevents the same issue going forward.
+
+No database migration needed.
 
