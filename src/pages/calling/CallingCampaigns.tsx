@@ -4,7 +4,7 @@ import { useVoiceCampaigns } from "@/hooks/useVoiceCampaigns";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, StopCircle, Eye } from "lucide-react";
+import { Plus, StopCircle, Eye, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { CampaignStatusBadge, formatCost } from "./components/index";
 import { CreateBroadcastDialog } from "./CreateBroadcastDialog";
@@ -18,6 +18,8 @@ export default function CallingCampaigns() {
   const { data: campaigns = [], isLoading, refetch } = useVoiceCampaigns(filter);
   const navigate = useNavigate();
 
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
   const handleStop = async (e: React.MouseEvent, campaignId: string) => {
     e.stopPropagation();
     const { error } = await supabase.functions.invoke("stop-voice-campaign", { body: { campaign_id: campaignId } });
@@ -25,6 +27,19 @@ export default function CallingCampaigns() {
       toast.error("Failed to stop campaign");
     } else {
       toast.success("Campaign stopped");
+      refetch();
+    }
+  };
+
+  const handleRetry = async (e: React.MouseEvent, campaignId: string) => {
+    e.stopPropagation();
+    setRetryingId(campaignId);
+    const { error } = await supabase.functions.invoke("start-voice-campaign", { body: { campaign_id: campaignId } });
+    setRetryingId(null);
+    if (error) {
+      toast.error("Failed to start campaign");
+    } else {
+      toast.success("Campaign started");
       refetch();
     }
   };
@@ -87,6 +102,11 @@ export default function CallingCampaigns() {
                       <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => navigate(`/calling/campaigns/${c.id}`)}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
+                      {(c.status === "draft" || c.status === "failed") && (
+                        <Button variant="ghost" size="sm" className="h-7 px-2" onClick={(e) => handleRetry(e, c.id)} disabled={retryingId === c.id}>
+                          <RefreshCw className={`h-3.5 w-3.5 ${retryingId === c.id ? "animate-spin" : ""}`} />
+                        </Button>
+                      )}
                       {c.status === "running" && (
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-destructive" onClick={(e) => handleStop(e, c.id)}>
                           <StopCircle className="h-3.5 w-3.5" />
