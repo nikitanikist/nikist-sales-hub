@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.mcp-crm]
 verify_jwt = false
+
+[functions.list-bolna-agents]
+verify_jwt = false
