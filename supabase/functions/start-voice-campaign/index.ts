@@ -116,31 +116,48 @@ Deno.serve(async (req) => {
     const batchId = batchData.batch_id || batchData.id;
     console.log(`Bolna batch created: ${batchId}`);
 
-    // Step 2: Schedule batch (immediately or at scheduled_at)
-    const scheduleForm = new FormData();
-    // Use 150 seconds (2.5 min) in the future — Bolna requires at least 2 min buffer
-    const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
-    scheduleForm.append("scheduled_at", scheduleTime);
+    // Step 2: Schedule batch — wait a moment for Bolna to process the batch
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
+    const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
     console.log(`Scheduling batch ${batchId} at: ${scheduleTime}`);
 
-    const scheduleRes = await fetchWithRetry(`https://api.bolna.ai/batches/${batchId}/schedule`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${bolnaApiKey}` },
-      body: scheduleForm,
-    }, { timeoutMs: 15000, maxRetries: 2 });
+    const scheduleForm = new FormData();
+    scheduleForm.append("scheduled_at", scheduleTime);
 
-    const scheduleResult = await scheduleRes.json();
-    console.log("Schedule response:", JSON.stringify(scheduleResult));
-
-    if (!scheduleRes.ok || scheduleResult.state !== "scheduled") {
-      console.error("Bolna batch schedule FAILED:", scheduleRes.status, JSON.stringify(scheduleResult));
+    // Use plain fetch (no retry) — Bolna schedule endpoint may not be idempotent
+    let scheduleRes: Response;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      scheduleRes = await fetch(`https://api.bolna.ai/batches/${batchId}/schedule`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${bolnaApiKey}` },
+        body: scheduleForm,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchErr) {
+      console.error("Schedule fetch error:", fetchErr);
       await supabase.from("voice_campaigns").update({
         status: "failed",
         bolna_batch_id: batchId,
         updated_at: new Date().toISOString(),
       }).eq("id", campaign_id);
-      return new Response(JSON.stringify({ error: "Batch created but scheduling failed", details: scheduleResult }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Batch created but schedule request failed", details: String(fetchErr) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const scheduleText = await scheduleRes.text();
+    console.log(`Schedule response (${scheduleRes.status}):`, scheduleText);
+
+    if (!scheduleRes.ok) {
+      console.error("Bolna batch schedule FAILED:", scheduleRes.status, scheduleText);
+      await supabase.from("voice_campaigns").update({
+        status: "failed",
+        bolna_batch_id: batchId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", campaign_id);
+      return new Response(JSON.stringify({ error: "Batch created but scheduling failed", details: scheduleText }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Step 3: Update campaign
