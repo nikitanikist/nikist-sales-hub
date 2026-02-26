@@ -86,3 +86,24 @@ verify_jwt = false
 
 [functions.whatsapp-status-webhook]
 verify_jwt = false
+
+[functions.start-voice-campaign]
+verify_jwt = false
+
+[functions.bolna-webhook]
+verify_jwt = false
+
+[functions.stop-voice-campaign]
+verify_jwt = false
+
+[functions.whatsapp-reaction-webhook]
+verify_jwt = false
+
+[functions.whatsapp-read-receipt-webhook]
+verify_jwt = false
+
+[functions.process-notification-campaigns]
+verify_jwt = false
+
+[functions.mcp-crm]
+verify_jwt = false

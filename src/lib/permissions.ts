@@ -16,6 +16,7 @@ export const PERMISSION_KEYS = {
   whatsapp: 'whatsapp',
   webinar: 'webinar',
   operations: 'operations',
+  calling: 'calling',
   my_plan: 'my_plan',
 } as const;
 
@@ -50,6 +51,8 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/operations/dynamic-links': PERMISSION_KEYS.operations,
   '/my-plan': PERMISSION_KEYS.my_plan,
   '/webinar/notification': PERMISSION_KEYS.webinar,
+  '/calling/dashboard': PERMISSION_KEYS.calling,
+  '/calling/campaigns': PERMISSION_KEYS.calling,
 };
 
 // Permission labels for UI display
@@ -70,6 +73,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   whatsapp: 'WhatsApp',
   webinar: 'Webinar Notification',
   operations: 'Operations',
+  calling: 'Calling',
   my_plan: 'My Plan',
 };
 
@@ -129,6 +133,12 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    label: 'Calling',
+    permissions: [
+      PERMISSION_KEYS.calling,
+    ],
+  },
+  {
     label: 'Other',
     permissions: [
       PERMISSION_KEYS.dashboard,
@@ -157,6 +167,7 @@ export const DEFAULT_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSION_KEYS.whatsapp,
     PERMISSION_KEYS.webinar,
     PERMISSION_KEYS.operations,
+    PERMISSION_KEYS.calling,
     // users - NOT included
   ],
   sales_rep: [
@@ -206,6 +217,11 @@ export function getPermissionForRoute(path: string): PermissionKey | undefined {
   // Handle webinar routes
   if (path.startsWith('/webinar')) {
     return PERMISSION_KEYS.webinar;
+  }
+  
+  // Handle calling routes
+  if (path.startsWith('/calling')) {
+    return PERMISSION_KEYS.calling;
   }
   
   return undefined;
