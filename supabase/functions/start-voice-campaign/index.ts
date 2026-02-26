@@ -92,6 +92,13 @@ Deno.serve(async (req) => {
     formData.append("agent_id", bolnaAgentId);
     formData.append("file", new Blob([csvContent], { type: "text/csv" }), "contacts.csv");
 
+    // Add from_phone_number if configured
+    const fromPhone = config.from_phone_number || "";
+    if (fromPhone) {
+      formData.append("from_phone_number", fromPhone);
+      console.log(`Using from_phone_number: ${fromPhone}`);
+    }
+
     const batchRes = await fetchWithRetry("https://api.bolna.ai/batches", {
       method: "POST",
       headers: { Authorization: `Bearer ${bolnaApiKey}` },
@@ -111,8 +118,11 @@ Deno.serve(async (req) => {
 
     // Step 2: Schedule batch (immediately or at scheduled_at)
     const scheduleForm = new FormData();
-    const scheduleTime = campaign.scheduled_at || new Date().toISOString();
+    // Use 30 seconds in the future for immediate start — Bolna rejects past timestamps
+    const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 30000).toISOString();
     scheduleForm.append("scheduled_at", scheduleTime);
+
+    console.log(`Scheduling batch ${batchId} at: ${scheduleTime}`);
 
     const scheduleRes = await fetchWithRetry(`https://api.bolna.ai/batches/${batchId}/schedule`, {
       method: "POST",
@@ -120,9 +130,17 @@ Deno.serve(async (req) => {
       body: scheduleForm,
     }, { timeoutMs: 15000, maxRetries: 2 });
 
-    if (!scheduleRes.ok) {
-      const errText = await scheduleRes.text();
-      console.error("Bolna batch schedule failed:", scheduleRes.status, errText);
+    const scheduleResult = await scheduleRes.json();
+    console.log("Schedule response:", JSON.stringify(scheduleResult));
+
+    if (!scheduleRes.ok || scheduleResult.state !== "scheduled") {
+      console.error("Bolna batch schedule FAILED:", scheduleRes.status, JSON.stringify(scheduleResult));
+      await supabase.from("voice_campaigns").update({
+        status: "failed",
+        bolna_batch_id: batchId,
+        updated_at: new Date().toISOString(),
+      }).eq("id", campaign_id);
+      return new Response(JSON.stringify({ error: "Batch created but scheduling failed", details: scheduleResult }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Step 3: Update campaign

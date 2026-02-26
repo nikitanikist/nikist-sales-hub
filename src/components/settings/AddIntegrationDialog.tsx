@@ -67,6 +67,7 @@ const getFieldsForType = (type: string) => {
         { key: "api_key", label: "Bolna API Key", placeholder: "Enter Bolna API Key", secret: true },
         { key: "agent_id", label: "Default Agent ID", placeholder: "Enter default Bolna Agent ID", secret: false },
         { key: "webhook_secret", label: "Webhook Secret", placeholder: "Enter webhook verification secret", secret: true },
+        { key: "from_phone_number", label: "From Phone Number", placeholder: "+917971543257", secret: false },
       ];
     default:
       return [];
