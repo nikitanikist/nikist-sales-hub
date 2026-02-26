@@ -1,27 +1,55 @@
 
-# Fix: WhatsApp Groups List Truncated at 1000 Rows
+# Fix: WhatsApp Groups Still Truncated at 1000 Rows (PostgREST Server Limit)
 
 ## Problem
-The WhatsApp groups query in `useWhatsAppGroups.ts` already correctly filters to only show groups from connected sessions (via an `!inner` join). However, the `.limit(1000)` on line 97 truncates the results, hiding groups like "Nikist Times" that fall beyond the 1000th row alphabetically.
+The previous fix changed `.limit(1000)` to `.range(0, 4999)`, but this only sets `offset=0&limit=5000` as query parameters. The **PostgREST server** has a hard-coded max of **1000 rows per request** that cannot be changed via client-side parameters. With 1060 groups, "Nikist Times" falls beyond the 1000th row alphabetically and is still not returned.
 
-## Fix (1 file, 1 line)
+## Solution
+Implement **client-side pagination** in the `useWhatsAppGroups` hook to fetch all groups in batches of 1000, then combine them.
 
-**`src/hooks/useWhatsAppGroups.ts`** (line 97):
+## Changes (1 file)
 
-Replace `.limit(1000)` with `.range(0, 4999)` to reliably fetch up to 5000 groups. The `.range()` method uses the HTTP Range header, which is more reliable than `.limit()` for exceeding the default PostgREST 1000-row cap.
+**`src/hooks/useWhatsAppGroups.ts`** — Replace the single query with a paginated fetch loop:
 
-```text
-// Before:
-.limit(1000);
+```typescript
+queryFn: async () => {
+  if (!currentOrganization) return [];
+  
+  const PAGE_SIZE = 1000;
+  let allData: any[] = [];
+  let page = 0;
+  
+  while (true) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    
+    const { data, error } = await supabase
+      .from('whatsapp_groups')
+      .select(`
+        id, group_jid, group_name, organization_id, session_id, participant_count,
+        workshop_id, synced_at, is_active, is_admin, is_community, is_community_announce, invite_link,
+        session:whatsapp_sessions!inner(status)
+      `)
+      .eq('organization_id', currentOrganization.id)
+      .eq('is_active', true)
+      .eq('session.status', 'connected')
+      .order('group_name', { ascending: true })
+      .range(from, to);
 
-// After:
-.range(0, 4999);
+    if (error) throw error;
+    
+    allData = allData.concat(data || []);
+    
+    // If we got fewer than PAGE_SIZE rows, we've reached the end
+    if (!data || data.length < PAGE_SIZE) break;
+    page++;
+  }
+  
+  return allData.map(({ session, ...group }) => group) as WhatsAppGroup[];
+},
 ```
 
-## What's already working
-- The query already uses `whatsapp_sessions!inner(status)` with `.eq('session.status', 'connected')` -- so groups from disconnected sessions are already excluded
-- The `is_active: true` filter is also in place
-- No backend or database changes needed
+This will make 2 requests for 1060 groups (1000 + 60), ensuring "Nikist Times" is included. The loop is safe — it stops as soon as a page returns fewer than 1000 rows.
 
-## Result
-After this change, all admin groups from connected sessions (currently 991 for Nikist) will load in the dashboard, and "Nikist Times" will appear in searches.
+## Why `.range(0, 4999)` didn't work
+PostgREST enforces a server-side `max-rows` setting (default 1000). Even if the client requests 5000 rows, the server silently caps the response at 1000. The only way around this without server config changes is pagination.
