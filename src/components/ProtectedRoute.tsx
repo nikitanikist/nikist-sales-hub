@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useUserRole } from "@/hooks/useUserRole";
 import { getPermissionForRoute, isCohortRoute, PERMISSION_KEYS, ROUTE_TO_PERMISSION } from "@/lib/permissions";
 import { useOrgFeatureOverrides } from "@/hooks/useOrgFeatureOverrides";
+import { useOrganization } from "@/hooks/useOrganization";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,7 +12,8 @@ interface ProtectedRouteProps {
 
 // Find the first route the current user can actually access
 function useFirstAccessibleRoute() {
-  const { hasPermission } = useUserRole();
+  const { currentOrganization } = useOrganization();
+  const { hasPermission } = useUserRole(currentOrganization?.id);
   const { isPermissionDisabled } = useOrgFeatureOverrides();
 
   const preferredRoutes = [
@@ -41,7 +43,8 @@ function useFirstAccessibleRoute() {
 }
 
 const ProtectedRoute = ({ children, adminOnly = false, requiredPermission }: ProtectedRouteProps) => {
-  const { isAdmin, isCloser, isSuperAdmin, isLoading } = useUserRole();
+  const { currentOrganization } = useOrganization();
+  const { isAdmin, isCloser, isSuperAdmin, isLoading } = useUserRole(currentOrganization?.id);
   const { isLoading: overridesLoading } = useOrgFeatureOverrides();
   const location = useLocation();
   const firstAccessibleRoute = useFirstAccessibleRoute();

@@ -182,8 +182,8 @@ const SidebarNavigation = ({ menuItems, navigate, location, signOut, userEmail, 
 
 const AppLayoutContent = () => {
   const { user, signOut, loading } = useAuth();
-  const { isAdmin, isCloser, isManager, isSuperAdmin, isLoading: roleLoading, hasPermission } = useUserRole();
   const { currentOrganization, isSuperAdmin: orgIsSuperAdmin } = useOrganization();
+  const { isAdmin, isCloser, isManager, isSuperAdmin, isLoading: roleLoading, hasPermission } = useUserRole(currentOrganization?.id);
   const { isModuleEnabled, isLoading: modulesLoading } = useModules();
   const { isPermissionDisabled, isLoading: overridesLoading } = useOrgFeatureOverrides();
   const navigate = useNavigate();
