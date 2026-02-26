@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, Video, Calendar, MessageCircle } from "lucide-react";
+import { Plus, Video, Calendar, MessageCircle, Phone } from "lucide-react";
 import { IntegrationCard } from "./IntegrationCard";
 import { AddIntegrationDialog } from "./AddIntegrationDialog";
 
@@ -18,7 +18,7 @@ interface Integration {
 }
 
 interface IntegrationSectionProps {
-  type: "zoom" | "calendly" | "whatsapp" | "aisensy";
+  type: "zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna";
   integrations: Integration[];
   onSave: (data: { 
     type: string; 
@@ -54,6 +54,12 @@ const sectionConfig = {
     description: "Configure AISensy WhatsApp API accounts for one-to-one call reminders",
     icon: MessageCircle,
     buttonLabel: "Add AISensy Account",
+  },
+  bolna: {
+    title: "Calling Agent (Bolna AI)",
+    description: "Configure Bolna AI credentials for AI-powered voice calling campaigns",
+    icon: Phone,
+    buttonLabel: "Add Calling Agent",
   },
 };
 
