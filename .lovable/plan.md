@@ -1,24 +1,24 @@
 
-
-# Fix: Bolna Batch Scheduling — Increase Time Buffer to 2.5 Minutes
+# Fix: Bolna Rejects JavaScript ISO Date Format
 
 ## Problem
-The Bolna API returned: `"Scheduled time should be atleast 2 minutes in the future"`. Our current code adds only 30 seconds (`Date.now() + 30000`), which is insufficient.
+Bolna's API (Python-based) returns: `Invalid isoformat string: '2026-02-26T12:21:46.408Z'`
+
+Python's `datetime.fromisoformat()` does not accept the `Z` suffix or milliseconds that JavaScript's `.toISOString()` produces. It expects `+00:00` instead of `Z`.
 
 ## Fix (1 file, 1 line)
 
-**`supabase/functions/start-voice-campaign/index.ts`** (line 122):
+**`supabase/functions/start-voice-campaign/index.ts`** — line 122:
 
-```text
-// Before:
-const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 30000).toISOString();
-
-// After:
+Replace:
+```
 const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
 ```
 
-This sets the buffer to 150 seconds (2 minutes 30 seconds), giving a comfortable margin above Bolna's 2-minute minimum.
+With:
+```
+const rawTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
+const scheduleTime = rawTime.replace(/\.\d{3}Z$/, '+00:00').replace(/Z$/, '+00:00');
+```
 
-## After deploying
-You can retry the failed campaign from the campaign detail page — it should auto-start this time.
-
+This converts `2026-02-26T12:21:46.408Z` to `2026-02-26T12:21:46+00:00`, which Python's `fromisoformat()` accepts.
