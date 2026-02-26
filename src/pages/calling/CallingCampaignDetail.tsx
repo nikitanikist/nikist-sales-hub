@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useVoiceCampaignDetail } from "@/hooks/useVoiceCampaignDetail";
 import { useVoiceCampaignRealtime } from "@/hooks/useVoiceCampaignRealtime";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, StopCircle } from "lucide-react";
+import { ArrowLeft, StopCircle, RefreshCw } from "lucide-react";
 import { CampaignAnalyticsCards } from "./components/CampaignAnalyticsCards";
 import { CampaignProgressBar } from "./components/CampaignProgressBar";
 import { CampaignCallsTable } from "./components/CampaignCallsTable";
@@ -49,6 +49,8 @@ export default function CallingCampaignDetail() {
     return Math.round(withDuration.reduce((sum, c) => sum + (c.call_duration_seconds || 0), 0) / withDuration.length);
   }, [mergedCalls]);
 
+  const [retrying, setRetrying] = useState(false);
+
   const handleStop = async () => {
     if (!campaignId) return;
     const { error } = await supabase.functions.invoke("stop-voice-campaign", { body: { campaign_id: campaignId } });
@@ -56,6 +58,20 @@ export default function CallingCampaignDetail() {
       toast.error("Failed to stop campaign");
     } else {
       toast.success("Campaign stopped");
+      refetchCampaign();
+      refetchCalls();
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!campaignId) return;
+    setRetrying(true);
+    const { error } = await supabase.functions.invoke("start-voice-campaign", { body: { campaign_id: campaignId } });
+    setRetrying(false);
+    if (error) {
+      toast.error("Failed to start campaign");
+    } else {
+      toast.success("Campaign started");
       refetchCampaign();
       refetchCalls();
     }
@@ -86,6 +102,12 @@ export default function CallingCampaignDetail() {
             )}
           </div>
         </div>
+        {(currentCampaign.status === "draft" || currentCampaign.status === "failed") && (
+          <Button size="sm" onClick={handleRetry} disabled={retrying}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${retrying ? "animate-spin" : ""}`} />
+            Retry Campaign
+          </Button>
+        )}
         {currentCampaign.status === "running" && (
           <Button variant="destructive" size="sm" onClick={handleStop}>
             <StopCircle className="h-4 w-4 mr-2" />
