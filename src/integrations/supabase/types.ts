@@ -3812,6 +3812,202 @@ export type Database = {
           },
         ]
       }
+      voice_campaign_calls: {
+        Row: {
+          bolna_call_id: string | null
+          call_duration_seconds: number | null
+          call_ended_at: string | null
+          call_started_at: string | null
+          campaign_id: string
+          contact_name: string
+          contact_phone: string
+          created_at: string | null
+          extracted_data: Json | null
+          id: string
+          in_whatsapp_group: boolean | null
+          lead_id: string | null
+          organization_id: string
+          outcome: string | null
+          recording_url: string | null
+          remarks: string | null
+          reschedule_day: string | null
+          status: string
+          total_cost: number | null
+          transcript: string | null
+          updated_at: string | null
+          whatsapp_link_sent: boolean | null
+        }
+        Insert: {
+          bolna_call_id?: string | null
+          call_duration_seconds?: number | null
+          call_ended_at?: string | null
+          call_started_at?: string | null
+          campaign_id: string
+          contact_name: string
+          contact_phone: string
+          created_at?: string | null
+          extracted_data?: Json | null
+          id?: string
+          in_whatsapp_group?: boolean | null
+          lead_id?: string | null
+          organization_id: string
+          outcome?: string | null
+          recording_url?: string | null
+          remarks?: string | null
+          reschedule_day?: string | null
+          status?: string
+          total_cost?: number | null
+          transcript?: string | null
+          updated_at?: string | null
+          whatsapp_link_sent?: boolean | null
+        }
+        Update: {
+          bolna_call_id?: string | null
+          call_duration_seconds?: number | null
+          call_ended_at?: string | null
+          call_started_at?: string | null
+          campaign_id?: string
+          contact_name?: string
+          contact_phone?: string
+          created_at?: string | null
+          extracted_data?: Json | null
+          id?: string
+          in_whatsapp_group?: boolean | null
+          lead_id?: string | null
+          organization_id?: string
+          outcome?: string | null
+          recording_url?: string | null
+          remarks?: string | null
+          reschedule_day?: string | null
+          status?: string
+          total_cost?: number | null
+          transcript?: string | null
+          updated_at?: string | null
+          whatsapp_link_sent?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_campaign_calls_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "voice_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_campaign_calls_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_campaign_calls_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voice_campaigns: {
+        Row: {
+          agent_type: string
+          bolna_agent_id: string | null
+          bolna_batch_id: string | null
+          calls_completed: number | null
+          calls_confirmed: number | null
+          calls_failed: number | null
+          calls_no_answer: number | null
+          calls_not_interested: number | null
+          calls_rescheduled: number | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string
+          id: string
+          name: string
+          organization_id: string
+          scheduled_at: string | null
+          started_at: string | null
+          status: string
+          total_contacts: number | null
+          total_cost: number | null
+          updated_at: string | null
+          whatsapp_template_id: string | null
+          workshop_id: string | null
+          workshop_name: string | null
+          workshop_time: string | null
+        }
+        Insert: {
+          agent_type?: string
+          bolna_agent_id?: string | null
+          bolna_batch_id?: string | null
+          calls_completed?: number | null
+          calls_confirmed?: number | null
+          calls_failed?: number | null
+          calls_no_answer?: number | null
+          calls_not_interested?: number | null
+          calls_rescheduled?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by: string
+          id?: string
+          name: string
+          organization_id: string
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number | null
+          total_cost?: number | null
+          updated_at?: string | null
+          whatsapp_template_id?: string | null
+          workshop_id?: string | null
+          workshop_name?: string | null
+          workshop_time?: string | null
+        }
+        Update: {
+          agent_type?: string
+          bolna_agent_id?: string | null
+          bolna_batch_id?: string | null
+          calls_completed?: number | null
+          calls_confirmed?: number | null
+          calls_failed?: number | null
+          calls_no_answer?: number | null
+          calls_not_interested?: number | null
+          calls_rescheduled?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number | null
+          total_cost?: number | null
+          updated_at?: string | null
+          whatsapp_template_id?: string | null
+          workshop_id?: string | null
+          workshop_name?: string | null
+          workshop_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_campaigns_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_ingest_events: {
         Row: {
           amount: number | null
@@ -4843,6 +5039,10 @@ export type Database = {
             Returns: boolean
           }
         | { Args: { _role: string; _user_id: string }; Returns: boolean }
+      increment_campaign_counter: {
+        Args: { p_campaign_id: string; p_field: string }
+        Returns: undefined
+      }
       increment_delivered_count: {
         Args: { p_group_id: string }
         Returns: number
