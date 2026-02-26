@@ -26,7 +26,7 @@ const WhatsAppDashboard = () => {
   );
 
   const disconnectedSessions = useMemo(
-    () => sessions?.filter((s) => s.status === "disconnected") || [],
+    () => sessions?.filter((s) => s.status === "disconnected" && s.phone_number) || [],
     [sessions]
   );
 
