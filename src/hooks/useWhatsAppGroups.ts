@@ -81,25 +81,39 @@ export function useWhatsAppGroups() {
     queryFn: async () => {
       if (!currentOrganization) return [];
       
-      // Join with whatsapp_sessions to only get groups from connected sessions
-      // This is defense-in-depth to prevent showing stale groups
-      const { data, error } = await supabase
-        .from('whatsapp_groups')
-        .select(`
-          id, group_jid, group_name, organization_id, session_id, participant_count,
-          workshop_id, synced_at, is_active, is_admin, is_community, is_community_announce, invite_link,
-          session:whatsapp_sessions!inner(status)
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .eq('is_active', true)
-        .eq('session.status', 'connected')
-        .order('group_name', { ascending: true })
-        .range(0, 4999);
+      // Fetch all groups in batches of 1000 to bypass PostgREST server-side row limit
+      const PAGE_SIZE = 1000;
+      let allData: any[] = [];
+      let page = 0;
+      
+      while (true) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        
+        const { data, error } = await supabase
+          .from('whatsapp_groups')
+          .select(`
+            id, group_jid, group_name, organization_id, session_id, participant_count,
+            workshop_id, synced_at, is_active, is_admin, is_community, is_community_announce, invite_link,
+            session:whatsapp_sessions!inner(status)
+          `)
+          .eq('organization_id', currentOrganization.id)
+          .eq('is_active', true)
+          .eq('session.status', 'connected')
+          .order('group_name', { ascending: true })
+          .range(from, to);
 
-      if (error) throw error;
+        if (error) throw error;
+        
+        allData = allData.concat(data || []);
+        
+        // If we got fewer than PAGE_SIZE rows, we've reached the end
+        if (!data || data.length < PAGE_SIZE) break;
+        page++;
+      }
       
       // Map back to WhatsAppGroup type (strip session relation)
-      return (data || []).map(({ session, ...group }) => group) as WhatsAppGroup[];
+      return allData.map(({ session, ...group }) => group) as WhatsAppGroup[];
     },
     enabled: !!currentOrganization,
   });
