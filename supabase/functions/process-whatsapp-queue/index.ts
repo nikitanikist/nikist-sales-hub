@@ -51,7 +51,7 @@ async function fetchWithAuthRetry(
         ...authHeaders,
       },
       body,
-    }, 10000);
+    }, 30000);
     
     console.log(`VPS response status: ${response.status}`);
     
