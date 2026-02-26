@@ -1,55 +1,59 @@
 
-# Fix: WhatsApp Groups Still Truncated at 1000 Rows (PostgREST Server Limit)
 
-## Problem
-The previous fix changed `.limit(1000)` to `.range(0, 4999)`, but this only sets `offset=0&limit=5000` as query parameters. The **PostgREST server** has a hard-coded max of **1000 rows per request** that cannot be changed via client-side parameters. With 1060 groups, "Nikist Times" falls beyond the 1000th row alphabetically and is still not returned.
+# Fix Bolna Voice Campaign: Auto-Start and Phone Number
 
-## Solution
-Implement **client-side pagination** in the `useWhatsAppGroups` hook to fetch all groups in batches of 1000, then combine them.
+## Bug 1: Batch Not Auto-Starting
 
-## Changes (1 file)
+The current code at line 114 sets `scheduleTime` to `campaign.scheduled_at || new Date().toISOString()`, which passes "right now" as the schedule time. Bolna likely rejects or ignores a schedule time that's already in the past.
 
-**`src/hooks/useWhatsAppGroups.ts`** — Replace the single query with a paginated fetch loop:
+**Fix in `supabase/functions/start-voice-campaign/index.ts`:**
+- Change the schedule time to 30 seconds in the future (as recommended by Bolna API)
+- Add a console.log before the schedule call for debugging
+- Log the schedule response body
+- If the response indicates failure (state !== 'scheduled'), mark the campaign as failed
 
-```typescript
-queryFn: async () => {
-  if (!currentOrganization) return [];
-  
-  const PAGE_SIZE = 1000;
-  let allData: any[] = [];
-  let page = 0;
-  
-  while (true) {
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-    
-    const { data, error } = await supabase
-      .from('whatsapp_groups')
-      .select(`
-        id, group_jid, group_name, organization_id, session_id, participant_count,
-        workshop_id, synced_at, is_active, is_admin, is_community, is_community_announce, invite_link,
-        session:whatsapp_sessions!inner(status)
-      `)
-      .eq('organization_id', currentOrganization.id)
-      .eq('is_active', true)
-      .eq('session.status', 'connected')
-      .order('group_name', { ascending: true })
-      .range(from, to);
+```text
+// Line 114 — replace:
+const scheduleTime = campaign.scheduled_at || new Date().toISOString();
 
-    if (error) throw error;
-    
-    allData = allData.concat(data || []);
-    
-    // If we got fewer than PAGE_SIZE rows, we've reached the end
-    if (!data || data.length < PAGE_SIZE) break;
-    page++;
-  }
-  
-  return allData.map(({ session, ...group }) => group) as WhatsAppGroup[];
-},
+// With:
+const scheduleTime = campaign.scheduled_at || new Date(Date.now() + 30000).toISOString();
+console.log(`Scheduling batch ${batchId} at: ${scheduleTime}`);
 ```
 
-This will make 2 requests for 1060 groups (1000 + 60), ensuring "Nikist Times" is included. The loop is safe — it stops as soon as a page returns fewer than 1000 rows.
+Also add response logging and error handling after the schedule call (lines 123-126): log the parsed JSON response body, and if `scheduleResult.state !== 'scheduled'`, update the campaign status to `failed`.
 
-## Why `.range(0, 4999)` didn't work
-PostgREST enforces a server-side `max-rows` setting (default 1000). Even if the client requests 5000 rows, the server silently caps the response at 1000. The only way around this without server config changes is pagination.
+---
+
+## Bug 2: Calls From Wrong Phone Number
+
+The batch creation form data (line 91-93) doesn't include `from_phone_number`, so Bolna uses its default number.
+
+**Fix (two parts):**
+
+### Part A — Edge function (`start-voice-campaign/index.ts`)
+After line 93, add:
+```text
+const fromPhone = config.from_phone_number || '';
+if (fromPhone) {
+  formData.append('from_phone_number', fromPhone);
+}
+```
+
+### Part B — Settings UI (`src/components/settings/AddIntegrationDialog.tsx`)
+Add a new field to the Bolna integration form (line 69, after webhook_secret):
+```text
+{ key: "from_phone_number", label: "From Phone Number", placeholder: "+917971543257", secret: false },
+```
+
+This lets each organization configure their own Bolna phone number in Settings > Integrations.
+
+---
+
+## Summary of Changes
+
+| File | Change |
+|------|--------|
+| `supabase/functions/start-voice-campaign/index.ts` | Fix schedule time (+30s), add `from_phone_number` to batch creation, add logging |
+| `src/components/settings/AddIntegrationDialog.tsx` | Add "From Phone Number" field to Bolna integration form |
+
