@@ -45,9 +45,9 @@ Deno.serve(async (req) => {
     // Resolve Bolna credentials from organization_integrations
     const { data: integration } = await supabase
       .from("organization_integrations")
-      .select("config, uses_env_secrets")
+      .select("config")
       .eq("organization_id", campaign.organization_id)
-      .eq("type", "bolna")
+      .eq("integration_type", "bolna")
       .eq("is_active", true)
       .single();
 
@@ -56,16 +56,8 @@ Deno.serve(async (req) => {
     }
 
     const config = integration.config as Record<string, string>;
-    let bolnaApiKey: string;
-    let bolnaAgentId: string;
-
-    if (integration.uses_env_secrets) {
-      bolnaApiKey = Deno.env.get(config.api_key_secret || "") || "";
-      bolnaAgentId = campaign.bolna_agent_id || Deno.env.get(config.agent_id_secret || "") || "";
-    } else {
-      bolnaApiKey = config.api_key || "";
-      bolnaAgentId = campaign.bolna_agent_id || config.agent_id || "";
-    }
+    const bolnaApiKey = config.api_key || "";
+    const bolnaAgentId = campaign.bolna_agent_id || config.agent_id || "";
 
     if (!bolnaApiKey || !bolnaAgentId) {
       return new Response(JSON.stringify({ error: "Bolna API key or Agent ID missing" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
