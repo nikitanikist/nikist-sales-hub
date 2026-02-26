@@ -1,33 +1,17 @@
 
 
-# Reduce Campaign Start Delay
+# Fix: Increase Scheduling Buffer to Meet Bolna's 2-Minute Minimum
 
-## Current Situation
-When you start a campaign "now", the code adds a **2.5-minute buffer** (150 seconds) to the current time before sending it to Bolna. Combined with the 3-second processing delay, this causes a ~7 minute gap between clicking "Start" and calls actually going out.
-
-## Root Cause
-The 150-second buffer was added because Bolna requires scheduled times to be in the future. However, this is overly conservative.
+## Problem
+Bolna's API returned: "Scheduled time should be at least 2 minutes in the future." The previous fix reduced the buffer to 30 seconds, but `bypass_call_guardrails` does not skip this particular validation.
 
 ## Fix
 
 **File: `supabase/functions/start-voice-campaign/index.ts`**
 
-Two changes:
+Change the buffer from `30000` (30 seconds) to `130000` (2 minutes 10 seconds). This gives a safe margin above Bolna's 2-minute minimum while being much faster than the original 2.5 minutes.
 
-1. **Reduce the buffer from 150 seconds to 30 seconds** -- this gives enough margin for network latency while starting calls much sooner.
+The `bypass_call_guardrails` parameter will be kept since it may help with other time-of-day restrictions, but the buffer itself must respect the 2-minute hard minimum.
 
-2. **Add `bypass_call_guardrails=true`** to the schedule API call -- the Bolna docs show this parameter "skips time validation for all calls in this batch," which prevents Bolna from rejecting timestamps that are too close to "now."
+This reduces the total delay from ~7 minutes to ~2.5 minutes (2m10s buffer + 3s processing delay + Bolna's own startup time).
 
-The schedule form data will change from:
-```
-scheduleForm.append("scheduled_at", scheduleTime);
-```
-To:
-```
-scheduleForm.append("scheduled_at", scheduleTime);
-scheduleForm.append("bypass_call_guardrails", "true");
-```
-
-And the time buffer changes from `150000` (2.5 min) to `30000` (30 sec).
-
-This should reduce the total delay from ~7 minutes down to under 1 minute.
