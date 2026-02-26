@@ -1009,36 +1009,8 @@ Deno.serve(async (req) => {
         const groupsToUpsert = vpsGroups
           .filter((g: any) => g.isCommunity !== true)
           .map((g: any) => {
-          // Check if the connected session user is admin
-          // Baileys returns participants with admin status (admin, superadmin, or isAdmin flag)
-          let isAdmin = false;
-          
-          if (g.participants && Array.isArray(g.participants)) {
-            // Try to find myself in the participants list
-            // My JID could be in format: phone@s.whatsapp.net or just the phone number
-            const myParticipant = g.participants.find((p: any) => {
-              const participantId = p.id || p.jid || '';
-              // Check various formats
-              return (
-                (myPhoneNumber && participantId.includes(myPhoneNumber)) ||
-                (vpsSessionId && participantId.includes(vpsSessionId.replace('wa_', '')))
-              );
-            });
-            
-            if (myParticipant) {
-              // Check various admin flag formats from Baileys
-              isAdmin = 
-                myParticipant.admin === 'admin' ||
-                myParticipant.admin === 'superadmin' ||
-                myParticipant.isAdmin === true ||
-                myParticipant.isSuperAdmin === true;
-            }
-          }
-          
-          // Also check if the VPS returns isAdmin directly on the group object
-          if (g.isAdmin === true || g.iAmAdmin === true) {
-            isAdmin = true;
-          }
+          // VPS returns isAdmin directly on the group object
+          const isAdmin = !!g.isAdmin;
           
           // Extract invite link from various possible fields
           const inviteLink = g.inviteLink || g.invite_link || g.inviteCode 
@@ -1050,9 +1022,9 @@ Deno.serve(async (req) => {
             session_id: localSessionIdForDb,
             group_jid: g.id || g.jid || g.groupId,
             group_name: g.name || g.subject || 'Unknown Group',
-            participant_count: Array.isArray(g.participants) 
-              ? g.participants.length 
-              : (g.participants || g.participantsCount || g.size || 0),
+            participant_count: typeof g.participants === 'number'
+              ? g.participants
+              : (Array.isArray(g.participants) ? g.participants.length : (g.participantsCount || g.size || 0)),
             is_active: true,
             is_admin: isAdmin,
             is_community: g.isCommunity === true,
