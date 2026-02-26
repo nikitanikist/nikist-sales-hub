@@ -56,16 +56,6 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         }).eq("id", call_id);
 
-        if (counterField !== "calls_completed") {
-          await supabase.rpc("increment_campaign_counter", { p_campaign_id: campaignId, p_field: counterField });
-        } else {
-          // Just increment calls_completed
-          await supabase.from("voice_campaigns").update({
-            calls_completed: (callRecord as any).voice_campaigns?.calls_completed + 1 || 1,
-            updated_at: new Date().toISOString(),
-          }).eq("id", campaignId);
-        }
-
         console.log(`mark_attendance: ${outcome} for call ${call_id}`);
 
       } else if (tool_name === "reschedule_lead") {
@@ -77,8 +67,6 @@ Deno.serve(async (req) => {
           status: "completed",
           updated_at: new Date().toISOString(),
         }).eq("id", call_id);
-
-        await supabase.rpc("increment_campaign_counter", { p_campaign_id: campaignId, p_field: "calls_rescheduled" });
 
         console.log(`reschedule_lead: ${rescheduleDay} for call ${call_id}`);
 
@@ -199,7 +187,8 @@ Deno.serve(async (req) => {
       }
 
       for (const phoneVariant of phoneVariants) {
-        const { data } = await campaignFilter.eq("contact_phone", phoneVariant).in("status", ["queued", "ringing", "in-progress"]).limit(1).single();
+        // Include terminal statuses so Bolna retries can match already-processed calls
+        const { data } = await campaignFilter.eq("contact_phone", phoneVariant).order("updated_at", { ascending: false }).limit(1).single();
         if (data) {
           callRecord = data;
           break;
