@@ -252,12 +252,8 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq("id", callRecord.id);
 
-    // Update campaign cost
+    // Update campaign cost (no erroneous counter increment)
     if (cost > 0) {
-      await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_no_answer" }).then(() => {
-        // This was just to trigger the increment, but we actually need custom logic
-      });
-      // Direct cost update
       const { data: currentCampaign } = await supabase
         .from("voice_campaigns")
         .select("total_cost")
@@ -272,19 +268,65 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Update counter based on outcome (if not already done by tool call)
-    if (outcome && !callRecord.outcome) {
-      const counterMap: Record<string, string> = {
-        confirmed: "calls_confirmed",
-        rescheduled: "calls_rescheduled",
-        not_interested: "calls_not_interested",
-        angry: "calls_not_interested",
-        no_response: "calls_no_answer",
-        no_answer: "calls_no_answer",
-      };
-      const field = counterMap[outcome];
-      if (field) {
-        await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: field });
+    // Only update counters if call was NOT already in a terminal status (idempotent)
+    const terminalStatuses = ["completed", "no-answer", "failed", "busy", "cancelled"];
+    const wasAlreadyTerminal = terminalStatuses.includes(callRecord.status);
+
+    if (!wasAlreadyTerminal && terminalStatuses.includes(mappedStatus)) {
+      // Increment calls_completed exactly once per call reaching terminal state
+      await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_completed" });
+
+      // Update outcome-based counter (if not already done by tool call)
+      if (outcome && !callRecord.outcome) {
+        const counterMap: Record<string, string> = {
+          confirmed: "calls_confirmed",
+          rescheduled: "calls_rescheduled",
+          not_interested: "calls_not_interested",
+          angry: "calls_not_interested",
+          no_response: "calls_no_answer",
+          no_answer: "calls_no_answer",
+        };
+        const field = counterMap[outcome];
+        if (field) {
+          await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: field });
+        }
+      }
+    }
+
+    // Clean up stale queued calls (invalid numbers Bolna skipped)
+    const { data: campaignInfo } = await supabase
+      .from("voice_campaigns")
+      .select("started_at")
+      .eq("id", callRecord.campaign_id)
+      .single();
+
+    if (campaignInfo?.started_at) {
+      const tenMinutesAfterStart = new Date(new Date(campaignInfo.started_at).getTime() + 10 * 60 * 1000).toISOString();
+      const now = new Date().toISOString();
+
+      if (now > tenMinutesAfterStart) {
+        const { data: staleCalls } = await supabase
+          .from("voice_campaign_calls")
+          .select("id")
+          .eq("campaign_id", callRecord.campaign_id)
+          .in("status", ["queued", "pending"])
+          .lt("created_at", tenMinutesAfterStart);
+
+        if (staleCalls && staleCalls.length > 0) {
+          const staleIds = staleCalls.map(c => c.id);
+          await supabase.from("voice_campaign_calls").update({
+            status: "failed",
+            outcome: "invalid_number",
+            updated_at: now,
+          }).in("id", staleIds);
+
+          // Increment counters for each stale call
+          for (const _ of staleIds) {
+            await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_completed" });
+            await supabase.rpc("increment_campaign_counter", { p_campaign_id: callRecord.campaign_id, p_field: "calls_no_answer" });
+          }
+          console.log(`Marked ${staleIds.length} stale queued calls as failed`);
+        }
       }
     }
 
