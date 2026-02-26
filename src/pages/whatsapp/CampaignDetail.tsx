@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, EyeOff, MessageSquare, RotateCcw } from "lucide-react";
+import { ArrowLeft, Users, CheckCircle2, XCircle, Clock, Eye, SmilePlus, EyeOff, MessageSquare, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { formatDistanceToNow } from "date-fns";
 import { useOrgTimezone } from "@/hooks/useOrgTimezone";
 import { WhatsAppPreview } from "@/components/settings/WhatsAppPreview";
@@ -28,6 +29,7 @@ const CampaignDetail = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [retrySessionId, setRetrySessionId] = useState<string>("");
   const [isRetrying, setIsRetrying] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Fetch connected sessions for retry picker
   const { data: connectedSessions } = useQuery({
@@ -82,6 +84,24 @@ const CampaignDetail = () => {
       toast.error("Failed to retry: " + err.message);
     } finally {
       setIsRetrying(false);
+    }
+  };
+
+  const handleVerifyStatus = async () => {
+    if (!campaignId) return;
+    setIsVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-campaign-status", {
+        body: { campaign_id: campaignId, manual_confirm: true },
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["notification-campaign", campaignId] });
+      queryClient.invalidateQueries({ queryKey: ["notification-campaign-groups", campaignId] });
+      toast.success(`${data?.updated || 0} groups marked as delivered`);
+    } catch (err: any) {
+      toast.error("Failed to verify: " + err.message);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -234,6 +254,28 @@ const CampaignDetail = () => {
                 <RotateCcw className="h-4 w-4 mr-1" />
                 {isRetrying ? "Retrying..." : "Retry"}
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={isVerifying || failedCount === 0}>
+                    <ShieldCheck className="h-4 w-4 mr-1" />
+                    {isVerifying ? "Verifying..." : "Mark as Delivered"}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Mark failed groups as delivered?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will mark {failedCount} failed group(s) as successfully delivered. Only use this if you've confirmed in WhatsApp that the messages were actually received. No messages will be resent.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleVerifyStatus}>
+                      Yes, mark as delivered
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
         </div>
