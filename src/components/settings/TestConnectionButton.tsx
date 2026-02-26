@@ -62,19 +62,39 @@ export function TestConnectionButton({ integrationType, config, organizationId }
         
         case "whatsapp":
         case "aisensy": {
-          // Test AiSensy by checking if API key format is valid
           if (!config.api_key) {
             throw new Error("Missing AiSensy API key");
           }
-          
           if (!config.source) {
             throw new Error("Missing source number");
           }
-          
-          // AiSensy doesn't have a simple validation endpoint
-          // We'll validate format and consider it valid
           isValid = true;
           message = "AISensy credentials appear valid. Test by sending a message.";
+          break;
+        }
+
+        case "bolna": {
+          if (!config.api_key) {
+            throw new Error("Missing Bolna API key");
+          }
+          
+          const { data, error } = await supabase.functions.invoke("list-bolna-agents");
+          
+          if (error) {
+            throw new Error("Failed to connect to Bolna: " + error.message);
+          }
+          
+          if (data?.error === "bolna_not_configured") {
+            throw new Error(data.message || "Bolna integration not configured");
+          }
+          
+          if (data?.error) {
+            throw new Error(data.error);
+          }
+          
+          const agentCount = data?.agents?.length ?? 0;
+          isValid = true;
+          message = `Connected successfully. ${agentCount} agent${agentCount !== 1 ? "s" : ""} found.`;
           break;
         }
         

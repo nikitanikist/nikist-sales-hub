@@ -55,9 +55,9 @@ Deno.serve(async (req) => {
     // Fetch Bolna credentials from organization_integrations
     const { data: integration } = await supabase
       .from("organization_integrations")
-      .select("config, uses_env_secrets")
+      .select("config")
       .eq("organization_id", orgId)
-      .eq("type", "bolna")
+      .eq("integration_type", "bolna")
       .eq("is_active", true)
       .single();
 
@@ -69,13 +69,7 @@ Deno.serve(async (req) => {
     }
 
     const config = integration.config as Record<string, string>;
-    let bolnaApiKey: string;
-
-    if (integration.uses_env_secrets) {
-      bolnaApiKey = Deno.env.get(config.api_key_secret || "") || "";
-    } else {
-      bolnaApiKey = config.api_key || "";
-    }
+    const bolnaApiKey = config.api_key || "";
 
     if (!bolnaApiKey) {
       return new Response(
