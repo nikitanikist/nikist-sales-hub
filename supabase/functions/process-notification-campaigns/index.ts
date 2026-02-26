@@ -227,6 +227,8 @@ Deno.serve(async (req) => {
               sendBody.mediaType = campaign.media_type || "document";
             }
 
+            // Async send: VPS responds immediately with { accepted: true }
+            // The webhook (whatsapp-send-callback) will update the group to sent/failed
             const sendResp = await fetchWithTimeout(`${vpsUrl}/send`, {
               method: "POST",
               headers: {
@@ -238,19 +240,14 @@ Deno.serve(async (req) => {
 
             const sendData = await sendResp.json();
 
-            if (sendData.success) {
-              await supabase
-                .from("notification_campaign_groups")
-                .update({
-                  status: "sent",
-                  sent_at: new Date().toISOString(),
-                  message_id: sendData.messageId || null,
-                  processing_started_at: null,
-                })
-                .eq("id", group.id);
+            if (sendData.success || sendData.accepted) {
+              // VPS accepted the message — leave group in "processing" status
+              // The whatsapp-send-callback webhook will finalize it with messageId
+              console.log(`Group ${group.id} (${group.group_jid}) accepted by VPS`);
               batchSent++;
             } else {
-              const errorMsg = sendData.error || "Send failed";
+              // VPS explicitly rejected — mark as failed immediately
+              const errorMsg = sendData.error || "VPS rejected send";
               await supabase
                 .from("notification_campaign_groups")
                 .update({
@@ -287,6 +284,7 @@ Deno.serve(async (req) => {
               });
             }
           } catch (err) {
+            // Network error or timeout reaching VPS — mark as failed immediately
             const errorMsg = err instanceof Error ? err.message : "Unknown error";
             await supabase
               .from("notification_campaign_groups")

@@ -102,6 +102,9 @@ verify_jwt = false
 [functions.whatsapp-read-receipt-webhook]
 verify_jwt = false
 
+[functions.whatsapp-send-callback]
+verify_jwt = false
+
 [functions.process-notification-campaigns]
 verify_jwt = false
 
