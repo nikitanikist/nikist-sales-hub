@@ -4848,6 +4848,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_campaign_cost: {
+        Args: { p_campaign_id: string; p_cost: number }
+        Returns: undefined
+      }
       count_paginated_leads: {
         Args: {
           p_country?: string
@@ -5092,6 +5096,24 @@ export type Database = {
           workshop_id: string
           workshop_name: string
           workshop_title: string
+        }[]
+      }
+      transition_call_to_terminal: {
+        Args: {
+          p_bolna_call_id?: string
+          p_call_id: string
+          p_cost?: number
+          p_duration?: number
+          p_extracted_data?: Json
+          p_outcome?: string
+          p_recording_url?: string
+          p_status: string
+          p_transcript?: string
+        }
+        Returns: {
+          campaign_id: string
+          previous_outcome: string
+          was_first_transition: boolean
         }[]
       }
       user_belongs_to_org: {
