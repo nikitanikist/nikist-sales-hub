@@ -1,19 +1,23 @@
 
-# Fix: AISensy Account Dropdown Shows "No accounts configured"
+# Fix AISensy Account Dropdown and Webhook Fallback
 
-## Problem
+## Problem 1: Only one AISensy account showing in dropdown
 
-The AISensy account dropdown in Step 3 of Create Broadcast shows "No AISensy accounts configured" even though accounts exist in settings. This happens because the query selects a column called `name` which doesn't exist -- the actual column is `integration_name`.
+When you add a second AISensy account, the system saves it with a unique `integration_type` like `aisensy_1772176788174` (with a timestamp suffix), not just `aisensy`. The settings page correctly uses `.startsWith("aisensy")` to find all accounts, but the Create Broadcast dialog uses `.eq("integration_type", "aisensy")` which only matches the first one exactly.
 
-The network request returns a 400 error: `column organization_integrations.name does not exist`
+**Fix:** Change the query in `CreateBroadcastDialog.tsx` to use `.like("integration_type", "aisensy%")` instead of `.eq("integration_type", "aisensy")` so it picks up all AISensy accounts regardless of suffix.
 
-## Fix
+The same fix is needed in the `bolna-webhook` fallback path (when no specific account is selected), which also uses `.eq("integration_type", "aisensy")`.
 
-**File: `src/pages/calling/CreateBroadcastDialog.tsx`**
+## Problem 2: No template dropdown
 
-Two small changes:
+AISensy does not provide a public API to list your templates. So we cannot fetch templates automatically. The current manual text input for template name will remain -- you need to type the exact template name as it appears in your AISensy dashboard.
 
-1. **Line 87**: Change `.select("id, name")` to `.select("id, integration_name")`
-2. **Line 92**: Change `d.name` to `d.integration_name` in the mapping
+However, I can improve the UX by adding a helper text that makes this clearer.
 
-That's it -- once the correct column name is used, the dropdown will populate with your configured AISensy accounts.
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `src/pages/calling/CreateBroadcastDialog.tsx` | Change `.eq("integration_type", "aisensy")` to `.like("integration_type", "aisensy%")` |
+| `supabase/functions/bolna-webhook/index.ts` | Same filter fix in the fallback query path |
