@@ -1,102 +1,78 @@
 
-# Async WhatsApp Send with Delivery Webhook
+
+# Voice Calling Module -- 11 Bug Fixes from Audit Report
 
 ## Summary
 
-Your VPS developer has made `/send` asynchronous -- it now responds immediately with `{ accepted: true }` and delivers in the background. After delivery, the VPS calls a webhook on your CRM with the `messageId` (or failure info). We need two changes:
+Apply all 11 fixes identified in your senior developer's audit report. The root cause is that tool call handlers (`mark_attendance`, `reschedule_lead`) set `status: "completed"` prematurely, preventing the post-call webhook from writing duration, cost, transcript, and recording.
 
-1. **Create a new `whatsapp-send-callback` edge function** to receive delivery confirmations from the VPS
-2. **Update `process-notification-campaigns`** to handle the new async flow (groups stay in "processing" until the webhook confirms)
+## Files to Modify
 
-## How It Will Work
+| File | Fixes |
+|------|-------|
+| `supabase/functions/bolna-webhook/index.ts` | Fix 1, 2A, 5, 6, 7, 8, 11 |
+| `supabase/functions/stop-voice-campaign/index.ts` | Fix 2B |
+| `supabase/functions/start-voice-campaign/index.ts` | Fix 3, 10 |
+| `src/pages/calling/CallingCampaignDetail.tsx` | Fix 9 |
 
-```text
-BEFORE (synchronous):
-  CRM sends -> waits 10s -> VPS returns messageId -> CRM marks "sent"
-  (times out after 10s = false failure)
+Fix 4 (migration verification) is already confirmed deployed -- the `transition_call_to_terminal` function uses correct column names (`call_duration_seconds`, `total_cost`).
 
-AFTER (asynchronous):
-  CRM sends -> VPS returns { accepted: true } immediately -> CRM marks "processing"
-  VPS delivers message in background
-  VPS calls whatsapp-send-callback webhook -> CRM marks "sent" + stores messageId
-```
+## All Fixes
 
-## Changes
+### Fix 1 -- Tool calls must NOT set terminal status (CRITICAL)
 
-### 1. New Edge Function: `whatsapp-send-callback`
+Remove `status: "completed"` from both `mark_attendance` (line 51) and `reschedule_lead` (line 69) handlers. Only set `outcome` -- let the post-call webhook handle the terminal transition with duration/cost/transcript.
 
-Receives POST from VPS after each message is actually sent (or fails):
+### Fix 2 -- Wrong column name `type` to `integration_type` (CRITICAL)
 
-```text
-Input from VPS:
-{
-  "event": "message_sent" or "message_failed",
-  "sessionId": "wa_xxx",
-  "groupJid": "120363xxx@g.us",
-  "messageId": "3EB0xxxxx",  // null if failed
-  "status": "sent" or "failed",
-  "error": null,
-  "timestamp": 1708700000000
-}
-```
+- **2A**: `bolna-webhook/index.ts` line 99: `.eq("type", "aisensy")` to `.eq("integration_type", "aisensy")`
+- **2B**: `stop-voice-campaign/index.ts` line 52: `.eq("type", "bolna")` to `.eq("integration_type", "bolna")`
 
-Logic:
-- Authenticate via `X-API-Key` header (same `WEBHOOK_SECRET_KEY` used by other webhooks)
-- Look up the campaign group by `group_jid` that is currently in "processing" status (most recent match)
-- If `event = message_sent`: update group to `status: sent`, store `message_id`, set `sent_at`
-- If `event = message_failed`: update group to `status: failed`, store `error_message`
-- After updating the group, check if all groups for that campaign are done (no more "pending" or "processing") and finalize campaign status/counts
+Also add warning logs before the AiSensy block when `templateId` or `whatsappLink` is missing.
 
-### 2. Update: `process-notification-campaigns`
+### Fix 3 -- Campaign start delay 150s to 30s (HIGH)
 
-Current behavior: calls VPS `/send`, waits for response with `messageId`, marks sent/failed immediately.
+`start-voice-campaign/index.ts`: Change `setTimeout` from 3000 to 2000ms, and scheduling buffer from 150000ms to 30000ms.
 
-New behavior:
-- Call VPS `/send` -- it returns `{ accepted: true }` instantly
-- If accepted: leave group in "processing" status (the webhook will finalize it)
-- If VPS rejects or network error: mark as "failed" immediately
-- Do NOT finalize campaign status after batch -- the webhook handles that as groups complete
-- The existing stale recovery (5-minute timeout) acts as safety net: groups stuck in "processing" for 5+ minutes get reset to "pending" for retry
+### Fix 5 -- Fallback path skips counters (HIGH)
 
-### 3. Config Update
+When `transition_call_to_terminal` RPC fails, the fallback (lines 250-258) currently only writes status + bolna_call_id. Update it to also write outcome, duration, cost, transcript, recording, extracted_data AND increment counters (calls_completed + outcome counter + cost).
 
-Add to `supabase/config.toml`:
-```toml
-[functions.whatsapp-send-callback]
-verify_jwt = false
-```
+### Fix 6 -- Phone matching reuses mutable query builder (HIGH)
 
-## What This Fixes
+Extract the campaign ID lookup first, then create a fresh `supabase.from()` query inside the loop for each phone variant instead of reusing the mutable builder.
 
-- No more false failures from timeouts -- VPS has unlimited time to deliver
-- `messageId` is always captured (enabling read/delivered/reaction analytics)
-- The existing Tier 1 (`/message-status`) and Tier 2 (manual confirm) remain as fallbacks
-- Stale recovery handles edge cases where VPS never calls back (e.g., VPS crash)
+### Fix 7 -- else branch only updates transcript (HIGH)
 
-## Technical Details
+When `wasFirst` is false (not the first terminal transition), also fill in missing `call_duration_seconds`, `total_cost`, `recording_url`, and `extracted_data` -- not just transcript.
 
-### `whatsapp-send-callback` edge function structure
+### Fix 8 -- Cost doubling via accumulator race (MEDIUM)
 
-| Step | Action |
-|------|--------|
-| Auth | Validate `X-API-Key` against `WEBHOOK_SECRET_KEY` |
-| Lookup | Find `notification_campaign_groups` where `group_jid` matches AND `status = 'processing'`, ordered by most recent |
-| Update group | Set status to sent/failed, store messageId, clear/set error_message |
-| Finalize campaign | Count remaining pending + processing groups; if zero, calculate final sent/failed counts and set campaign status |
+Replace `add_campaign_cost` RPC with a SUM-based recalculation: query all `voice_campaign_calls.total_cost` for the campaign and write the sum directly to `voice_campaigns.total_cost`.
 
-### `process-notification-campaigns` changes
+### Fix 9 -- Status flicker on page reopen (MEDIUM)
 
-| Area | Before | After |
-|------|--------|-------|
-| VPS response handling | Expects `{ success, messageId }` | Expects `{ success, accepted }` |
-| On success | Marks group "sent" with messageId | Leaves group in "processing" (webhook will update) |
-| Campaign finalization | Finalizes after batch completes | Only finalizes if no pending/processing remain (webhook handles the rest) |
-| Timeout behavior | 10s timeout = false failure | Immediate response, no timeout risk |
+Replace `liveCampaign || campaign` with a `useMemo` that compares `updated_at` timestamps and uses whichever is more recent. Add a reset effect to clear `liveCampaign` when `campaign` data refreshes.
 
-### Files to create/modify
+### Fix 10 -- Inconsistent `uses_env_secrets` handling (LOW)
 
-| File | Action |
-|------|--------|
-| `supabase/functions/whatsapp-send-callback/index.ts` | Create new webhook receiver |
-| `supabase/functions/process-notification-campaigns/index.ts` | Update to async send pattern |
-| `supabase/config.toml` | Add `verify_jwt = false` for new function |
+`start-voice-campaign/index.ts` line 59: Add `uses_env_secrets` to the select query and resolve `api_key` vs `api_key_secret` based on the flag (matching the pattern already used in `stop-voice-campaign`).
+
+### Fix 11 -- `call_started_at` never set (LOW)
+
+Before calling `transition_call_to_terminal`, calculate `call_started_at` from `now - duration` and update if not already set.
+
+## Deployment
+
+All three edge functions will be deployed after editing. Frontend changes deploy automatically.
+
+## Testing Checklist
+
+After deployment, run a test campaign with 2-3 contacts and verify:
+- Campaign starts within ~1 minute
+- Duration and cost appear after call ends
+- Outcome counters increment correctly
+- Campaign total cost matches sum of individual calls
+- No status flicker when reopening campaign detail
+- Stop campaign works
+- WhatsApp group link sends when configured
