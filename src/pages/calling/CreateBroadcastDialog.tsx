@@ -10,10 +10,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCreateBroadcast } from "@/hooks/useCreateBroadcast";
 import { WorkshopSelector } from "./components/WorkshopSelector";
 import { CsvUploader } from "./components/CsvUploader";
-import { ArrowLeft, ArrowRight, Rocket, Calendar, Loader2, AlertCircle, Settings, CheckCircle2, XCircle, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Rocket, Calendar, Loader2, AlertCircle, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/hooks/useOrganization";
 
 interface Props {
   open: boolean;
@@ -31,11 +30,6 @@ interface BolnaAgent {
   name: string;
 }
 
-interface AisensyAccount {
-  id: string;
-  name: string;
-}
-
 export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const [step, setStep] = useState(1);
   const [source, setSource] = useState<"workshop" | "csv">("workshop");
@@ -44,8 +38,6 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const [workshopName, setWorkshopName] = useState<string>("");
   const [campaignName, setCampaignName] = useState<string>("");
   const [workshopTime, setWorkshopTime] = useState<string>("7 PM");
-  const [whatsappTemplate, setWhatsappTemplate] = useState<string>("");
-  const [aisensyIntegrationId, setAisensyIntegrationId] = useState<string>("");
   const [scheduleMode, setScheduleMode] = useState<"now" | "schedule">("now");
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [bolnaAgentId, setBolnaAgentId] = useState<string>("");
@@ -56,17 +48,8 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [bolnaNotConfigured, setBolnaNotConfigured] = useState(false);
 
-  // AISensy accounts state
-  const [aisensyAccounts, setAisensyAccounts] = useState<AisensyAccount[]>([]);
-  const [aisensyLoading, setAisensyLoading] = useState(false);
-
-  // Template verification state
-  const [verifying, setVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<{ exists: boolean; paramCount?: number; message: string } | null>(null);
-
   const createBroadcast = useCreateBroadcast();
   const navigate = useNavigate();
-  const { currentOrganization } = useOrganization();
 
   // Fetch Bolna agents when step 2 is reached
   useEffect(() => {
@@ -74,36 +57,6 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
       fetchAgents();
     }
   }, [step]);
-
-  // Fetch AISensy accounts when step 3 is reached
-  useEffect(() => {
-    if (step === 3 && aisensyAccounts.length === 0 && !aisensyLoading && currentOrganization) {
-      fetchAisensyAccounts();
-    }
-  }, [step, currentOrganization]);
-
-  const fetchAisensyAccounts = async () => {
-    if (!currentOrganization) return;
-    setAisensyLoading(true);
-    try {
-      const { data } = await supabase
-        .from("organization_integrations")
-        .select("id, integration_name")
-        .eq("organization_id", currentOrganization.id)
-        .like("integration_type", "aisensy%")
-        .eq("is_active", true);
-
-      const accounts = (data || []).map((d: any) => ({ id: d.id, name: d.integration_name }));
-      setAisensyAccounts(accounts);
-      if (accounts.length === 1 && !aisensyIntegrationId) {
-        setAisensyIntegrationId(accounts[0].id);
-      }
-    } catch (err) {
-      console.error("Failed to fetch AISensy accounts:", err);
-    } finally {
-      setAisensyLoading(false);
-    }
-  };
 
   const fetchAgents = async () => {
     setAgentsLoading(true);
@@ -142,8 +95,6 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     setWorkshopName("");
     setCampaignName("");
     setWorkshopTime("7 PM");
-    setWhatsappTemplate("");
-    setAisensyIntegrationId("");
     setScheduleMode("now");
     setScheduledAt("");
     setBolnaAgentId("");
@@ -151,30 +102,6 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     setAgentsLoading(false);
     setAgentsError(null);
     setBolnaNotConfigured(false);
-    setAisensyAccounts([]);
-    setAisensyLoading(false);
-    setVerifying(false);
-    setVerifyResult(null);
-  };
-
-  const handleVerifyTemplate = async () => {
-    if (!whatsappTemplate || !aisensyIntegrationId) return;
-    setVerifying(true);
-    setVerifyResult(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("verify-aisensy-template", {
-        body: { integrationId: aisensyIntegrationId, campaignName: whatsappTemplate },
-      });
-      if (error) {
-        setVerifyResult({ exists: false, message: "Verification failed. Please try again." });
-      } else {
-        setVerifyResult(data);
-      }
-    } catch {
-      setVerifyResult({ exists: false, message: "Verification failed. Please try again." });
-    } finally {
-      setVerifying(false);
-    }
   };
 
   const handleSubmit = async () => {
@@ -183,8 +110,6 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
       workshop_id: workshopId || undefined,
       workshop_name: workshopName || undefined,
       workshop_time: workshopTime || undefined,
-      whatsapp_template_id: whatsappTemplate || undefined,
-      aisensy_integration_id: aisensyIntegrationId || undefined,
       scheduled_at: scheduleMode === "schedule" ? scheduledAt : undefined,
       contacts,
       bolna_agent_id: bolnaAgentId || undefined,
@@ -199,8 +124,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const canProceed = () => {
     if (step === 1) return contacts.length > 0;
     if (step === 2) return !!bolnaAgentId;
-    if (step === 3) return true;
-    if (step === 4) return scheduleMode === "now" || (scheduleMode === "schedule" && scheduledAt);
+    if (step === 3) return scheduleMode === "now" || (scheduleMode === "schedule" && scheduledAt);
     return false;
   };
 
@@ -208,7 +132,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Calling Broadcast — Step {step}/4</DialogTitle>
+          <DialogTitle>Create Calling Broadcast — Step {step}/3</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -313,75 +237,6 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
 
           {step === 3 && (
             <div className="space-y-4">
-              <div>
-                <Label>AISensy Account</Label>
-                {aisensyLoading ? (
-                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading AISensy accounts...
-                  </div>
-                ) : aisensyAccounts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground mt-1">No AISensy accounts configured. WhatsApp messages won't be sent.</p>
-                ) : (
-                  <Select value={aisensyIntegrationId} onValueChange={setAisensyIntegrationId}>
-                    <SelectTrigger><SelectValue placeholder="Select AISensy account" /></SelectTrigger>
-                    <SelectContent>
-                      {aisensyAccounts.map((acc) => (
-                        <SelectItem key={acc.id} value={acc.id}>
-                          {acc.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div>
-                <Label>WhatsApp Template Name (Optional)</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input 
-                    value={whatsappTemplate} 
-                    onChange={(e) => { setWhatsappTemplate(e.target.value); setVerifyResult(null); }} 
-                    placeholder="Enter exact template name from AISensy" 
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!whatsappTemplate || !aisensyIntegrationId || verifying}
-                    onClick={handleVerifyTemplate}
-                    className="shrink-0"
-                  >
-                    {verifying ? (
-                      <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Verifying</>
-                    ) : (
-                      <><ShieldCheck className="h-4 w-4 mr-1" /> Verify</>
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Enter the exact campaign name as it appears in your AISensy dashboard, then click Verify.
-                </p>
-                {verifyResult && (
-                  <div className={`flex items-center gap-2 mt-2 text-sm rounded-md px-3 py-2 ${
-                    verifyResult.exists 
-                      ? "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20" 
-                      : "bg-destructive/10 text-destructive border border-destructive/20"
-                  }`}>
-                    {verifyResult.exists ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0" />
-                    ) : (
-                      <XCircle className="h-4 w-4 shrink-0" />
-                    )}
-                    <span>{verifyResult.message}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="space-y-4">
               <RadioGroup value={scheduleMode} onValueChange={(v) => setScheduleMode(v as any)} className="space-y-3">
                 <div className="flex items-center gap-2 p-3 border rounded-md">
                   <RadioGroupItem value="now" id="mode-now" />
@@ -413,7 +268,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
           <Button variant="outline" disabled={step === 1} onClick={() => setStep((s) => s - 1)}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
-          {step < 4 ? (
+          {step < 3 ? (
             <Button disabled={!canProceed()} onClick={() => setStep((s) => s + 1)}>
               Next <ArrowRight className="h-4 w-4 ml-1" />
             </Button>

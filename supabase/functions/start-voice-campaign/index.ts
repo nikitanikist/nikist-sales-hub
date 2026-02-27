@@ -76,12 +76,14 @@ Deno.serve(async (req) => {
 
     // Generate CSV for Bolna Batch API
     const workshopTime = campaign.workshop_time || "7 PM";
-    const csvHeader = "contact_number,lead_name,workshop_time,call_id";
+    const workshopNameVal = campaign.workshop_name || "";
+    const safeWorkshopName = workshopNameVal.includes(",") ? `"${workshopNameVal}"` : workshopNameVal;
+    const csvHeader = "contact_number,lead_name,workshop_time,workshop_name,call_id";
     const csvRows = calls.map((c: any) => {
       const phone = c.contact_phone.startsWith("+") ? c.contact_phone : `+91${c.contact_phone}`;
       // Escape commas in names
       const safeName = c.contact_name.includes(",") ? `"${c.contact_name}"` : c.contact_name;
-      return `${phone},${safeName},${workshopTime},${c.id}`;
+      return `${phone},${safeName},${workshopTime},${safeWorkshopName},${c.id}`;
     });
     const csvContent = [csvHeader, ...csvRows].join("\n");
 
