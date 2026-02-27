@@ -1,52 +1,60 @@
 
 
-# Fix: Remove Non-Existent `uses_env_secrets` Column Reference
+# Fix: Compute Campaign Analytics from Actual Calls Data
 
 ## Problem
 
-The `start-voice-campaign` edge function queries:
+The campaign counters stored in `voice_campaigns` are inflated due to duplicate webhook processing before the fixes were applied. For example, `calls_completed: 4` when only 2 calls exist, and `calls_no_answer: 3` when only 1 call had that outcome.
+
+The UI blindly displays these stored counters, leading to impossible numbers like "4/2 completed" and "200% progress".
+
+## Solution
+
+Compute analytics cards and progress bar from the actual `mergedCalls` array (which comes from `voice_campaign_calls` rows) instead of from the stored campaign counters. This makes the UI self-correcting regardless of counter bugs.
+
+## Changes
+
+### 1. `src/pages/calling/CallingCampaignDetail.tsx`
+
+Add a `computedStats` memo that counts outcomes from `mergedCalls`:
+
+```typescript
+const computedStats = useMemo(() => {
+  const completed = mergedCalls.filter(c => 
+    ["completed","no-answer","busy","failed"].includes(c.status)
+  ).length;
+  const confirmed = mergedCalls.filter(c => c.outcome === "confirmed").length;
+  const rescheduled = mergedCalls.filter(c => c.outcome === "rescheduled").length;
+  const notInterested = mergedCalls.filter(c => 
+    ["not_interested","angry"].includes(c.outcome || "")
+  ).length;
+  const noAnswer = mergedCalls.filter(c => 
+    ["no_response","no_answer"].includes(c.outcome || "")
+  ).length;
+  const failed = mergedCalls.filter(c => c.status === "failed").length;
+  const totalCost = mergedCalls.reduce((s, c) => s + (c.total_cost || 0), 0);
+  return { completed, confirmed, rescheduled, notInterested, noAnswer, failed, totalCost };
+}, [mergedCalls]);
 ```
-.select("config, uses_env_secrets")
-```
 
-But `uses_env_secrets` does NOT exist as a column in `organization_integrations`. The actual columns are: `id`, `organization_id`, `integration_type`, `config`, `is_active`, `created_at`, `updated_at`, `integration_name`.
+Pass `computedStats` to `CampaignAnalyticsCards` and `CampaignProgressBar` instead of campaign counters.
 
-This causes the query to return a 400 error, `integration` becomes null, and the function returns "Bolna integration not configured" even though the integration exists and is active.
+### 2. `src/pages/calling/components/CampaignAnalyticsCards.tsx`
 
-## Root Cause
+Update the props interface to accept computed stats alongside the campaign (for `total_contacts` and other campaign-level fields). Use computed values for all counters.
 
-Fix 10 from the audit report assumed `uses_env_secrets` existed. It does not. All Bolna credentials are stored directly in the `config` JSONB column (e.g., `config.api_key`).
+### 3. Progress Bar
 
-## Fix
+Pass `computedStats.completed` and `currentCampaign.total_contacts` to the progress bar instead of `currentCampaign.calls_completed`.
 
-### File: `supabase/functions/start-voice-campaign/index.ts`
+### 4. Fix existing data (one-time)
 
-1. Change the select from `"config, uses_env_secrets"` back to just `"config"`
-2. Remove the `uses_env_secrets` conditional logic and always read `config.api_key` directly
+Run a SQL update to correct the stored counters for this specific campaign so they match reality. This ensures any other views or exports also show correct data.
 
-```text
-BEFORE (lines 48, 60-62):
-  .select("config, uses_env_secrets")
-  ...
-  const bolnaApiKey = integration.uses_env_secrets
-    ? Deno.env.get(config.api_key_secret || "") || ""
-    : config.api_key || "";
+## Result
 
-AFTER:
-  .select("config")
-  ...
-  const bolnaApiKey = config.api_key || "";
-```
-
-### Also fix: `supabase/functions/stop-voice-campaign/index.ts`
-
-Check if the same `uses_env_secrets` reference exists there and fix it too, since the column doesn't exist.
-
-### Also fix: `supabase/functions/bolna-webhook/index.ts`
-
-Same check -- remove any `uses_env_secrets` references.
-
-## Deploy
-
-Redeploy all three edge functions after the fix.
-
+- "Calls Completed" will show 2/2 (correct)
+- Progress will show 100%
+- "No Answer" will show 1
+- "Confirmed" will show 1
+- Total cost will show sum of actual call costs
