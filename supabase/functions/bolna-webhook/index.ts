@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       // Fetch the call record to get campaign context
       const { data: callRecord, error: callErr } = await supabase
         .from("voice_campaign_calls")
-        .select("*, voice_campaigns!inner(organization_id, workshop_id, whatsapp_template_id)")
+        .select("*, voice_campaigns!inner(organization_id, workshop_id, whatsapp_template_id, aisensy_integration_id)")
         .eq("id", call_id)
         .single();
 
@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
         const workshopId = campaign?.workshop_id;
         const templateId = campaign?.whatsapp_template_id;
         const orgId = campaign?.organization_id;
+        const campaignAisensyId = campaign?.aisensy_integration_id;
 
         let whatsappLink = "";
         if (workshopId) {
@@ -94,14 +95,21 @@ Deno.serve(async (req) => {
 
         // Send via AiSensy if template + link available
         if (templateId && whatsappLink && orgId) {
-          // Fix 2A: Correct column name integration_type
-          const { data: aisensyIntegration } = await supabase
+          // Use campaign-specific AISensy integration if set, otherwise fall back to first active
+          let aisensyQuery = supabase
             .from("organization_integrations")
-            .select("config")
-            .eq("organization_id", orgId)
-            .eq("integration_type", "aisensy")
-            .eq("is_active", true)
-            .single();
+            .select("config");
+
+          if (campaignAisensyId) {
+            aisensyQuery = aisensyQuery.eq("id", campaignAisensyId);
+          } else {
+            aisensyQuery = aisensyQuery
+              .eq("organization_id", orgId)
+              .eq("integration_type", "aisensy")
+              .eq("is_active", true);
+          }
+
+          const { data: aisensyIntegration } = await aisensyQuery.limit(1).single();
 
           let aisensyApiKey = "";
           if (aisensyIntegration) {

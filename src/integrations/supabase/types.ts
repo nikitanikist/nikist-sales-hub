@@ -3912,6 +3912,7 @@ export type Database = {
       voice_campaigns: {
         Row: {
           agent_type: string
+          aisensy_integration_id: string | null
           bolna_agent_id: string | null
           bolna_batch_id: string | null
           calls_completed: number | null
@@ -3939,6 +3940,7 @@ export type Database = {
         }
         Insert: {
           agent_type?: string
+          aisensy_integration_id?: string | null
           bolna_agent_id?: string | null
           bolna_batch_id?: string | null
           calls_completed?: number | null
@@ -3966,6 +3968,7 @@ export type Database = {
         }
         Update: {
           agent_type?: string
+          aisensy_integration_id?: string | null
           bolna_agent_id?: string | null
           bolna_batch_id?: string | null
           calls_completed?: number | null
@@ -3992,6 +3995,13 @@ export type Database = {
           workshop_time?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "voice_campaigns_aisensy_integration_id_fkey"
+            columns: ["aisensy_integration_id"]
+            isOneToOne: false
+            referencedRelation: "organization_integrations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "voice_campaigns_organization_id_fkey"
             columns: ["organization_id"]
