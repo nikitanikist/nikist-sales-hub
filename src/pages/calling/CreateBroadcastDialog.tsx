@@ -86,7 +86,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
         .from("organization_integrations")
         .select("id, integration_name")
         .eq("organization_id", currentOrganization.id)
-        .eq("integration_type", "aisensy")
+        .like("integration_type", "aisensy%")
         .eq("is_active", true);
 
       const accounts = (data || []).map((d: any) => ({ id: d.id, name: d.integration_name }));
