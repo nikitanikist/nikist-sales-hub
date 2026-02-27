@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
           // Fix 2A: Correct column name integration_type
           const { data: aisensyIntegration } = await supabase
             .from("organization_integrations")
-            .select("config, uses_env_secrets")
+            .select("config")
             .eq("organization_id", orgId)
             .eq("integration_type", "aisensy")
             .eq("is_active", true)
@@ -106,9 +106,7 @@ Deno.serve(async (req) => {
           let aisensyApiKey = "";
           if (aisensyIntegration) {
             const cfg = aisensyIntegration.config as Record<string, string>;
-            aisensyApiKey = aisensyIntegration.uses_env_secrets
-              ? Deno.env.get(cfg.api_key_secret || "") || ""
-              : cfg.api_key || "";
+            aisensyApiKey = cfg.api_key || "";
           }
           // Fallback to env
           if (!aisensyApiKey) {
