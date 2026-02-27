@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
           } else {
             aisensyQuery = aisensyQuery
               .eq("organization_id", orgId)
-              .eq("integration_type", "aisensy")
+              .like("integration_type", "aisensy%")
               .eq("is_active", true);
           }
 
