@@ -1,67 +1,56 @@
 
 
-# Create `send-whatsapp-link` Edge Function for Bolna
+# Add Webhook Secret Validation to `send-whatsapp-link`
 
-## Background
+## What Changes
 
-Bolna voice agents cannot substitute variables inside nested JSON structures (like `templateParams` arrays). After extensive testing with 4 different approaches, the only working solution is a middleman edge function that receives **flat key-value params** from Bolna and constructs the full nested AiSensy payload server-side.
+Add a `WEBHOOK_SECRET_KEY` check at the top of the function, reading the secret from `body.webhook_secret` (since Bolna can only pass it as a param field, not a header).
 
-## What Will Be Created
+## File: `supabase/functions/send-whatsapp-link/index.ts`
 
-### 1. New Edge Function: `supabase/functions/send-whatsapp-link/index.ts`
+After parsing the JSON body (line 16-17), add a webhook secret check **before** any other processing:
 
-A simple, public endpoint (no JWT -- Bolna can't send auth headers) that:
+```typescript
+// Right after: const body = await req.json();
 
-- Receives flat JSON from Bolna: `{ whatsapp_number, lead_name, workshop_name, workshop_time }`
-- Cleans the phone number (removes `+`, ensures `91` prefix)
-- Constructs the full AiSensy payload with `templateParams`, `media`, `userName`, etc.
-- Calls AiSensy API and returns the result
-- Uses `Deno.env.get("AISENSY_API_KEY")` for the API key (already configured as a secret)
-- Includes a configurable `whatsapp_group_link` with a default fallback URL
-- Uses `fetchWithRetry` (existing shared utility) for reliable AiSensy calls
+const expectedSecret = Deno.env.get("WEBHOOK_SECRET_KEY");
+if (!expectedSecret || body.webhook_secret !== expectedSecret) {
+  console.error("Unauthorized: invalid or missing webhook_secret");
+  return new Response(
+    JSON.stringify({ error: "Unauthorized" }),
+    { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}
+```
 
-**Security**: Protected by a `WEBHOOK_SECRET_KEY` check -- Bolna will send this as a header or param. The API key is stored as an environment secret, never hardcoded.
+Also sanitize the log on line 17 so it doesn't print the webhook secret to logs:
 
-**Template params mapping** (matching your "Bolna ai bot" template):
-- `{{1}}` = lead_name (fallback: "Friend")
-- `{{2}}` = workshop_name (fallback: "Workshop")
-- `{{3}}` = workshop_time (fallback: "Today")
-- `{{4}}` = whatsapp_group_link (fallback: configurable default URL)
+```typescript
+const { webhook_secret, ...safeBody } = body;
+console.log("Received from Bolna:", JSON.stringify(safeBody));
+```
 
-### 2. Update `supabase/config.toml`
+The `WEBHOOK_SECRET_KEY` secret is already configured in the environment, so no new secrets are needed.
 
-Add the new function with `verify_jwt = false`.
+## Bolna Config (for your senior developer)
 
-### 3. Bolna Configuration (for your reference)
+Once deployed, the Bolna custom function param should include:
 
-After deployment, configure Bolna's custom function tool with:
-- URL: `https://swnpxkovxhinxzprxviz.supabase.co/functions/v1/send-whatsapp-link`
-- Flat `param` body with `%(variable)s` substitution
-- No auth token needed (function validates via webhook secret or is open)
+```json
+"param": {
+    "webhook_secret": "<your-webhook-secret-value>",
+    "whatsapp_number": "%(whatsapp_number)s",
+    "lead_name": "%(lead_name)s",
+    "workshop_name": "%(workshop_name)s",
+    "workshop_time": "%(workshop_time)s"
+}
+```
 
-## Technical Details
-
-| Item | Detail |
-|------|--------|
-| Function name | `send-whatsapp-link` |
-| Auth | `verify_jwt = false` (Bolna can't send JWT) |
-| API key source | `AISENSY_API_KEY` env secret (already configured) |
-| AiSensy endpoint | `https://backend.aisensy.com/campaign/t1/api/v2` |
-| Campaign name | Passed by Bolna or defaults to "Bolna ai bot" |
-| Media | Hardcoded image URL from the template |
-| Phone format | Strips `+`, ensures `91` prefix |
-| Retry | Uses existing `fetchWithRetry` with 10s timeout |
-
-## Files Changed
+## Summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/send-whatsapp-link/index.ts` | **New** -- middleman edge function |
-| `supabase/config.toml` | Add `[functions.send-whatsapp-link]` with `verify_jwt = false` |
+| `supabase/functions/send-whatsapp-link/index.ts` | Add `body.webhook_secret` validation + sanitize logs |
 
-## What This Does NOT Change
-
-- The existing `bolna-webhook` function remains untouched (it handles post-call webhooks and other tool calls)
-- No database changes needed
-- No UI changes needed -- this is a backend-only function called by Bolna
+No database changes. No UI changes. No new secrets needed.
 
