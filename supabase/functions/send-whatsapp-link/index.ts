@@ -14,7 +14,20 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    console.log("Received from Bolna:", JSON.stringify(body));
+
+    // Validate webhook secret (Bolna sends it as a body param)
+    const expectedSecret = Deno.env.get("WEBHOOK_SECRET_KEY");
+    if (!expectedSecret || body.webhook_secret !== expectedSecret) {
+      console.error("Unauthorized: invalid or missing webhook_secret");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Sanitize logs — never print the webhook secret
+    const { webhook_secret, ...safeBody } = body;
+    console.log("Received from Bolna:", JSON.stringify(safeBody));
 
     const destination = body.whatsapp_number || body.destination;
     const leadName = body.lead_name || body.name || "Friend";
