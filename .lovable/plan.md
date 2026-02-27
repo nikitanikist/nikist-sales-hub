@@ -1,47 +1,64 @@
 
-# Use Dedicated Secret for Bolna WhatsApp Link Function
 
-## The Problem
+# Fix: Use Correct AISensy API Key from Database
 
-Currently `send-whatsapp-link` uses `WEBHOOK_SECRET_KEY` — the same secret protecting your other WhatsApp webhook functions. Since this secret will be visible in plain text in the Bolna dashboard config, it should be a separate, unique value.
+## Root Cause
 
-## Changes
+The `send-whatsapp-link` function uses `AISENSY_API_KEY` from environment secrets, but the "Bolna ai bot" campaign exists under the **"Aisency free account"** stored in the database (`organization_integrations` table). Different API key = "Campaign does not exist" error.
 
-### 1. Add New Secret: `BOLNA_WH_LINK_SECRET`
+## Template Confirmation
 
-Create a new dedicated secret with a random value (e.g., `bolna-wh-link-x8k2m9p4`) that is only used by this one function.
+The template screenshot confirms the original parameter mapping is correct:
+- {{1}} = Lead name
+- {{2}} = Workshop name
+- {{3}} = Date/time
+- {{4}} = WhatsApp group link
 
-### 2. Update `supabase/functions/send-whatsapp-link/index.ts`
+No changes needed to `templateParams`.
 
-Change line 19 from:
-```typescript
-const expectedSecret = Deno.env.get("WEBHOOK_SECRET_KEY");
+## Fix in `supabase/functions/send-whatsapp-link/index.ts`
+
+Instead of reading from `AISENSY_API_KEY` env secret, the function will:
+
+1. Import the Supabase client (using `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` env vars)
+2. Query `organization_integrations` for the "Aisency free account" record (integration ID: `459398a2-dae8-4a20-a4cb-de87cc4add1b`)
+3. Use the `api_key` from its `config` JSONB column
+
+The query approach will be flexible -- Bolna can optionally pass an `aisensy_integration_id` in the request body. If not provided, the function falls back to the known free account integration ID.
+
+### Code changes (single file)
+
+```text
+Before:
+  const apiKey = Deno.env.get("AISENSY_API_KEY");
+
+After:
+  // Create Supabase client
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Look up the AISensy free account from the database
+  const integrationId = body.aisensy_integration_id 
+    || "459398a2-dae8-4a20-a4cb-de87cc4add1b";
+
+  const { data: integration, error: intError } = await supabase
+    .from("organization_integrations")
+    .select("config")
+    .eq("id", integrationId)
+    .single();
+
+  const apiKey = integration?.config?.api_key;
 ```
-to:
-```typescript
-const expectedSecret = Deno.env.get("BOLNA_WH_LINK_SECRET");
-```
 
-That's the only code change needed. Everything else stays the same.
-
-### 3. Share with Senior Developer
-
-After deployment, provide:
-- **Function URL**: `https://swnpxkovxhinxzprxviz.supabase.co/functions/v1/send-whatsapp-link`
-- **The secret value** set for `BOLNA_WH_LINK_SECRET`
-
-They will use it in the Bolna custom function config:
-```json
-"param": {
-    "webhook_secret": "<the-bolna-wh-link-secret-value>",
-    "whatsapp_number": "%(whatsapp_number)s",
-    ...
-}
-```
+This approach:
+- Uses the correct API key from the database (the free account ending in `sHH0`)
+- Keeps everything else the same (templateParams, media, campaignName)
+- Allows future flexibility if you want to switch AISensy accounts per campaign
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `supabase/functions/send-whatsapp-link/index.ts` | Replace `WEBHOOK_SECRET_KEY` with `BOLNA_WH_LINK_SECRET` |
-| New secret | Add `BOLNA_WH_LINK_SECRET` with a unique random value |
+| `supabase/functions/send-whatsapp-link/index.ts` | Fetch API key from database instead of env secret |
+
