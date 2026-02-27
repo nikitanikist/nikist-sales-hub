@@ -55,6 +55,23 @@ export default function CallingCampaignDetail() {
     return Math.round(withDuration.reduce((sum, c) => sum + (c.call_duration_seconds || 0), 0) / withDuration.length);
   }, [mergedCalls]);
 
+  const computedStats = useMemo(() => {
+    const completed = mergedCalls.filter(c =>
+      ["completed", "no-answer", "busy", "failed"].includes(c.status)
+    ).length;
+    const confirmed = mergedCalls.filter(c => c.outcome === "confirmed").length;
+    const rescheduled = mergedCalls.filter(c => c.outcome === "rescheduled").length;
+    const notInterested = mergedCalls.filter(c =>
+      ["not_interested", "angry"].includes(c.outcome || "")
+    ).length;
+    const noAnswer = mergedCalls.filter(c =>
+      ["no_response", "no_answer"].includes(c.outcome || "")
+    ).length;
+    const failed = mergedCalls.filter(c => c.status === "failed").length;
+    const totalCost = mergedCalls.reduce((s, c) => s + (c.total_cost || 0), 0);
+    return { completed, confirmed, rescheduled, notInterested, noAnswer, failed, totalCost };
+  }, [mergedCalls]);
+
   const [retrying, setRetrying] = useState(false);
 
   const handleStop = async () => {
@@ -122,8 +139,8 @@ export default function CallingCampaignDetail() {
         )}
       </div>
 
-      <CampaignAnalyticsCards campaign={currentCampaign} avgDuration={avgDuration} />
-      <CampaignProgressBar completed={currentCampaign.calls_completed} total={currentCampaign.total_contacts} />
+      <CampaignAnalyticsCards campaign={currentCampaign} computedStats={computedStats} avgDuration={avgDuration} />
+      <CampaignProgressBar completed={computedStats.completed} total={currentCampaign.total_contacts} />
       <CampaignCallsTable calls={mergedCalls} />
     </div>
   );
