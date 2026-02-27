@@ -78,12 +78,12 @@ Deno.serve(async (req) => {
     const workshopTime = campaign.workshop_time || "7 PM";
     const workshopNameVal = campaign.workshop_name || "";
     const safeWorkshopName = workshopNameVal.includes(",") ? `"${workshopNameVal}"` : workshopNameVal;
-    const csvHeader = "contact_number,lead_name,workshop_time,workshop_name,call_id";
+    const csvHeader = "contact_number,lead_name,workshop_time,workshop_name,call_id,whatsapp_number";
     const csvRows = calls.map((c: any) => {
       const phone = c.contact_phone.startsWith("+") ? c.contact_phone : `+91${c.contact_phone}`;
       // Escape commas in names
       const safeName = c.contact_name.includes(",") ? `"${c.contact_name}"` : c.contact_name;
-      return `${phone},${safeName},${workshopTime},${safeWorkshopName},${c.id}`;
+      return `${phone},${safeName},${workshopTime},${safeWorkshopName},${c.id},${phone}`;
     });
     const csvContent = [csvHeader, ...csvRows].join("\n");
 
