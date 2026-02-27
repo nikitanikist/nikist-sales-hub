@@ -122,3 +122,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-link]
 verify_jwt = false
+
+[functions.reschedule-lead]
+verify_jwt = false
