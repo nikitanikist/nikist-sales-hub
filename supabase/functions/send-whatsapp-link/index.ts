@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
@@ -55,14 +56,28 @@ serve(async (req) => {
       `Sending WhatsApp to: ${finalNumber}, Name: ${leadName}, Workshop: ${workshopName}, Time: ${workshopTime}`
     );
 
-    const apiKey = Deno.env.get("AISENSY_API_KEY");
-    if (!apiKey) {
-      console.error("AISENSY_API_KEY not configured");
+    // Fetch API key from database (organization_integrations)
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const integrationId = body.aisensy_integration_id || "459398a2-dae8-4a20-a4cb-de87cc4add1b";
+
+    const { data: integration, error: intError } = await supabase
+      .from("organization_integrations")
+      .select("config")
+      .eq("id", integrationId)
+      .single();
+
+    if (intError || !integration?.config?.api_key) {
+      console.error("Failed to fetch AISensy integration:", intError?.message || "No api_key in config");
       return new Response(
-        JSON.stringify({ error: "AISensy API key not configured" }),
+        JSON.stringify({ error: "AISensy integration not found or missing api_key" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const apiKey = integration.config.api_key;
 
     const aiSensyPayload = {
       apiKey,
