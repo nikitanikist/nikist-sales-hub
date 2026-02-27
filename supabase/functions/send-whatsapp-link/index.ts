@@ -16,7 +16,7 @@ serve(async (req) => {
     const body = await req.json();
 
     // Validate webhook secret (Bolna sends it as a body param)
-    const expectedSecret = Deno.env.get("WEBHOOK_SECRET_KEY");
+    const expectedSecret = Deno.env.get("BOLNA_WH_LINK_SECRET");
     if (!expectedSecret || body.webhook_secret !== expectedSecret) {
       console.error("Unauthorized: invalid or missing webhook_secret");
       return new Response(
