@@ -84,12 +84,12 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     try {
       const { data } = await supabase
         .from("organization_integrations")
-        .select("id, name")
+        .select("id, integration_name")
         .eq("organization_id", currentOrganization.id)
         .eq("integration_type", "aisensy")
         .eq("is_active", true);
 
-      const accounts = (data || []).map((d: any) => ({ id: d.id, name: d.name }));
+      const accounts = (data || []).map((d: any) => ({ id: d.id, name: d.integration_name }));
       setAisensyAccounts(accounts);
       if (accounts.length === 1 && !aisensyIntegrationId) {
         setAisensyIntegrationId(accounts[0].id);
