@@ -116,3 +116,6 @@ verify_jwt = false
 
 [functions.verify-campaign-status]
 verify_jwt = false
+
+[functions.verify-aisensy-template]
+verify_jwt = false
