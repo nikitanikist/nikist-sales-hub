@@ -1,64 +1,54 @@
 
-# Create `reschedule-lead` Edge Function
 
-## What This Does
+# Remove AISensy Step and Add Workshop Name to Bolna CSV
 
-Creates a standalone backend function that Bolna's AI agent can call when a person says they want to reschedule. It receives the phone number and preferred reschedule day, finds the matching call record, and updates it with "rescheduled" status.
+## Summary
 
-## How It Works
+Two changes: (1) Remove the now-redundant AISensy account/template selection step from the broadcast creation dialog, and (2) add `workshop_name` as a column in the CSV sent to Bolna so the calling bot can use it as a variable.
 
-1. Bolna sends a request with `phone_number` (from CSV), `reschedule_day` (extracted by the AI from conversation), and `webhook_secret` (for security)
-2. The function validates the secret (same `BOLNA_WH_LINK_SECRET` used by `send-whatsapp-link`)
-3. It finds the most recent non-terminal call record matching that phone number
-4. Updates the record with `outcome = "rescheduled"` and the `reschedule_day` value
+## Changes
 
-## Files to Create/Modify
+### 1. Simplify CreateBroadcastDialog (4 steps to 3)
 
-| File | Action |
-|------|--------|
-| `supabase/functions/reschedule-lead/index.ts` | **Create** -- New edge function |
-| `supabase/config.toml` | **Modify** -- Add `verify_jwt = false` entry |
+**File: `src/pages/calling/CreateBroadcastDialog.tsx`**
 
-## Technical Details
+- Remove Step 3 (AISensy account selection + template verification) entirely
+- Remove all AISensy-related state variables, the `fetchAisensyAccounts` function, the `handleVerifyTemplate` function, and the `AisensyAccount` interface
+- Remove unused imports (`ShieldCheck`, `CheckCircle2`, `XCircle`)
+- Old Step 4 (Start Now / Schedule) becomes new Step 3
+- Update the step counter in the dialog title from "Step X/4" to "Step X/3"
+- Update `canProceed()` logic: step 3 now handles schedule mode validation (was step 4)
+- Update the "Next" button threshold from `step < 4` to `step < 3`
+- Remove `whatsapp_template_id` and `aisensy_integration_id` from the `handleSubmit` payload
 
-### New Function: `reschedule-lead/index.ts`
+### 2. Add `workshop_name` to Bolna CSV
 
-- Validates `webhook_secret` against `BOLNA_WH_LINK_SECRET` (same pattern as `send-whatsapp-link`)
-- Cleans phone number (strips `+`, ensures `91` prefix) and tries multiple formats to match
-- Queries `voice_campaign_calls` for the most recent call that is NOT in a terminal state (`completed`, `no-answer`, `busy`, `failed`, `cancelled`)
-- Updates the matched record: `outcome = "rescheduled"`, `reschedule_day = <value from Bolna>`
-- Returns success with the matched call ID, or appropriate error if no match found
-- No new secrets needed -- reuses existing `BOLNA_WH_LINK_SECRET`
+**File: `supabase/functions/start-voice-campaign/index.ts`**
 
-### Bolna Configuration (Manual Step After Deployment)
+- Add `workshop_name` column to the CSV header: `contact_number,lead_name,workshop_time,workshop_name,call_id`
+- Include `campaign.workshop_name` (with fallback to empty string) in each CSV row
+- Escape commas in workshop name (same as lead name)
 
-You'll configure a new `custom_task` tool in Bolna pointing to:
-```
-https://swnpxkovxhinxzprxviz.supabase.co/functions/v1/reschedule-lead
-```
+After this, Bolna agents can use `%(workshop_name)s` in their prompts.
 
-With this parameter config (as your senior dev specified):
-```json
-{
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "reschedule_day": {
-        "type": "string",
-        "description": "The day the person wants to reschedule to"
-      }
-    }
-  },
-  "value": {
-    "param": {
-      "webhook_secret": "<your secret>",
-      "phone_number": "%(whatsapp_number)s",
-      "reschedule_day": "%(reschedule_day)s"
-    }
-  }
-}
-```
+### 3. Clean up types
 
-### Important Note
+**File: `src/types/voice-campaign.ts`**
 
-As your senior dev mentioned, we should confirm `send-whatsapp-link` logs show flat param substitution is working before testing this function. Both functions use the same pattern.
+- Remove `whatsapp_template_id` and `aisensy_integration_id` from `CreateBroadcastData` interface (no longer needed in creation flow)
+
+### 4. Clean up mutation hook
+
+**File: `src/hooks/useCreateBroadcast.ts`**
+
+- Remove `whatsapp_template_id` and `aisensy_integration_id` from the insert payload to `voice_campaigns` table
+
+## Bolna Variable Reference (After This Change)
+
+| CSV Column | Bolna Variable | Source |
+|---|---|---|
+| contact_number | %(whatsapp_number)s | Phone from contacts |
+| lead_name | %(lead_name)s | Name from contacts |
+| workshop_time | %(workshop_time)s | User input in step 2 |
+| workshop_name | %(workshop_name)s | User input in step 2 |
+| call_id | %(call_id)s | Internal record UUID |
