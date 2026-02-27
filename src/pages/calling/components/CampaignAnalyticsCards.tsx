@@ -1,23 +1,34 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, PhoneCall, Check, Calendar, XCircle, PhoneOff, AlertTriangle, Ban, IndianRupee, Clock } from "lucide-react";
+import { Users, PhoneCall, Check, Calendar, XCircle, PhoneOff, AlertTriangle, IndianRupee, Clock } from "lucide-react";
 import type { VoiceCampaign } from "@/types/voice-campaign";
 import { formatCost, formatDuration } from "./index";
 
+interface ComputedStats {
+  completed: number;
+  confirmed: number;
+  rescheduled: number;
+  notInterested: number;
+  noAnswer: number;
+  failed: number;
+  totalCost: number;
+}
+
 interface Props {
   campaign: VoiceCampaign;
+  computedStats: ComputedStats;
   avgDuration: number;
 }
 
-export function CampaignAnalyticsCards({ campaign, avgDuration }: Props) {
+export function CampaignAnalyticsCards({ campaign, computedStats, avgDuration }: Props) {
   const cards = [
     { title: "Total Contacts", value: campaign.total_contacts, icon: Users, color: "text-foreground" },
-    { title: "Calls Completed", value: `${campaign.calls_completed} / ${campaign.total_contacts}`, icon: PhoneCall, color: "text-blue-500" },
-    { title: "Confirmed", value: campaign.calls_confirmed, icon: Check, color: "text-green-500" },
-    { title: "Rescheduled", value: campaign.calls_rescheduled, icon: Calendar, color: "text-blue-500" },
-    { title: "Not Interested", value: campaign.calls_not_interested, icon: XCircle, color: "text-destructive" },
-    { title: "No Answer", value: campaign.calls_no_answer, icon: PhoneOff, color: "text-orange-500" },
-    { title: "Failed", value: campaign.calls_failed, icon: AlertTriangle, color: "text-destructive" },
-    { title: "Total Cost", value: formatCost(campaign.total_cost), icon: IndianRupee, color: "text-foreground" },
+    { title: "Calls Completed", value: `${computedStats.completed} / ${campaign.total_contacts}`, icon: PhoneCall, color: "text-blue-500" },
+    { title: "Confirmed", value: computedStats.confirmed, icon: Check, color: "text-green-500" },
+    { title: "Rescheduled", value: computedStats.rescheduled, icon: Calendar, color: "text-blue-500" },
+    { title: "Not Interested", value: computedStats.notInterested, icon: XCircle, color: "text-destructive" },
+    { title: "No Answer", value: computedStats.noAnswer, icon: PhoneOff, color: "text-orange-500" },
+    { title: "Failed", value: computedStats.failed, icon: AlertTriangle, color: "text-destructive" },
+    { title: "Total Cost", value: formatCost(computedStats.totalCost), icon: IndianRupee, color: "text-foreground" },
     { title: "Avg Duration", value: formatDuration(avgDuration), icon: Clock, color: "text-foreground" },
   ];
 
