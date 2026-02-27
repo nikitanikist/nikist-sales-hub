@@ -10,6 +10,7 @@ export interface VoiceCampaign {
   workshop_name: string | null;
   workshop_id: string | null;
   whatsapp_template_id: string | null;
+  aisensy_integration_id: string | null;
   status: CampaignStatus;
   scheduled_at: string | null;
   total_contacts: number;
@@ -61,6 +62,7 @@ export interface CreateBroadcastData {
   workshop_name?: string;
   workshop_time?: string;
   whatsapp_template_id?: string;
+  aisensy_integration_id?: string;
   bolna_agent_id?: string;
   scheduled_at?: string;
   contacts: { name: string; phone: string; lead_id?: string }[];

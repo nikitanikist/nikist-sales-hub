@@ -13,7 +13,7 @@ import { CsvUploader } from "./components/CsvUploader";
 import { ArrowLeft, ArrowRight, Rocket, Calendar, Loader2, AlertCircle, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-
+import { useOrganization } from "@/hooks/useOrganization";
 
 interface Props {
   open: boolean;
@@ -31,6 +31,11 @@ interface BolnaAgent {
   name: string;
 }
 
+interface AisensyAccount {
+  id: string;
+  name: string;
+}
+
 export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const [step, setStep] = useState(1);
   const [source, setSource] = useState<"workshop" | "csv">("workshop");
@@ -40,6 +45,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const [campaignName, setCampaignName] = useState<string>("");
   const [workshopTime, setWorkshopTime] = useState<string>("7 PM");
   const [whatsappTemplate, setWhatsappTemplate] = useState<string>("");
+  const [aisensyIntegrationId, setAisensyIntegrationId] = useState<string>("");
   const [scheduleMode, setScheduleMode] = useState<"now" | "schedule">("now");
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [bolnaAgentId, setBolnaAgentId] = useState<string>("");
@@ -50,8 +56,13 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [bolnaNotConfigured, setBolnaNotConfigured] = useState(false);
 
+  // AISensy accounts state
+  const [aisensyAccounts, setAisensyAccounts] = useState<AisensyAccount[]>([]);
+  const [aisensyLoading, setAisensyLoading] = useState(false);
+
   const createBroadcast = useCreateBroadcast();
   const navigate = useNavigate();
+  const { currentOrganization } = useOrganization();
 
   // Fetch Bolna agents when step 2 is reached
   useEffect(() => {
@@ -59,6 +70,36 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
       fetchAgents();
     }
   }, [step]);
+
+  // Fetch AISensy accounts when step 3 is reached
+  useEffect(() => {
+    if (step === 3 && aisensyAccounts.length === 0 && !aisensyLoading && currentOrganization) {
+      fetchAisensyAccounts();
+    }
+  }, [step, currentOrganization]);
+
+  const fetchAisensyAccounts = async () => {
+    if (!currentOrganization) return;
+    setAisensyLoading(true);
+    try {
+      const { data } = await supabase
+        .from("organization_integrations")
+        .select("id, name")
+        .eq("organization_id", currentOrganization.id)
+        .eq("integration_type", "aisensy")
+        .eq("is_active", true);
+
+      const accounts = (data || []).map((d: any) => ({ id: d.id, name: d.name }));
+      setAisensyAccounts(accounts);
+      if (accounts.length === 1 && !aisensyIntegrationId) {
+        setAisensyIntegrationId(accounts[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to fetch AISensy accounts:", err);
+    } finally {
+      setAisensyLoading(false);
+    }
+  };
 
   const fetchAgents = async () => {
     setAgentsLoading(true);
@@ -76,7 +117,6 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
       }
       if (data?.agents && data.agents.length > 0) {
         setAgents(data.agents);
-        // Auto-select first agent
         if (!bolnaAgentId) {
           setBolnaAgentId(data.agents[0].id);
         }
@@ -99,6 +139,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     setCampaignName("");
     setWorkshopTime("7 PM");
     setWhatsappTemplate("");
+    setAisensyIntegrationId("");
     setScheduleMode("now");
     setScheduledAt("");
     setBolnaAgentId("");
@@ -106,6 +147,8 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     setAgentsLoading(false);
     setAgentsError(null);
     setBolnaNotConfigured(false);
+    setAisensyAccounts([]);
+    setAisensyLoading(false);
   };
 
   const handleSubmit = async () => {
@@ -115,6 +158,7 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
       workshop_name: workshopName || undefined,
       workshop_time: workshopTime || undefined,
       whatsapp_template_id: whatsappTemplate || undefined,
+      aisensy_integration_id: aisensyIntegrationId || undefined,
       scheduled_at: scheduleMode === "schedule" ? scheduledAt : undefined,
       contacts,
       bolna_agent_id: bolnaAgentId || undefined,
@@ -244,8 +288,30 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
           {step === 3 && (
             <div className="space-y-4">
               <div>
-                <Label>AiSensy WhatsApp Template (Optional)</Label>
-                <Input value={whatsappTemplate} onChange={(e) => setWhatsappTemplate(e.target.value)} placeholder="Enter template name/ID for WhatsApp group link" />
+                <Label>AISensy Account</Label>
+                {aisensyLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading AISensy accounts...
+                  </div>
+                ) : aisensyAccounts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground mt-1">No AISensy accounts configured. WhatsApp messages won't be sent.</p>
+                ) : (
+                  <Select value={aisensyIntegrationId} onValueChange={setAisensyIntegrationId}>
+                    <SelectTrigger><SelectValue placeholder="Select AISensy account" /></SelectTrigger>
+                    <SelectContent>
+                      {aisensyAccounts.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div>
+                <Label>WhatsApp Template Name (Optional)</Label>
+                <Input value={whatsappTemplate} onChange={(e) => setWhatsappTemplate(e.target.value)} placeholder="Enter template name for WhatsApp group link" />
                 <p className="text-xs text-muted-foreground mt-1">This template is sent when a contact says they haven't joined the WhatsApp group</p>
               </div>
             </div>
