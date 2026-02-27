@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     // Resolve Bolna credentials from organization_integrations
     const { data: integration } = await supabase
       .from("organization_integrations")
-      .select("config")
+      .select("config, uses_env_secrets")
       .eq("organization_id", campaign.organization_id)
       .eq("integration_type", "bolna")
       .eq("is_active", true)
@@ -56,7 +56,10 @@ Deno.serve(async (req) => {
     }
 
     const config = integration.config as Record<string, string>;
-    const bolnaApiKey = config.api_key || "";
+    // Fix 10: Resolve API key based on uses_env_secrets flag
+    const bolnaApiKey = integration.uses_env_secrets
+      ? Deno.env.get(config.api_key_secret || "") || ""
+      : config.api_key || "";
     const bolnaAgentId = campaign.bolna_agent_id || config.agent_id || "";
 
     if (!bolnaApiKey || !bolnaAgentId) {
@@ -117,9 +120,10 @@ Deno.serve(async (req) => {
     console.log(`Bolna batch created: ${batchId}`);
 
     // Step 2: Schedule batch — wait a moment for Bolna to process the batch
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Fix 3: Reduced delays for faster campaign start
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    const rawTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
+    const rawTime = campaign.scheduled_at || new Date(Date.now() + 30000).toISOString();
     // Convert JS ISO format to Python-compatible: remove ms and replace Z with +00:00
     const scheduleTime = rawTime.replace(/\.\d{3}Z$/, '+00:00').replace(/Z$/, '+00:00');
     console.log(`Scheduling batch ${batchId} at: ${scheduleTime}`);

@@ -46,16 +46,15 @@ Deno.serve(async (req) => {
       if (tool_name === "mark_attendance") {
         const outcome = body.outcome || "confirmed";
 
+        // Fix 1: Do NOT set status — let post-call webhook handle terminal transition
         await supabase.from("voice_campaign_calls").update({
           outcome,
-          status: "completed",
           updated_at: new Date().toISOString(),
         }).eq("id", call_id);
 
         console.log(`mark_attendance: ${outcome} for call ${call_id}`);
 
       } else if (tool_name === "reschedule_lead") {
-        // Fix 3: Check multiple field names Bolna might use
         const rescheduleDay = body.reschedule_day
           || body.day
           || body.preferred_day
@@ -63,10 +62,10 @@ Deno.serve(async (req) => {
           || body.arguments?.day
           || "Unknown";
 
+        // Fix 1: Do NOT set status — let post-call webhook handle terminal transition
         await supabase.from("voice_campaign_calls").update({
           outcome: "rescheduled",
           reschedule_day: rescheduleDay,
-          status: "completed",
           updated_at: new Date().toISOString(),
         }).eq("id", call_id);
 
@@ -89,14 +88,18 @@ Deno.serve(async (req) => {
           whatsappLink = workshop?.whatsapp_group_link || "";
         }
 
+        // Fix 2A: Add warning logs for missing config
+        if (!templateId) console.warn("WhatsApp send skipped: no template configured for campaign");
+        if (!whatsappLink) console.warn("WhatsApp send skipped: no whatsapp_group_link on workshop");
+
         // Send via AiSensy if template + link available
         if (templateId && whatsappLink && orgId) {
-          // Resolve AiSensy credentials
+          // Fix 2A: Correct column name integration_type
           const { data: aisensyIntegration } = await supabase
             .from("organization_integrations")
             .select("config, uses_env_secrets")
             .eq("organization_id", orgId)
-            .eq("type", "aisensy")
+            .eq("integration_type", "aisensy")
             .eq("is_active", true)
             .single();
 
@@ -169,26 +172,30 @@ Deno.serve(async (req) => {
       callRecord = data;
     }
 
-    // Fallback: match by phone number + campaign's bolna_batch_id
+    // Fix 6: Fallback — match by phone number + campaign's bolna_batch_id
+    // Extract campaign ID first, then create fresh queries per phone variant
     if (!callRecord && toNumber) {
       const cleanPhone = toNumber.replace(/^\+/, "");
       const phoneVariants = [toNumber, cleanPhone, `+91${cleanPhone.replace(/^91/, "")}`];
 
-      let campaignFilter: any = supabase.from("voice_campaign_calls").select("*");
-      
+      let matchCampaignId: string | null = null;
       if (batchId) {
         const { data: camp } = await supabase
           .from("voice_campaigns")
           .select("id")
           .eq("bolna_batch_id", batchId)
           .single();
-        if (camp) {
-          campaignFilter = campaignFilter.eq("campaign_id", camp.id);
-        }
+        if (camp) matchCampaignId = camp.id;
       }
 
       for (const phoneVariant of phoneVariants) {
-        const { data } = await campaignFilter.eq("contact_phone", phoneVariant).order("updated_at", { ascending: false }).limit(1).single();
+        let query = supabase.from("voice_campaign_calls").select("*");
+        if (matchCampaignId) query = query.eq("campaign_id", matchCampaignId);
+        const { data } = await query
+          .eq("contact_phone", phoneVariant)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .single();
         if (data) {
           callRecord = data;
           break;
@@ -228,13 +235,19 @@ Deno.serve(async (req) => {
     }
 
     const terminalStatuses = ["completed", "no-answer", "failed", "busy", "cancelled"];
+    const safeDuration = Math.floor(Number(duration) || 0);
+    const safeCost = Number(cost) || 0;
 
     if (terminalStatuses.includes(mappedStatus)) {
-      // Cast duration to integer and cost to number before passing to RPC
-      const safeDuration = Math.floor(Number(duration) || 0);
-      const safeCost = Number(cost) || 0;
+      // Fix 11: Set call_started_at if we have duration info
+      if (safeDuration > 0 && !callRecord.call_started_at) {
+        const startedAt = new Date(Date.now() - safeDuration * 1000).toISOString();
+        await supabase.from("voice_campaign_calls").update({
+          call_started_at: startedAt,
+        }).eq("id", callRecord.id);
+      }
 
-      // ── Fix 1: Use atomic DB function for terminal transition ──
+      // Use atomic DB function for terminal transition
       const { data: transitionResult, error: transErr } = await supabase.rpc("transition_call_to_terminal", {
         p_call_id: callRecord.id,
         p_status: mappedStatus,
@@ -247,15 +260,64 @@ Deno.serve(async (req) => {
         p_extracted_data: extractedData || null,
       });
 
+      // Fix 5: Fallback path must write ALL fields and increment counters
       if (transErr) {
         console.error("transition_call_to_terminal error:", transErr);
-        // Fallback: just update without counter logic
         await supabase.from("voice_campaign_calls").update({
           bolna_call_id: executionId || callRecord.bolna_call_id,
           status: mappedStatus,
+          outcome: outcome || callRecord.outcome,
+          call_duration_seconds: safeDuration || callRecord.call_duration_seconds,
+          total_cost: safeCost || callRecord.total_cost,
+          transcript: transcript || callRecord.transcript,
+          recording_url: recordingUrl || callRecord.recording_url,
+          extracted_data: extractedData || callRecord.extracted_data,
           call_ended_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }).eq("id", callRecord.id);
+
+        // Still increment counters in fallback
+        try {
+          await supabase.rpc("increment_campaign_counter", {
+            p_campaign_id: callRecord.campaign_id,
+            p_field: "calls_completed",
+          });
+          const finalOutcome = outcome || callRecord.outcome;
+          if (finalOutcome) {
+            const counterMap: Record<string, string> = {
+              confirmed: "calls_confirmed",
+              rescheduled: "calls_rescheduled",
+              not_interested: "calls_not_interested",
+              angry: "calls_not_interested",
+              no_response: "calls_no_answer",
+              no_answer: "calls_no_answer",
+            };
+            const field = counterMap[finalOutcome];
+            if (field) {
+              await supabase.rpc("increment_campaign_counter", {
+                p_campaign_id: callRecord.campaign_id,
+                p_field: field,
+              });
+            }
+          }
+          // Fix 8: Use SUM-based cost recalculation instead of accumulator
+          if (safeCost > 0) {
+            const { data: costData } = await supabase
+              .from("voice_campaign_calls")
+              .select("total_cost")
+              .eq("campaign_id", callRecord.campaign_id)
+              .not("total_cost", "is", null);
+            const calculatedTotal = (costData || []).reduce(
+              (sum: number, c: any) => sum + (c.total_cost || 0), 0
+            );
+            await supabase.from("voice_campaigns").update({
+              total_cost: calculatedTotal,
+              updated_at: new Date().toISOString(),
+            }).eq("id", callRecord.campaign_id);
+          }
+        } catch (counterErr) {
+          console.error("Fallback counter increment failed:", counterErr);
+        }
       } else {
         const row = transitionResult?.[0];
         const wasFirst = row?.was_first_transition;
@@ -288,17 +350,32 @@ Deno.serve(async (req) => {
             }
           }
 
-          // ── Fix 2: Add cost only once per call (inside wasFirst) ──
+          // Fix 8: Use SUM-based cost recalculation instead of accumulator
           if (safeCost > 0) {
-            await supabase.rpc("add_campaign_cost", { p_campaign_id: callRecord.campaign_id, p_cost: safeCost });
+            const { data: costData } = await supabase
+              .from("voice_campaign_calls")
+              .select("total_cost")
+              .eq("campaign_id", callRecord.campaign_id)
+              .not("total_cost", "is", null);
+            const calculatedTotal = (costData || []).reduce(
+              (sum: number, c: any) => sum + (c.total_cost || 0), 0
+            );
+            await supabase.from("voice_campaigns").update({
+              total_cost: calculatedTotal,
+              updated_at: new Date().toISOString(),
+            }).eq("id", callRecord.campaign_id);
           }
         } else {
-          // Not first transition — only update transcript/cost if better data
-          if (transcript && !callRecord.transcript) {
-            await supabase.from("voice_campaign_calls").update({
-              transcript,
-              updated_at: new Date().toISOString(),
-            }).eq("id", callRecord.id);
+          // Fix 7: Not first transition — update any missing fields, not just transcript
+          const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+          if (transcript && !callRecord.transcript) updates.transcript = transcript;
+          if (safeDuration > 0 && !callRecord.call_duration_seconds) updates.call_duration_seconds = safeDuration;
+          if (safeCost > 0 && !callRecord.total_cost) updates.total_cost = safeCost;
+          if (recordingUrl && !callRecord.recording_url) updates.recording_url = recordingUrl;
+          if (extractedData && !callRecord.extracted_data) updates.extracted_data = extractedData;
+
+          if (Object.keys(updates).length > 1) {
+            await supabase.from("voice_campaign_calls").update(updates).eq("id", callRecord.id);
           }
         }
       }
@@ -312,7 +389,7 @@ Deno.serve(async (req) => {
       }).eq("id", callRecord.id);
     }
 
-    // ── Fix 4: Stale call cleanup with reduced 5-minute timeout ──
+    // Stale call cleanup with 5-minute timeout
     const { data: campaignInfo } = await supabase
       .from("voice_campaigns")
       .select("started_at")
@@ -334,7 +411,6 @@ Deno.serve(async (req) => {
         if (staleCalls && staleCalls.length > 0) {
           const staleIds = staleCalls.map(c => c.id);
 
-          // Use atomic transition for each stale call too
           for (const staleId of staleIds) {
             const { data: staleResult } = await supabase.rpc("transition_call_to_terminal", {
               p_call_id: staleId,
