@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
     // Fix 3: Reduced delays for faster campaign start
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    const rawTime = campaign.scheduled_at || new Date(Date.now() + 30000).toISOString();
+    const rawTime = campaign.scheduled_at || new Date(Date.now() + 150000).toISOString();
     // Convert JS ISO format to Python-compatible: remove ms and replace Z with +00:00
     const scheduleTime = rawTime.replace(/\.\d{3}Z$/, '+00:00').replace(/Z$/, '+00:00');
     console.log(`Scheduling batch ${batchId} at: ${scheduleTime}`);
