@@ -33,7 +33,7 @@ serve(async (req) => {
     const destination = body.whatsapp_number || body.destination;
     const leadName = body.lead_name || body.name || "Friend";
     const workshopName = body.workshop_name || "Workshop";
-    const workshopTime = body.workshop_time || "Today";
+    const workshopTime = "Today 7 PM";
     const groupLink =
       body.whatsapp_group_link ||
       "https://app.tagfunnel.ai/link/today-whatsapp-group-icc";
