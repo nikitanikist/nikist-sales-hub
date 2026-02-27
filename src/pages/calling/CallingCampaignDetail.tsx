@@ -34,8 +34,14 @@ export default function CallingCampaignDetail() {
 
   useVoiceCampaignRealtime(campaignId, onCallUpdate, onCampaignUpdate);
 
-  // Merge live data with fetched data
-  const currentCampaign = liveCampaign || campaign;
+  // Fix 9: Use whichever data is more recent to prevent status flicker
+  const currentCampaign = useMemo(() => {
+    if (!liveCampaign) return campaign;
+    if (!campaign) return liveCampaign;
+    return new Date(liveCampaign.updated_at) >= new Date(campaign.updated_at)
+      ? liveCampaign
+      : campaign;
+  }, [liveCampaign, campaign]);
   const mergedCalls = useMemo(() => {
     const map = new Map<string, VoiceCampaignCall>();
     calls.forEach((c) => map.set(c.id, c));

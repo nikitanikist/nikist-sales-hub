@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
         .from("organization_integrations")
         .select("config, uses_env_secrets")
         .eq("organization_id", campaign.organization_id)
-        .eq("type", "bolna")
+        .eq("integration_type", "bolna")
         .eq("is_active", true)
         .single();
 
