@@ -26,8 +26,6 @@ export function useCreateBroadcast() {
           workshop_id: data.workshop_id || null,
           workshop_name: data.workshop_name || null,
           workshop_time: data.workshop_time || null,
-          whatsapp_template_id: data.whatsapp_template_id || null,
-          aisensy_integration_id: data.aisensy_integration_id || null,
           status: data.scheduled_at ? "scheduled" : "draft",
           scheduled_at: data.scheduled_at || null,
           total_contacts: data.contacts.length,

@@ -61,8 +61,6 @@ export interface CreateBroadcastData {
   workshop_id?: string;
   workshop_name?: string;
   workshop_time?: string;
-  whatsapp_template_id?: string;
-  aisensy_integration_id?: string;
   bolna_agent_id?: string;
   scheduled_at?: string;
   contacts: { name: string; phone: string; lead_id?: string }[];
