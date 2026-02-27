@@ -1,60 +1,105 @@
 
 
-# Fix: Compute Campaign Analytics from Actual Calls Data
+# Add AISensy Account Selection to Voice Campaigns
 
-## Problem
+## What This Does
 
-The campaign counters stored in `voice_campaigns` are inflated due to duplicate webhook processing before the fixes were applied. For example, `calls_completed: 4` when only 2 calls exist, and `calls_no_answer: 3` when only 1 call had that outcome.
+When creating a calling broadcast, you'll be able to:
+1. **Select which AISensy account** to use for sending WhatsApp messages
+2. **Pick a template from a dropdown** instead of typing it manually
+3. When the AI agent hears "I'm not in the WhatsApp group," it will automatically send the selected template from the chosen AISensy account
 
-The UI blindly displays these stored counters, leading to impossible numbers like "4/2 completed" and "200% progress".
+## Current Flow (What Exists)
 
-## Solution
-
-Compute analytics cards and progress bar from the actual `mergedCalls` array (which comes from `voice_campaign_calls` rows) instead of from the stored campaign counters. This makes the UI self-correcting regardless of counter bugs.
+- Step 3 of "Create Broadcast" has a free-text input for "AiSensy WhatsApp Template"
+- The webhook (`bolna-webhook`) picks the **first** active AISensy integration and sends the template
+- No way to choose which AISensy account to use
 
 ## Changes
 
-### 1. `src/pages/calling/CallingCampaignDetail.tsx`
+### 1. UI: Replace free-text with AISensy account + template selector (Step 3)
 
-Add a `computedStats` memo that counts outcomes from `mergedCalls`:
+**File: `src/pages/calling/CreateBroadcastDialog.tsx`**
 
-```typescript
-const computedStats = useMemo(() => {
-  const completed = mergedCalls.filter(c => 
-    ["completed","no-answer","busy","failed"].includes(c.status)
-  ).length;
-  const confirmed = mergedCalls.filter(c => c.outcome === "confirmed").length;
-  const rescheduled = mergedCalls.filter(c => c.outcome === "rescheduled").length;
-  const notInterested = mergedCalls.filter(c => 
-    ["not_interested","angry"].includes(c.outcome || "")
-  ).length;
-  const noAnswer = mergedCalls.filter(c => 
-    ["no_response","no_answer"].includes(c.outcome || "")
-  ).length;
-  const failed = mergedCalls.filter(c => c.status === "failed").length;
-  const totalCost = mergedCalls.reduce((s, c) => s + (c.total_cost || 0), 0);
-  return { completed, confirmed, rescheduled, notInterested, noAnswer, failed, totalCost };
-}, [mergedCalls]);
+- Add state for `aisensyIntegrationId` (selected AISensy account)
+- Fetch all active AISensy integrations for the org on step 3
+- Show a dropdown to pick which AISensy account
+- Once an account is selected, fetch its templates via AISensy API (or keep the manual template name input if the AISensy API doesn't support listing templates -- we'll keep the manual input since AISensy doesn't have a template listing API, but add the account selector)
+- Store the selected `aisensy_integration_id` along with the template name when creating the campaign
+
+### 2. Database: Add `aisensy_integration_id` to `voice_campaigns`
+
+Add a nullable UUID column `aisensy_integration_id` to the `voice_campaigns` table so the webhook knows exactly which AISensy account to use.
+
+```sql
+ALTER TABLE voice_campaigns 
+ADD COLUMN aisensy_integration_id uuid REFERENCES organization_integrations(id);
 ```
 
-Pass `computedStats` to `CampaignAnalyticsCards` and `CampaignProgressBar` instead of campaign counters.
+### 3. Update campaign creation hook
 
-### 2. `src/pages/calling/components/CampaignAnalyticsCards.tsx`
+**File: `src/hooks/useCreateBroadcast.ts`**
 
-Update the props interface to accept computed stats alongside the campaign (for `total_contacts` and other campaign-level fields). Use computed values for all counters.
+- Accept and pass `aisensy_integration_id` when inserting the campaign
 
-### 3. Progress Bar
+### 4. Update types
 
-Pass `computedStats.completed` and `currentCampaign.total_contacts` to the progress bar instead of `currentCampaign.calls_completed`.
+**File: `src/types/voice-campaign.ts`**
 
-### 4. Fix existing data (one-time)
+- Add `aisensy_integration_id: string | null` to `VoiceCampaign` interface
+- Add `aisensy_integration_id?: string` to `CreateBroadcastData`
 
-Run a SQL update to correct the stored counters for this specific campaign so they match reality. This ensures any other views or exports also show correct data.
+### 5. Update webhook to use the selected AISensy account
 
-## Result
+**File: `supabase/functions/bolna-webhook/index.ts`**
 
-- "Calls Completed" will show 2/2 (correct)
-- Progress will show 100%
-- "No Answer" will show 1
-- "Confirmed" will show 1
-- Total cost will show sum of actual call costs
+In the `send_whatsapp_group_link` tool handler (line ~96-134):
+- Read `aisensy_integration_id` from the campaign's joined data
+- If set, fetch that specific integration by ID instead of querying by org + type
+- If not set, fall back to the current behavior (first active AISensy integration)
+
+```text
+BEFORE:
+  .eq("organization_id", orgId)
+  .eq("integration_type", "aisensy")
+  .eq("is_active", true)
+  .single();
+
+AFTER:
+  // If campaign has a specific AISensy integration selected, use it
+  if (campaign.aisensy_integration_id) {
+    query = query.eq("id", campaign.aisensy_integration_id);
+  } else {
+    query = query.eq("organization_id", orgId)
+      .eq("integration_type", "aisensy")
+      .eq("is_active", true);
+  }
+  .single();
+```
+
+### 6. Update the campaign select query in webhook
+
+The webhook currently selects `voice_campaigns!inner(organization_id, workshop_id, whatsapp_template_id)`. Update to also include `aisensy_integration_id`.
+
+## Flow After Changes
+
+1. User creates a calling broadcast
+2. Step 3: User picks an AISensy account from dropdown + enters template name
+3. Campaign is saved with `aisensy_integration_id` and `whatsapp_template_id`
+4. During the call, if a lead says "I'm not in the WhatsApp group":
+   - Bolna AI triggers `send_whatsapp_group_link` tool call
+   - Webhook reads the campaign's `aisensy_integration_id`
+   - Fetches that specific AISensy account's API key
+   - Sends the configured template with the WhatsApp group link to the lead's phone
+   - Marks `whatsapp_link_sent = true` on the call record
+
+## Summary of Files Changed
+
+| File | Change |
+|------|--------|
+| Database migration | Add `aisensy_integration_id` column |
+| `src/pages/calling/CreateBroadcastDialog.tsx` | Add AISensy account dropdown in Step 3 |
+| `src/types/voice-campaign.ts` | Add field to interfaces |
+| `src/hooks/useCreateBroadcast.ts` | Pass new field on insert |
+| `supabase/functions/bolna-webhook/index.ts` | Use selected AISensy account |
+
