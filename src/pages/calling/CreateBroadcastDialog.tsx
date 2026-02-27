@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useCreateBroadcast } from "@/hooks/useCreateBroadcast";
 import { WorkshopSelector } from "./components/WorkshopSelector";
 import { CsvUploader } from "./components/CsvUploader";
-import { ArrowLeft, ArrowRight, Rocket, Calendar, Loader2, AlertCircle, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, Rocket, Calendar, Loader2, AlertCircle, Settings, CheckCircle2, XCircle, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -59,6 +59,10 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
   // AISensy accounts state
   const [aisensyAccounts, setAisensyAccounts] = useState<AisensyAccount[]>([]);
   const [aisensyLoading, setAisensyLoading] = useState(false);
+
+  // Template verification state
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ exists: boolean; paramCount?: number; message: string } | null>(null);
 
   const createBroadcast = useCreateBroadcast();
   const navigate = useNavigate();
@@ -149,6 +153,28 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
     setBolnaNotConfigured(false);
     setAisensyAccounts([]);
     setAisensyLoading(false);
+    setVerifying(false);
+    setVerifyResult(null);
+  };
+
+  const handleVerifyTemplate = async () => {
+    if (!whatsappTemplate || !aisensyIntegrationId) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-aisensy-template", {
+        body: { integrationId: aisensyIntegrationId, campaignName: whatsappTemplate },
+      });
+      if (error) {
+        setVerifyResult({ exists: false, message: "Verification failed. Please try again." });
+      } else {
+        setVerifyResult(data);
+      }
+    } catch {
+      setVerifyResult({ exists: false, message: "Verification failed. Please try again." });
+    } finally {
+      setVerifying(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -311,8 +337,45 @@ export function CreateBroadcastDialog({ open, onOpenChange }: Props) {
               </div>
               <div>
                 <Label>WhatsApp Template Name (Optional)</Label>
-                <Input value={whatsappTemplate} onChange={(e) => setWhatsappTemplate(e.target.value)} placeholder="Enter template name for WhatsApp group link" />
-                <p className="text-xs text-muted-foreground mt-1">This template is sent when a contact says they haven't joined the WhatsApp group</p>
+                <div className="flex gap-2 mt-1">
+                  <Input 
+                    value={whatsappTemplate} 
+                    onChange={(e) => { setWhatsappTemplate(e.target.value); setVerifyResult(null); }} 
+                    placeholder="Enter exact template name from AISensy" 
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!whatsappTemplate || !aisensyIntegrationId || verifying}
+                    onClick={handleVerifyTemplate}
+                    className="shrink-0"
+                  >
+                    {verifying ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Verifying</>
+                    ) : (
+                      <><ShieldCheck className="h-4 w-4 mr-1" /> Verify</>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enter the exact campaign name as it appears in your AISensy dashboard, then click Verify.
+                </p>
+                {verifyResult && (
+                  <div className={`flex items-center gap-2 mt-2 text-sm rounded-md px-3 py-2 ${
+                    verifyResult.exists 
+                      ? "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20" 
+                      : "bg-destructive/10 text-destructive border border-destructive/20"
+                  }`}>
+                    {verifyResult.exists ? (
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                    ) : (
+                      <XCircle className="h-4 w-4 shrink-0" />
+                    )}
+                    <span>{verifyResult.message}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
