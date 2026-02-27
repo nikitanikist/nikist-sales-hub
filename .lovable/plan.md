@@ -1,56 +1,47 @@
 
+# Use Dedicated Secret for Bolna WhatsApp Link Function
 
-# Add Webhook Secret Validation to `send-whatsapp-link`
+## The Problem
 
-## What Changes
+Currently `send-whatsapp-link` uses `WEBHOOK_SECRET_KEY` — the same secret protecting your other WhatsApp webhook functions. Since this secret will be visible in plain text in the Bolna dashboard config, it should be a separate, unique value.
 
-Add a `WEBHOOK_SECRET_KEY` check at the top of the function, reading the secret from `body.webhook_secret` (since Bolna can only pass it as a param field, not a header).
+## Changes
 
-## File: `supabase/functions/send-whatsapp-link/index.ts`
+### 1. Add New Secret: `BOLNA_WH_LINK_SECRET`
 
-After parsing the JSON body (line 16-17), add a webhook secret check **before** any other processing:
+Create a new dedicated secret with a random value (e.g., `bolna-wh-link-x8k2m9p4`) that is only used by this one function.
 
+### 2. Update `supabase/functions/send-whatsapp-link/index.ts`
+
+Change line 19 from:
 ```typescript
-// Right after: const body = await req.json();
-
 const expectedSecret = Deno.env.get("WEBHOOK_SECRET_KEY");
-if (!expectedSecret || body.webhook_secret !== expectedSecret) {
-  console.error("Unauthorized: invalid or missing webhook_secret");
-  return new Response(
-    JSON.stringify({ error: "Unauthorized" }),
-    { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
-}
 ```
-
-Also sanitize the log on line 17 so it doesn't print the webhook secret to logs:
-
+to:
 ```typescript
-const { webhook_secret, ...safeBody } = body;
-console.log("Received from Bolna:", JSON.stringify(safeBody));
+const expectedSecret = Deno.env.get("BOLNA_WH_LINK_SECRET");
 ```
 
-The `WEBHOOK_SECRET_KEY` secret is already configured in the environment, so no new secrets are needed.
+That's the only code change needed. Everything else stays the same.
 
-## Bolna Config (for your senior developer)
+### 3. Share with Senior Developer
 
-Once deployed, the Bolna custom function param should include:
+After deployment, provide:
+- **Function URL**: `https://swnpxkovxhinxzprxviz.supabase.co/functions/v1/send-whatsapp-link`
+- **The secret value** set for `BOLNA_WH_LINK_SECRET`
 
+They will use it in the Bolna custom function config:
 ```json
 "param": {
-    "webhook_secret": "<your-webhook-secret-value>",
+    "webhook_secret": "<the-bolna-wh-link-secret-value>",
     "whatsapp_number": "%(whatsapp_number)s",
-    "lead_name": "%(lead_name)s",
-    "workshop_name": "%(workshop_name)s",
-    "workshop_time": "%(workshop_time)s"
+    ...
 }
 ```
 
-## Summary
+## Files Changed
 
 | File | Change |
 |------|--------|
-| `supabase/functions/send-whatsapp-link/index.ts` | Add `body.webhook_secret` validation + sanitize logs |
-
-No database changes. No UI changes. No new secrets needed.
-
+| `supabase/functions/send-whatsapp-link/index.ts` | Replace `WEBHOOK_SECRET_KEY` with `BOLNA_WH_LINK_SECRET` |
+| New secret | Add `BOLNA_WH_LINK_SECRET` with a unique random value |
