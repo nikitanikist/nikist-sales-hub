@@ -1,53 +1,67 @@
 
-# Verify AISensy Template Feature
 
-## What This Does
-Adds a "Verify Template" button next to the template name input in Step 3 of Create Broadcast. When clicked, it calls an edge function that tests the campaign name against your selected AISensy account's API key.
+# Create `send-whatsapp-link` Edge Function for Bolna
 
-## How It Works (Technical)
+## Background
 
-AISensy has no "list templates" API, but their send API returns specific errors:
-- If the campaign name doesn't exist, it returns an error indicating "campaign not found"
-- If the parameter count is wrong, it tells us the expected count
+Bolna voice agents cannot substitute variables inside nested JSON structures (like `templateParams` arrays). After extensive testing with 4 different approaches, the only working solution is a middleman edge function that receives **flat key-value params** from Bolna and constructs the full nested AiSensy payload server-side.
 
-We'll use this behavior to verify templates.
+## What Will Be Created
 
-### Files to Create/Modify
+### 1. New Edge Function: `supabase/functions/send-whatsapp-link/index.ts`
 
-**1. New Edge Function: `supabase/functions/verify-aisensy-template/index.ts`**
-- Accepts: `integrationId` (to fetch the API key from DB) and `campaignName`
-- Fetches the AISensy API key from `organization_integrations` using the integration ID
-- Sends a test request to `https://backend.aisensy.com/campaign/t1/api/v2` with:
-  - The API key
-  - The campaign name
-  - A dummy destination (e.g., `+910000000000`) 
-  - Empty templateParams
-- Parses the response:
-  - Success or "invalid destination" = campaign exists
-  - "campaign not found" type error = campaign doesn't exist
-  - "wrong params count" type error = campaign exists, and we can extract expected param count
-- Returns verification result: `{ exists: boolean, paramCount?: number, message: string }`
+A simple, public endpoint (no JWT -- Bolna can't send auth headers) that:
 
-**2. Modify: `src/pages/calling/CreateBroadcastDialog.tsx`**
-- Add a "Verify Template" button next to the template name input
-- On click, calls the edge function with the selected AISensy account ID and template name
-- Shows verification result:
-  - Green checkmark + "Template verified" if found
-  - Red X + "Template not found" if not found  
-  - Shows expected parameter count if detected (e.g., "This template expects 3 variables")
-- Button shows loading spinner while verifying
+- Receives flat JSON from Bolna: `{ whatsapp_number, lead_name, workshop_name, workshop_time }`
+- Cleans the phone number (removes `+`, ensures `91` prefix)
+- Constructs the full AiSensy payload with `templateParams`, `media`, `userName`, etc.
+- Calls AiSensy API and returns the result
+- Uses `Deno.env.get("AISENSY_API_KEY")` for the API key (already configured as a secret)
+- Includes a configurable `whatsapp_group_link` with a default fallback URL
+- Uses `fetchWithRetry` (existing shared utility) for reliable AiSensy calls
 
-**3. Update: `supabase/config.toml`** (if needed)
-- Add `verify_jwt = false` for the new function
+**Security**: Protected by a `WEBHOOK_SECRET_KEY` check -- Bolna will send this as a header or param. The API key is stored as an environment secret, never hardcoded.
 
-## Limitations
-- AISensy's error messages may not always clearly indicate the exact number of parameters -- we'll extract what we can
-- We cannot get the actual variable *names* (like "name", "link", "date") since AISensy uses positional parameters ({{1}}, {{2}}, etc.), not named variables
-- The verification uses AISensy's send endpoint with a dummy number, so no actual message is sent
+**Template params mapping** (matching your "Bolna ai bot" template):
+- `{{1}}` = lead_name (fallback: "Friend")
+- `{{2}}` = workshop_name (fallback: "Workshop")
+- `{{3}}` = workshop_time (fallback: "Today")
+- `{{4}}` = whatsapp_group_link (fallback: configurable default URL)
 
-## User Experience
-In Step 3, after typing the template name and selecting an AISensy account:
-1. Click "Verify Template"
-2. See a loading state for 1-2 seconds
-3. Get confirmation: "Template 'welcome_av8' verified -- expects 5 parameters" (with a green badge)
-4. Or error: "Template 'welcome_av8' not found in this AISensy account" (with a red badge)
+### 2. Update `supabase/config.toml`
+
+Add the new function with `verify_jwt = false`.
+
+### 3. Bolna Configuration (for your reference)
+
+After deployment, configure Bolna's custom function tool with:
+- URL: `https://swnpxkovxhinxzprxviz.supabase.co/functions/v1/send-whatsapp-link`
+- Flat `param` body with `%(variable)s` substitution
+- No auth token needed (function validates via webhook secret or is open)
+
+## Technical Details
+
+| Item | Detail |
+|------|--------|
+| Function name | `send-whatsapp-link` |
+| Auth | `verify_jwt = false` (Bolna can't send JWT) |
+| API key source | `AISENSY_API_KEY` env secret (already configured) |
+| AiSensy endpoint | `https://backend.aisensy.com/campaign/t1/api/v2` |
+| Campaign name | Passed by Bolna or defaults to "Bolna ai bot" |
+| Media | Hardcoded image URL from the template |
+| Phone format | Strips `+`, ensures `91` prefix |
+| Retry | Uses existing `fetchWithRetry` with 10s timeout |
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `supabase/functions/send-whatsapp-link/index.ts` | **New** -- middleman edge function |
+| `supabase/config.toml` | Add `[functions.send-whatsapp-link]` with `verify_jwt = false` |
+
+## What This Does NOT Change
+
+- The existing `bolna-webhook` function remains untouched (it handles post-call webhooks and other tool calls)
+- No database changes needed
+- No UI changes needed -- this is a backend-only function called by Bolna
+
