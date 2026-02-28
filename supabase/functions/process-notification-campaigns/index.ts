@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { fetchWithTimeout } from "../_shared/fetchWithRetry.ts";
+import { fetchWithConnectionRetry } from "../_shared/fetchWithRetry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
 const STALE_THRESHOLD_MINUTES = 5;
 
 Deno.serve(async (req) => {
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
 
             // Async send: VPS responds immediately with { accepted: true }
             // The webhook (whatsapp-send-callback) will update the group to sent/failed
-            const sendResp = await fetchWithTimeout(`${vpsUrl}/send`, {
+            const sendResp = await fetchWithConnectionRetry(`${vpsUrl}/send`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -328,11 +328,10 @@ Deno.serve(async (req) => {
             });
           }
 
-          // Delay between sends (skip after last one)
-          if (i < claimedGroups.length - 1 && campaign.delay_seconds > 0) {
-            await new Promise((r) =>
-              setTimeout(r, campaign.delay_seconds * 1000)
-            );
+          // Delay between sends — always at least 500ms to prevent VPS memory spikes
+          if (i < claimedGroups.length - 1) {
+            const delayMs = Math.max(500, (campaign.delay_seconds || 0) * 1000);
+            await new Promise((r) => setTimeout(r, delayMs));
           }
         }
 

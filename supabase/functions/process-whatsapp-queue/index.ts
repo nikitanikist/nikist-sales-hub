@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.78.0";
-import { fetchWithTimeout } from '../_shared/fetchWithRetry.ts';
+import { fetchWithConnectionRetry } from '../_shared/fetchWithRetry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,7 +30,7 @@ function buildUrl(base: string, path: string): string {
   return `${cleanBase}${cleanPath}`;
 }
 
-// Try fetch with multiple auth header strategies (with timeout)
+// Try fetch with multiple auth header strategies (with connection retry)
 async function fetchWithAuthRetry(
   url: string,
   method: string,
@@ -44,7 +44,7 @@ async function fetchWithAuthRetry(
     
     console.log(`VPS auth attempt ${i + 1}/${AUTH_STRATEGIES.length} using header: ${Object.keys(authHeaders)[0]}`);
     
-    const response = await fetchWithTimeout(url, {
+    const response = await fetchWithConnectionRetry(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -118,10 +118,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Processing ${pendingMessages.length} pending messages`);
+    console.log(`Processing ${pendingMessages.length} pending messages sequentially`);
 
-    const results = await Promise.allSettled(
-      pendingMessages.map(async (msg) => {
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < pendingMessages.length; i++) {
+      const msg = pendingMessages[i];
+      
+      try {
         const group = msg.whatsapp_groups;
         if (!group?.group_jid) {
           throw new Error('Missing group configuration');
@@ -146,8 +151,6 @@ Deno.serve(async (req) => {
           ...(msg.media_url && { mediaUrl: msg.media_url }),
           ...(msg.media_type && { mediaType: msg.media_type }),
         });
-
-        console.log(`VPS request body for ${msg.id}:`, vpsBody);
 
         const { response, strategyUsed } = await fetchWithAuthRetry(
           vpsUrl,
@@ -177,20 +180,12 @@ Deno.serve(async (req) => {
           })
           .eq('id', msg.id);
 
-        return { id: msg.id, status: 'sent' };
-      })
-    );
-
-    // Handle failed messages
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      const msg = pendingMessages[i];
-      
-      if (result.status === 'rejected') {
+        successCount++;
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const retryCount = (msg.retry_count || 0) + 1;
         const maxRetries = 3;
         const isFinalFailure = retryCount >= maxRetries;
-        const errorMessage = result.reason?.message || 'Unknown error';
 
         await supabase
           .from('scheduled_whatsapp_messages')
@@ -240,11 +235,15 @@ Deno.serve(async (req) => {
             if (dlqError) console.error('DLQ insert error:', dlqError);
           });
         }
+
+        failCount++;
+      }
+
+      // 500ms delay between messages to prevent VPS memory spikes (skip after last)
+      if (i < pendingMessages.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
-
-    const successCount = results.filter((r) => r.status === 'fulfilled').length;
-    const failCount = results.filter((r) => r.status === 'rejected').length;
 
     console.log(`Processed: ${successCount} sent, ${failCount} failed`);
 

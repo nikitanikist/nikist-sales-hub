@@ -70,3 +70,37 @@ export async function fetchWithRetry(
 
   throw lastError || new Error(`Failed after ${maxRetries} retries: ${url}`);
 }
+
+/**
+ * Checks if an error is a connection reset error (VPS OOM/restart).
+ */
+function isConnectionResetError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return msg.includes('reset') || msg.includes('econnreset') || 
+           msg.includes('connection reset') || msg.includes('disconnect');
+  }
+  return false;
+}
+
+/**
+ * Fetch with a single retry specifically for "Connection reset by peer" errors.
+ * Uses a 2-second backoff before retrying. This is targeted at VPS OOM restarts
+ * and does NOT retry on other error types.
+ */
+export async function fetchWithConnectionRetry(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs: number = 10000
+): Promise<Response> {
+  try {
+    return await fetchWithTimeout(url, options, timeoutMs);
+  } catch (error) {
+    if (isConnectionResetError(error)) {
+      console.log(`Connection reset detected for ${url}, retrying in 2s...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return await fetchWithTimeout(url, options, timeoutMs);
+    }
+    throw error;
+  }
+}
