@@ -1,60 +1,76 @@
 
 
-## Plan: Reduce VPS Load to Prevent OOM Crashes
+## Plan: Dynamic Registration Confirmation Rules (Zero Impact on Existing Integrations)
 
-### Problem
-The VPS (3.8GB RAM, 512MB Node.js limit) crashes under concurrent request load from two edge functions, causing "Connection reset by peer" errors in campaigns. The VPS developer has added swap + memory limits, but we need to reduce the load from our side too.
+### Scope and Safety Guarantee
 
-### Changes (Safe - No Impact on WhatsApp Connections)
+This feature **only adds** a new table and a new UI section. It **does not modify** any existing:
+- WhatsApp session/VPS integration (`process-whatsapp-queue`, `process-notification-campaigns`, `vps-whatsapp-proxy`)
+- Zoom integration (`create-zoom-link`, Zoom OAuth configs)
+- Calendly integration (`calendly-webhook`, `schedule-calendly-call`)
+- AISensy call reminder flow (`send-whatsapp-reminder`, `process-due-reminders`, `closer_notification_configs`)
+- Existing `organization_integrations` table structure or data
+- Any webhook endpoints other than `ingest-tagmango`
 
-These changes only affect how quickly we send HTTP requests to the VPS. They do NOT touch WhatsApp sessions, authentication, or message format.
-
----
-
-### 1. Reduce batch concurrency in `process-notification-campaigns`
-
-**File:** `supabase/functions/process-notification-campaigns/index.ts`
-
-- Change `BATCH_SIZE` from `10` to `5` (line 10)
-- Add a **minimum 500ms delay** between each send, even when `delay_seconds` is 0. Currently, if `delay_seconds` is 0, messages fire back-to-back with no gap (line 332). We'll add a floor:
-  ```
-  // Current: only delays if delay_seconds > 0
-  // New: always delay at least 500ms between sends
-  const delayMs = Math.max(500, (campaign.delay_seconds || 0) * 1000);
-  ```
-- Add retry logic for "connection reset" errors: if the error message contains "reset" or "ECONNRESET", wait 2 seconds and retry once before marking as failed
-
-### 2. Limit concurrency in `process-whatsapp-queue`
-
-**File:** `supabase/functions/process-whatsapp-queue/index.ts`
-
-- Currently sends up to **50 messages simultaneously** via `Promise.allSettled` (line 123). This is the biggest spike source.
-- Replace with **sequential processing** with a 500ms delay between each message
-- This is a safe change — messages are still sent in order, just not all at once
-
-### 3. Add connection-reset-specific retry in shared utility
-
-**File:** `supabase/functions/_shared/fetchWithRetry.ts`
-
-- Add a new helper `fetchWithConnectionRetry` that specifically handles "Connection reset by peer" errors with a 2-second backoff and 1 retry
-- This is a targeted retry for infrastructure errors only, separate from the general retry logic
+The **only file modified** on the backend is `ingest-tagmango/index.ts`, and the change is **additive** — it adds a database lookup *before* the existing hardcoded logic, falling back to the current behavior if no rule is found.
 
 ---
 
-### Technical Details
+### Implementation Steps
 
-**What stays the same:**
-- Message format and content sent to VPS
-- WhatsApp session IDs and authentication
-- Campaign status tracking and dead letter queue logic
-- Webhook processing (receipts, callbacks)
+#### 1. Create `registration_confirmation_rules` table
 
-**What changes:**
-- Speed of sending (slightly slower, but much more reliable)
-- Memory pressure on VPS (significantly reduced)
+New table with columns: `organization_id`, `trigger_platform` (default `tagmango`), `trigger_id` (Mango ID), `label`, `is_active`, `aisensy_integration_id` (FK to `organization_integrations`), `template_name`, `variable_mapping` (JSONB ordered array), `google_sheet_webhook_url`, `sheet_send_duplicates`. RLS scoped to org admins.
 
-**Expected impact:**
-- Campaign delivery time may increase slightly (e.g., 100 groups takes ~50 seconds instead of ~10 seconds)
-- Connection reset errors should drop to near-zero
-- No more OOM restarts on the VPS
+#### 2. Seed existing hardcoded rules
+
+Migration inserts the 2 current Nikist rules (Crypto + YouTube) into the new table, mapping them to the existing AISensy FREE integration.
+
+#### 3. Update `ingest-tagmango` edge function (additive change only)
+
+**Before** the existing `if (mangoId === TARGET_MANGO_ID_CRYPTO)` block (line 688), add:
+- Query `registration_confirmation_rules` by `trigger_id = mangoId`
+- If a matching active rule is found:
+  - Resolve AISensy credentials from `organization_integrations` via `aisensy_integration_id`
+  - Build `templateParams` from `variable_mapping` JSONB (resolving sources: `registrant_name`, `workshop_title`, `workshop_date`, `registrant_email`, `registrant_phone`, `static`)
+  - Send AISensy API call + optional Google Sheet webhook
+  - **Skip** the hardcoded block below (set a flag)
+- If no rule found → **fall through to existing hardcoded logic unchanged** (safety net)
+
+This means: even if the migration or seed data has an issue, the current behavior continues working exactly as before.
+
+#### 4. Add UI in AISensy Settings
+
+New "Registration Automations" card at the bottom of `AISensySettings.tsx`:
+- Table listing existing rules
+- "Add Rule" dialog with step-by-step fields:
+  - Platform dropdown (TagMango only for now)
+  - Product/Mango ID text input
+  - Label text input
+  - AISensy account dropdown (from existing org integrations)
+  - Template name text input
+  - Variable mapping: ordered rows ({{1}}, {{2}}, ...) each with source dropdown (`Registrant Name`, `Workshop Title`, `Workshop Date`, `Registrant Email`, `Registrant Phone`, `Static Value`) + text input for static values
+  - Google Sheet webhook URL (optional)
+  - "Send for duplicates" toggle
+- Edit/delete/activate-deactivate existing rules
+
+### Files Changed
+
+| File | Change Type | Risk |
+|---|---|---|
+| Migration SQL | New table + seed | None — additive |
+| `supabase/functions/ingest-tagmango/index.ts` | Add dynamic lookup before hardcoded block | Zero — falls back to existing code |
+| `src/pages/settings/AISensySettings.tsx` | Add Registration Automations section | Zero — new UI section appended |
+| `src/components/settings/RegistrationAutomationRules.tsx` | New component | None — new file |
+
+### What Is NOT Touched
+
+- `send-whatsapp-reminder` — call reminder flow unchanged
+- `process-due-reminders` — reminder scheduling unchanged
+- `closer_notification_configs` — closer configs unchanged
+- `organization_integrations` — table/data unchanged
+- `closer_integrations` — unchanged
+- All WhatsApp VPS functions — unchanged
+- All Zoom/Calendly functions — unchanged
+- All campaign/queue processing — unchanged
 
