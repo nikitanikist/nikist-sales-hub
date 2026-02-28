@@ -695,118 +695,121 @@ Deno.serve(async (req) => {
           .from('registration_confirmation_rules')
           .select('*, organization_integrations:aisensy_integration_id(config)')
           .eq('trigger_id', mangoId)
-          .eq('is_active', true)
           .maybeSingle();
 
         if (ruleError) {
           console.error('Error looking up registration rule:', ruleError);
           // Fall through to hardcoded logic
         } else if (rule) {
-          console.log('Found dynamic registration rule:', rule.label);
+          console.log('Found dynamic registration rule:', rule.label, '| is_active:', rule.is_active);
           handledByDynamicRule = true;
 
-          // Resolve AISensy credentials from the linked integration
-          const integrationConfig = (rule as any).organization_integrations?.config;
-          const ruleApiKey = integrationConfig?.api_key;
-          const ruleSource = integrationConfig?.source;
+          if (rule.is_active) {
+            // Resolve AISensy credentials from the linked integration
+            const integrationConfig = (rule as any).organization_integrations?.config;
+            const ruleApiKey = integrationConfig?.api_key;
+            const ruleSource = integrationConfig?.source;
 
-          if (!ruleApiKey || !ruleSource) {
-            console.error('Missing AISensy credentials for rule:', rule.label);
-          } else {
-            // Build templateParams from variable_mapping JSONB
-            const variableMapping = (rule.variable_mapping as any[]) || [];
-            const sortedMapping = [...variableMapping].sort((a, b) => a.position - b.position);
-
-            const templateParams = sortedMapping.map((mapping) => {
-              switch (mapping.source) {
-                case 'registrant_name':
-                  return payload.name.trim();
-                case 'workshop_title':
-                  return workshopTitle;
-                case 'workshop_date':
-                  return workshopDate;
-                case 'registrant_email':
-                  return normalizedEmail;
-                case 'registrant_phone':
-                  return formattedPhone;
-                case 'static':
-                  return mapping.value || '';
-                default:
-                  return '';
-              }
-            });
-
-            const whatsappPayload = {
-              apiKey: ruleApiKey,
-              campaignName: rule.template_name,
-              destination: formattedPhone,
-              userName: payload.name.trim(),
-              templateParams,
-              source: ruleSource,
-              buttons: [],
-            };
-
-            console.log(`Sending dynamic rule "${rule.label}" WhatsApp confirmation`);
-
-            const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(whatsappPayload),
-            }, { maxRetries: 3, timeoutMs: 10000 });
-
-            const whatsappResult = await whatsappResponse.text();
-            console.log('Dynamic rule WhatsApp API response:', whatsappResponse.status, whatsappResult);
-
-            if (!whatsappResponse.ok) {
-              console.error('Dynamic rule WhatsApp API error:', whatsappResult);
+            if (!ruleApiKey || !ruleSource) {
+              console.error('Missing AISensy credentials for rule:', rule.label);
             } else {
-              console.log(`Dynamic rule "${rule.label}" WhatsApp confirmation sent successfully`);
-            }
-          }
+              // Build templateParams from variable_mapping JSONB
+              const variableMapping = (rule.variable_mapping as any[]) || [];
+              const sortedMapping = [...variableMapping].sort((a, b) => a.position - b.position);
 
-          // Google Sheet webhook (if configured)
-          const shouldSendSheet = !isDuplicateAssignment || rule.sheet_send_duplicates;
-          if (rule.google_sheet_webhook_url && shouldSendSheet) {
-            try {
-              const registrationDate = new Date().toLocaleString('en-IN', {
-                timeZone: 'Asia/Kolkata',
-                year: 'numeric',
-                month: 'short',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
+              const templateParams = sortedMapping.map((mapping) => {
+                switch (mapping.source) {
+                  case 'registrant_name':
+                    return payload.name.trim();
+                  case 'workshop_title':
+                    return workshopTitle;
+                  case 'workshop_date':
+                    return workshopDate;
+                  case 'registrant_email':
+                    return normalizedEmail;
+                  case 'registrant_phone':
+                    return formattedPhone;
+                  case 'static':
+                    return mapping.value || '';
+                  default:
+                    return '';
+                }
               });
 
-              const sheetPayload = {
-                name: payload.name.trim(),
-                email: normalizedEmail,
-                countryCode: countryCode,
-                phone: phoneValue.trim(),
-                service: normalizedWorkshopName,
-                registrationDate,
-                utmTerm: String(payload['Utm Term'] || ''),
-                utmSource: payload['Utm Source'] || '',
-                utmMedium: payload['Utm Medium'] || '',
-                utmContent: String(payload['Utm Content'] || ''),
-                utmCampaign: String(payload['Utm Campaign'] || ''),
+              const whatsappPayload = {
+                apiKey: ruleApiKey,
+                campaignName: rule.template_name,
+                destination: formattedPhone,
+                userName: payload.name.trim(),
+                templateParams,
+                source: ruleSource,
+                buttons: [],
               };
 
-              console.log('Sending data to Google Sheet via dynamic rule');
+              console.log(`Sending dynamic rule "${rule.label}" WhatsApp confirmation`);
 
-              const sheetResponse = await fetchWithRetry(rule.google_sheet_webhook_url, {
+              const whatsappResponse = await fetchWithRetry('https://backend.aisensy.com/campaign/t1/api/v2', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(sheetPayload),
-              }, { maxRetries: 2, timeoutMs: 10000 });
+                body: JSON.stringify(whatsappPayload),
+              }, { maxRetries: 3, timeoutMs: 10000 });
 
-              const sheetResult = await sheetResponse.text();
-              console.log('Dynamic rule Google Sheet response:', sheetResponse.status, sheetResult);
-            } catch (sheetError) {
-              console.error('Error sending to Google Sheet via dynamic rule:', sheetError);
+              const whatsappResult = await whatsappResponse.text();
+              console.log('Dynamic rule WhatsApp API response:', whatsappResponse.status, whatsappResult);
+
+              if (!whatsappResponse.ok) {
+                console.error('Dynamic rule WhatsApp API error:', whatsappResult);
+              } else {
+                console.log(`Dynamic rule "${rule.label}" WhatsApp confirmation sent successfully`);
+              }
             }
-          } else if (rule.google_sheet_webhook_url && !shouldSendSheet) {
-            console.log('Skipping Google Sheet for duplicate registration (rule config)');
+
+            // Google Sheet webhook (if configured)
+            const shouldSendSheet = !isDuplicateAssignment || rule.sheet_send_duplicates;
+            if (rule.google_sheet_webhook_url && shouldSendSheet) {
+              try {
+                const registrationDate = new Date().toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  year: 'numeric',
+                  month: 'short',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true,
+                });
+
+                const sheetPayload = {
+                  name: payload.name.trim(),
+                  email: normalizedEmail,
+                  countryCode: countryCode,
+                  phone: phoneValue.trim(),
+                  service: normalizedWorkshopName,
+                  registrationDate,
+                  utmTerm: String(payload['Utm Term'] || ''),
+                  utmSource: payload['Utm Source'] || '',
+                  utmMedium: payload['Utm Medium'] || '',
+                  utmContent: String(payload['Utm Content'] || ''),
+                  utmCampaign: String(payload['Utm Campaign'] || ''),
+                };
+
+                console.log('Sending data to Google Sheet via dynamic rule');
+
+                const sheetResponse = await fetchWithRetry(rule.google_sheet_webhook_url, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(sheetPayload),
+                }, { maxRetries: 2, timeoutMs: 10000 });
+
+                const sheetResult = await sheetResponse.text();
+                console.log('Dynamic rule Google Sheet response:', sheetResponse.status, sheetResult);
+              } catch (sheetError) {
+                console.error('Error sending to Google Sheet via dynamic rule:', sheetError);
+              }
+            } else if (rule.google_sheet_webhook_url && !shouldSendSheet) {
+              console.log('Skipping Google Sheet for duplicate registration (rule config)');
+            }
+          } else {
+            console.log(`Rule "${rule.label}" exists but is inactive, skipping confirmation`);
           }
         }
       } catch (ruleErr) {
