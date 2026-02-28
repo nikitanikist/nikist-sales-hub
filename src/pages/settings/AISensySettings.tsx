@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { Plus, MessageCircle, Save, Loader2, User, Info, Trash2, PhoneCall } from "lucide-react";
 import { IntegrationSection } from "@/components/settings/IntegrationSection";
+import { RegistrationAutomationRules } from "@/components/settings/RegistrationAutomationRules";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -159,7 +160,10 @@ export function AISensySettings({ integrations, onSave, onDelete, isSaving }: AI
         isSaving={isSaving}
       />
 
-      {/* Section B: Per-Closer Notification Configuration */}
+      {/* Section B: Registration Automations */}
+      <RegistrationAutomationRules integrations={integrations} />
+
+      {/* Section C: Per-Closer Notification Configuration */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

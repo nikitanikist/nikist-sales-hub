@@ -3069,6 +3069,69 @@ export type Database = {
         }
         Relationships: []
       }
+      registration_confirmation_rules: {
+        Row: {
+          aisensy_integration_id: string | null
+          created_at: string
+          google_sheet_webhook_url: string | null
+          id: string
+          is_active: boolean
+          label: string
+          organization_id: string
+          sheet_send_duplicates: boolean
+          template_name: string
+          trigger_id: string
+          trigger_platform: string
+          updated_at: string
+          variable_mapping: Json
+        }
+        Insert: {
+          aisensy_integration_id?: string | null
+          created_at?: string
+          google_sheet_webhook_url?: string | null
+          id?: string
+          is_active?: boolean
+          label: string
+          organization_id: string
+          sheet_send_duplicates?: boolean
+          template_name: string
+          trigger_id: string
+          trigger_platform?: string
+          updated_at?: string
+          variable_mapping?: Json
+        }
+        Update: {
+          aisensy_integration_id?: string | null
+          created_at?: string
+          google_sheet_webhook_url?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          organization_id?: string
+          sheet_send_duplicates?: boolean
+          template_name?: string
+          trigger_id?: string
+          trigger_platform?: string
+          updated_at?: string
+          variable_mapping?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_confirmation_rules_aisensy_integration_id_fkey"
+            columns: ["aisensy_integration_id"]
+            isOneToOne: false
+            referencedRelation: "organization_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_confirmation_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales: {
         Row: {
           amount: number
