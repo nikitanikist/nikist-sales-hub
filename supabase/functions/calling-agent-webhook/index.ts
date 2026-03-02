@@ -16,19 +16,34 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const body = await req.json();
-    console.log("Calling Agent Webhook received:", JSON.stringify(body).slice(0, 500));
-
     const executionId = body.id || body.execution_id;
     const telephonyData = body.telephony_data || {};
     const toNumber = telephonyData.to_number || "";
     const callStatus = body.status || "completed";
-    const duration = telephonyData.duration || body.conversation_duration || body.conversation_time || 0;
+    const duration = telephonyData.duration || body.conversation_duration || body.conversation_time || body.duration || 0;
     const cost = body.total_cost || 0;
     const transcript = body.transcript || "";
     const recordingUrl = telephonyData.recording_url || "";
     const extractedData = body.extracted_data || body.custom_extractions || null;
     const summary = body.summary || null;
     const contextDetails = body.context_details || null;
+
+    // Detailed field-level logging for debugging
+    console.log("Calling Agent Webhook fields:", JSON.stringify({
+      executionId,
+      callStatus,
+      toNumber,
+      "telephonyData.duration": telephonyData.duration,
+      "body.conversation_duration": body.conversation_duration,
+      "body.conversation_time": body.conversation_time,
+      "body.duration": body.duration,
+      resolvedDuration: duration,
+      cost,
+      hasSummary: !!summary,
+      hasExtractedData: !!extractedData,
+      hasTranscript: !!transcript,
+      transcriptLength: transcript?.length || 0,
+    }));
     const batchId = body.batch_id || "";
 
     // Find matching call record
@@ -107,6 +122,31 @@ Deno.serve(async (req) => {
     const safeCost = Number(cost) || 0;
 
     if (terminalStatuses.includes(mappedStatus)) {
+      // Estimate duration from timestamps if Bolna reported 0 but a real conversation happened
+      let finalDuration = safeDuration;
+      if (finalDuration === 0 && transcript && transcript.length > 20) {
+        // Try to estimate from call_started_at
+        if (callRecord.call_started_at) {
+          const startedAt = new Date(callRecord.call_started_at).getTime();
+          const endedAt = callRecord.call_ended_at ? new Date(callRecord.call_ended_at).getTime() : Date.now();
+          const estimatedSeconds = Math.floor((endedAt - startedAt) / 1000);
+          if (estimatedSeconds > 0 && estimatedSeconds < 7200) {
+            finalDuration = estimatedSeconds;
+            console.log(`Duration estimated from timestamps: ${finalDuration}s`);
+          }
+        }
+      }
+
+      // Backfill call_started_at if not set
+      if (!callRecord.call_started_at) {
+        const startTime = finalDuration > 0
+          ? new Date(Date.now() - finalDuration * 1000).toISOString()
+          : new Date().toISOString();
+        await supabase.from("calling_agent_calls").update({
+          call_started_at: startTime,
+        }).eq("id", callRecord.id);
+      }
+
       // Use atomic transition function
       const { data: transitionResult, error: transErr } = await supabase.rpc(
         "transition_agent_call_to_terminal",
@@ -115,7 +155,7 @@ Deno.serve(async (req) => {
           p_status: mappedStatus,
           p_outcome: outcome,
           p_bolna_call_id: executionId || null,
-          p_duration: safeDuration,
+          p_duration: finalDuration,
           p_cost: safeCost,
           p_transcript: transcript || null,
           p_summary: summary || null,
@@ -131,7 +171,7 @@ Deno.serve(async (req) => {
           bolna_call_id: executionId || callRecord.bolna_call_id,
           status: mappedStatus,
           outcome: outcome || callRecord.outcome,
-          call_duration_seconds: safeDuration || callRecord.call_duration_seconds,
+          call_duration_seconds: finalDuration || callRecord.call_duration_seconds,
           total_cost: safeCost || callRecord.total_cost,
           transcript: transcript || callRecord.transcript,
           summary: summary || callRecord.summary,
@@ -148,13 +188,18 @@ Deno.serve(async (req) => {
         }).eq("id", callRecord.id);
       }
 
-      console.log(`Agent call ${callRecord.id} → ${mappedStatus}, cost: ${safeCost}, duration: ${safeDuration}s`);
+      console.log(`Agent call ${callRecord.id} → ${mappedStatus}, cost: ${safeCost}, duration: ${finalDuration}s`);
     } else {
       // Non-terminal: just update status
-      await supabase.from("calling_agent_calls").update({
+      const nonTerminalUpdate: Record<string, any> = {
         bolna_call_id: executionId || callRecord.bolna_call_id,
         status: mappedStatus,
-      }).eq("id", callRecord.id);
+      };
+      // Set call_started_at when call goes in-progress
+      if (mappedStatus === "in-progress" && !callRecord.call_started_at) {
+        nonTerminalUpdate.call_started_at = new Date().toISOString();
+      }
+      await supabase.from("calling_agent_calls").update(nonTerminalUpdate).eq("id", callRecord.id);
     }
 
     return new Response(JSON.stringify({ success: true }), {
