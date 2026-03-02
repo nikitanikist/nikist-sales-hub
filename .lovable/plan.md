@@ -1,26 +1,25 @@
 
 
-## Fix: CSV Upload Not Advancing to Step 3
+## Fix: Campaign "Run Now" Fails with 404 + UI Polish
 
-### Problem
-In the last edit, the `setStep(3)` call was accidentally removed from the CSV parsing logic. After uploading a CSV, `contacts` and `csvHeaders` are set, but the dialog stays on step 2 because it never transitions to the review step.
+### Root Cause: Edge Functions Not Deployed
+The "Run Now" button fails because the `start-calling-agent-campaign` edge function has not been deployed yet. The network request returns a `404 NOT_FOUND` error. Both new edge functions need to be deployed:
+- `start-calling-agent-campaign`
+- `calling-agent-webhook`
 
-### Solution
-Add `setStep(3)` back after `setContacts(parsed)` on line 116 of `CreateAgentCampaignDialog.tsx`.
+### Plan
 
-### Technical Change
-**File: `src/pages/calling-agent/CreateAgentCampaignDialog.tsx`** (line ~116)
+**1. Deploy Edge Functions**
+Deploy both `start-calling-agent-campaign` and `calling-agent-webhook` so they are live and accessible.
 
-After:
-```ts
-setCsvHeaders(headers);
-setContacts(parsed);
-```
+**2. UI Polish on Step 3 Preview**
+Minor improvements to the review table:
+- Capitalize column headers more cleanly (e.g., "Contact Number" instead of "contact number")
+- Ensure the table scrolls horizontally on smaller dialogs so all columns remain visible
 
-Add:
-```ts
-setStep(3);
-```
+### Technical Details
 
-This is a one-line fix.
+- The edge functions already exist in `supabase/functions/` but were never deployed. This is the sole reason campaigns fail -- the function invocation returns 404.
+- No code changes are needed for the deployment fix. The `calling-agent-webhook` also needs deployment so that post-call data from Bolna can be received.
+- For the UI, the `csvHeaders` state already uses `.toLowerCase()` on import. The `capitalize` CSS class on `TableHead` handles display, but we can improve by using proper title-case formatting (e.g., "Contact Number" not "contact number") via a small formatting utility in the table header rendering.
 
