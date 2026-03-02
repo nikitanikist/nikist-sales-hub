@@ -114,6 +114,7 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
 
         setCsvHeaders(headers);
         setContacts(parsed);
+        setStep(3);
       } catch {
         setCsvError("Failed to parse CSV file.");
       }
