@@ -193,7 +193,7 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetState(); onOpenChange(o); }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Start Calling Agent</DialogTitle>
           <div className="flex items-center gap-2 mt-2">
