@@ -6,7 +6,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarFooter, SidebarTrigger, useSidebar, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield, Rocket, Settings, Activity, MessageSquare, CreditCard, Video } from "lucide-react";
+import { Building2, LayoutDashboard, Users, UserCog, Calendar, DollarSign, TrendingUp, LogOut, User, Phone, Package, ClipboardList, UsersRound, GraduationCap, Wallet, ChevronDown, Shield, Rocket, Settings, Activity, MessageSquare, CreditCard, Video, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -378,7 +378,7 @@ const AppLayoutContent = () => {
       children: [
         { title: "Workshop Notification", path: "/operations/workshop-notification", permissionKey: 'operations' as PermissionKey, moduleSlug: 'workshops' },
         { title: "Dynamic Links", path: "/operations/dynamic-links", permissionKey: 'operations' as PermissionKey },
-        
+        { title: "Calling Agent", path: "/operations/calling-agent", permissionKey: 'operations' as PermissionKey },
       ],
     },
     

@@ -43,6 +43,9 @@ import { WhatsAppDashboard, SendNotification, CreateCommunity, Campaigns, Campai
 import CallingDashboard from "./pages/calling/CallingDashboard";
 import CallingCampaigns from "./pages/calling/CallingCampaigns";
 import CallingCampaignDetail from "./pages/calling/CallingCampaignDetail";
+import CallingAgentDashboard from "./pages/calling-agent/CallingAgentDashboard";
+import CallingAgentCampaigns from "./pages/calling-agent/CallingAgentCampaigns";
+import CallingAgentDetail from "./pages/calling-agent/CallingAgentDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -113,6 +116,10 @@ const App = () => (
               <Route path="/calling/dashboard" element={<ProtectedRoute><ErrorBoundary><CallingDashboard /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/calling/campaigns" element={<ProtectedRoute><ErrorBoundary><CallingCampaigns /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/calling/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CallingCampaignDetail /></ErrorBoundary></ProtectedRoute>} />
+              {/* Calling Agent Module */}
+              <Route path="/operations/calling-agent" element={<ProtectedRoute><ErrorBoundary><CallingAgentDashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/operations/calling-agent/campaigns" element={<ProtectedRoute><ErrorBoundary><CallingAgentCampaigns /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/operations/calling-agent/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CallingAgentDetail /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/super-admin" element={<ErrorBoundary><SuperAdminOverview /></ErrorBoundary>} />
               <Route path="/super-admin/organizations" element={<ErrorBoundary><SuperAdminOrganizations /></ErrorBoundary>} />
               <Route path="/super-admin/plans" element={<ErrorBoundary><SuperAdminPlans /></ErrorBoundary>} />

@@ -125,3 +125,9 @@ verify_jwt = false
 
 [functions.reschedule-lead]
 verify_jwt = false
+
+[functions.calling-agent-webhook]
+verify_jwt = false
+
+[functions.start-calling-agent-campaign]
+verify_jwt = false

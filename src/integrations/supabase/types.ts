@@ -440,6 +440,159 @@ export type Database = {
           },
         ]
       }
+      calling_agent_calls: {
+        Row: {
+          bolna_call_id: string | null
+          call_duration_seconds: number | null
+          call_ended_at: string | null
+          call_started_at: string | null
+          campaign_id: string
+          contact_name: string | null
+          contact_phone: string
+          context_details: Json | null
+          created_at: string
+          extracted_data: Json | null
+          id: string
+          organization_id: string
+          outcome: string | null
+          recording_url: string | null
+          status: string
+          summary: string | null
+          total_cost: number | null
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          bolna_call_id?: string | null
+          call_duration_seconds?: number | null
+          call_ended_at?: string | null
+          call_started_at?: string | null
+          campaign_id: string
+          contact_name?: string | null
+          contact_phone: string
+          context_details?: Json | null
+          created_at?: string
+          extracted_data?: Json | null
+          id?: string
+          organization_id: string
+          outcome?: string | null
+          recording_url?: string | null
+          status?: string
+          summary?: string | null
+          total_cost?: number | null
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bolna_call_id?: string | null
+          call_duration_seconds?: number | null
+          call_ended_at?: string | null
+          call_started_at?: string | null
+          campaign_id?: string
+          contact_name?: string | null
+          contact_phone?: string
+          context_details?: Json | null
+          created_at?: string
+          extracted_data?: Json | null
+          id?: string
+          organization_id?: string
+          outcome?: string | null
+          recording_url?: string | null
+          status?: string
+          summary?: string | null
+          total_cost?: number | null
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calling_agent_calls_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "calling_agent_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calling_agent_calls_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calling_agent_campaigns: {
+        Row: {
+          bolna_agent_id: string
+          bolna_agent_name: string | null
+          bolna_batch_id: string | null
+          calls_completed: number
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          organization_id: string
+          scheduled_at: string | null
+          started_at: string | null
+          status: string
+          total_contacts: number
+          total_cost: number
+          updated_at: string
+        }
+        Insert: {
+          bolna_agent_id: string
+          bolna_agent_name?: string | null
+          bolna_batch_id?: string | null
+          calls_completed?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number
+          total_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          bolna_agent_id?: string
+          bolna_agent_name?: string | null
+          bolna_batch_id?: string | null
+          calls_completed?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number
+          total_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calling_agent_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calling_agent_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       closer_integrations: {
         Row: {
           closer_id: string
@@ -5169,6 +5322,24 @@ export type Database = {
           workshop_id: string
           workshop_name: string
           workshop_title: string
+        }[]
+      }
+      transition_agent_call_to_terminal: {
+        Args: {
+          p_bolna_call_id?: string
+          p_call_id: string
+          p_cost?: number
+          p_duration?: number
+          p_extracted_data?: Json
+          p_outcome?: string
+          p_recording_url?: string
+          p_status: string
+          p_summary?: string
+          p_transcript?: string
+        }
+        Returns: {
+          campaign_id: string
+          was_first_transition: boolean
         }[]
       }
       transition_call_to_terminal: {
