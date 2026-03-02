@@ -17,6 +17,7 @@ interface Contact {
   name: string;
   phone: string;
   context: Record<string, string>;
+  rawColumns: Record<string, string>;
 }
 
 interface CreateAgentCampaignDialogProps {
@@ -34,6 +35,7 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
   const [campaignName, setCampaignName] = useState("");
   const [creating, setCreating] = useState(false);
   const [csvError, setCsvError] = useState("");
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch agents
@@ -65,7 +67,14 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
 
         const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
         const phoneIdx = headers.findIndex((h) => h.includes("phone") || h.includes("number") || h.includes("contact_number"));
-        const nameIdx = headers.findIndex((h) => h.includes("name") || h.includes("lead_name"));
+
+        // Priority-based name detection
+        const exactNameMatches = ["lead_name", "contact_name", "customer_name"];
+        const excludeNameColumns = ["class_name", "event_name", "workshop_name", "batch_name", "course_name"];
+        let nameIdx = headers.findIndex((h) => exactNameMatches.includes(h));
+        if (nameIdx === -1) {
+          nameIdx = headers.findIndex((h) => h.includes("name") && !excludeNameColumns.includes(h));
+        }
 
         if (phoneIdx === -1) {
           setCsvError("CSV must have a column containing 'phone' or 'number'.");
@@ -78,10 +87,15 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
           const phone = cols[phoneIdx] || "";
           if (!phone) continue;
 
+          // Store ALL non-phone columns as context (including name column)
           const context: Record<string, string> = {};
+          const rawColumns: Record<string, string> = {};
           headers.forEach((h, idx) => {
-            if (idx !== phoneIdx && idx !== nameIdx && cols[idx]) {
-              context[h] = cols[idx];
+            if (cols[idx]) {
+              rawColumns[h] = cols[idx];
+              if (idx !== phoneIdx) {
+                context[h] = cols[idx];
+              }
             }
           });
 
@@ -89,6 +103,7 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
             name: nameIdx >= 0 ? cols[nameIdx] || "" : "",
             phone: phone.startsWith("+") ? phone : `+91${phone.replace(/^91/, "")}`,
             context,
+            rawColumns,
           });
         }
 
@@ -97,8 +112,8 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
           return;
         }
 
+        setCsvHeaders(headers);
         setContacts(parsed);
-        setStep(3);
       } catch {
         setCsvError("Failed to parse CSV file.");
       }
@@ -170,6 +185,7 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
     setStep(1);
     setSelectedAgent(null);
     setContacts([]);
+    setCsvHeaders([]);
     setCampaignName("");
     setCsvError("");
   };
@@ -258,20 +274,22 @@ export function CreateAgentCampaignDialog({ open, onOpenChange, onCreated }: Cre
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Phone</TableHead>
+                    {csvHeaders.map((h) => (
+                      <TableHead key={h} className="capitalize whitespace-nowrap">{h.replace(/_/g, " ")}</TableHead>
+                    ))}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {contacts.slice(0, 10).map((c, i) => (
                     <TableRow key={i}>
-                      <TableCell className="text-sm">{c.name || "-"}</TableCell>
-                      <TableCell className="text-sm">{c.phone}</TableCell>
+                      {csvHeaders.map((h) => (
+                        <TableCell key={h} className="text-sm whitespace-nowrap">{c.rawColumns[h] || "-"}</TableCell>
+                      ))}
                     </TableRow>
                   ))}
                   {contacts.length > 10 && (
                     <TableRow>
-                      <TableCell colSpan={2} className="text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={csvHeaders.length} className="text-center text-sm text-muted-foreground">
                         ...and {contacts.length - 10} more
                       </TableCell>
                     </TableRow>
