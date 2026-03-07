@@ -194,8 +194,9 @@ export function UpdateCohortEmiDialog({
       setNewPlatformFees("");
       setNewPaymentPlatform("UPI (IDFC)");
       setNewRemarks("");
+      setNewSelectedCloserId(closerId || null);
     }
-  }, [open, cashReceived, dueAmount, offerAmount]);
+  }, [open, cashReceived, dueAmount, offerAmount, closerId]);
 
   const { data: emiPayments, isLoading: isLoadingEmi } = useQuery({
     queryKey: ["cohort-emi-payments", studentId],
