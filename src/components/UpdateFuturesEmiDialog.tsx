@@ -358,8 +358,9 @@ export function UpdateFuturesEmiDialog({
     const amount = parseFloat(emiAmount);
     const hasEmiToSave = !isNaN(amount) && amount > 0;
     const offerAmountChanged = newOfferAmount !== offerAmount;
+    const closerChanged = canEditOfferAndCloser && newSelectedCloserId !== (closerId || null);
 
-    if (!hasEmiToSave && !offerAmountChanged) {
+    if (!hasEmiToSave && !offerAmountChanged && !closerChanged) {
       toast({ title: "Nothing to save", description: "No changes detected" });
       return;
     }
@@ -437,6 +438,12 @@ export function UpdateFuturesEmiDialog({
         if (!offerAmountChanged) {
           updatePayload.due_amount = newDueAmount;
         }
+      }
+
+      // Update closer if changed (admin/manager only)
+      if (canEditOfferAndCloser && newSelectedCloserId !== (closerId || null)) {
+        updatePayload.closer_id = newSelectedCloserId;
+        messages.push("Closer updated");
       }
 
       if (Object.keys(updatePayload).length > 0) {
