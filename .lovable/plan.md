@@ -1,41 +1,43 @@
 
+## Fix: Missing Duration, Summary, and Extracted Data in Calling Agent
 
-## Plan: Include Discontinued Students' Cash Received in Main Totals
+### Root Cause Analysis
 
-### Problem
+After inspecting the database, the call record for "Amit" has:
+- **transcript**: Full conversation present (working correctly)
+- **call_duration_seconds**: 0 (incorrect -- a real conversation happened)
+- **summary**: null (not received from Bolna)
+- **extracted_data**: null (not received from Bolna)
+- **total_cost**: 18.53 (working correctly)
 
-In `CohortPage.tsx` (which serves all cohort types — Insider Crypto Club, Future Mentorship, High Future, Wealth Club, and any future ones), the financial totals are calculated from `activeStudents` only (excluding both refunded and discontinued). This means:
+**Why duration is 0:** The webhook checks `telephonyData.duration` first, then `body.conversation_duration`, then `body.conversation_time`. Bolna's API docs confirm the field is `conversation_time` at the top level. The code already handles this, but Bolna may have sent it as `0` or not at all in the webhook payload. The webhook only logs the first 500 characters, so we can't see what was actually received.
 
-- **Refunded students**: Offer amount and cash received both excluded — correct, since the money was returned.
-- **Discontinued students**: Offer amount and cash received both excluded — **incorrect**. Their cash was never returned, so it should still count in the "Cash Received" total.
+**Why summary and extracted_data are null:** These are Bolna agent-level features. "Summarization" and "Extraction Prompt" must be enabled in the Bolna agent's Analytics Tab settings. If not configured, Bolna simply doesn't include these fields in the webhook payload.
 
-### Current Code (lines 464-468)
+### Plan
 
-```typescript
-allStudentsTotals: {
-  offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
-  received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
-  due: nonPaeStudentsWithDue.reduce((sum, s) => sum + (s.due_amount || 0), 0),
-  count: activeStudents.length,
-```
+**1. Enhance webhook logging** (file: `supabase/functions/calling-agent-webhook/index.ts`)
+- Log key field values individually (conversation_time, duration, summary presence, extracted_data presence) so we can debug future issues without truncation.
+- Add `body.duration` as an additional fallback for duration (some Bolna versions use this).
 
-All three totals come from `activeStudents`, which filters out discontinued.
+**2. Estimate duration from timestamps when Bolna doesn't provide it**
+- If `call_started_at` and `call_ended_at` are both available, calculate duration from them.
+- Set `call_started_at` when the call transitions to terminal (backfill using duration or current time).
 
-### Fix
+**3. Backfill the current broken record**
+- The existing call for Amit has a full transcript but 0 duration. We can estimate the call lasted roughly 90-120 seconds based on the transcript length. However, we cannot retroactively get the exact duration.
+- We will NOT modify existing data -- the fix is forward-looking.
 
-**File: `src/pages/CohortPage.tsx`**
+**4. Inform user about Bolna configuration**
+- Summary and Extracted Data require enabling "Summarization" and "Extraction Prompt" in the Bolna agent's Analytics/Post-Call settings. Without that, these fields will always be empty. This is not a code bug -- it's a Bolna agent configuration requirement.
 
-1. **`received` total**: Add `discontinuedReceived` (already calculated at line 474) to the active students' received total. This keeps the cash we actually have.
+### Technical Changes
 
-2. **`offered` total**: Keep as-is (active students only). Discontinued students' offer amounts are correctly excluded since they are no longer committed.
+**File: `supabase/functions/calling-agent-webhook/index.ts`**
+- Add detailed field-level logging after parsing the payload
+- Add `body.duration` as a fallback: `telephonyData.duration || body.conversation_duration || body.conversation_time || body.duration || 0`
+- When duration is still 0 but we have a transcript (indicating a real conversation happened), estimate duration from `call_started_at`/`call_ended_at` timestamps
+- Set `call_started_at` on terminal transition if not already set (backfill from duration or webhook receipt time)
+- Redeploy the edge function
 
-3. **`due` total**: Keep as-is (active students only). Discontinued students have no remaining obligation.
-
-4. **`count` display on the "Cash Received" card**: Show `activeStudents.length + discontinuedStudents.length` to reflect that the received amount includes cash from discontinued students too.
-
-The change is a single line update in the `useMemo` calculation block — adding `discontinuedReceived` to the `received` field. No other files, no database changes, no schema updates.
-
-### Scope
-
-Since `CohortPage.tsx` is the unified page for **all** cohort types (driven by the `/cohorts/:cohortSlug` route), this fix automatically applies to every cohort batch across all organizations.
-
+**No frontend changes needed** -- the UI correctly displays whatever data is in the database. Once the webhook stores duration/summary/extracted_data properly, the UI will show them.

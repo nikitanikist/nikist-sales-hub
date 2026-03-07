@@ -463,7 +463,7 @@ const CohortPage = () => {
       },
       allStudentsTotals: {
         offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
-        received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+        received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0) + discontinuedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
         due: nonPaeStudentsWithDue.reduce((sum, s) => sum + (s.due_amount || 0), 0),
         count: activeStudents.length,
         fullPaymentCount: activeStudents.filter(s => (s.due_amount || 0) === 0 && (s.cash_received || 0) > 0).length,
@@ -1062,7 +1062,7 @@ const CohortPage = () => {
                     ₹{allStudentsTotals.received.toLocaleString('en-IN')}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {allStudentsTotals.count} students
+                    {allStudentsTotals.count + allStudentsTotals.discontinuedCount} students
                   </p>
                 </div>
                 <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
