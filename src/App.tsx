@@ -125,10 +125,10 @@ const App = () => (
               <Route path="/operations/calling-agent/campaigns" element={<ProtectedRoute><ErrorBoundary><CallingAgentCampaigns /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/operations/calling-agent/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CallingAgentDetail /></ErrorBoundary></ProtectedRoute>} />
               {/* IVR Campaign Module */}
-              <Route path="/ivr/dashboard" element={<ProtectedRoute><ErrorBoundary><IvrDashboard /></ErrorBoundary></ProtectedRoute>} />
-              <Route path="/ivr/campaigns" element={<ProtectedRoute><ErrorBoundary><IvrCampaigns /></ErrorBoundary></ProtectedRoute>} />
-              <Route path="/ivr/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><IvrCampaignDetail /></ErrorBoundary></ProtectedRoute>} />
-              <Route path="/ivr/audio-library" element={<ProtectedRoute><ErrorBoundary><IvrAudioLibrary /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/ivr/dashboard" element={<ProtectedRoute><ModuleGuard moduleSlug="ivr-campaigns"><ErrorBoundary><IvrDashboard /></ErrorBoundary></ModuleGuard></ProtectedRoute>} />
+              <Route path="/ivr/campaigns" element={<ProtectedRoute><ModuleGuard moduleSlug="ivr-campaigns"><ErrorBoundary><IvrCampaigns /></ErrorBoundary></ModuleGuard></ProtectedRoute>} />
+              <Route path="/ivr/campaigns/:campaignId" element={<ProtectedRoute><ModuleGuard moduleSlug="ivr-campaigns"><ErrorBoundary><IvrCampaignDetail /></ErrorBoundary></ModuleGuard></ProtectedRoute>} />
+              <Route path="/ivr/audio-library" element={<ProtectedRoute><ModuleGuard moduleSlug="ivr-campaigns"><ErrorBoundary><IvrAudioLibrary /></ErrorBoundary></ModuleGuard></ProtectedRoute>} />
               <Route path="/super-admin" element={<ErrorBoundary><SuperAdminOverview /></ErrorBoundary>} />
               <Route path="/super-admin/organizations" element={<ErrorBoundary><SuperAdminOrganizations /></ErrorBoundary>} />
               <Route path="/super-admin/plans" element={<ErrorBoundary><SuperAdminPlans /></ErrorBoundary>} />
