@@ -131,3 +131,21 @@ verify_jwt = false
 
 [functions.start-calling-agent-campaign]
 verify_jwt = false
+
+[functions.ivr-call-answer]
+verify_jwt = false
+
+[functions.ivr-call-response]
+verify_jwt = false
+
+[functions.ivr-call-hangup]
+verify_jwt = false
+
+[functions.start-ivr-campaign]
+verify_jwt = false
+
+[functions.stop-ivr-campaign]
+verify_jwt = false
+
+[functions.process-ivr-queue]
+verify_jwt = false
