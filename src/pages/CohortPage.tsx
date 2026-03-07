@@ -1062,7 +1062,7 @@ const CohortPage = () => {
                     ₹{allStudentsTotals.received.toLocaleString('en-IN')}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {allStudentsTotals.count} students
+                    {allStudentsTotals.count + allStudentsTotals.discontinuedCount} students
                   </p>
                 </div>
                 <div className="p-4 space-y-2 max-h-48 overflow-y-auto">
