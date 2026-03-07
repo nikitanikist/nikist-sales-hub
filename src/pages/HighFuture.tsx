@@ -1750,6 +1750,7 @@ const HighFuture = () => {
           cashReceived={emiStudent.cash_received}
           dueAmount={emiStudent.due_amount}
           customerName={emiStudent.contact_name}
+          closerId={emiStudent.closer_id}
           onSuccess={() => queryClient.invalidateQueries({ queryKey: ["high-future-students"] })}
         />
       )}
