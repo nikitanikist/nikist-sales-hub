@@ -7,21 +7,20 @@ const corsHeaders = {
 };
 
 function mapLanguageCode(lang: string): string {
+  // VoBiz only supports these BCP-47 codes
+  const supported = new Set([
+    "en-AU","en-CA","en-GB","en-IE","en-IN","en-PH","en-SG","en-US","en-ZA",
+    "de-DE","es-ES","es-MX","es-US","fr-CA","fr-FR","it-IT","ja-JP","ko-KR",
+    "nl-NL","pt-BR","pt-PT","ru-RU","zh","zh-HK","zh-TW","yue-Hant-HK","af-ZA"
+  ]);
+  // If already a supported BCP-47 code, use as-is
+  if (supported.has(lang)) return lang;
+  // Map unsupported Indian languages to en-IN (keyword matching handles intent)
   const map: Record<string, string> = {
-    hi: "hi-IN",
-    en: "en-US",
-    bn: "bn-IN",
-    ta: "ta-IN",
-    te: "te-IN",
-    mr: "mr-IN",
-    gu: "gu-IN",
-    kn: "kn-IN",
-    ml: "ml-IN",
-    pa: "pa-IN",
-    ur: "ur-IN",
+    en: "en-IN", hi: "en-IN", bn: "en-IN", ta: "en-IN", te: "en-IN",
+    mr: "en-IN", gu: "en-IN", kn: "en-IN", ml: "en-IN", pa: "en-IN", ur: "en-IN",
   };
-  if (lang.includes("-")) return lang; // already BCP-47
-  return map[lang.toLowerCase()] || `${lang}-IN`;
+  return map[lang.toLowerCase()] || "en-US";
 }
 
 Deno.serve(async (req) => {
