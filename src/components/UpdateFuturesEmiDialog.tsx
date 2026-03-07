@@ -209,8 +209,9 @@ export function UpdateFuturesEmiDialog({
       setNewPlatformFees("");
       setNewPaymentPlatform("UPI (IDFC)");
       setNewRemarks("");
+      setNewSelectedCloserId(closerId || null);
     }
-  }, [open, cashReceived, dueAmount, offerAmount]);
+  }, [open, cashReceived, dueAmount, offerAmount, closerId]);
 
   // Fetch EMI payments for this student
   const { data: emiPayments, isLoading: isLoadingEmi } = useQuery({
