@@ -116,6 +116,7 @@ export function UpdateFuturesEmiDialog({
   const [editPlatformFees, setEditPlatformFees] = useState("");
   const [editPaymentPlatform, setEditPaymentPlatform] = useState("UPI (IDFC)");
   const [editRemarks, setEditRemarks] = useState("");
+  const [newSelectedCloserId, setNewSelectedCloserId] = useState<string | null>(closerId || null);
 
   // Auto-calculate Platform Fees and GST based on Cash Collected and Payment Platform
   const calculatePaymentDetails = (cashAmount: number, platform: string) => {
