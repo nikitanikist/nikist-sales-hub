@@ -5,7 +5,7 @@ import { Loader2, TestTube, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TestConnectionButtonProps {
-  integrationType: "zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna";
+  integrationType: "zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna" | "vobiz";
   config: Record<string, string>;
   organizationId?: string;
 }

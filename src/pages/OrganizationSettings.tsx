@@ -71,12 +71,13 @@ const OrganizationSettings = () => {
 
   // Group integrations by base type
   const groupedIntegrations = useMemo(() => {
-    const groups: Record<"zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna", Integration[]> = {
+    const groups: Record<"zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna" | "vobiz", Integration[]> = {
       zoom: [],
       calendly: [],
       whatsapp: [],
       aisensy: [],
       bolna: [],
+      vobiz: [],
     };
 
     integrations?.forEach((integration) => {
@@ -89,6 +90,8 @@ const OrganizationSettings = () => {
         groups.aisensy.push(integration);
       } else if (type.startsWith("bolna")) {
         groups.bolna.push(integration);
+      } else if (type.startsWith("vobiz")) {
+        groups.vobiz.push(integration);
       } else if (type.startsWith("whatsapp")) {
         groups.whatsapp.push(integration);
       }
@@ -225,7 +228,7 @@ const OrganizationSettings = () => {
             </TabsTrigger>
           )}
           {/* Only show Integrations tab if at least one integration type is not disabled (or super admin) */}
-          {(isSuperAdmin || !(['zoom', 'calendly', 'whatsapp', 'aisensy', 'bolna', 'pabbly'].every(slug => isIntegrationDisabled(slug)))) && (
+          {(isSuperAdmin || !(['zoom', 'calendly', 'whatsapp', 'aisensy', 'bolna', 'vobiz', 'pabbly'].every(slug => isIntegrationDisabled(slug)))) && (
             <TabsTrigger value="integrations" className="gap-2">
               <Puzzle className="h-4 w-4" />
               Integrations
@@ -257,7 +260,7 @@ const OrganizationSettings = () => {
         <TabsContent value="integrations" className="space-y-6">
           {/* Nested Tabs for Integration Types */}
           <Tabs defaultValue="zoom" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-6 max-w-3xl">
+            <TabsList className="grid w-full grid-cols-7 max-w-4xl">
               {(isSuperAdmin || !isIntegrationDisabled('zoom')) && (
                 <TabsTrigger value="zoom" className="gap-2">
                   <Video className="h-4 w-4" />
@@ -313,6 +316,17 @@ const OrganizationSettings = () => {
                   )}
                 </TabsTrigger>
               )}
+              {(isSuperAdmin || !isIntegrationDisabled('vobiz')) && (
+                <TabsTrigger value="vobiz" className="gap-2">
+                  <Phone className="h-4 w-4" />
+                  VoBiz
+                  {groupedIntegrations.vobiz.length > 0 && (
+                    <span className="ml-1 text-xs bg-primary/20 px-1.5 py-0.5 rounded-full">
+                      {groupedIntegrations.vobiz.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              )}
               {(isSuperAdmin || !isIntegrationDisabled('pabbly')) && (
                 <TabsTrigger value="webhooks" className="gap-2">
                   <Webhook className="h-4 w-4" />
@@ -358,6 +372,16 @@ const OrganizationSettings = () => {
               <IntegrationSection
                 type="bolna"
                 integrations={groupedIntegrations.bolna}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                isSaving={saveMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="vobiz">
+              <IntegrationSection
+                type="vobiz"
+                integrations={groupedIntegrations.vobiz}
                 onSave={handleSave}
                 onDelete={handleDelete}
                 isSaving={saveMutation.isPending}

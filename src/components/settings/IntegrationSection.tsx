@@ -18,7 +18,7 @@ interface Integration {
 }
 
 interface IntegrationSectionProps {
-  type: "zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna";
+  type: "zoom" | "calendly" | "whatsapp" | "aisensy" | "bolna" | "vobiz";
   integrations: Integration[];
   onSave: (data: { 
     type: string; 
@@ -60,6 +60,12 @@ const sectionConfig = {
     description: "Configure Bolna AI credentials for AI-powered voice calling campaigns",
     icon: Phone,
     buttonLabel: "Add Calling Agent",
+  },
+  vobiz: {
+    title: "VoBiz IVR",
+    description: "Configure VoBiz API credentials for ultra-low-cost bulk IVR voice campaigns",
+    icon: Phone,
+    buttonLabel: "Add VoBiz Account",
   },
 };
 
