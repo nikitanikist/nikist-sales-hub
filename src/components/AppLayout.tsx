@@ -412,6 +412,9 @@ const AppLayoutContent = () => {
       children: [
         { title: "Dashboard", path: "/calling/dashboard", permissionKey: 'calling' as PermissionKey },
         { title: "Campaigns", path: "/calling/campaigns", permissionKey: 'calling' as PermissionKey },
+        { title: "IVR Dashboard", path: "/ivr/dashboard", permissionKey: 'calling' as PermissionKey },
+        { title: "IVR Campaigns", path: "/ivr/campaigns", permissionKey: 'calling' as PermissionKey },
+        { title: "Audio Library", path: "/ivr/audio-library", permissionKey: 'calling' as PermissionKey },
       ],
     },
     
