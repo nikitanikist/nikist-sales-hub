@@ -7,6 +7,24 @@ const corsHeaders = {
   "Content-Type": "application/xml",
 };
 
+function mapLanguageCode(lang: string): string {
+  const map: Record<string, string> = {
+    hi: "hi-IN",
+    en: "en-US",
+    bn: "bn-IN",
+    ta: "ta-IN",
+    te: "te-IN",
+    mr: "mr-IN",
+    gu: "gu-IN",
+    kn: "kn-IN",
+    ml: "ml-IN",
+    pa: "pa-IN",
+    ur: "ur-IN",
+  };
+  if (lang.includes("-")) return lang;
+  return map[lang.toLowerCase()] || `${lang}-IN`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -92,17 +110,19 @@ Deno.serve(async (req) => {
         const retryActionUrl = `${supabaseUrl}/functions/v1/ivr-call-response?call_id=${callId}&retry=1`;
         const repeatAudio = campaign.audio_repeat_url || campaign.audio_opening_url;
         const goodbyeAudio = campaign.audio_goodbye_url || campaign.audio_not_interested_url;
-        const lang = campaign.speech_language || "hi";
+        const lang = mapLanguageCode(campaign.speech_language || "hi");
         const hints = campaign.speech_hints || "";
 
+        // Nest Play inside Gather per VoBiz docs
         const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Play>${escapeXml(repeatAudio)}</Play>
     <Gather inputType="speech" speechModel="phone_call" language="${escapeXml(lang)}" hints="${escapeXml(hints)}" speechEndTimeout="3" executionTimeout="6" action="${escapeXml(retryActionUrl)}" method="POST">
+        <Play>${escapeXml(repeatAudio)}</Play>
     </Gather>
     <Play>${escapeXml(goodbyeAudio)}</Play>
     <Hangup/>
 </Response>`;
+        console.log(`ivr-call-response: returning retry XML for call ${callId}:\n${xml}`);
         return new Response(xml, { headers: corsHeaders });
       }
 
@@ -129,7 +149,6 @@ Deno.serve(async (req) => {
 
     // If interested, trigger WhatsApp
     if (outcome === "interested" && campaign.on_yes_action === "send_whatsapp" && campaign.on_yes_template_name) {
-      // Fire WhatsApp async (don't block XML response)
       sendWhatsApp(supabase, campaign, callRecord, callId).catch((err) => {
         console.error(`ivr-call-response: WhatsApp send error for call ${callId}:`, err);
       });
@@ -163,7 +182,6 @@ async function sendWhatsApp(
   callId: string
 ) {
   try {
-    // Resolve AiSensy credentials: campaign-level > org integration > env
     let apiKey: string | null = null;
     let source: string | null = null;
 
@@ -181,7 +199,6 @@ async function sendWhatsApp(
     }
 
     if (!apiKey) {
-      // Try org-level AiSensy integration
       const { data: orgIntegration } = await supabase
         .from("organization_integrations")
         .select("config")
@@ -211,7 +228,6 @@ async function sendWhatsApp(
       return;
     }
 
-    // Format phone number
     let phone = callRecord.contact_phone.replace(/\D/g, "");
     if (phone.startsWith("0")) phone = "91" + phone.substring(1);
     if (!phone.startsWith("91")) phone = "91" + phone;
