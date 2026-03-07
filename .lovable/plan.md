@@ -1,45 +1,61 @@
 
-## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-### What was built
+# Fix: IVR Campaign "Failed to Start" — Two Root Causes
 
-**Database (Migration):**
-- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
-- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
-- `ivr_audio_library` table — reusable pre-recorded audio clips
-- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
-- RLS policies using `get_user_organization_ids()` on all tables
-- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
-- `ivr-audio` storage bucket (public)
+## Problem
 
-**Edge Functions (6 new):**
-- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
-- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
-- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
-- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
-- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
-- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
+The network logs show the `start-ivr-campaign` edge function returning **404 — "Requested function was not found"**. Two issues are at play:
 
-**Cron Job:**
-- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
+## Root Cause 1: Edge Functions Not Deployed
 
-**Frontend:**
-- `src/types/ivr-campaign.ts` — TypeScript interfaces
-- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
-- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
-- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
-- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
-- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
-- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
-- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
-- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
+The IVR edge functions exist in the codebase but have **never been deployed** to the backend. All 5 IVR functions need deployment:
+- `start-ivr-campaign`
+- `stop-ivr-campaign`
+- `process-ivr-queue`
+- `ivr-call-answer`
+- `ivr-call-response`
+- `ivr-call-hangup`
 
-**Routes (App.tsx):**
-- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
+**Fix:** Deploy all 6 functions.
 
-**Sidebar (AppLayout.tsx):**
-- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
+## Root Cause 2: `getClaims()` Does Not Exist
 
-### Remaining setup
-- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
-- Upload pre-recorded audio clips to Audio Library
+Both `start-ivr-campaign` and `stop-ivr-campaign` call `supabase.auth.getClaims(token)` — this method **does not exist** in the Supabase JS client. Even once deployed, these functions would crash with a runtime error.
+
+**Fix:** Replace `getClaims` with `supabase.auth.getUser()` (which validates the JWT and returns user data). This matches the pattern used by other edge functions like `start-voice-campaign`.
+
+### Code Change (both files):
+
+**Before:**
+```typescript
+const token = authHeader.replace("Bearer ", "");
+const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+if (claimsError || !claimsData?.claims) { ... }
+```
+
+**After:**
+```typescript
+const { data: { user }, error: userError } = await supabase.auth.getUser();
+if (userError || !user) { ... }
+```
+
+## VoBiz API Compatibility Audit
+
+After reviewing the VoBiz documentation against our implementation:
+
+| Area | Status | Notes |
+|------|--------|-------|
+| Make Call API endpoint & auth headers | Correct | `X-Auth-ID`, `X-Auth-Token`, POST to `/Account/{auth_id}/Call/` |
+| Make Call parameters | Correct | `from`, `to`, `answer_url`, `hangup_url`, `ring_timeout`, `machine_detection` |
+| Gather XML attributes | Correct | `inputType="speech"`, `speechModel="phone_call"`, `language`, `hints`, `speechEndTimeout`, `executionTimeout` |
+| Action URL callback params | Correct | Reads `Speech`, `SpeechConfidenceScore`, `InputType` |
+| Hangup callback params | Correct | Reads `Duration`, `HangupCause`, `CallStatus`, `CallUUID` |
+| Response parsing (`call_uuid`) | Correct | Checks `request_uuid`, `RequestUUID`, `call_uuid` |
+
+No API mismatches found — the VoBiz integration logic is correct.
+
+## Files Changed
+- `supabase/functions/start-ivr-campaign/index.ts` — Replace `getClaims` with `getUser`
+- `supabase/functions/stop-ivr-campaign/index.ts` — Replace `getClaims` with `getUser`
+- Deploy all 6 IVR edge functions
+
