@@ -97,6 +97,14 @@ export function TestConnectionButton({ integrationType, config, organizationId }
           message = `Connected successfully. ${agentCount} agent${agentCount !== 1 ? "s" : ""} found.`;
           break;
         }
+        case "vobiz": {
+          if (!config.auth_id) throw new Error("Missing VoBiz Auth ID");
+          if (!config.auth_token) throw new Error("Missing VoBiz Auth Token");
+          if (!config.from_number) throw new Error("Missing VoBiz From Number");
+          isValid = true;
+          message = "VoBiz credentials saved. Connection will be validated when a campaign is started.";
+          break;
+        }
         
         default:
           throw new Error("Unknown integration type");

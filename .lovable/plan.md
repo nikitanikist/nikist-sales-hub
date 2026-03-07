@@ -1,24 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Fix: Add VoBiz Test Connection Handler
+### What was built
 
-**Problem**: The `TestConnectionButton.tsx` switch statement lacks a `case "vobiz"` — it hits the `default` case and throws "Unknown integration type."
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-**Fix**: Add a `case "vobiz"` block (between `bolna` and `default`) that validates the required fields (`auth_id`, `auth_token`, `from_number`) are present. Since VoBiz API calls from the browser would hit CORS issues, we do a credential-presence check (same approach as Zoom).
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-**File**: `src/components/settings/TestConnectionButton.tsx`
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-Add before `default:`:
-```typescript
-case "vobiz": {
-  if (!config.auth_id) throw new Error("Missing VoBiz Auth ID");
-  if (!config.auth_token) throw new Error("Missing VoBiz Auth Token");
-  if (!config.from_number) throw new Error("Missing VoBiz From Number");
-  isValid = true;
-  message = "VoBiz credentials saved. Connection will be validated when a campaign is started.";
-  break;
-}
-```
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-Single-line change, no other files affected.
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
+
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library
