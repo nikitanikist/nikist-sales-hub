@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useOrgClosers } from "@/hooks/useOrgClosers";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +61,7 @@ interface UpdateCohortEmiDialogProps {
   cashReceived: number;
   dueAmount: number;
   customerName: string;
+  closerId?: string | null;
   onSuccess: () => void;
 }
 
@@ -68,11 +73,15 @@ export function UpdateCohortEmiDialog({
   cashReceived,
   dueAmount,
   customerName,
+  closerId,
   onSuccess,
 }: UpdateCohortEmiDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const { isAdmin, isManager } = useUserRole(currentOrganization?.id);
+  const { data: closers } = useOrgClosers();
+  const canEditOfferAndCloser = isAdmin || isManager;
   
   const [emiAmount, setEmiAmount] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
