@@ -53,6 +53,9 @@ export const ROUTE_TO_PERMISSION: Record<string, PermissionKey> = {
   '/webinar/notification': PERMISSION_KEYS.webinar,
   '/calling/dashboard': PERMISSION_KEYS.calling,
   '/calling/campaigns': PERMISSION_KEYS.calling,
+  '/ivr/dashboard': PERMISSION_KEYS.calling,
+  '/ivr/campaigns': PERMISSION_KEYS.calling,
+  '/ivr/audio-library': PERMISSION_KEYS.calling,
 };
 
 // Permission labels for UI display
@@ -220,7 +223,7 @@ export function getPermissionForRoute(path: string): PermissionKey | undefined {
   }
   
   // Handle calling routes
-  if (path.startsWith('/calling')) {
+  if (path.startsWith('/calling') || path.startsWith('/ivr')) {
     return PERMISSION_KEYS.calling;
   }
   

@@ -24,7 +24,7 @@ interface OrganizationModule {
 }
 
 export function useModules() {
-  const { currentOrganization, isSuperAdmin } = useOrganization();
+  const { currentOrganization, isSuperAdmin, isLoading: orgLoading } = useOrganization();
 
   // Fetch all modules (reference data)
   const { data: allModules = [], isLoading: modulesLoading } = useQuery({
@@ -97,6 +97,6 @@ export function useModules() {
     orgModules,
     isModuleEnabled,
     getModuleConfig,
-    isLoading: modulesLoading || orgModulesLoading,
+    isLoading: modulesLoading || orgModulesLoading || (orgLoading && !currentOrganization),
   };
 }
