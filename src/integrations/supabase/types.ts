@@ -2118,6 +2118,353 @@ export type Database = {
           },
         ]
       }
+      ivr_audio_library: {
+        Row: {
+          audio_type: string
+          audio_url: string
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          duration_seconds: number | null
+          id: string
+          is_default: boolean | null
+          language: string | null
+          name: string
+          organization_id: string
+        }
+        Insert: {
+          audio_type: string
+          audio_url: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_default?: boolean | null
+          language?: string | null
+          name: string
+          organization_id: string
+        }
+        Update: {
+          audio_type?: string
+          audio_url?: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_default?: boolean | null
+          language?: string | null
+          name?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ivr_audio_library_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ivr_audio_library_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ivr_campaign_calls: {
+        Row: {
+          answered_at: string | null
+          answered_by_voicemail: boolean | null
+          call_cost: number | null
+          call_duration_seconds: number | null
+          campaign_id: string
+          completed_at: string | null
+          contact_data: Json | null
+          contact_name: string | null
+          contact_phone: string
+          created_at: string | null
+          detected_input_type: string | null
+          hangup_cause: string | null
+          id: string
+          initiated_at: string | null
+          last_retry_at: string | null
+          next_retry_at: string | null
+          organization_id: string
+          outcome: string | null
+          queued_at: string | null
+          retry_count: number | null
+          speech_confidence: number | null
+          speech_transcript: string | null
+          status: string
+          updated_at: string | null
+          vobiz_call_uuid: string | null
+          vobiz_from: string | null
+          vobiz_to: string | null
+          whatsapp_error: string | null
+          whatsapp_sent: boolean | null
+          whatsapp_sent_at: string | null
+        }
+        Insert: {
+          answered_at?: string | null
+          answered_by_voicemail?: boolean | null
+          call_cost?: number | null
+          call_duration_seconds?: number | null
+          campaign_id: string
+          completed_at?: string | null
+          contact_data?: Json | null
+          contact_name?: string | null
+          contact_phone: string
+          created_at?: string | null
+          detected_input_type?: string | null
+          hangup_cause?: string | null
+          id?: string
+          initiated_at?: string | null
+          last_retry_at?: string | null
+          next_retry_at?: string | null
+          organization_id: string
+          outcome?: string | null
+          queued_at?: string | null
+          retry_count?: number | null
+          speech_confidence?: number | null
+          speech_transcript?: string | null
+          status?: string
+          updated_at?: string | null
+          vobiz_call_uuid?: string | null
+          vobiz_from?: string | null
+          vobiz_to?: string | null
+          whatsapp_error?: string | null
+          whatsapp_sent?: boolean | null
+          whatsapp_sent_at?: string | null
+        }
+        Update: {
+          answered_at?: string | null
+          answered_by_voicemail?: boolean | null
+          call_cost?: number | null
+          call_duration_seconds?: number | null
+          campaign_id?: string
+          completed_at?: string | null
+          contact_data?: Json | null
+          contact_name?: string | null
+          contact_phone?: string
+          created_at?: string | null
+          detected_input_type?: string | null
+          hangup_cause?: string | null
+          id?: string
+          initiated_at?: string | null
+          last_retry_at?: string | null
+          next_retry_at?: string | null
+          organization_id?: string
+          outcome?: string | null
+          queued_at?: string | null
+          retry_count?: number | null
+          speech_confidence?: number | null
+          speech_transcript?: string | null
+          status?: string
+          updated_at?: string | null
+          vobiz_call_uuid?: string | null
+          vobiz_from?: string | null
+          vobiz_to?: string | null
+          whatsapp_error?: string | null
+          whatsapp_sent?: boolean | null
+          whatsapp_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ivr_campaign_calls_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "ivr_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ivr_campaign_calls_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ivr_campaigns: {
+        Row: {
+          aisensy_integration_id: string | null
+          audio_goodbye_url: string | null
+          audio_not_interested_url: string
+          audio_opening_url: string
+          audio_repeat_url: string | null
+          audio_thankyou_url: string
+          calls_answered: number | null
+          calls_busy: number | null
+          calls_failed: number | null
+          calls_initiated: number | null
+          calls_interested: number | null
+          calls_no_answer: number | null
+          calls_no_response: number | null
+          calls_not_interested: number | null
+          calls_per_second: number | null
+          calls_voicemail: number | null
+          completed_at: string | null
+          concurrent_limit: number | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          max_retries: number | null
+          name: string
+          negative_keywords: string | null
+          on_yes_action: string
+          on_yes_media_url: string | null
+          on_yes_template_name: string | null
+          on_yes_template_params: Json | null
+          organization_id: string
+          paused_at: string | null
+          positive_keywords: string | null
+          retry_delay_minutes: number | null
+          retry_no_answer: boolean | null
+          scheduled_at: string | null
+          source_type: string | null
+          speech_hints: string | null
+          speech_language: string | null
+          started_at: string | null
+          status: string
+          total_contacts: number | null
+          total_cost: number | null
+          total_duration_seconds: number | null
+          updated_at: string | null
+          vobiz_from_number: string
+          workshop_id: string | null
+        }
+        Insert: {
+          aisensy_integration_id?: string | null
+          audio_goodbye_url?: string | null
+          audio_not_interested_url: string
+          audio_opening_url: string
+          audio_repeat_url?: string | null
+          audio_thankyou_url: string
+          calls_answered?: number | null
+          calls_busy?: number | null
+          calls_failed?: number | null
+          calls_initiated?: number | null
+          calls_interested?: number | null
+          calls_no_answer?: number | null
+          calls_no_response?: number | null
+          calls_not_interested?: number | null
+          calls_per_second?: number | null
+          calls_voicemail?: number | null
+          completed_at?: string | null
+          concurrent_limit?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          max_retries?: number | null
+          name: string
+          negative_keywords?: string | null
+          on_yes_action?: string
+          on_yes_media_url?: string | null
+          on_yes_template_name?: string | null
+          on_yes_template_params?: Json | null
+          organization_id: string
+          paused_at?: string | null
+          positive_keywords?: string | null
+          retry_delay_minutes?: number | null
+          retry_no_answer?: boolean | null
+          scheduled_at?: string | null
+          source_type?: string | null
+          speech_hints?: string | null
+          speech_language?: string | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number | null
+          total_cost?: number | null
+          total_duration_seconds?: number | null
+          updated_at?: string | null
+          vobiz_from_number: string
+          workshop_id?: string | null
+        }
+        Update: {
+          aisensy_integration_id?: string | null
+          audio_goodbye_url?: string | null
+          audio_not_interested_url?: string
+          audio_opening_url?: string
+          audio_repeat_url?: string | null
+          audio_thankyou_url?: string
+          calls_answered?: number | null
+          calls_busy?: number | null
+          calls_failed?: number | null
+          calls_initiated?: number | null
+          calls_interested?: number | null
+          calls_no_answer?: number | null
+          calls_no_response?: number | null
+          calls_not_interested?: number | null
+          calls_per_second?: number | null
+          calls_voicemail?: number | null
+          completed_at?: string | null
+          concurrent_limit?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          max_retries?: number | null
+          name?: string
+          negative_keywords?: string | null
+          on_yes_action?: string
+          on_yes_media_url?: string | null
+          on_yes_template_name?: string | null
+          on_yes_template_params?: Json | null
+          organization_id?: string
+          paused_at?: string | null
+          positive_keywords?: string | null
+          retry_delay_minutes?: number | null
+          retry_no_answer?: boolean | null
+          scheduled_at?: string | null
+          source_type?: string | null
+          speech_hints?: string | null
+          speech_language?: string | null
+          started_at?: string | null
+          status?: string
+          total_contacts?: number | null
+          total_cost?: number | null
+          total_duration_seconds?: number | null
+          updated_at?: string | null
+          vobiz_from_number?: string
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ivr_campaigns_aisensy_integration_id_fkey"
+            columns: ["aisensy_integration_id"]
+            isOneToOne: false
+            referencedRelation: "organization_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ivr_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ivr_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ivr_campaigns_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_assignments: {
         Row: {
           converted_from_workshop_id: string | null
@@ -5078,6 +5425,10 @@ export type Database = {
         Args: { p_campaign_id: string; p_cost: number }
         Returns: undefined
       }
+      add_ivr_campaign_cost: {
+        Args: { p_campaign_id: string; p_cost: number; p_duration: number }
+        Returns: undefined
+      }
       count_paginated_leads: {
         Args: {
           p_country?: string
@@ -5277,6 +5628,14 @@ export type Database = {
         Args: { p_group_id: string }
         Returns: number
       }
+      increment_ivr_campaign_counter: {
+        Args: {
+          p_campaign_id: string
+          p_counter_name: string
+          p_increment?: number
+        }
+        Returns: undefined
+      }
       increment_link_click: {
         Args: { link_slug: string }
         Returns: {
@@ -5359,6 +5718,20 @@ export type Database = {
           previous_outcome: string
           was_first_transition: boolean
         }[]
+      }
+      transition_ivr_call: {
+        Args: {
+          p_call_id: string
+          p_confidence?: number
+          p_cost?: number
+          p_duration?: number
+          p_hangup_cause?: string
+          p_new_status: string
+          p_outcome?: string
+          p_speech?: string
+          p_vobiz_call_uuid?: string
+        }
+        Returns: boolean
       }
       user_belongs_to_org: {
         Args: { _org_id: string; _user_id: string }
