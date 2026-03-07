@@ -110,6 +110,7 @@ export function UpdateCohortEmiDialog({
   const [editPlatformFees, setEditPlatformFees] = useState("");
   const [editPaymentPlatform, setEditPaymentPlatform] = useState("UPI (IDFC)");
   const [editRemarks, setEditRemarks] = useState("");
+  const [newSelectedCloserId, setNewSelectedCloserId] = useState<string | null>(closerId || null);
 
   const calculatePaymentDetails = (cashAmount: number, platform: string) => {
     const feeRate = getPlatformFeeRate(platform);
