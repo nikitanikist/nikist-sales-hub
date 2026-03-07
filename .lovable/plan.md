@@ -1,68 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Fix: IVR Audio Not Playing During Calls
+### What was built
 
-## Root Cause Analysis
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-Looking at the VoBiz logs and edge function code, I identified **two issues** causing dead air:
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-### Issue 1: Wrong Language Code Format
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-The VoBiz Gather docs specify language values like `en-US`, `hi-IN`. Our code passes `"hi"` (bare ISO code). VoBiz likely fails to initialize speech recognition with an invalid language code, which could cause the entire XML execution to error out silently — including the `<Play>` elements that come before `<Gather>`.
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-**Fix:** Map language codes to VoBiz-compatible BCP-47 format (`hi` → `hi-IN`, `en` → `en-US`, etc.)
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-### Issue 2: Play Audio Should Be Nested Inside Gather
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-The VoBiz documentation explicitly states: *"You can nest Speak XML and Play XML elements inside Gather XML to prompt users for inputs."* All their examples show `<Play>` and `<Speak>` **nested inside** `<Gather>`, not placed before it.
-
-Our current XML structure:
-```xml
-<Play>opening.mp3</Play>      <!-- outside Gather -->
-<Gather inputType="speech" ...>
-</Gather>                       <!-- empty Gather -->
-```
-
-VoBiz expected structure:
-```xml
-<Gather inputType="speech" ...>
-    <Play>opening.mp3</Play>    <!-- nested inside Gather -->
-</Gather>
-```
-
-When `<Play>` is outside `<Gather>`, VoBiz plays the audio but then the empty `<Gather>` may behave unpredictably. When nested, VoBiz plays the audio as a prompt and simultaneously begins listening for speech input.
-
-## Changes
-
-### File: `supabase/functions/ivr-call-answer/index.ts`
-
-1. Add language code mapping function (`hi` → `hi-IN`, `en` → `en-US`, etc.)
-2. Restructure XML to nest `<Play>` inside `<Gather>`:
-
-```xml
-<Response>
-    <Gather inputType="speech" ... action="ivr-call-response">
-        <Play>opening.mp3</Play>
-    </Gather>
-    <Gather inputType="speech" ... action="ivr-call-response">
-        <Play>repeat.mp3</Play>
-    </Gather>
-    <Play>goodbye.mp3</Play>
-    <Hangup/>
-</Response>
-```
-
-3. Log the full XML being returned for debugging
-
-### File: `supabase/functions/ivr-call-response/index.ts`
-
-Same fixes for the retry XML (nest Play inside Gather, fix language code).
-
-### Deploy
-
-Redeploy `ivr-call-answer` and `ivr-call-response` after changes.
-
-## Files Changed
-- `supabase/functions/ivr-call-answer/index.ts`
-- `supabase/functions/ivr-call-response/index.ts`
-
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library
