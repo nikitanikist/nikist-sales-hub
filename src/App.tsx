@@ -46,6 +46,10 @@ import CallingCampaignDetail from "./pages/calling/CallingCampaignDetail";
 import CallingAgentDashboard from "./pages/calling-agent/CallingAgentDashboard";
 import CallingAgentCampaigns from "./pages/calling-agent/CallingAgentCampaigns";
 import CallingAgentDetail from "./pages/calling-agent/CallingAgentDetail";
+import IvrDashboard from "./pages/ivr/IvrDashboard";
+import IvrCampaigns from "./pages/ivr/IvrCampaigns";
+import IvrCampaignDetail from "./pages/ivr/IvrCampaignDetail";
+import IvrAudioLibrary from "./pages/ivr/IvrAudioLibrary";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -120,6 +124,11 @@ const App = () => (
               <Route path="/operations/calling-agent" element={<ProtectedRoute><ErrorBoundary><CallingAgentDashboard /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/operations/calling-agent/campaigns" element={<ProtectedRoute><ErrorBoundary><CallingAgentCampaigns /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/operations/calling-agent/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><CallingAgentDetail /></ErrorBoundary></ProtectedRoute>} />
+              {/* IVR Campaign Module */}
+              <Route path="/ivr/dashboard" element={<ProtectedRoute><ErrorBoundary><IvrDashboard /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/ivr/campaigns" element={<ProtectedRoute><ErrorBoundary><IvrCampaigns /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/ivr/campaigns/:campaignId" element={<ProtectedRoute><ErrorBoundary><IvrCampaignDetail /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/ivr/audio-library" element={<ProtectedRoute><ErrorBoundary><IvrAudioLibrary /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/super-admin" element={<ErrorBoundary><SuperAdminOverview /></ErrorBoundary>} />
               <Route path="/super-admin/organizations" element={<ErrorBoundary><SuperAdminOrganizations /></ErrorBoundary>} />
               <Route path="/super-admin/plans" element={<ErrorBoundary><SuperAdminPlans /></ErrorBoundary>} />
