@@ -438,6 +438,12 @@ export function UpdateCohortEmiDialog({
         }
       }
 
+      // Update closer if changed (admin/manager only)
+      if (canEditOfferAndCloser && newSelectedCloserId !== (closerId || null)) {
+        updatePayload.closer_id = newSelectedCloserId;
+        messages.push("Closer updated");
+      }
+
       if (Object.keys(updatePayload).length > 0) {
         const { error: updateError } = await supabase
           .from("cohort_students")
