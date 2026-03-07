@@ -1,38 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Fix: IVR Audio Not Playing — Machine Detection Causing Silent Delay
+### What was built
 
-## Root Cause
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-The `ivr-call-answer` edge function **was called** and returned correct XML. The audio URLs are valid. The XML structure is correct. So why no audio?
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-The VoBiz `Make Call` API is configured with `machine_detection: "true"` and `machine_detection_time: 5000` in `process-ivr-queue/index.ts`. Here's what happens:
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-```text
-22:12:04  Call initiated
-22:12:06  Call ringing
-~22:12:10 User answers → VoBiz begins SILENT machine detection (5+ seconds)
-22:12:18  Machine detection finishes → answer_url finally called
-22:12:18  User hangs up (frustrated by silence) → same second
-```
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-During machine detection, VoBiz listens silently to determine if a human or voicemail answered. The user hears **nothing** for 5-8 seconds, says "hello hello hello," gets no response, and hangs up. VoBiz reports `USER_BUSY` / `Rejected` because the call terminated before audio could play.
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-## Fix
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-**File: `supabase/functions/process-ivr-queue/index.ts`**
-
-Remove `machine_detection` and `machine_detection_time` from the VoBiz API call body (lines 122-123). Without machine detection, VoBiz will call the `answer_url` immediately when the call is picked up, and audio will start playing right away.
-
-**Secondary fix (same file):** The `count` returned from the update in `start-ivr-campaign` is always `null` because `{ count: 'exact' }` is not passed. Add this option so the "queued X calls" log works correctly.
-
-**File: `supabase/functions/start-ivr-campaign/index.ts`**
-
-Add `{ count: 'exact' }` to the update query on line 78 so the queued count is reported correctly.
-
-**Deploy:** Both functions after changes.
-
-## Files Changed
-- `supabase/functions/process-ivr-queue/index.ts` — Remove machine_detection params
-- `supabase/functions/start-ivr-campaign/index.ts` — Fix count reporting
-
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library

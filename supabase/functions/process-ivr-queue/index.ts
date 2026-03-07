@@ -119,8 +119,6 @@ Deno.serve(async (req) => {
                   hangup_url: hangupUrl,
                   hangup_method: "POST",
                   ring_timeout: 30,
-                  machine_detection: "true",
-                  machine_detection_time: 5000,
                 }),
               },
               { timeoutMs: 15000, maxRetries: 1 }
