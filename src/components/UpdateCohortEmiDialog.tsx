@@ -35,7 +35,6 @@ import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentPlatformSelect, getPlatformFeeRate, getPlatformFeesHint } from "@/components/PaymentPlatformSelect";
-import { useOrganization } from "@/hooks/useOrganization";
 
 interface CohortEmiPayment {
   id: string;
