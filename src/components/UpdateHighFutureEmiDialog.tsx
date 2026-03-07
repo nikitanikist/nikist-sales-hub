@@ -531,7 +531,8 @@ export function UpdateHighFutureEmiDialog({
             )}
           </div>
 
-          {/* Update Offer Amount */}
+          {/* Update Offer Amount - Admin/Manager only */}
+          {canEditOfferAndCloser && (
           <div className="space-y-3 rounded-lg border p-4 bg-amber-50/50 border-amber-200">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-sm uppercase tracking-wide text-amber-700">Update Offer Amount</h4>
@@ -568,10 +569,11 @@ export function UpdateHighFutureEmiDialog({
                 )}
               </>
             )}
-          </div>
+           </div>
+          )}
 
           {/* Offer Amount History */}
-          {offerAmountHistory && offerAmountHistory.length > 0 && (
+          {canEditOfferAndCloser && offerAmountHistory && offerAmountHistory.length > 0 && (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Offer Amount History</h4>
               <div className="rounded-md border">
