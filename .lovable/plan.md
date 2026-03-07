@@ -1,43 +1,162 @@
 
-## Fix: Missing Duration, Summary, and Extracted Data in Calling Agent
 
-### Root Cause Analysis
+# VoBiz IVR Voice Campaign System — Implementation Plan
 
-After inspecting the database, the call record for "Amit" has:
-- **transcript**: Full conversation present (working correctly)
-- **call_duration_seconds**: 0 (incorrect -- a real conversation happened)
-- **summary**: null (not received from Bolna)
-- **extracted_data**: null (not received from Bolna)
-- **total_cost**: 18.53 (working correctly)
+This is a large feature that adds an ultra-low-cost bulk voice campaign system using VoBiz XML API with speech recognition. It integrates alongside the existing Bolna AI Calling module.
 
-**Why duration is 0:** The webhook checks `telephonyData.duration` first, then `body.conversation_duration`, then `body.conversation_time`. Bolna's API docs confirm the field is `conversation_time` at the top level. The code already handles this, but Bolna may have sent it as `0` or not at all in the webhook payload. The webhook only logs the first 500 characters, so we can't see what was actually received.
+## Scope Summary
 
-**Why summary and extracted_data are null:** These are Bolna agent-level features. "Summarization" and "Extraction Prompt" must be enabled in the Bolna agent's Analytics Tab settings. If not configured, Bolna simply doesn't include these fields in the webhook payload.
+- **3 new database tables** + 3 atomic RPC functions
+- **6 new edge functions** (5 webhook handlers + 1 cron processor)
+- **4 new frontend pages** + 1 dialog + 3 hooks
+- **1 new storage bucket** for audio files
+- **Sidebar navigation** update
+- **Route registration** in App.tsx
 
-### Plan
+---
 
-**1. Enhance webhook logging** (file: `supabase/functions/calling-agent-webhook/index.ts`)
-- Log key field values individually (conversation_time, duration, summary presence, extracted_data presence) so we can debug future issues without truncation.
-- Add `body.duration` as an additional fallback for duration (some Bolna versions use this).
+## Phase 1: Database Schema + Storage
 
-**2. Estimate duration from timestamps when Bolna doesn't provide it**
-- If `call_started_at` and `call_ended_at` are both available, calculate duration from them.
-- Set `call_started_at` when the call transitions to terminal (backfill using duration or current time).
+**Migration SQL** — create tables, RLS policies, indexes, realtime, and RPC functions:
 
-**3. Backfill the current broken record**
-- The existing call for Amit has a full transcript but 0 duration. We can estimate the call lasted roughly 90-120 seconds based on the transcript length. However, we cannot retroactively get the exact duration.
-- We will NOT modify existing data -- the fix is forward-looking.
+1. `ivr_campaigns` — campaign config (audio URLs, speech detection config, VoBiz settings, counters, retry config, optional workshop/webinar link)
+2. `ivr_campaign_calls` — individual call records (contact info, VoBiz data, speech transcript, WhatsApp action tracking, retry tracking)
+3. `ivr_audio_library` — reusable pre-recorded audio clips
 
-**4. Inform user about Bolna configuration**
-- Summary and Extracted Data require enabling "Summarization" and "Extraction Prompt" in the Bolna agent's Analytics/Post-Call settings. Without that, these fields will always be empty. This is not a code bug -- it's a Bolna agent configuration requirement.
+RLS follows existing pattern using `get_user_organization_ids()`. Realtime enabled on both campaign tables.
 
-### Technical Changes
+3 atomic RPC functions:
+- `increment_ivr_campaign_counter` — same pattern as existing `increment_campaign_counter`
+- `add_ivr_campaign_cost` — atomic cost + duration update
+- `transition_ivr_call` — atomic status transition preventing double-processing
 
-**File: `supabase/functions/calling-agent-webhook/index.ts`**
-- Add detailed field-level logging after parsing the payload
-- Add `body.duration` as a fallback: `telephonyData.duration || body.conversation_duration || body.conversation_time || body.duration || 0`
-- When duration is still 0 but we have a transcript (indicating a real conversation happened), estimate duration from `call_started_at`/`call_ended_at` timestamps
-- Set `call_started_at` on terminal transition if not already set (backfill from duration or webhook receipt time)
-- Redeploy the edge function
+**Storage bucket**: `ivr-audio` (public, so VoBiz can access audio URLs)
 
-**No frontend changes needed** -- the UI correctly displays whatever data is in the database. Once the webhook stores duration/summary/extracted_data properly, the UI will show them.
+---
+
+## Phase 2: Edge Functions — Webhook Handlers
+
+### `ivr-call-answer` (Answer URL)
+- VoBiz POSTs when call is answered
+- Extracts `call_id` from query params
+- Detects voicemail via `MachineDetection` → returns `<Hangup/>` XML
+- Looks up campaign for audio URLs and speech config
+- Returns XML: `<Play>` opening audio + `<Gather inputType="speech">` with language/hints from campaign config
+- Includes fallback: repeat audio + second Gather, then goodbye + Hangup
+
+### `ivr-call-response` (Action URL — after speech captured)
+- Receives `Speech`, `SpeechConfidenceScore`, `InputType` from VoBiz
+- Keyword matching against campaign's `positive_keywords` / `negative_keywords`
+- If interested + `on_yes_action = 'send_whatsapp'`: fires AiSensy API (same credential resolution as existing system)
+- Updates call via `transition_ivr_call` RPC
+- Increments campaign counters
+- Returns appropriate XML (thankyou/not_interested/retry audio)
+
+### `ivr-call-hangup` (Hangup URL)
+- Receives `Duration`, `HangupCause`, `CallStatus`
+- Maps hangup cause to call status (NO_ANSWER, USER_BUSY, etc.)
+- Updates call via RPC with duration and cost
+- Handles retry logic: if no_answer + retries enabled → queues for retry
+- Checks if all calls terminal → marks campaign completed
+
+All three functions: `verify_jwt = false` in config.toml (VoBiz webhooks, no JWT).
+
+---
+
+## Phase 3: Edge Functions — Campaign Control
+
+### `start-ivr-campaign`
+- Auth: Supabase JWT
+- Validates campaign is in draft/scheduled
+- Updates status to `running`, sets `started_at`
+- Marks all pending calls as `queued`
+
+### `stop-ivr-campaign`
+- Auth: Supabase JWT
+- Updates campaign to `cancelled`
+- Marks pending/queued calls as `cancelled`
+
+### `process-ivr-queue` (Cron — every 30 seconds)
+- Finds running campaigns
+- Picks queued calls (batch based on `calls_per_second`)
+- Fires VoBiz Make Call API for each with answer_url, hangup_url
+- Stores `vobiz_call_uuid`, updates status to `initiated`
+- Handles retry-eligible calls (no_answer + retry_count < max + next_retry_at <= now)
+- Resolves VoBiz credentials from `organization_integrations` (integration_type = 'vobiz')
+
+**Cron setup**: pg_cron + pg_net schedule hitting `process-ivr-queue` every 30 seconds.
+
+---
+
+## Phase 4: Frontend
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `src/pages/ivr/IvrDashboard.tsx` | Overview stats + recent campaigns |
+| `src/pages/ivr/IvrCampaigns.tsx` | Campaign list table + create button |
+| `src/pages/ivr/IvrCampaignDetail.tsx` | Stats cards, progress bar, calls table, realtime |
+| `src/pages/ivr/IvrAudioLibrary.tsx` | Upload/manage audio clips |
+| `src/pages/ivr/CreateIvrCampaignDialog.tsx` | Multi-step: name → audio → contacts (CSV) → WhatsApp action → schedule |
+| `src/pages/ivr/components/index.tsx` | Shared components (status badges, formatters) |
+| `src/hooks/useIvrCampaigns.ts` | Query hook for campaigns list |
+| `src/hooks/useIvrCampaignDetail.ts` | Query hook for single campaign + calls |
+| `src/hooks/useIvrCampaignRealtime.ts` | Realtime subscription (same pattern as existing `useVoiceCampaignRealtime`) |
+| `src/types/ivr-campaign.ts` | TypeScript interfaces |
+
+### Route Registration (`App.tsx`)
+```
+/ivr/dashboard     → IvrDashboard
+/ivr/campaigns     → IvrCampaigns
+/ivr/campaigns/:id → IvrCampaignDetail
+/ivr/audio-library → IvrAudioLibrary
+```
+
+### Sidebar (`AppLayout.tsx`)
+Add "IVR Campaigns" group under existing "Calling" section:
+```
+Calling
+├── Dashboard (existing Bolna)
+├── Campaigns (existing Bolna)
+├── IVR Dashboard (new)
+├── IVR Campaigns (new)
+└── Audio Library (new)
+```
+
+---
+
+## Phase 5: VoBiz Credentials
+
+Store in `organization_integrations` table (same pattern as Bolna/AiSensy):
+```json
+{
+  "integration_type": "vobiz",
+  "config": {
+    "auth_id": "MA_YOCMGHO8",
+    "auth_token": "xxx",
+    "from_number": "+917971543257",
+    "cps_limit": 11,
+    "concurrent_limit": 13
+  }
+}
+```
+
+The VoBiz auth token will need to be provided as a secret initially. I'll prompt you for the `VOBIZ_AUTH_TOKEN` when we reach the edge function implementation step — or we store it fully in `organization_integrations.config` (matching Bolna pattern, no env secret needed).
+
+---
+
+## Build Order
+
+1. **Database migration** — all 3 tables + 3 RPCs + storage bucket + realtime
+2. **TypeScript types** — `src/types/ivr-campaign.ts`
+3. **Edge functions** — ivr-call-answer, ivr-call-response, ivr-call-hangup (webhook handlers first, testable independently)
+4. **Edge functions** — start-ivr-campaign, stop-ivr-campaign, process-ivr-queue
+5. **Cron job** — pg_cron schedule for process-ivr-queue
+6. **Frontend hooks** — useIvrCampaigns, useIvrCampaignDetail, useIvrCampaignRealtime
+7. **Frontend pages** — IvrCampaigns (list + create dialog), IvrCampaignDetail, IvrDashboard, IvrAudioLibrary
+8. **Routes + Sidebar** — App.tsx routes, AppLayout.tsx navigation
+9. **config.toml** — verify_jwt = false for webhook functions
+
+This will be implemented across multiple messages due to the volume of code. I'll start with the database migration and types, then move through edge functions, and finish with the frontend.
+
