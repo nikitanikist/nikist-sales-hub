@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useOrgClosers } from "@/hooks/useOrgClosers";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +35,6 @@ import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentPlatformSelect, getPlatformFeeRate, getPlatformFeesHint } from "@/components/PaymentPlatformSelect";
-import { useOrganization } from "@/hooks/useOrganization";
 
 interface CohortEmiPayment {
   id: string;
@@ -57,6 +60,7 @@ interface UpdateCohortEmiDialogProps {
   cashReceived: number;
   dueAmount: number;
   customerName: string;
+  closerId?: string | null;
   onSuccess: () => void;
 }
 
@@ -68,11 +72,15 @@ export function UpdateCohortEmiDialog({
   cashReceived,
   dueAmount,
   customerName,
+  closerId,
   onSuccess,
 }: UpdateCohortEmiDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const { isAdmin, isManager } = useUserRole(currentOrganization?.id);
+  const { data: closers } = useOrgClosers();
+  const canEditOfferAndCloser = isAdmin || isManager;
   
   const [emiAmount, setEmiAmount] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
@@ -102,6 +110,7 @@ export function UpdateCohortEmiDialog({
   const [editPlatformFees, setEditPlatformFees] = useState("");
   const [editPaymentPlatform, setEditPaymentPlatform] = useState("UPI (IDFC)");
   const [editRemarks, setEditRemarks] = useState("");
+  const [newSelectedCloserId, setNewSelectedCloserId] = useState<string | null>(closerId || null);
 
   const calculatePaymentDetails = (cashAmount: number, platform: string) => {
     const feeRate = getPlatformFeeRate(platform);
@@ -185,8 +194,9 @@ export function UpdateCohortEmiDialog({
       setNewPlatformFees("");
       setNewPaymentPlatform("UPI (IDFC)");
       setNewRemarks("");
+      setNewSelectedCloserId(closerId || null);
     }
-  }, [open, cashReceived, dueAmount, offerAmount]);
+  }, [open, cashReceived, dueAmount, offerAmount, closerId]);
 
   const { data: emiPayments, isLoading: isLoadingEmi } = useQuery({
     queryKey: ["cohort-emi-payments", studentId],
@@ -347,8 +357,9 @@ export function UpdateCohortEmiDialog({
     const amount = parseFloat(emiAmount);
     const hasEmiToSave = !isNaN(amount) && amount > 0;
     const offerAmountChanged = newOfferAmount !== offerAmount;
+    const closerChanged = canEditOfferAndCloser && newSelectedCloserId !== (closerId || null);
 
-    if (!hasEmiToSave && !offerAmountChanged) {
+    if (!hasEmiToSave && !offerAmountChanged && !closerChanged) {
       toast({ title: "Nothing to save", description: "No changes detected" });
       return;
     }
@@ -428,6 +439,12 @@ export function UpdateCohortEmiDialog({
         }
       }
 
+      // Update closer if changed (admin/manager only)
+      if (canEditOfferAndCloser && newSelectedCloserId !== (closerId || null)) {
+        updatePayload.closer_id = newSelectedCloserId;
+        messages.push("Closer updated");
+      }
+
       if (Object.keys(updatePayload).length > 0) {
         const { error: updateError } = await supabase
           .from("cohort_students")
@@ -480,53 +497,112 @@ export function UpdateCohortEmiDialog({
         <div className="space-y-6">
           {/* Payment Summary */}
           <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Total Amount</span>
-              <div className="flex items-center gap-2">
-                {isEditingOfferAmount ? (
-                  <Input
-                    type="number"
-                    value={newOfferAmount}
-                    onChange={(e) => setNewOfferAmount(parseFloat(e.target.value) || 0)}
-                    className="w-32 h-8"
-                    autoFocus
-                    onBlur={() => setIsEditingOfferAmount(false)}
-                    onKeyDown={(e) => e.key === "Enter" && setIsEditingOfferAmount(false)}
-                  />
-                ) : (
-                  <span 
-                    className="font-semibold cursor-pointer hover:text-primary"
-                    onClick={() => setIsEditingOfferAmount(true)}
-                    title="Click to edit"
-                  >
-                    ₹{effectiveOfferAmount.toLocaleString("en-IN")}
-                  </span>
-                )}
-                {hasOfferAmountChange && (
-                  <span className="text-xs text-amber-600">(Changed from ₹{offerAmount.toLocaleString("en-IN")})</span>
-                )}
-              </div>
-            </div>
-            <Progress value={paymentProgress} className="h-2" />
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
+              Payment Summary
+            </h4>
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <span className="text-muted-foreground">Paid</span>
-                <p className="font-semibold text-green-600">₹{displayCashReceived.toLocaleString("en-IN")}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Remaining</span>
-                <p className={cn("font-semibold", isFullyPaid ? "text-green-600" : "text-orange-600")}>
-                  {isFullyPaid ? (
-                    <span className="flex items-center gap-1">
-                      <CheckCircle2 className="h-4 w-4" /> Paid in Full
-                    </span>
-                  ) : (
-                    `₹${remaining.toLocaleString("en-IN")}`
+                <p className="text-sm text-muted-foreground">Offer Amount</p>
+                <p className="text-lg font-semibold">
+                  ₹{effectiveOfferAmount.toLocaleString("en-IN")}
+                  {hasOfferAmountChange && (
+                    <span className="text-sm text-amber-600 ml-2">(was ₹{offerAmount.toLocaleString("en-IN")})</span>
                   )}
                 </p>
               </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Cash Received</p>
+                <p className="text-lg font-semibold text-green-600">₹{displayCashReceived.toLocaleString("en-IN")}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Remaining Due</p>
+                <p className={cn("text-lg font-semibold", isFullyPaid ? "text-green-600" : "text-red-600")}>
+                  ₹{remaining.toLocaleString("en-IN")}
+                </p>
+              </div>
             </div>
+            <div className="space-y-1">
+              <div className="flex justify-between text-sm">
+                <span>Payment Progress</span>
+                <span>{Math.round(paymentProgress)}%</span>
+              </div>
+              <Progress value={paymentProgress} className="h-2" />
+            </div>
+            {isFullyPaid && (
+              <div className="flex items-center gap-2 text-green-600 bg-green-50 rounded-md px-3 py-2">
+                <CheckCircle2 className="h-5 w-5" />
+                <span className="font-medium">Fully Paid</span>
+              </div>
+            )}
           </div>
+
+          {/* Update Offer Amount - Admin/Manager only */}
+          {canEditOfferAndCloser && (
+            <div className="space-y-3 rounded-lg border p-4 bg-amber-50/50 border-amber-200">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-sm uppercase tracking-wide text-amber-700">Update Offer Amount</h4>
+                {!isEditingOfferAmount ? (
+                  <Button variant="outline" size="sm" onClick={() => setIsEditingOfferAmount(true)}>Edit Offer</Button>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => { setIsEditingOfferAmount(false); setNewOfferAmount(offerAmount); }}>Cancel</Button>
+                )}
+              </div>
+              
+              {!isEditingOfferAmount ? (
+                <p className="text-lg font-semibold">Current: ₹{offerAmount.toLocaleString("en-IN")}</p>
+              ) : (
+                <>
+                  <div className="flex gap-4 items-end">
+                    <div className="flex-1 space-y-2">
+                      <Label>New Offer Amount (₹)</Label>
+                      <Input
+                        type="number"
+                        value={newOfferAmount}
+                        onChange={(e) => setNewOfferAmount(parseFloat(e.target.value) || 0)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <p>Original: ₹{offerAmount.toLocaleString("en-IN")}</p>
+                      {hasOfferAmountChange && (
+                        <p className="text-amber-600 font-medium">New Due: ₹{Math.max(0, newOfferAmount - displayCashReceived).toLocaleString("en-IN")}</p>
+                      )}
+                    </div>
+                  </div>
+                  {newOfferAmount < displayCashReceived && (
+                    <p className="text-red-500 text-sm">Warning: Cannot be less than cash received</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Offer Amount History */}
+          {canEditOfferAndCloser && offerAmountHistory && offerAmountHistory.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Offer Amount History</h4>
+              <div className="rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium">Date</th>
+                      <th className="text-left px-4 py-2 font-medium">Previous</th>
+                      <th className="text-left px-4 py-2 font-medium">New</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {offerAmountHistory.map((record: any) => (
+                      <tr key={record.id} className="border-t">
+                        <td className="px-4 py-2">{format(new Date(record.changed_at), "dd MMM yyyy, hh:mm a")}</td>
+                        <td className="px-4 py-2 text-red-600">₹{Number(record.previous_amount).toLocaleString("en-IN")}</td>
+                        <td className="px-4 py-2 text-green-600">₹{Number(record.new_amount).toLocaleString("en-IN")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* EMI History */}
           <div className="space-y-2">
@@ -642,6 +718,28 @@ export function UpdateCohortEmiDialog({
                 <Label>Payment Platform *</Label>
                 <PaymentPlatformSelect value={newPaymentPlatform} onValueChange={handleNewPaymentPlatformChange} />
               </div>
+              {/* Closer Dropdown - Admin/Manager only */}
+              {canEditOfferAndCloser && (
+                <div className="space-y-2">
+                  <Label>Closer</Label>
+                  <Select
+                    value={newSelectedCloserId || "none"}
+                    onValueChange={(v) => setNewSelectedCloserId(v === "none" ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select closer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No closer assigned</SelectItem>
+                      {closers?.map((closer) => (
+                        <SelectItem key={closer.id} value={closer.id}>
+                          {closer.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Remarks</Label>
                 <Textarea value={newRemarks} onChange={(e) => setNewRemarks(e.target.value)} placeholder="Optional notes..." rows={2} />

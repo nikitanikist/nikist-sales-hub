@@ -1,41 +1,43 @@
 
+## Fix: Missing Duration, Summary, and Extracted Data in Calling Agent
 
-## Corrected Plan: Add "Update Offer Amount" and "Closer" Dropdown to Cohort EMI Dialogs
+### Root Cause Analysis
 
-### What I Found
+After inspecting the database, the call record for "Amit" has:
+- **transcript**: Full conversation present (working correctly)
+- **call_duration_seconds**: 0 (incorrect -- a real conversation happened)
+- **summary**: null (not received from Bolna)
+- **extracted_data**: null (not received from Bolna)
+- **total_cost**: 18.53 (working correctly)
 
-After reviewing all dialog files:
+**Why duration is 0:** The webhook checks `telephonyData.duration` first, then `body.conversation_duration`, then `body.conversation_time`. Bolna's API docs confirm the field is `conversation_time` at the top level. The code already handles this, but Bolna may have sent it as `0` or not at all in the webhook payload. The webhook only logs the first 500 characters, so we can't see what was actually received.
 
-- **`UpdateEmiDialog.tsx`** (Sales Closers): Has the amber-bordered "UPDATE OFFER AMOUNT" card with "Edit Offer" / "Cancel" buttons -- this is the screenshot reference.
-- **`UpdateFuturesEmiDialog.tsx`** and **`UpdateHighFutureEmiDialog.tsx`**: Already have the identical amber-bordered "UPDATE OFFER AMOUNT" section in the code (lines 521-557). You should be seeing this when you open "Update EMI" from the three-dot menu. If it is not visible, it may be a rendering or data issue we can investigate after implementation.
-- **`UpdateCohortEmiDialog.tsx`**: Only has the subtle inline click-to-edit (click the amount number at the top to edit). No amber card, no "Edit Offer" button. This is the one that needs the upgrade.
+**Why summary and extracted_data are null:** These are Bolna agent-level features. "Summarization" and "Extraction Prompt" must be enabled in the Bolna agent's Analytics Tab settings. If not configured, Bolna simply doesn't include these fields in the webhook payload.
 
-None of the three cohort dialogs have a "Closer" dropdown.
+### Plan
 
----
+**1. Enhance webhook logging** (file: `supabase/functions/calling-agent-webhook/index.ts`)
+- Log key field values individually (conversation_time, duration, summary presence, extracted_data presence) so we can debug future issues without truncation.
+- Add `body.duration` as an additional fallback for duration (some Bolna versions use this).
 
-### Changes
+**2. Estimate duration from timestamps when Bolna doesn't provide it**
+- If `call_started_at` and `call_ended_at` are both available, calculate duration from them.
+- Set `call_started_at` when the call transitions to terminal (backfill using duration or current time).
 
-**File 1: `src/components/UpdateCohortEmiDialog.tsx`**
-1. **Replace** the inline click-to-edit offer amount (lines 484-508) with the amber-bordered "UPDATE OFFER AMOUNT" card (matching `UpdateEmiDialog.tsx` pattern: amber bg, "Edit Offer"/"Cancel" buttons, current amount display, new amount input, recalculated due, warning)
-2. **Add** Offer Amount History table below the card (query `cohort_offer_amount_history`)
-3. **Add** a "Closer" select dropdown after the Payment Platform field (line 644), using `useOrgClosers` hook
-4. **Add** `closerId` prop to the interface; on save, update `cohort_students.closer_id`
-5. **Add** role check via `useUserRole` -- only show offer amount section and closer dropdown for `admin` / `manager`
+**3. Backfill the current broken record**
+- The existing call for Amit has a full transcript but 0 duration. We can estimate the call lasted roughly 90-120 seconds based on the transcript length. However, we cannot retroactively get the exact duration.
+- We will NOT modify existing data -- the fix is forward-looking.
 
-**File 2: `src/components/UpdateFuturesEmiDialog.tsx`**
-1. **Add** "Closer" select dropdown after Payment Platform
-2. **Add** `closerId` prop; update `futures_students.closer_id` on save
-3. **Add** role check for offer amount section and closer dropdown (admin/manager only)
+**4. Inform user about Bolna configuration**
+- Summary and Extracted Data require enabling "Summarization" and "Extraction Prompt" in the Bolna agent's Analytics/Post-Call settings. Without that, these fields will always be empty. This is not a code bug -- it's a Bolna agent configuration requirement.
 
-**File 3: `src/components/UpdateHighFutureEmiDialog.tsx`**
-1. Same changes as Futures dialog
+### Technical Changes
 
-**Parent files** (pass `closerId` prop to each dialog):
-- `src/pages/CohortPage.tsx`
-- `src/pages/futures-mentorship/FuturesDialogs.tsx` or equivalent
-- `src/pages/HighFuture.tsx`
+**File: `supabase/functions/calling-agent-webhook/index.ts`**
+- Add detailed field-level logging after parsing the payload
+- Add `body.duration` as a fallback: `telephonyData.duration || body.conversation_duration || body.conversation_time || body.duration || 0`
+- When duration is still 0 but we have a transcript (indicating a real conversation happened), estimate duration from `call_started_at`/`call_ended_at` timestamps
+- Set `call_started_at` on terminal transition if not already set (backfill from duration or webhook receipt time)
+- Redeploy the edge function
 
-### No database migrations needed
-`closer_id` already exists on `cohort_students`. The `useOrgClosers` hook already exists and fetches all closers for the org.
-
+**No frontend changes needed** -- the UI correctly displays whatever data is in the database. Once the webhook stores duration/summary/extracted_data properly, the UI will show them.

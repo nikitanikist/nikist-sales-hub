@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useOrgClosers } from "@/hooks/useOrgClosers";
+import { useOrganization } from "@/hooks/useOrganization";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +60,7 @@ interface UpdateHighFutureEmiDialogProps {
   cashReceived: number;
   dueAmount: number;
   customerName: string;
+  closerId?: string | null;
   onSuccess: () => void;
 }
 
@@ -67,10 +72,16 @@ export function UpdateHighFutureEmiDialog({
   cashReceived,
   dueAmount,
   customerName,
+  closerId,
   onSuccess,
 }: UpdateHighFutureEmiDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { currentOrganization } = useOrganization();
+  const { isAdmin, isManager } = useUserRole(currentOrganization?.id);
+  const { data: closers } = useOrgClosers();
+  const canEditOfferAndCloser = isAdmin || isManager;
+  
   
   const [emiAmount, setEmiAmount] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
@@ -105,6 +116,7 @@ export function UpdateHighFutureEmiDialog({
   const [editPlatformFees, setEditPlatformFees] = useState("");
   const [editPaymentPlatform, setEditPaymentPlatform] = useState("UPI (IDFC)");
   const [editRemarks, setEditRemarks] = useState("");
+  const [newSelectedCloserId, setNewSelectedCloserId] = useState<string | null>(closerId || null);
 
   // Auto-calculate Platform Fees and GST based on Cash Collected and Payment Platform
   const calculatePaymentDetails = (cashAmount: number, platform: string) => {
@@ -197,8 +209,9 @@ export function UpdateHighFutureEmiDialog({
       setNewPlatformFees("");
       setNewPaymentPlatform("UPI (IDFC)");
       setNewRemarks("");
+      setNewSelectedCloserId(closerId || null);
     }
-  }, [open, cashReceived, dueAmount, offerAmount]);
+  }, [open, cashReceived, dueAmount, offerAmount, closerId]);
 
   // Fetch EMI payments for this student
   const { data: emiPayments, isLoading: isLoadingEmi } = useQuery({
@@ -345,8 +358,9 @@ export function UpdateHighFutureEmiDialog({
     const amount = parseFloat(emiAmount);
     const hasEmiToSave = !isNaN(amount) && amount > 0;
     const offerAmountChanged = newOfferAmount !== offerAmount;
+    const closerChanged = canEditOfferAndCloser && newSelectedCloserId !== (closerId || null);
 
-    if (!hasEmiToSave && !offerAmountChanged) {
+    if (!hasEmiToSave && !offerAmountChanged && !closerChanged) {
       toast({ title: "Nothing to save", description: "No changes detected" });
       return;
     }
@@ -424,6 +438,12 @@ export function UpdateHighFutureEmiDialog({
         if (!offerAmountChanged) {
           updatePayload.due_amount = newDueAmount;
         }
+      }
+
+      // Update closer if changed (admin/manager only)
+      if (canEditOfferAndCloser && newSelectedCloserId !== (closerId || null)) {
+        updatePayload.closer_id = newSelectedCloserId;
+        messages.push("Closer updated");
       }
 
       if (Object.keys(updatePayload).length > 0) {
@@ -518,7 +538,8 @@ export function UpdateHighFutureEmiDialog({
             )}
           </div>
 
-          {/* Update Offer Amount */}
+          {/* Update Offer Amount - Admin/Manager only */}
+          {canEditOfferAndCloser && (
           <div className="space-y-3 rounded-lg border p-4 bg-amber-50/50 border-amber-200">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-sm uppercase tracking-wide text-amber-700">Update Offer Amount</h4>
@@ -555,10 +576,11 @@ export function UpdateHighFutureEmiDialog({
                 )}
               </>
             )}
-          </div>
+           </div>
+          )}
 
           {/* Offer Amount History */}
-          {offerAmountHistory && offerAmountHistory.length > 0 && (
+          {canEditOfferAndCloser && offerAmountHistory && offerAmountHistory.length > 0 && (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">Offer Amount History</h4>
               <div className="rounded-md border">
@@ -739,6 +761,28 @@ export function UpdateHighFutureEmiDialog({
                   onValueChange={handleNewPaymentPlatformChange}
                 />
               </div>
+              {/* Closer Dropdown - Admin/Manager only */}
+              {canEditOfferAndCloser && (
+                <div className="space-y-2">
+                  <Label>Closer</Label>
+                  <Select
+                    value={newSelectedCloserId || "none"}
+                    onValueChange={(v) => setNewSelectedCloserId(v === "none" ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select closer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No closer assigned</SelectItem>
+                      {closers?.map((closer) => (
+                        <SelectItem key={closer.id} value={closer.id}>
+                          {closer.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Remarks (optional)</Label>
                 <Textarea
