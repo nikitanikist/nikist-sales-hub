@@ -754,6 +754,28 @@ export function UpdateHighFutureEmiDialog({
                   onValueChange={handleNewPaymentPlatformChange}
                 />
               </div>
+              {/* Closer Dropdown - Admin/Manager only */}
+              {canEditOfferAndCloser && (
+                <div className="space-y-2">
+                  <Label>Closer</Label>
+                  <Select
+                    value={newSelectedCloserId || "none"}
+                    onValueChange={(v) => setNewSelectedCloserId(v === "none" ? null : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select closer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No closer assigned</SelectItem>
+                      {closers?.map((closer) => (
+                        <SelectItem key={closer.id} value={closer.id}>
+                          {closer.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Remarks (optional)</Label>
                 <Textarea
