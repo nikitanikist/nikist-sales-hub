@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
         status: "queued",
         queued_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      })
+      }, { count: "exact" })
       .eq("campaign_id", campaign_id)
       .eq("status", "pending");
 
