@@ -463,7 +463,7 @@ const CohortPage = () => {
       },
       allStudentsTotals: {
         offered: activeStudents.reduce((sum, s) => sum + (s.offer_amount || 0), 0),
-        received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
+        received: activeStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0) + discontinuedStudents.reduce((sum, s) => sum + (s.cash_received || 0), 0),
         due: nonPaeStudentsWithDue.reduce((sum, s) => sum + (s.due_amount || 0), 0),
         count: activeStudents.length,
         fullPaymentCount: activeStudents.filter(s => (s.due_amount || 0) === 0 && (s.cash_received || 0) > 0).length,
