@@ -357,8 +357,9 @@ export function UpdateCohortEmiDialog({
     const amount = parseFloat(emiAmount);
     const hasEmiToSave = !isNaN(amount) && amount > 0;
     const offerAmountChanged = newOfferAmount !== offerAmount;
+    const closerChanged = canEditOfferAndCloser && newSelectedCloserId !== (closerId || null);
 
-    if (!hasEmiToSave && !offerAmountChanged) {
+    if (!hasEmiToSave && !offerAmountChanged && !closerChanged) {
       toast({ title: "Nothing to save", description: "No changes detected" });
       return;
     }
