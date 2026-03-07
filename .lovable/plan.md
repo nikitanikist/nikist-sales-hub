@@ -1,70 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Fix: VoBiz Rejects `hi-IN` — Hindi Not in Supported Languages
+### What was built
 
-## Root Cause
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-The VoBiz logs clearly state:
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-> **"Gather 'language' is not in suported language codes."**
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-VoBiz's [supported language list](https://www.docs.vobiz.ai/xml/gather/supported-languages) has only **27 languages**, and **Hindi is NOT one of them**. Our mapping of `hi` → `hi-IN` produces a code VoBiz doesn't recognize, causing it to reject the entire XML and hang up immediately.
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-The call timeline confirms this:
-- 22:31:15 — Call answered
-- 22:31:16 — XML returned with `language="hi-IN"`
-- 22:31:17 — VoBiz rejects: "language is not in supported language codes"
-- 22:31:17 — Call disconnected (HangupSource: "Error")
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-## Fix
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-Since Hindi speech recognition is not available on VoBiz, we have two options:
-
-**Option A (recommended):** Use `en-IN` (English India) as the fallback. VoBiz will still transcribe Hindi-accented speech reasonably well, and our keyword matching (`haan`, `nahi`, `bilkul`, etc.) handles the actual intent detection — we don't need perfect Hindi transcription, just enough to match keywords.
-
-**Option B:** Remove the `language` attribute entirely and let VoBiz default to `en-US`.
-
-### Changes
-
-**Both files:** `supabase/functions/ivr-call-answer/index.ts` and `supabase/functions/ivr-call-response/index.ts`
-
-Update the `mapLanguageCode` function to map unsupported Indian languages to `en-IN`:
-
-```typescript
-function mapLanguageCode(lang: string): string {
-  // VoBiz supported codes only
-  const supported = new Set([
-    "en-AU","en-CA","en-GB","en-IE","en-IN","en-PH","en-SG","en-US","en-ZA",
-    "de-DE","es-ES","es-MX","es-US","fr-CA","fr-FR","it-IT","ja-JP","ko-KR",
-    "nl-NL","pt-BR","pt-PT","ru-RU","zh","zh-HK","zh-TW","yue-Hant-HK","af-ZA"
-  ]);
-  
-  // If already a supported BCP-47 code, use as-is
-  if (supported.has(lang)) return lang;
-  
-  // Map short codes
-  const map: Record<string, string> = {
-    en: "en-IN",
-    hi: "en-IN",  // Hindi not supported; use English India (keyword matching handles intent)
-    bn: "en-IN",
-    ta: "en-IN",
-    te: "en-IN",
-    mr: "en-IN",
-    gu: "en-IN",
-    kn: "en-IN",
-    ml: "en-IN",
-    pa: "en-IN",
-    ur: "en-IN",
-  };
-  
-  return map[lang.toLowerCase()] || "en-US";
-}
-```
-
-### Deploy
-Redeploy `ivr-call-answer` and `ivr-call-response`.
-
-## Files Changed
-- `supabase/functions/ivr-call-answer/index.ts`
-- `supabase/functions/ivr-call-response/index.ts`
-
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library
