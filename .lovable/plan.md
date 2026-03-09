@@ -1,45 +1,46 @@
 
-## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-### What was built
+# Reduce IVR Audio Delay — Optimize `ivr-call-answer` Response Time
 
-**Database (Migration):**
-- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
-- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
-- `ivr_audio_library` table — reusable pre-recorded audio clips
-- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
-- RLS policies using `get_user_organization_ids()` on all tables
-- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
-- `ivr-audio` storage bucket (public)
+## The Problem
 
-**Edge Functions (6 new):**
-- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
-- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
-- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
-- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
-- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
-- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
+When VoBiz calls the `ivr-call-answer` webhook, it waits for the XML response before playing audio. Currently the function runs **4 sequential database calls** before returning XML:
 
-**Cron Job:**
-- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
+1. Update call status to "answered"
+2. Check voicemail detection + update
+3. Fetch call record (get campaign_id)
+4. Fetch campaign (get audio_url)
+5. Increment counter
 
-**Frontend:**
-- `src/types/ivr-campaign.ts` — TypeScript interfaces
-- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
-- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
-- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
-- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
-- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
-- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
-- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
-- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
+Each DB round-trip adds ~500ms-1s. That's **3-5 seconds of dead air** before the person hears anything.
 
-**Routes (App.tsx):**
-- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
+## The Fix
 
-**Sidebar (AppLayout.tsx):**
-- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
+Restructure to return XML as fast as possible:
 
-### Remaining setup
-- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
-- Upload pre-recorded audio clips to Audio Library
+1. **Single query with join** — Fetch call + campaign audio URL in one query instead of two
+2. **Fire-and-forget** — Move status updates and counter increments to run AFTER the response is returned (non-blocking)
+3. **Pre-fetch audio URL in process-ivr-queue** — Store the audio URL directly on the call record when creating it, so `ivr-call-answer` doesn't need to look up the campaign at all
+
+### Optimized Flow
+```text
+Before (5 DB calls, sequential):
+  VoBiz → update status → check voicemail → fetch call → fetch campaign → increment → return XML
+  ~3-5 seconds
+
+After (1 DB call, rest fire-and-forget):
+  VoBiz → fetch call+audio_url (single join) → return XML immediately
+           └── async: update status + increment counter
+  ~0.5-1 second
+```
+
+## Files Changed
+
+**`supabase/functions/ivr-call-answer/index.ts`**
+- Replace two separate queries (call record + campaign) with a single query: `ivr_campaign_calls.select("campaign_id, ivr_campaigns(audio_opening_url)")` 
+- Return the XML response immediately after getting the audio URL
+- Move status update ("answered") and counter increment into a non-blocking `Promise` that runs after `return`
+- Keep voicemail detection before the response (it needs to return `<Hangup/>` instead)
+
+**`supabase/functions/process-ivr-queue/index.ts`** — No changes needed
+
