@@ -80,7 +80,7 @@ export default function IvrCampaigns() {
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Contacts</TableHead>
-              <TableHead className="text-right">Interested</TableHead>
+              <TableHead className="text-right">Answered</TableHead>
               <TableHead className="text-right">No Answer</TableHead>
               <TableHead className="text-right">Cost (₹)</TableHead>
               <TableHead>Created</TableHead>

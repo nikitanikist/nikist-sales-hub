@@ -11,7 +11,7 @@ export default function IvrDashboard() {
     (acc, c: IvrCampaign) => ({
       campaigns: acc.campaigns + 1,
       contacts: acc.contacts + c.total_contacts,
-      interested: acc.interested + c.calls_interested,
+      answered: acc.answered + c.calls_answered,
       cost: acc.cost + (c.total_cost || 0),
     }),
     { campaigns: 0, contacts: 0, interested: 0, cost: 0 }
