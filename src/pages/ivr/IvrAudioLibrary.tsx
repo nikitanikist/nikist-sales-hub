@@ -7,12 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Upload, Play, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { IvrAudioClip, IvrAudioType } from "@/types/ivr-campaign";
+import type { IvrAudioClip } from "@/types/ivr-campaign";
 
 export default function IvrAudioLibrary() {
   const { currentOrganization } = useOrganization();
@@ -20,7 +18,6 @@ export default function IvrAudioLibrary() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [audioName, setAudioName] = useState("");
-  const [audioType, setAudioType] = useState<string>("opening");
   const [playingId, setPlayingId] = useState<string | null>(null);
 
   const { data: clips = [], isLoading } = useQuery({
@@ -42,7 +39,7 @@ export default function IvrAudioLibrary() {
     mutationFn: async () => {
       if (!selectedFile || !currentOrganization || !audioName) throw new Error("Missing data");
       const ext = selectedFile.name.split(".").pop() || "mp3";
-      const path = `${currentOrganization.id}/${Date.now()}_${audioType}.${ext}`;
+      const path = `${currentOrganization.id}/${Date.now()}_broadcast.${ext}`;
 
       const { error: uploadError } = await supabase.storage.from("ivr-audio").upload(path, selectedFile);
       if (uploadError) throw uploadError;
@@ -53,7 +50,7 @@ export default function IvrAudioLibrary() {
         organization_id: currentOrganization.id,
         name: audioName,
         audio_url: urlData.publicUrl,
-        audio_type: audioType,
+        audio_type: "opening",
         language: "hi",
       });
       if (insertError) throw insertError;
@@ -79,14 +76,6 @@ export default function IvrAudioLibrary() {
     },
   });
 
-  const typeLabels: Record<string, string> = {
-    opening: "Opening Message",
-    thankyou: "Thank You",
-    not_interested: "Not Interested",
-    repeat: "Repeat/Retry",
-    goodbye: "Goodbye",
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -106,10 +95,7 @@ export default function IvrAudioLibrary() {
             <Card key={clip.id}>
               <CardContent className="pt-4 pb-4 space-y-3">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium">{clip.name}</p>
-                    <Badge variant="secondary" className="mt-1">{typeLabels[clip.audio_type] || clip.audio_type}</Badge>
-                  </div>
+                  <p className="font-medium">{clip.name}</p>
                   <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(clip.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -147,17 +133,6 @@ export default function IvrAudioLibrary() {
             <div>
               <Label>Name</Label>
               <Input placeholder="e.g. Workshop Invite - Hindi" value={audioName} onChange={(e) => setAudioName(e.target.value)} />
-            </div>
-            <div>
-              <Label>Type</Label>
-              <Select value={audioType} onValueChange={setAudioType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(typeLabels).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <div>
               <Label>Audio File (MP3)</Label>

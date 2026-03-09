@@ -20,7 +20,7 @@ export default function IvrDashboard() {
   const stats = [
     { label: "Total Campaigns", value: totals.campaigns, icon: BarChart3, color: "text-primary" },
     { label: "Total Calls", value: totals.contacts, icon: PhoneCall, color: "text-foreground" },
-    { label: "Total Interested", value: totals.interested, icon: ThumbsUp, color: "text-green-600" },
+    { label: "Total Answered", value: totals.answered, icon: ThumbsUp, color: "text-green-600" },
     { label: "Total Cost", value: `₹${totals.cost.toFixed(2)}`, icon: DollarSign, color: "text-foreground" },
   ];
 

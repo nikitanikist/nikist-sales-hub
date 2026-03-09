@@ -6,23 +6,6 @@ const corsHeaders = {
   "Content-Type": "application/xml",
 };
 
-function mapLanguageCode(lang: string): string {
-  // VoBiz only supports these BCP-47 codes
-  const supported = new Set([
-    "en-AU","en-CA","en-GB","en-IE","en-IN","en-PH","en-SG","en-US","en-ZA",
-    "de-DE","es-ES","es-MX","es-US","fr-CA","fr-FR","it-IT","ja-JP","ko-KR",
-    "nl-NL","pt-BR","pt-PT","ru-RU","zh","zh-HK","zh-TW","yue-Hant-HK","af-ZA"
-  ]);
-  // If already a supported BCP-47 code, use as-is
-  if (supported.has(lang)) return lang;
-  // Map unsupported Indian languages to en-IN (keyword matching handles intent)
-  const map: Record<string, string> = {
-    en: "en-IN", hi: "en-IN", bn: "en-IN", ta: "en-IN", te: "en-IN",
-    mr: "en-IN", gu: "en-IN", kn: "en-IN", ml: "en-IN", pa: "en-IN", ur: "en-IN",
-  };
-  return map[lang.toLowerCase()] || "en-US";
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -79,7 +62,7 @@ Deno.serve(async (req) => {
       return new Response("<Response><Hangup/></Response>", { headers: corsHeaders });
     }
 
-    // Get campaign config for audio URLs and speech settings
+    // Get campaign config for audio URL
     const { data: callRecord } = await supabase
       .from("ivr_campaign_calls")
       .select("campaign_id")
@@ -93,7 +76,7 @@ Deno.serve(async (req) => {
 
     const { data: campaign } = await supabase
       .from("ivr_campaigns")
-      .select("*")
+      .select("id, audio_opening_url")
       .eq("id", callRecord.campaign_id)
       .single();
 
@@ -105,26 +88,14 @@ Deno.serve(async (req) => {
     // Increment answered counter
     await supabase.rpc("increment_ivr_campaign_counter", { p_campaign_id: campaign.id, p_counter_name: "calls_answered" });
 
-    const actionUrl = `${supabaseUrl}/functions/v1/ivr-call-response?call_id=${callId}`;
-    const repeatAudio = campaign.audio_repeat_url || campaign.audio_opening_url;
-    const goodbyeAudio = campaign.audio_goodbye_url || campaign.audio_not_interested_url;
-    const lang = mapLanguageCode(campaign.speech_language || "hi");
-    const hints = campaign.speech_hints || "";
-
-    // Build XML response — Play nested INSIDE Gather per VoBiz docs
+    // Simple broadcast: Play audio then hang up
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Gather inputType="speech" speechModel="phone_call" language="${escapeXml(lang)}" hints="${escapeXml(hints)}" speechEndTimeout="3" executionTimeout="8" action="${escapeXml(actionUrl)}" method="POST">
-        <Play>${escapeXml(campaign.audio_opening_url)}</Play>
-    </Gather>
-    <Gather inputType="speech" speechModel="phone_call" language="${escapeXml(lang)}" hints="${escapeXml(hints)}" speechEndTimeout="3" executionTimeout="6" action="${escapeXml(actionUrl)}" method="POST">
-        <Play>${escapeXml(repeatAudio)}</Play>
-    </Gather>
-    <Play>${escapeXml(goodbyeAudio)}</Play>
+    <Play>${escapeXml(campaign.audio_opening_url)}</Play>
     <Hangup/>
 </Response>`;
 
-    console.log(`ivr-call-answer: returning XML for call ${callId}:\n${xml}`);
+    console.log(`ivr-call-answer: returning broadcast XML for call ${callId}`);
     return new Response(xml, { headers: corsHeaders });
   } catch (error) {
     console.error("ivr-call-answer error:", error);

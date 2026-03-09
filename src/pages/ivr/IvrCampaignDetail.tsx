@@ -8,37 +8,25 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Play, StopCircle, PhoneCall, ThumbsUp, ThumbsDown, PhoneOff, Clock, MessageSquare, AlertCircle } from "lucide-react";
+import { ArrowLeft, Play, StopCircle, PhoneCall, PhoneOff, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import type { IvrCampaign, IvrCampaignCall } from "@/types/ivr-campaign";
 
-function outcomeBadge(outcome: string | null, status: string) {
-  if (!outcome) {
-    const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      pending: { label: "Pending", variant: "outline" },
-      queued: { label: "Queued", variant: "secondary" },
-      initiated: { label: "Ringing", variant: "secondary" },
-      answered: { label: "In Call", variant: "default" },
-      no_answer: { label: "No Answer", variant: "destructive" },
-      busy: { label: "Busy", variant: "destructive" },
-      failed: { label: "Failed", variant: "destructive" },
-      voicemail: { label: "Voicemail", variant: "outline" },
-      cancelled: { label: "Cancelled", variant: "outline" },
-    };
-    const config = statusMap[status] || { label: status, variant: "outline" as const };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  }
-  const outcomeMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    interested: { label: "✅ Interested", variant: "default" },
-    not_interested: { label: "❌ Not Interested", variant: "destructive" },
-    no_response: { label: "🔇 No Response", variant: "outline" },
-    unclear: { label: "❓ Unclear", variant: "secondary" },
-    voicemail: { label: "📩 Voicemail", variant: "outline" },
-    error: { label: "⚠️ Error", variant: "destructive" },
+function statusBadge(status: string) {
+  const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    pending: { label: "Pending", variant: "outline" },
+    queued: { label: "Queued", variant: "secondary" },
+    initiated: { label: "Ringing", variant: "secondary" },
+    answered: { label: "Answered", variant: "default" },
+    completed: { label: "Completed", variant: "default" },
+    no_answer: { label: "No Answer", variant: "destructive" },
+    busy: { label: "Busy", variant: "destructive" },
+    failed: { label: "Failed", variant: "destructive" },
+    voicemail: { label: "Voicemail", variant: "outline" },
+    cancelled: { label: "Cancelled", variant: "outline" },
   };
-  const config = outcomeMap[outcome] || { label: outcome, variant: "outline" as const };
+  const config = statusMap[status] || { label: status, variant: "outline" as const };
   return <Badge variant={config.variant}>{config.label}</Badge>;
 }
 
@@ -47,18 +35,11 @@ export default function IvrCampaignDetail() {
   const navigate = useNavigate();
   const { campaign, calls, isLoading, refetchCalls, refetchCampaign } = useIvrCampaignDetail(campaignId);
 
-  // Realtime
   const campaignRef = useRef(campaign);
   campaignRef.current = campaign;
 
-  const handleCallUpdate = useCallback(() => {
-    refetchCalls();
-  }, [refetchCalls]);
-
-  const handleCampaignUpdate = useCallback(() => {
-    refetchCampaign();
-  }, [refetchCampaign]);
-
+  const handleCallUpdate = useCallback(() => { refetchCalls(); }, [refetchCalls]);
+  const handleCampaignUpdate = useCallback(() => { refetchCampaign(); }, [refetchCampaign]);
   useIvrCampaignRealtime(campaignId, handleCallUpdate, handleCampaignUpdate);
 
   const handleStart = async () => {
@@ -74,18 +55,15 @@ export default function IvrCampaignDetail() {
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
   if (!campaign) return <div className="p-8 text-muted-foreground">Campaign not found</div>;
 
-  const totalProcessed = campaign.calls_interested + campaign.calls_not_interested + campaign.calls_no_response + campaign.calls_no_answer + campaign.calls_busy + campaign.calls_failed + campaign.calls_voicemail;
+  const totalProcessed = campaign.calls_answered + campaign.calls_no_answer + campaign.calls_busy + campaign.calls_failed + campaign.calls_voicemail;
   const progress = campaign.total_contacts > 0 ? (totalProcessed / campaign.total_contacts) * 100 : 0;
 
   const stats = [
     { label: "Total Contacts", value: campaign.total_contacts, icon: PhoneCall, color: "text-foreground" },
-    { label: "Interested", value: campaign.calls_interested, icon: ThumbsUp, color: "text-green-600" },
-    { label: "Not Interested", value: campaign.calls_not_interested, icon: ThumbsDown, color: "text-red-500" },
+    { label: "Answered", value: campaign.calls_answered, icon: CheckCircle2, color: "text-green-600" },
     { label: "No Answer", value: campaign.calls_no_answer, icon: PhoneOff, color: "text-muted-foreground" },
-    { label: "No Response", value: campaign.calls_no_response, icon: Clock, color: "text-yellow-600" },
-    { label: "WhatsApp Sent", value: calls.filter(c => c.whatsapp_sent).length, icon: MessageSquare, color: "text-green-600" },
-    { label: "Failed", value: campaign.calls_failed, icon: AlertCircle, color: "text-destructive" },
-    { label: "Cost (₹)", value: `₹${(campaign.total_cost || 0).toFixed(2)}`, icon: PhoneCall, color: "text-foreground" },
+    { label: "Failed", value: campaign.calls_failed + campaign.calls_busy, icon: AlertCircle, color: "text-destructive" },
+    { label: "Cost", value: `₹${(campaign.total_cost || 0).toFixed(2)}`, icon: DollarSign, color: "text-foreground" },
   ];
 
   return (
@@ -96,7 +74,7 @@ export default function IvrCampaignDetail() {
         </Button>
         <div className="flex-1">
           <PageHeader title={campaign.name} />
-          <p className="text-sm text-muted-foreground">{campaign.description || "IVR Voice Campaign"}</p>
+          <p className="text-sm text-muted-foreground">{campaign.description || "Voice Broadcast"}</p>
         </div>
         <div className="flex gap-2">
           {["draft", "scheduled"].includes(campaign.status) && (
@@ -120,7 +98,7 @@ export default function IvrCampaignDetail() {
       </Card>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {stats.map((s) => (
           <Card key={s.label}>
             <CardContent className="pt-4 pb-4">
@@ -147,32 +125,20 @@ export default function IvrCampaignDetail() {
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Speech</TableHead>
                   <TableHead className="text-right">Duration</TableHead>
-                  <TableHead>WhatsApp</TableHead>
                   <TableHead>Retry</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {calls.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No calls yet</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No calls yet</TableCell></TableRow>
                 ) : (
                   calls.map((call) => (
                     <TableRow key={call.id}>
                       <TableCell className="font-medium">{call.contact_name || "—"}</TableCell>
                       <TableCell>{call.contact_phone}</TableCell>
-                      <TableCell>{outcomeBadge(call.outcome, call.status)}</TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                        {call.speech_transcript || "—"}
-                      </TableCell>
+                      <TableCell>{statusBadge(call.status)}</TableCell>
                       <TableCell className="text-right">{call.call_duration_seconds > 0 ? `${Math.round(call.call_duration_seconds)}s` : "—"}</TableCell>
-                      <TableCell>
-                        {call.whatsapp_sent ? (
-                          <Badge variant="default">Sent</Badge>
-                        ) : call.whatsapp_error ? (
-                          <Badge variant="destructive">Error</Badge>
-                        ) : "—"}
-                      </TableCell>
                       <TableCell>{call.retry_count > 0 ? `${call.retry_count}x` : "—"}</TableCell>
                     </TableRow>
                   ))
