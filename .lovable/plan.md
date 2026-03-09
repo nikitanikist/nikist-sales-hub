@@ -1,45 +1,64 @@
 
-## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-### What was built
+# Simplify IVR System — Voice Broadcast (Play Audio Only)
 
-**Database (Migration):**
-- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
-- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
-- `ivr_audio_library` table — reusable pre-recorded audio clips
-- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
-- RLS policies using `get_user_organization_ids()` on all tables
-- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
-- `ivr-audio` storage bucket (public)
+## What You Want
+A simple voice broadcast system: upload audio, upload CSV, call everyone, play the audio, hang up. No speech detection, no response gathering, no WhatsApp sending. Just a clean broadcast.
 
-**Edge Functions (6 new):**
-- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
-- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
-- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
-- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
-- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
-- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
+## New Flow
+1. Go to Audio Library, upload audio clip
+2. Go to IVR Campaigns, click "New Campaign"
+3. **Step 1**: Enter campaign name
+4. **Step 2**: Select ONE audio clip (from entire library, no type filtering) + Upload CSV
+5. **Step 3**: Review contacts + Create/Run campaign
+6. Backend: Call each number → Play audio → Hang up. Done.
 
-**Cron Job:**
-- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
+## Changes
 
-**Frontend:**
-- `src/types/ivr-campaign.ts` — TypeScript interfaces
-- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
-- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
-- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
-- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
-- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
-- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
-- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
-- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
+### Frontend
 
-**Routes (App.tsx):**
-- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
+**`src/pages/ivr/CreateIvrCampaignDialog.tsx`** — Rebuild as 3-step flow:
+- Step 1: Campaign name (keep as-is)
+- Step 2: Single audio select (all clips, no type filter) + CSV upload (merged into one step)
+- Step 3: Review contact count + confirm. Single "Create & Run" button
+- Remove: thankyou/not_interested audio selects, WhatsApp template config, from number input
+- Campaign insert: set `on_yes_action: "none"`, only `audio_opening_url` matters, set others to empty/null
 
-**Sidebar (AppLayout.tsx):**
-- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
+**`src/pages/ivr/IvrCampaignDetail.tsx`** — Simplify stats:
+- Remove: Interested, Not Interested, No Response, WhatsApp Sent cards
+- Keep: Total Contacts, Answered, No Answer, Failed, Cost
+- Table: Remove Speech and WhatsApp columns, keep Name, Phone, Status, Duration
 
-### Remaining setup
-- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
-- Upload pre-recorded audio clips to Audio Library
+**`src/pages/ivr/IvrCampaigns.tsx`** — Simplify table:
+- Replace "Interested" column with "Answered"
+- Keep: Name, Status, Contacts, Answered, No Answer, Cost, Created, Actions
+
+**`src/pages/ivr/IvrDashboard.tsx`** — Change "Total Interested" to "Total Answered"
+
+**`src/pages/ivr/IvrAudioLibrary.tsx`** — Remove audio type categorization:
+- Remove the Type select dropdown from upload dialog
+- Remove type badges from cards
+- Default audio_type to "opening" on insert (backward compat)
+
+### Backend
+
+**`supabase/functions/ivr-call-answer/index.ts`** — Simplify to play-and-hangup:
+- Remove all Gather elements and speech recognition logic
+- Just: update status to answered, increment counter, return `<Response><Play>audio_url</Play><Hangup/></Response>`
+- Keep voicemail detection as-is
+
+**`supabase/functions/ivr-call-response/index.ts`** — No longer needed for new campaigns but keep for backward compat. No changes required (it simply won't be called since there's no Gather).
+
+**`process-ivr-queue/index.ts`** — No changes needed, it just initiates calls.
+
+### No DB Changes
+The existing `ivr_campaigns` table already has all needed columns. We just stop using the speech/response ones. No migration needed.
+
+## Files Changed
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — 3-step simplified flow
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Remove speech/WhatsApp stats and columns
+- `src/pages/ivr/IvrCampaigns.tsx` — Replace "Interested" with "Answered"
+- `src/pages/ivr/IvrDashboard.tsx` — "Total Answered" instead of "Total Interested"
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Remove audio type categorization
+- `supabase/functions/ivr-call-answer/index.ts` — Play audio + hangup only
+
