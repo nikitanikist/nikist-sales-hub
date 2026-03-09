@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { IvrAudioClip } from "@/types/ivr-campaign";
@@ -26,22 +25,13 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
 
   // Step 1
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
 
-  // Step 2 - Audio
-  const [openingAudioId, setOpeningAudioId] = useState("");
-  const [thankyouAudioId, setThankyouAudioId] = useState("");
-  const [notInterestedAudioId, setNotInterestedAudioId] = useState("");
-
-  // Step 3 - Contacts CSV
+  // Step 2 - Audio + CSV
+  const [selectedAudioId, setSelectedAudioId] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [contacts, setContacts] = useState<{ name?: string; phone: string }[]>([]);
 
-  // Step 4 - WhatsApp template
-  const [templateName, setTemplateName] = useState("");
-  const [fromNumber, setFromNumber] = useState("");
-
-  // Load audio library
+  // Load audio library (all clips, no type filter)
   const { data: audioClips = [] } = useQuery({
     queryKey: ["ivr-audio-library", currentOrganization?.id],
     queryFn: async () => {
@@ -101,18 +91,16 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
     setLoading(true);
 
     try {
-      const openingUrl = getAudioUrl(openingAudioId);
-      const thankyouUrl = getAudioUrl(thankyouAudioId);
-      const notIntUrl = getAudioUrl(notInterestedAudioId);
-      const vobizFrom = fromNumber || vobizConfig?.from_number || "";
+      const audioUrl = getAudioUrl(selectedAudioId);
+      const vobizFrom = vobizConfig?.from_number || "";
 
-      if (!openingUrl || !thankyouUrl || !notIntUrl) {
-        toast.error("Please select all required audio clips");
+      if (!audioUrl) {
+        toast.error("Please select an audio clip");
         setLoading(false);
         return;
       }
       if (!vobizFrom) {
-        toast.error("VoBiz from number required");
+        toast.error("VoBiz integration not configured");
         setLoading(false);
         return;
       }
@@ -122,19 +110,17 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
         return;
       }
 
-      // Create campaign
+      // Create campaign — broadcast mode (no speech, no WhatsApp)
       const { data: campaign, error: campaignError } = await supabase
         .from("ivr_campaigns")
         .insert({
           organization_id: currentOrganization.id,
           name,
-          description,
-          audio_opening_url: openingUrl,
-          audio_thankyou_url: thankyouUrl,
-          audio_not_interested_url: notIntUrl,
+          audio_opening_url: audioUrl,
+          audio_thankyou_url: audioUrl,
+          audio_not_interested_url: audioUrl,
           vobiz_from_number: vobizFrom,
-          on_yes_action: templateName ? "send_whatsapp" : "none",
-          on_yes_template_name: templateName || null,
+          on_yes_action: "none",
           total_contacts: contacts.length,
           created_by: user.id,
         })
@@ -171,55 +157,47 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
   const resetForm = () => {
     setStep(1);
     setName("");
-    setDescription("");
-    setOpeningAudioId("");
-    setThankyouAudioId("");
-    setNotInterestedAudioId("");
+    setSelectedAudioId("");
     setCsvFile(null);
     setContacts([]);
-    setTemplateName("");
-    setFromNumber("");
   };
 
-  const openingClips = audioClips.filter((a) => a.audio_type === "opening");
-  const thankyouClips = audioClips.filter((a) => a.audio_type === "thankyou");
-  const notIntClips = audioClips.filter((a) => a.audio_type === "not_interested");
+  const canProceedStep2 = selectedAudioId && contacts.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>New IVR Campaign — Step {step}/4</DialogTitle>
+          <DialogTitle>New Voice Broadcast — Step {step}/3</DialogTitle>
         </DialogHeader>
 
         {step === 1 && (
           <div className="space-y-4">
             <div>
               <Label>Campaign Name *</Label>
-              <Input placeholder="e.g. Workshop 15 March - IVR" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea placeholder="Optional notes" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Input placeholder="e.g. Workshop 15 March - Broadcast" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-4">
-            <AudioSelect label="Opening Message *" clips={openingClips} value={openingAudioId} onChange={setOpeningAudioId} />
-            <AudioSelect label="Thank You (on Yes) *" clips={thankyouClips} value={thankyouAudioId} onChange={setThankyouAudioId} />
-            <AudioSelect label="Not Interested (on No) *" clips={notIntClips} value={notInterestedAudioId} onChange={setNotInterestedAudioId} />
-            {audioClips.length === 0 && (
-              <p className="text-sm text-destructive">No audio clips found. Please upload audio in the Audio Library first.</p>
-            )}
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-4">
             <div>
-              <Label>Upload CSV (columns: name, phone)</Label>
+              <Label>Select Audio Clip *</Label>
+              <Select value={selectedAudioId} onValueChange={setSelectedAudioId}>
+                <SelectTrigger><SelectValue placeholder="Choose an audio clip" /></SelectTrigger>
+                <SelectContent>
+                  {audioClips.map((clip) => (
+                    <SelectItem key={clip.id} value={clip.id}>{clip.name}</SelectItem>
+                  ))}
+                  {audioClips.length === 0 && (
+                    <SelectItem value="none" disabled>No clips found — upload in Audio Library first</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Upload CSV (columns: name, phone) *</Label>
               <Input
                 type="file"
                 accept=".csv"
@@ -238,51 +216,38 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
           </div>
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <div className="space-y-4">
-            <div>
-              <Label>WhatsApp Template Name (optional)</Label>
-              <Input placeholder="e.g. workshop_invite_v2" value={templateName} onChange={(e) => setTemplateName(e.target.value)} />
-              <p className="text-xs text-muted-foreground mt-1">Leave blank to skip WhatsApp on "yes"</p>
+            <div className="rounded-lg border p-4 space-y-2">
+              <h4 className="font-semibold">Review</h4>
+              <div className="text-sm space-y-1">
+                <p><span className="text-muted-foreground">Campaign:</span> {name}</p>
+                <p><span className="text-muted-foreground">Audio:</span> {audioClips.find(a => a.id === selectedAudioId)?.name || "—"}</p>
+                <p><span className="text-muted-foreground">Contacts:</span> {contacts.length}</p>
+              </div>
             </div>
-            <div>
-              <Label>VoBiz From Number</Label>
-              <Input placeholder={vobizConfig?.from_number || "+917971543257"} value={fromNumber} onChange={(e) => setFromNumber(e.target.value)} />
-              {vobizConfig?.from_number && <p className="text-xs text-muted-foreground mt-1">Default: {vobizConfig.from_number}</p>}
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Each contact will receive a call that plays the selected audio and then hangs up automatically.
+            </p>
           </div>
         )}
 
         <DialogFooter>
           {step > 1 && <Button variant="outline" onClick={() => setStep(step - 1)}>Back</Button>}
-          {step < 4 ? (
-            <Button onClick={() => setStep(step + 1)} disabled={step === 1 && !name}>Next</Button>
+          {step < 3 ? (
+            <Button
+              onClick={() => setStep(step + 1)}
+              disabled={(step === 1 && !name) || (step === 2 && !canProceedStep2)}
+            >
+              Next
+            </Button>
           ) : (
-            <Button onClick={handleCreate} disabled={loading || contacts.length === 0}>
-              {loading ? "Creating..." : `Create Campaign (${contacts.length} contacts)`}
+            <Button onClick={handleCreate} disabled={loading}>
+              {loading ? "Creating..." : `Create & Run (${contacts.length} contacts)`}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function AudioSelect({ label, clips, value, onChange }: { label: string; clips: IvrAudioClip[]; value: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <Label>{label}</Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger><SelectValue placeholder="Select audio clip" /></SelectTrigger>
-        <SelectContent>
-          {clips.map((clip) => (
-            <SelectItem key={clip.id} value={clip.id}>{clip.name}</SelectItem>
-          ))}
-          {clips.length === 0 && (
-            <SelectItem value="none" disabled>No clips of this type</SelectItem>
-          )}
-        </SelectContent>
-      </Select>
-    </div>
   );
 }

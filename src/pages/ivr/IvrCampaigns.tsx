@@ -80,7 +80,7 @@ export default function IvrCampaigns() {
               <TableHead>Name</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Contacts</TableHead>
-              <TableHead className="text-right">Interested</TableHead>
+              <TableHead className="text-right">Answered</TableHead>
               <TableHead className="text-right">No Answer</TableHead>
               <TableHead className="text-right">Cost (₹)</TableHead>
               <TableHead>Created</TableHead>
@@ -98,7 +98,7 @@ export default function IvrCampaigns() {
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>{statusBadge(c.status)}</TableCell>
                   <TableCell className="text-right">{c.total_contacts}</TableCell>
-                  <TableCell className="text-right text-green-600 font-medium">{c.calls_interested}</TableCell>
+                  <TableCell className="text-right text-green-600 font-medium">{c.calls_answered}</TableCell>
                   <TableCell className="text-right">{c.calls_no_answer}</TableCell>
                   <TableCell className="text-right">₹{(c.total_cost || 0).toFixed(2)}</TableCell>
                   <TableCell>{format(new Date(c.created_at), "dd MMM yyyy")}</TableCell>

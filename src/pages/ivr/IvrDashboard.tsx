@@ -11,16 +11,16 @@ export default function IvrDashboard() {
     (acc, c: IvrCampaign) => ({
       campaigns: acc.campaigns + 1,
       contacts: acc.contacts + c.total_contacts,
-      interested: acc.interested + c.calls_interested,
+      answered: acc.answered + c.calls_answered,
       cost: acc.cost + (c.total_cost || 0),
     }),
-    { campaigns: 0, contacts: 0, interested: 0, cost: 0 }
+    { campaigns: 0, contacts: 0, answered: 0, cost: 0 }
   );
 
   const stats = [
     { label: "Total Campaigns", value: totals.campaigns, icon: BarChart3, color: "text-primary" },
     { label: "Total Calls", value: totals.contacts, icon: PhoneCall, color: "text-foreground" },
-    { label: "Total Interested", value: totals.interested, icon: ThumbsUp, color: "text-green-600" },
+    { label: "Total Answered", value: totals.answered, icon: ThumbsUp, color: "text-green-600" },
     { label: "Total Cost", value: `₹${totals.cost.toFixed(2)}`, icon: DollarSign, color: "text-foreground" },
   ];
 
