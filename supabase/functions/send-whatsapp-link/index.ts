@@ -36,7 +36,7 @@ serve(async (req) => {
     const workshopTime = "Today 7 PM";
     const groupLink =
       body.whatsapp_group_link ||
-      "https://app.tagfunnel.ai/link/today-whatsapp-group-icc";
+      "https://chat.whatsapp.com/Fwyt3nS0gT4Jg4QjBESo5Z";
     const campaignName = body.campaign_name || "Bolna ai bot";
 
     if (!destination) {
@@ -87,7 +87,7 @@ serve(async (req) => {
       templateParams: [leadName, workshopName, workshopTime, groupLink],
       source: "bolna-voice-agent",
       media: {
-        url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6805dc865e03fc0bfe0a7132/4662926_service%20image.jpeg",
+        url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6805dc865e03fc0bfe0a7132/6091959_anku.jpeg",
         filename: "sample_media",
       },
       buttons: [],
