@@ -19,83 +19,80 @@ Deno.serve(async (req) => {
       return new Response("<Response><Hangup/></Response>", { headers: corsHeaders });
     }
 
-    // Parse VoBiz POST body (form-urlencoded)
     const formData = await req.formData().catch(() => null);
     const body: Record<string, string> = {};
     if (formData) {
       formData.forEach((value, key) => { body[key] = String(value); });
     }
 
-    console.log(`ivr-call-answer: call_id=${callId}, CallUUID=${body.CallUUID}, MachineDetection=${body.Machine}, From=${body.From}, To=${body.To}`);
+    console.log(`ivr-call-answer: call_id=${callId}, CallUUID=${body.CallUUID}, Machine=${body.Machine}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Update call with VoBiz data
-    await supabase.from("ivr_campaign_calls").update({
-      status: "answered",
-      vobiz_call_uuid: body.CallUUID || null,
-      vobiz_from: body.From || null,
-      vobiz_to: body.To || null,
-      answered_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).eq("id", callId);
-
-    // Check for voicemail/machine detection
+    // Check voicemail FIRST — needs to return <Hangup/> so must be blocking
     const machineDetected = body.Machine === "true" || body.MachineDetection === "true";
     if (machineDetected) {
       console.log(`ivr-call-answer: voicemail detected for call ${callId}`);
-      await supabase.from("ivr_campaign_calls").update({
-        status: "voicemail",
-        outcome: "voicemail",
-        answered_by_voicemail: true,
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }).eq("id", callId);
-
-      const { data: callData } = await supabase.from("ivr_campaign_calls").select("campaign_id").eq("id", callId).single();
-      if (callData) {
-        await supabase.rpc("increment_ivr_campaign_counter", { p_campaign_id: callData.campaign_id, p_counter_name: "calls_voicemail" });
-      }
-
+      // Fire-and-forget voicemail updates
+      const vmPromise = (async () => {
+        await supabase.from("ivr_campaign_calls").update({
+          status: "voicemail", outcome: "voicemail", answered_by_voicemail: true,
+          vobiz_call_uuid: body.CallUUID || null,
+          completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).eq("id", callId);
+        const { data: cd } = await supabase.from("ivr_campaign_calls").select("campaign_id").eq("id", callId).single();
+        if (cd) await supabase.rpc("increment_ivr_campaign_counter", { p_campaign_id: cd.campaign_id, p_counter_name: "calls_voicemail" });
+      })();
+      // Don't await — return immediately
+      vmPromise.catch(e => console.error("ivr-call-answer: voicemail bg error", e));
       return new Response("<Response><Hangup/></Response>", { headers: corsHeaders });
     }
 
-    // Get campaign config for audio URL
-    const { data: callRecord } = await supabase
+    // FAST PATH: Single query with join to get audio URL
+    const { data: callRecord, error } = await supabase
       .from("ivr_campaign_calls")
-      .select("campaign_id")
+      .select("campaign_id, ivr_campaigns(id, audio_opening_url)")
       .eq("id", callId)
       .single();
 
-    if (!callRecord) {
-      console.error(`ivr-call-answer: call record not found for ${callId}`);
+    if (error || !callRecord || !callRecord.ivr_campaigns) {
+      console.error(`ivr-call-answer: lookup failed for ${callId}`, error);
       return new Response("<Response><Hangup/></Response>", { headers: corsHeaders });
     }
 
-    const { data: campaign } = await supabase
-      .from("ivr_campaigns")
-      .select("id, audio_opening_url")
-      .eq("id", callRecord.campaign_id)
-      .single();
+    const campaign = callRecord.ivr_campaigns as any;
+    const audioUrl = campaign.audio_opening_url;
 
-    if (!campaign) {
-      console.error(`ivr-call-answer: campaign not found for call ${callId}`);
+    if (!audioUrl) {
+      console.error(`ivr-call-answer: no audio URL for campaign ${campaign.id}`);
       return new Response("<Response><Hangup/></Response>", { headers: corsHeaders });
     }
 
-    // Increment answered counter
-    await supabase.rpc("increment_ivr_campaign_counter", { p_campaign_id: campaign.id, p_counter_name: "calls_answered" });
-
-    // Simple broadcast: Play audio then hang up
+    // Build XML response IMMEDIATELY
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Play>${escapeXml(campaign.audio_opening_url)}</Play>
+    <Play>${escapeXml(audioUrl)}</Play>
     <Hangup/>
 </Response>`;
 
-    console.log(`ivr-call-answer: returning broadcast XML for call ${callId}`);
+    console.log(`ivr-call-answer: returning XML for call ${callId} (~0 delay)`);
+
+    // Fire-and-forget: status update + counter increment (runs after response is sent)
+    const bgPromise = (async () => {
+      await supabase.from("ivr_campaign_calls").update({
+        status: "answered",
+        vobiz_call_uuid: body.CallUUID || null,
+        vobiz_from: body.From || null,
+        vobiz_to: body.To || null,
+        answered_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", callId);
+      await supabase.rpc("increment_ivr_campaign_counter", { p_campaign_id: campaign.id, p_counter_name: "calls_answered" });
+    })();
+    bgPromise.catch(e => console.error("ivr-call-answer: bg update error", e));
+
     return new Response(xml, { headers: corsHeaders });
   } catch (error) {
     console.error("ivr-call-answer error:", error);
