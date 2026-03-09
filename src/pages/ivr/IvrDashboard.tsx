@@ -14,7 +14,7 @@ export default function IvrDashboard() {
       answered: acc.answered + c.calls_answered,
       cost: acc.cost + (c.total_cost || 0),
     }),
-    { campaigns: 0, contacts: 0, interested: 0, cost: 0 }
+    { campaigns: 0, contacts: 0, answered: 0, cost: 0 }
   );
 
   const stats = [
