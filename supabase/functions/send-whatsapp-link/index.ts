@@ -33,7 +33,7 @@ serve(async (req) => {
     const destination = body.whatsapp_number || body.destination;
     const leadName = body.lead_name || body.name || "Friend";
     const workshopName = body.workshop_name || "Workshop";
-    const workshopTime = "Today 7 PM";
+    const workshopTime = "Today 8:30 PM";
     const groupLink =
       body.whatsapp_group_link ||
       "https://chat.whatsapp.com/Fwyt3nS0gT4Jg4QjBESo5Z";
