@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
           .from("ivr_campaign_calls")
           .select("id", { count: "exact", head: true })
           .eq("campaign_id", campaign.id)
-          .in("status", ["initiated", "answered"]);
+          .in("status", ["claiming", "initiated", "answered"]);
 
         const concurrentLimit = campaign.concurrent_limit || 10;
         const availableSlots = Math.max(0, concurrentLimit - (activeCalls || 0));
