@@ -87,7 +87,7 @@ serve(async (req) => {
       templateParams: [leadName, workshopName, workshopTime, groupLink],
       source: "bolna-voice-agent",
       media: {
-        url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6805dc865e03fc0bfe0a7132/4662926_service%20image.jpeg",
+        url: "https://d3jt6ku4g6z5l8.cloudfront.net/IMAGE/6805dc865e03fc0bfe0a7132/6091959_anku.jpeg",
         filename: "sample_media",
       },
       buttons: [],
