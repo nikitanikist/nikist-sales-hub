@@ -74,16 +74,30 @@ Deno.serve(async (req) => {
         // Pick queued calls (including retries that are due)
         const batchSize = Math.min(availableSlots, campaign.calls_per_second || 5);
 
-        const { data: calls } = await supabase
+        // ATOMIC CLAIM: Select queued calls, then immediately mark them as "claiming"
+        // to prevent duplicate calls when cron fires concurrently
+        const { data: candidateCalls } = await supabase
           .from("ivr_campaign_calls")
-          .select("id, contact_phone, contact_name")
+          .select("id")
           .eq("campaign_id", campaign.id)
           .eq("status", "queued")
           .or(`next_retry_at.is.null,next_retry_at.lte.${new Date().toISOString()}`)
           .order("created_at", { ascending: true })
           .limit(batchSize);
 
-        if (!calls?.length) continue;
+        if (!candidateCalls?.length) continue;
+
+        // Atomically claim by updating status — only rows still "queued" will be updated
+        const callIds = candidateCalls.map(c => c.id);
+        const { data: claimedCalls } = await supabase
+          .from("ivr_campaign_calls")
+          .update({ status: "claiming", updated_at: new Date().toISOString() })
+          .in("id", callIds)
+          .eq("status", "queued")
+          .select("id, contact_phone, contact_name");
+
+        if (!claimedCalls?.length) continue;
+        const calls = claimedCalls;
 
         const cpsDelay = 1000 / (campaign.calls_per_second || 5);
         const fromNumber = campaign.vobiz_from_number || vobizConfig.from_number || "";
