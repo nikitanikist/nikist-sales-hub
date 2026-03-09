@@ -36,7 +36,7 @@ serve(async (req) => {
     const workshopTime = "Today 7 PM";
     const groupLink =
       body.whatsapp_group_link ||
-      "https://app.tagfunnel.ai/link/today-whatsapp-group-icc";
+      "https://chat.whatsapp.com/Fwyt3nS0gT4Jg4QjBESo5Z";
     const campaignName = body.campaign_name || "Bolna ai bot";
 
     if (!destination) {
