@@ -12,6 +12,35 @@ import { Upload, Play, Trash2, Plus, Mic, Square, RotateCcw } from "lucide-react
 import { toast } from "sonner";
 import type { IvrAudioClip } from "@/types/ivr-campaign";
 
+/** Convert a WebM/Opus blob to WAV (16-bit PCM) using Web Audio API */
+async function webmToWav(webmBlob: Blob): Promise<Blob> {
+  const AudioCtx = window.AudioContext || (window as unknown as Record<string, typeof AudioContext>).webkitAudioContext;
+  const audioCtx = new AudioCtx();
+  const arrayBuffer = await webmBlob.arrayBuffer();
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+  const samples = audioBuffer.getChannelData(0);
+  const numSamples = samples.length;
+  const sampleRate = audioBuffer.sampleRate;
+  const dataSize = numSamples * 2;
+  const buf = new ArrayBuffer(44 + dataSize);
+  const v = new DataView(buf);
+  const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  ws(0, "RIFF"); v.setUint32(4, 36 + dataSize, true);
+  ws(8, "WAVE"); ws(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true); v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true); v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true); ws(36, "data"); v.setUint32(40, dataSize, true);
+  let off = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    off += 2;
+  }
+  await audioCtx.close();
+  return new Blob([buf], { type: "audio/wav" });
+}
+
 export default function IvrAudioLibrary() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
