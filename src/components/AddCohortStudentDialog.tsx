@@ -390,6 +390,21 @@ export function AddCohortStudentDialog({
                 <Input value={batchName} disabled />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label>Closer</Label>
+              <Select value={closerId} onValueChange={setCloserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select closer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {closers.map((closer) => (
+                    <SelectItem key={closer.id} value={closer.id}>
+                      {closer.full_name} ({closer.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Offer Amount (₹)</Label>
