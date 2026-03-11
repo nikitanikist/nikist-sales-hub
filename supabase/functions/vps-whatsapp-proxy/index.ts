@@ -110,6 +110,7 @@ interface VPSProxyRequest {
   announcement?: boolean;
   restrict?: boolean;
   profilePictureUrl?: string;
+  proxyConfig?: { host: string; port: number; username: string; password: string } | null;
 }
 
 Deno.serve(async (req) => {
