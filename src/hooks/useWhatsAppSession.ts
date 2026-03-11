@@ -4,6 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 
+interface ProxyConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+}
+
 interface WhatsAppSession {
   id: string;
   organization_id: string;
@@ -16,6 +23,7 @@ interface WhatsAppSession {
   last_active_at: string | null;
   created_at: string;
   updated_at: string;
+  proxy_config: ProxyConfig | null;
 }
 
 interface ConnectionState {
