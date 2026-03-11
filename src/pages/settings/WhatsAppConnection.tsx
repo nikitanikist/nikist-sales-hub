@@ -344,9 +344,15 @@ export function WhatsAppConnection() {
                             <p className="font-medium">
                               {session.phone_number || session.display_name || `Session ${session.id.slice(0, 8)}...`}
                             </p>
-                            {isVerifying && (
-                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
-                                Verifying...
+                            {/* Proxy indicator badge */}
+                            {(session as any).proxy_config ? (
+                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">
+                                <Shield className="h-3 w-3 mr-1" />
+                                Proxied ({(session as any).proxy_config?.host})
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs border-green-300 text-green-600">
+                                Direct
                               </Badge>
                             )}
                             {isVpsDisconnected && (
