@@ -22,6 +22,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentPlatformSelect, getPlatformFeeRate, getPlatformFeesHint } from "@/components/PaymentPlatformSelect";
+import { useOrgClosers } from "@/hooks/useOrgClosers";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Lead {
   id: string;
@@ -48,6 +50,7 @@ export function AddFuturesStudentDialog({
 }: AddFuturesStudentDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: closers = [] } = useOrgClosers();
   
   const [activeTab, setActiveTab] = useState<"search" | "new">("search");
   
@@ -74,6 +77,7 @@ export function AddFuturesStudentDialog({
   const [platformFees, setPlatformFees] = useState("");
   const [paymentPlatform, setPaymentPlatform] = useState("UPI (IDFC)");
   const [paymentRemarks, setPaymentRemarks] = useState("");
+  const [closerId, setCloserId] = useState("");
 
   // Auto-calculate Platform Fees and GST based on Cash Collected and Payment Platform
   const calculatePaymentDetails = (cashAmount: number, platform: string) => {
@@ -135,6 +139,7 @@ export function AddFuturesStudentDialog({
     setPlatformFees("");
     setPaymentPlatform("UPI (IDFC)");
     setPaymentRemarks("");
+    setCloserId("");
   };
 
   const handleClose = () => {
@@ -219,6 +224,7 @@ export function AddFuturesStudentDialog({
           due_amount: dueNum,
           notes: notes || null,
           created_by: user?.id,
+          closer_id: closerId || null,
           // New payment detail fields
           no_cost_emi: parseFloat(noCostEmi) || 0,
           gst_fees: parseFloat(gstFees) || 0,
@@ -388,7 +394,22 @@ export function AddFuturesStudentDialog({
               <div className="space-y-2">
                 <Label>Batch</Label>
                 <Input value={batchName} disabled />
-              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Closer</Label>
+              <Select value={closerId} onValueChange={setCloserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select closer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {closers.map((closer) => (
+                    <SelectItem key={closer.id} value={closer.id}>
+                      {closer.full_name} ({closer.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
