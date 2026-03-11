@@ -64,7 +64,10 @@ export function WhatsAppConnection() {
   } | null>(null);
 
   const handleConnect = () => {
-    connect();
+    const proxyConfig = useProxy && proxyHost
+      ? { host: proxyHost, port: parseInt(proxyPort) || 1080, username: proxyUsername, password: proxyPassword }
+      : undefined;
+    connect(proxyConfig);
     setQrDialogOpen(true);
   };
 
