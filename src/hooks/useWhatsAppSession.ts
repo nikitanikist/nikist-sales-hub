@@ -209,18 +209,24 @@ export function useWhatsAppSession() {
 
   // Start connection mutation - defined before any callbacks that might use it
   const connectMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (proxyConfig?: ProxyConfig | null) => {
       const organizationId = orgIdRef.current;
       if (!organizationId) throw new Error('No organization selected');
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Not authenticated');
 
+      const invokeBody: Record<string, unknown> = {
+        action: 'connect',
+        organizationId,
+      };
+      
+      if (proxyConfig && proxyConfig.host) {
+        invokeBody.proxyConfig = proxyConfig;
+      }
+
       const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
-        body: {
-          action: 'connect',
-          organizationId,
-        },
+        body: invokeBody,
       });
 
       if (response.error) {
