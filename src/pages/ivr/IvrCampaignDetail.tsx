@@ -76,6 +76,12 @@ export default function IvrCampaignDetail() {
         <div className="flex-1">
           <PageHeader title={campaign.name} />
           <p className="text-sm text-muted-foreground">{campaign.description || "Voice Broadcast"}</p>
+          {campaign.status === "scheduled" && campaign.scheduled_at && (
+            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+              <Clock className="h-3.5 w-3.5" />
+              Scheduled for {formatInOrgTime(campaign.scheduled_at, "Asia/Kolkata", "dd MMM yyyy, hh:mm a")} IST
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           {["draft", "scheduled"].includes(campaign.status) && (
