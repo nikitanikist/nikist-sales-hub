@@ -86,14 +86,15 @@ export default function IvrCampaigns() {
               <TableHead className="text-right">No Answer</TableHead>
               <TableHead className="text-right">Cost (₹)</TableHead>
               <TableHead>Created</TableHead>
+              <TableHead>Scheduled For</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : campaigns.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No campaigns found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No campaigns found</TableCell></TableRow>
             ) : (
               campaigns.map((c: IvrCampaign) => (
                 <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/ivr/campaigns/${c.id}`)}>
