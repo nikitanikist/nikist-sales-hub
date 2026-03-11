@@ -69,6 +69,7 @@ export default function IvrCampaigns() {
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="running">Running</TabsTrigger>
+          <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
           <TabsTrigger value="completed">Completed</TabsTrigger>
           <TabsTrigger value="draft">Draft</TabsTrigger>
         </TabsList>
