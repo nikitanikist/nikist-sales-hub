@@ -149,7 +149,7 @@ export function useWhatsAppSession() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as WhatsAppSession[];
+      return data as unknown as WhatsAppSession[];
     },
     enabled: !!currentOrganization,
   });
