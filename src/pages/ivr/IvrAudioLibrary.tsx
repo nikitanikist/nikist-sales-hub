@@ -160,9 +160,12 @@ export default function IvrAudioLibrary() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!recordedBlob || !currentOrganization || !recordName) throw new Error("Missing data");
-      const path = `${currentOrganization.id}/${Date.now()}_recorded.webm`;
 
-      const file = new File([recordedBlob], "recording.webm", { type: "audio/webm" });
+      // Convert WebM to WAV for VoBiz telephony compatibility
+      const wavBlob = await webmToWav(recordedBlob);
+      const path = `${currentOrganization.id}/${Date.now()}_recorded.wav`;
+
+      const file = new File([wavBlob], "recording.wav", { type: "audio/wav" });
       const { error: uploadError } = await supabase.storage.from("ivr-audio").upload(path, file);
       if (uploadError) throw uploadError;
 
