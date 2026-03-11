@@ -221,6 +221,7 @@ export function AddCohortStudentDialog({
           notes: notes || null,
           created_by: user?.id,
           organization_id: currentOrganization.id,
+          closer_id: closerId || null,
           no_cost_emi: parseFloat(noCostEmi) || 0,
           gst_fees: parseFloat(gstFees) || 0,
           platform_fees: parseFloat(platformFees) || 0,
