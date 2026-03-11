@@ -1,34 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Improve IVR Campaign Creation Dialog
+### What was built
 
-## Two Features
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-### 1. Audio Preview Button
-Add a play/pause button next to the audio clip dropdown so users can listen to the selected clip before proceeding.
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-**File: `src/pages/ivr/CreateIvrCampaignDialog.tsx`**
-- Add an `audioRef` using `useRef<HTMLAudioElement>` and `isPlaying` state
-- Render a play/pause icon button inline next to the Select dropdown (using a flex row)
-- When clicked, play/pause the selected clip's `audio_url`
-- Disable the button when no clip is selected
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-### 2. Phone Number Selection
-Replace the single `from_number` in VoBiz settings with a comma-separated list of numbers, and add a phone number dropdown in the campaign creation dialog.
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-**File: `src/components/settings/AddIntegrationDialog.tsx`**
-- Change the `from_number` field label to "From Numbers (comma-separated)" with placeholder "+919240024247, +917971543229"
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-**File: `src/pages/ivr/CreateIvrCampaignDialog.tsx`**
-- Add `selectedFromNumber` state
-- Parse `vobizConfig.from_number` by splitting on commas to get a list of numbers
-- Add a "From Number" Select dropdown in Step 2 (after CSV upload) showing all available numbers
-- If only one number exists, auto-select it
-- Pass `selectedFromNumber` as `vobiz_from_number` when creating the campaign
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-**File: `supabase/functions/process-ivr-queue/index.ts`**
-- No changes needed — it already reads `campaign.vobiz_from_number` per-campaign, which will now be the specific number chosen during creation
-
-### Review Step
-- Add the selected phone number to the Step 3 review summary
-
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library

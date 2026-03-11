@@ -73,7 +73,7 @@ const getFieldsForType = (type: string) => {
       return [
         { key: "auth_id", label: "Auth ID", placeholder: "e.g., MA_YOCMGHO8", secret: false },
         { key: "auth_token", label: "Auth Token", placeholder: "Enter VoBiz Auth Token", secret: true },
-        { key: "from_number", label: "From Number (Caller ID)", placeholder: "+917971543257", secret: false },
+        { key: "from_number", label: "From Numbers (comma-separated)", placeholder: "+919240024247, +917971543229", secret: false },
         { key: "cps_limit", label: "Calls Per Second Limit", placeholder: "11", secret: false },
         { key: "concurrent_limit", label: "Max Concurrent Calls", placeholder: "13", secret: false },
       ];
