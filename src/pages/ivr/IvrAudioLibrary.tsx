@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Upload, Play, Trash2, Plus, Mic, Square, RotateCcw } from "lucide-react";
+import { Upload, Play, Trash2, Plus, Mic, Square, RotateCcw, Download } from "lucide-react";
+// @ts-ignore — lamejs has no type declarations
+import lamejs from "lamejs";
 import { toast } from "sonner";
 import type { IvrAudioClip } from "@/types/ivr-campaign";
 
@@ -39,6 +41,57 @@ async function webmToWav(webmBlob: Blob): Promise<Blob> {
   }
   await audioCtx.close();
   return new Blob([buf], { type: "audio/wav" });
+}
+
+/** Download an audio clip as MP3 using lamejs */
+async function downloadAsMP3(clip: IvrAudioClip) {
+  try {
+    toast.info("Preparing MP3 download…");
+    const response = await fetch(clip.audio_url);
+    const arrayBuffer = await response.arrayBuffer();
+    const AudioCtx = window.AudioContext || (window as unknown as Record<string, typeof AudioContext>).webkitAudioContext;
+    const audioCtx = new AudioCtx();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+    const sampleRate = audioBuffer.sampleRate;
+    const samples = audioBuffer.getChannelData(0);
+    const numSamples = samples.length;
+
+    // Convert Float32 to Int16
+    const int16 = new Int16Array(numSamples);
+    for (let i = 0; i < numSamples; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+
+    // Encode to MP3
+    const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+    const mp3Data: BlobPart[] = [];
+    const blockSize = 1152;
+    for (let i = 0; i < int16.length; i += blockSize) {
+      const chunk = int16.subarray(i, i + blockSize);
+      const mp3buf = mp3Encoder.encodeBuffer(chunk);
+      if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
+    }
+    const end = mp3Encoder.flush();
+    if (end.length > 0) mp3Data.push(new Uint8Array(end));
+
+    await audioCtx.close();
+
+    const mp3Blob = new Blob(mp3Data, { type: "audio/mp3" });
+    const url = URL.createObjectURL(mp3Blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${clip.name.replace(/[^a-zA-Z0-9_-]/g, "_")}.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("MP3 downloaded!");
+  } catch (err: unknown) {
+    console.error("MP3 download failed:", err);
+    toast.error("Download failed. Please try again.");
+  }
 }
 
 export default function IvrAudioLibrary() {
@@ -273,6 +326,9 @@ export default function IvrAudioLibrary() {
                     }}
                   >
                     <Play className="h-3 w-3 mr-1" /> {playingId === clip.id ? "Playing..." : "Play"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => downloadAsMP3(clip)}>
+                    <Download className="h-3 w-3 mr-1" /> Download
                   </Button>
                 </div>
               </CardContent>

@@ -1,41 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Add Download Audio (as MP3) to IVR Audio Library
+### What was built
 
-## Overview
-Add a "Download" button on each audio card that fetches the audio file, converts it to MP3 format client-side, and triggers a browser download.
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-## Technical Approach
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-Since the stored files can be WAV or WebM, and the user wants MP3 downloads, we need client-side conversion. Pure browser APIs cannot encode MP3 natively, so we have two options:
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-1. **Use `lamejs` library** — a pure JavaScript MP3 encoder (~90KB). This gives true MP3 output.
-2. **Download as WAV** — simpler, no extra dependency, but not MP3.
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-Given the explicit MP3 requirement, we'll use `lamejs`.
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-## Changes
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-### Install dependency
-- Add `lamejs` package (JavaScript MP3 encoder)
-
-### `src/pages/ivr/IvrAudioLibrary.tsx`
-
-1. **Import** `Download` icon from lucide-react
-2. **Add `downloadAsMP3` function**:
-   - Fetch the audio URL as an ArrayBuffer
-   - Decode using `AudioContext.decodeAudioData()` to get raw PCM samples
-   - Encode to MP3 using lamejs (`Mp3Encoder`)
-   - Create a Blob and trigger download with `<a>` element click
-3. **Add Download button** next to the existing Play button on each audio card:
-   ```tsx
-   <Button variant="outline" size="sm" onClick={() => downloadAsMP3(clip)}>
-     <Download className="h-3 w-3 mr-1" /> Download
-   </Button>
-   ```
-
-The conversion pipeline:
-```text
-Fetch audio URL → AudioContext.decodeAudioData() → Float32 PCM → lamejs Mp3Encoder → MP3 Blob → Download
-```
-
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library
