@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Upload, Play, Trash2, Plus, Mic, Square, RotateCcw, Download } from "lucide-react";
 // @ts-ignore — lamejs has no type declarations
-import lamejs from "lamejs";
+import * as lamejs from "@breezystack/lamejs";
 import { toast } from "sonner";
 import type { IvrAudioClip } from "@/types/ivr-campaign";
 
