@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Play, StopCircle, PhoneCall, PhoneOff, AlertCircle, CheckCircle2, DollarSign } from "lucide-react";
+import { ArrowLeft, Play, StopCircle, PhoneCall, PhoneOff, AlertCircle, CheckCircle2, DollarSign, Clock } from "lucide-react";
+import { formatInOrgTime } from "@/lib/timezoneUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { IvrCampaign, IvrCampaignCall } from "@/types/ivr-campaign";
@@ -75,6 +76,12 @@ export default function IvrCampaignDetail() {
         <div className="flex-1">
           <PageHeader title={campaign.name} />
           <p className="text-sm text-muted-foreground">{campaign.description || "Voice Broadcast"}</p>
+          {campaign.status === "scheduled" && campaign.scheduled_at && (
+            <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+              <Clock className="h-3.5 w-3.5" />
+              Scheduled for {formatInOrgTime(campaign.scheduled_at, "Asia/Kolkata", "dd MMM yyyy, hh:mm a")} IST
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           {["draft", "scheduled"].includes(campaign.status) && (

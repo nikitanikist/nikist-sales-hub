@@ -22,6 +22,30 @@ Deno.serve(async (req) => {
     const startTime = Date.now();
     let totalProcessed = 0;
 
+    // ── Auto-start scheduled campaigns whose time has arrived ──
+    const { data: scheduledCampaigns } = await supabase
+      .from("ivr_campaigns")
+      .select("id")
+      .eq("status", "scheduled")
+      .lte("scheduled_at", new Date().toISOString());
+
+    if (scheduledCampaigns?.length) {
+      for (const sc of scheduledCampaigns) {
+        console.log(`process-ivr-queue: auto-starting scheduled campaign ${sc.id}`);
+        await supabase.from("ivr_campaigns").update({
+          status: "running",
+          started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", sc.id);
+
+        await supabase.from("ivr_campaign_calls").update({
+          status: "queued",
+          queued_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("campaign_id", sc.id).eq("status", "pending");
+      }
+    }
+
     // Outer loop: keep processing until time budget is exhausted
     while (Date.now() - startTime < TIME_BUDGET_MS) {
       // Find running campaigns
