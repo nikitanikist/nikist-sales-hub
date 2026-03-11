@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: VPSProxyRequest = await req.json();
-    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers, announcement, restrict: restrictSetting, profilePictureUrl } = body;
+    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers, announcement, restrict: restrictSetting, profilePictureUrl, proxyConfig } = body;
 
     if (!action) {
       return new Response(
