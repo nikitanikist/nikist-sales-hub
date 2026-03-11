@@ -1,5 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,8 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Play, Square } from "lucide-react";
+import { Play, Square, CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { IvrAudioClip } from "@/types/ivr-campaign";
 
 interface Props {
@@ -36,6 +42,11 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [contacts, setContacts] = useState<{ name?: string; phone: string }[]>([]);
   const [selectedFromNumber, setSelectedFromNumber] = useState("");
+
+  // Step 3 - Launch mode
+  const [launchMode, setLaunchMode] = useState<"now" | "schedule">("now");
+  const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
+  const [scheduleTime, setScheduleTime] = useState("10:00");
 
   // Load audio library
   const { data: audioClips = [] } = useQuery({
@@ -152,6 +163,30 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
         return;
       }
 
+      // Build scheduled_at if scheduling
+      let scheduledAt: string | null = null;
+      if (launchMode === "schedule") {
+        if (!scheduleDate) {
+          toast.error("Please select a date");
+          setLoading(false);
+          return;
+        }
+        // Construct datetime in IST and convert to UTC
+        const dateStr = format(scheduleDate, "yyyy-MM-dd");
+        const istDatetime = new Date(`${dateStr}T${scheduleTime}:00`);
+        // fromZonedTime: treat the input as IST → returns UTC Date
+        const utcDate = fromZonedTime(istDatetime, "Asia/Kolkata");
+        
+        if (utcDate <= new Date()) {
+          toast.error("Scheduled time must be in the future");
+          setLoading(false);
+          return;
+        }
+        scheduledAt = utcDate.toISOString();
+      }
+
+      const isScheduled = launchMode === "schedule";
+
       const { data: campaign, error: campaignError } = await supabase
         .from("ivr_campaigns")
         .insert({
@@ -164,6 +199,8 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
           on_yes_action: "none",
           total_contacts: contacts.length,
           created_by: user.id,
+          status: isScheduled ? "scheduled" : "draft",
+          scheduled_at: scheduledAt,
         })
         .select("id")
         .single();
@@ -184,7 +221,12 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
         if (callsError) throw callsError;
       }
 
-      toast.success(`Campaign created with ${contacts.length} contacts`);
+      if (isScheduled) {
+        toast.success(`Campaign scheduled for ${format(scheduleDate!, "dd MMM yyyy")} at ${scheduleTime} IST`);
+      } else {
+        toast.success(`Campaign created with ${contacts.length} contacts`);
+      }
+
       resetForm();
       onSuccess();
     } catch (error: any) {
@@ -202,9 +244,13 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
     setCsvFile(null);
     setContacts([]);
     setSelectedFromNumber("");
+    setLaunchMode("now");
+    setScheduleDate(undefined);
+    setScheduleTime("10:00");
   };
 
   const canProceedStep2 = selectedAudioId && contacts.length > 0 && !!effectiveFromNumber;
+  const canCreate = launchMode === "now" || (scheduleDate && scheduleTime);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetForm(); onOpenChange(o); }}>
@@ -311,6 +357,68 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
                 <p><span className="text-muted-foreground">From Number:</span> {effectiveFromNumber || "—"}</p>
               </div>
             </div>
+
+            {/* Launch Mode Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">When to run?</Label>
+              <RadioGroup value={launchMode} onValueChange={(v) => setLaunchMode(v as "now" | "schedule")} className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="now" id="launch-now" />
+                  <Label htmlFor="launch-now" className="cursor-pointer font-normal">Run immediately after creation</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="schedule" id="launch-schedule" />
+                  <Label htmlFor="launch-schedule" className="cursor-pointer font-normal">Schedule for later</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {launchMode === "schedule" && (
+              <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
+                <div>
+                  <Label className="text-sm">Date (IST)</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal mt-1",
+                          !scheduleDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {scheduleDate ? format(scheduleDate, "dd MMM yyyy") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={scheduleDate}
+                        onSelect={setScheduleDate}
+                        disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label className="text-sm">Time (IST)</Label>
+                  <Input
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                {scheduleDate && scheduleTime && (
+                  <p className="text-xs text-muted-foreground">
+                    Campaign will auto-start on {format(scheduleDate, "dd MMM yyyy")} at {scheduleTime} IST
+                  </p>
+                )}
+              </div>
+            )}
+
             <p className="text-xs text-muted-foreground">
               Each contact will receive a call that plays the selected audio and then hangs up automatically.
             </p>
@@ -327,8 +435,13 @@ export function CreateIvrCampaignDialog({ open, onOpenChange, onSuccess }: Props
               Next
             </Button>
           ) : (
-            <Button onClick={handleCreate} disabled={loading}>
-              {loading ? "Creating..." : `Create & Run (${contacts.length} contacts)`}
+            <Button onClick={handleCreate} disabled={loading || !canCreate}>
+              {loading
+                ? "Creating..."
+                : launchMode === "schedule"
+                  ? `Schedule Campaign (${contacts.length} contacts)`
+                  : `Create & Run (${contacts.length} contacts)`
+              }
             </Button>
           )}
         </DialogFooter>
