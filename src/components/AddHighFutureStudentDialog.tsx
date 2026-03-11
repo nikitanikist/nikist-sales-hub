@@ -50,6 +50,7 @@ export function AddHighFutureStudentDialog({
 }: AddHighFutureStudentDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { data: closers = [] } = useOrgClosers();
   
   const [activeTab, setActiveTab] = useState<"search" | "new">("search");
   
