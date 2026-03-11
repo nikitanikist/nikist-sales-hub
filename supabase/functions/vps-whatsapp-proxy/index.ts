@@ -204,7 +204,13 @@ Deno.serve(async (req) => {
         
         vpsEndpoint = '/connect';
         vpsMethod = 'POST';
-        vpsBody = { sessionId: vpsSessionIdForVps };
+        vpsBody = { sessionId: vpsSessionIdForVps } as Record<string, unknown>;
+        
+        // Add proxy config if provided (for new sessions)
+        if (proxyConfig && proxyConfig.host) {
+          vpsBody.proxy = proxyConfig;
+          console.log(`Connect with proxy: ${proxyConfig.host}:${proxyConfig.port}`);
+        }
         break;
       }
 
