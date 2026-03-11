@@ -138,6 +138,7 @@ export function AddCohortStudentDialog({
     setPlatformFees("");
     setPaymentPlatform("UPI (IDFC)");
     setPaymentRemarks("");
+    setCloserId("");
   };
 
   const handleClose = () => {
