@@ -1,45 +1,44 @@
 
-## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-### What was built
+# Proxy Integration for WhatsApp VPS
 
-**Database (Migration):**
-- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
-- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
-- `ivr_audio_library` table — reusable pre-recorded audio clips
-- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
-- RLS policies using `get_user_organization_ids()` on all tables
-- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
-- `ivr-audio` storage bucket (public)
+## Overview
+Add optional SOCKS5 proxy support per WhatsApp session. Existing sessions (Nikist, One Percent Club) are untouched — proxy is purely additive for new clients.
 
-**Edge Functions (6 new):**
-- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
-- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
-- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
-- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
-- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
-- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
+## Changes
 
-**Cron Job:**
-- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
+### 1. Database Migration
+Add `proxy_config` JSONB column to `whatsapp_sessions`:
+```sql
+ALTER TABLE public.whatsapp_sessions 
+ADD COLUMN IF NOT EXISTS proxy_config JSONB DEFAULT NULL;
+```
 
-**Frontend:**
-- `src/types/ivr-campaign.ts` — TypeScript interfaces
-- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
-- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
-- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
-- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
-- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
-- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
-- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
-- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
+### 2. Edge Function — `vps-whatsapp-proxy/index.ts`
+- Update `VPSProxyRequest` interface to accept optional `proxyConfig`
+- In the `connect` case (~line 199-207): read `proxy_config` from request body, include it as `proxy` in the VPS payload if present
+- In the session insert (~line 782-790): save `proxy_config` to the new column
+- In the `status` case: when a disconnected session reconnects, re-read `proxy_config` from DB and pass it to `/connect` (auto-reconnect path)
 
-**Routes (App.tsx):**
-- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
+### 3. UI — `src/pages/settings/WhatsAppConnection.tsx`
+- Add state for proxy toggle + 4 fields (host, port, username, password)
+- Show "Use Residential Proxy" toggle before the "Connect WhatsApp" button
+- When toggled ON, show the 4 proxy fields
+- Pass `proxyConfig` in the connect mutation payload
+- On each connected session card, show a small badge: "Direct" (green) or "Proxied" (blue) based on whether `proxy_config` is set
 
-**Sidebar (AppLayout.tsx):**
-- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
+### 4. Hook — `src/hooks/useWhatsAppSession.ts`
+- Update `WhatsAppSession` interface to include `proxy_config`
+- Update `connect()` mutation to accept and forward optional proxy config
+- Fetch `proxy_config` in the sessions query select
 
-### Remaining setup
-- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
-- Upload pre-recorded audio clips to Audio Library
+### 5. Session List Indicator
+On each connected session card, display:
+- 🟢 **Direct** — when `proxy_config` is null
+- 🔵 **Proxied (host)** — when `proxy_config` is set, showing the proxy host
+
+## What's NOT Changed
+- All existing sessions continue to work with no proxy (null = direct connection)
+- `/send`, `/groups`, webhooks — completely untouched
+- No changes to any other edge functions or pages
+
