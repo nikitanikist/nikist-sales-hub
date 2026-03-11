@@ -139,6 +139,7 @@ export function AddHighFutureStudentDialog({
     setPlatformFees("");
     setPaymentPlatform("UPI (IDFC)");
     setPaymentRemarks("");
+    setCloserId("");
   };
 
   const handleClose = () => {
