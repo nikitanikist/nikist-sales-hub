@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Upload, Play, Trash2, Plus } from "lucide-react";
+import { Upload, Play, Trash2, Plus, Mic, Square, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import type { IvrAudioClip } from "@/types/ivr-campaign";
 
@@ -19,6 +19,83 @@ export default function IvrAudioLibrary() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [audioName, setAudioName] = useState("");
   const [playingId, setPlayingId] = useState<string | null>(null);
+
+  // Record state
+  const [recordDialogOpen, setRecordDialogOpen] = useState(false);
+  const [recordName, setRecordName] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Cleanup on dialog close
+  const resetRecordState = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    mediaRecorderRef.current = null;
+    streamRef.current = null;
+    chunksRef.current = [];
+    setIsRecording(false);
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+    setElapsed(0);
+    setRecordName("");
+  }, [recordedUrl]);
+
+  useEffect(() => {
+    if (!recordDialogOpen) resetRecordState();
+  }, [recordDialogOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setRecordedBlob(blob);
+        setRecordedUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed((p) => p + 1), 1000);
+    } catch {
+      toast.error("Microphone access denied. Please allow mic permission.");
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setIsRecording(false);
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  const reRecord = () => {
+    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+    setElapsed(0);
+  };
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
 
   const { data: clips = [], isLoading } = useQuery({
     queryKey: ["ivr-audio-library", currentOrganization?.id],
@@ -65,6 +142,34 @@ export default function IvrAudioLibrary() {
     onError: (err) => toast.error(`Upload failed: ${err.message}`),
   });
 
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!recordedBlob || !currentOrganization || !recordName) throw new Error("Missing data");
+      const path = `${currentOrganization.id}/${Date.now()}_recorded.webm`;
+
+      const file = new File([recordedBlob], "recording.webm", { type: "audio/webm" });
+      const { error: uploadError } = await supabase.storage.from("ivr-audio").upload(path, file);
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage.from("ivr-audio").getPublicUrl(path);
+
+      const { error: insertError } = await supabase.from("ivr_audio_library").insert({
+        organization_id: currentOrganization.id,
+        name: recordName,
+        audio_url: urlData.publicUrl,
+        audio_type: "opening",
+        language: "hi",
+      });
+      if (insertError) throw insertError;
+    },
+    onSuccess: () => {
+      toast.success("Recording saved to library");
+      queryClient.invalidateQueries({ queryKey: ["ivr-audio-library"] });
+      setRecordDialogOpen(false);
+    },
+    onError: (err) => toast.error(`Save failed: ${err.message}`),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (clipId: string) => {
       const { error } = await supabase.from("ivr_audio_library").delete().eq("id", clipId);
@@ -80,15 +185,20 @@ export default function IvrAudioLibrary() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <PageHeader title="Audio Library" />
-        <Button onClick={() => setUploadDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Upload Audio
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setRecordDialogOpen(true)}>
+            <Mic className="h-4 w-4 mr-2" /> Record Audio
+          </Button>
+          <Button onClick={() => setUploadDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Upload Audio
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <p className="text-muted-foreground">Loading...</p>
       ) : clips.length === 0 ? (
-        <Card><CardContent className="pt-6 text-center text-muted-foreground">No audio clips yet. Upload your first one!</CardContent></Card>
+        <Card><CardContent className="pt-6 text-center text-muted-foreground">No audio clips yet. Upload or record your first one!</CardContent></Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {clips.map((clip) => (
@@ -124,6 +234,7 @@ export default function IvrAudioLibrary() {
         </div>
       )}
 
+      {/* Upload Dialog */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -143,6 +254,73 @@ export default function IvrAudioLibrary() {
             <Button variant="outline" onClick={() => setUploadDialogOpen(false)}>Cancel</Button>
             <Button onClick={() => uploadMutation.mutate()} disabled={!selectedFile || !audioName || uploadMutation.isPending}>
               <Upload className="h-4 w-4 mr-2" /> {uploadMutation.isPending ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record Dialog */}
+      <Dialog open={recordDialogOpen} onOpenChange={setRecordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Audio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input
+                placeholder="e.g. Workshop Reminder - Hindi"
+                value={recordName}
+                onChange={(e) => setRecordName(e.target.value)}
+                disabled={isRecording}
+              />
+            </div>
+
+            {/* Recording state */}
+            {isRecording && (
+              <div className="flex flex-col items-center gap-3 py-4">
+                <div className="relative">
+                  <div className="h-16 w-16 rounded-full bg-destructive/20 animate-pulse flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-full bg-destructive/40 animate-pulse flex items-center justify-center">
+                      <Mic className="h-5 w-5 text-destructive" />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-sm font-mono text-muted-foreground">{formatTime(elapsed)}</p>
+                <Button variant="destructive" size="sm" onClick={stopRecording}>
+                  <Square className="h-3 w-3 mr-1" /> Stop Recording
+                </Button>
+              </div>
+            )}
+
+            {/* Preview state */}
+            {recordedUrl && !isRecording && (
+              <div className="space-y-3">
+                <audio controls src={recordedUrl} className="w-full" />
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={reRecord}>
+                    <RotateCcw className="h-3 w-3 mr-1" /> Re-record
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Initial state - no recording yet */}
+            {!isRecording && !recordedUrl && (
+              <div className="flex justify-center py-4">
+                <Button onClick={startRecording} disabled={!recordName}>
+                  <Mic className="h-4 w-4 mr-2" /> Start Recording
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRecordDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => saveMutation.mutate()}
+              disabled={!recordedBlob || !recordName || saveMutation.isPending}
+            >
+              {saveMutation.isPending ? "Saving..." : "Save to Library"}
             </Button>
           </DialogFooter>
         </DialogContent>
