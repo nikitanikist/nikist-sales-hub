@@ -52,6 +52,7 @@ export function AddCohortStudentDialog({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const { data: closers = [] } = useOrgClosers();
   
   const [activeTab, setActiveTab] = useState<"search" | "new">("search");
   
