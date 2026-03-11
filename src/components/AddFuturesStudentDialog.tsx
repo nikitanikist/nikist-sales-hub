@@ -224,6 +224,7 @@ export function AddFuturesStudentDialog({
           due_amount: dueNum,
           notes: notes || null,
           created_by: user?.id,
+          closer_id: closerId || null,
           // New payment detail fields
           no_cost_emi: parseFloat(noCostEmi) || 0,
           gst_fees: parseFloat(gstFees) || 0,
