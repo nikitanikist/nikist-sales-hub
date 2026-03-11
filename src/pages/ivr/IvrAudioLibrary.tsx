@@ -327,6 +327,9 @@ export default function IvrAudioLibrary() {
                   >
                     <Play className="h-3 w-3 mr-1" /> {playingId === clip.id ? "Playing..." : "Play"}
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => downloadAsMP3(clip)}>
+                    <Download className="h-3 w-3 mr-1" /> Download
+                  </Button>
                 </div>
               </CardContent>
             </Card>
