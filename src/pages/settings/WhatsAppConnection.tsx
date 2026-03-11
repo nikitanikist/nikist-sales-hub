@@ -5,7 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users, Plus, UserPlus, X } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users, Plus, UserPlus, X, Shield } from 'lucide-react';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useCommunitySession } from '@/hooks/useCommunitySession';
@@ -46,6 +48,13 @@ export function WhatsAppConnection() {
   
   const [newAdminNumber, setNewAdminNumber] = useState('');
   
+  // Proxy config state
+  const [useProxy, setUseProxy] = useState(false);
+  const [proxyHost, setProxyHost] = useState('');
+  const [proxyPort, setProxyPort] = useState('');
+  const [proxyUsername, setProxyUsername] = useState('');
+  const [proxyPassword, setProxyPassword] = useState('');
+  
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -55,7 +64,10 @@ export function WhatsAppConnection() {
   } | null>(null);
 
   const handleConnect = () => {
-    connect();
+    const proxyConfig = useProxy && proxyHost
+      ? { host: proxyHost, port: parseInt(proxyPort) || 1080, username: proxyUsername, password: proxyPassword }
+      : undefined;
+    connect(proxyConfig);
     setQrDialogOpen(true);
   };
 
@@ -332,8 +344,19 @@ export function WhatsAppConnection() {
                             <p className="font-medium">
                               {session.phone_number || session.display_name || `Session ${session.id.slice(0, 8)}...`}
                             </p>
+                            {/* Proxy indicator badge */}
+                            {(session as any).proxy_config ? (
+                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">
+                                <Shield className="h-3 w-3 mr-1" />
+                                Proxied ({(session as any).proxy_config?.host})
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs border-green-300 text-green-600">
+                                Direct
+                              </Badge>
+                            )}
                             {isVerifying && (
-                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+                              <Badge variant="outline" className="text-xs border-amber-300 text-amber-600">
                                 Verifying...
                               </Badge>
                             )}
@@ -357,7 +380,7 @@ export function WhatsAppConnection() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              connect();
+                              connect(undefined);
                               setQrDialogOpen(true);
                             }}
                             disabled={isConnecting}
@@ -409,6 +432,69 @@ export function WhatsAppConnection() {
                   <p className="text-sm">Connect your first device to get started</p>
                 </div>
               )}
+
+              {/* Proxy Configuration */}
+              <div className="border rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="use-proxy" className="text-sm font-medium flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Use Residential Proxy
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Route this session through a dedicated residential IP (SOCKS5)
+                    </p>
+                  </div>
+                  <Switch
+                    id="use-proxy"
+                    checked={useProxy}
+                    onCheckedChange={setUseProxy}
+                  />
+                </div>
+                
+                {useProxy && (
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-host" className="text-xs">Proxy Host</Label>
+                      <Input
+                        id="proxy-host"
+                        placeholder="82.41.251.88"
+                        value={proxyHost}
+                        onChange={(e) => setProxyHost(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-port" className="text-xs">Proxy Port</Label>
+                      <Input
+                        id="proxy-port"
+                        type="number"
+                        placeholder="45131"
+                        value={proxyPort}
+                        onChange={(e) => setProxyPort(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-user" className="text-xs">Proxy Username</Label>
+                      <Input
+                        id="proxy-user"
+                        placeholder="Username"
+                        value={proxyUsername}
+                        onChange={(e) => setProxyUsername(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-pass" className="text-xs">Proxy Password</Label>
+                      <Input
+                        id="proxy-pass"
+                        type="password"
+                        placeholder="••••••••"
+                        value={proxyPassword}
+                        onChange={(e) => setProxyPassword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Always visible Add WhatsApp button */}
               <Button onClick={handleConnect} disabled={isConnecting} className="w-full">

@@ -110,6 +110,7 @@ interface VPSProxyRequest {
   announcement?: boolean;
   restrict?: boolean;
   profilePictureUrl?: string;
+  proxyConfig?: { host: string; port: number; username: string; password: string } | null;
 }
 
 Deno.serve(async (req) => {
@@ -163,7 +164,7 @@ Deno.serve(async (req) => {
 
     // Parse request body
     const body: VPSProxyRequest = await req.json();
-    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers, announcement, restrict: restrictSetting, profilePictureUrl } = body;
+    const { action, sessionId, organizationId, groupId, groupJid, message, mediaUrl, mediaType, name, description, phoneNumbers, announcement, restrict: restrictSetting, profilePictureUrl, proxyConfig } = body;
 
     if (!action) {
       return new Response(
@@ -203,7 +204,13 @@ Deno.serve(async (req) => {
         
         vpsEndpoint = '/connect';
         vpsMethod = 'POST';
-        vpsBody = { sessionId: vpsSessionIdForVps };
+        vpsBody = { sessionId: vpsSessionIdForVps } as Record<string, unknown>;
+        
+        // Add proxy config if provided (for new sessions)
+        if (proxyConfig && proxyConfig.host) {
+          vpsBody.proxy = proxyConfig;
+          console.log(`Connect with proxy: ${proxyConfig.host}:${proxyConfig.port}`);
+        }
         break;
       }
 
@@ -779,15 +786,22 @@ Deno.serve(async (req) => {
 
     // Handle session storage for connect action
     if (action === 'connect' && localSessionIdForDb && vpsSessionIdForVps) {
+      const insertPayload: Record<string, unknown> = {
+        id: localSessionIdForDb,
+        organization_id: organizationId,
+        status: 'connecting',
+        session_data: { vps_session_id: vpsSessionIdForVps },
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Save proxy config if provided
+      if (proxyConfig && proxyConfig.host) {
+        insertPayload.proxy_config = proxyConfig;
+      }
+      
       const { error: insertError } = await supabase
         .from('whatsapp_sessions')
-        .insert({
-          id: localSessionIdForDb,
-          organization_id: organizationId,
-          status: 'connecting',
-          session_data: { vps_session_id: vpsSessionIdForVps },
-          updated_at: new Date().toISOString(),
-        });
+        .insert(insertPayload);
 
       if (insertError) {
         console.error('Failed to store session:', insertError);

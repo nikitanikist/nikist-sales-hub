@@ -4977,6 +4977,7 @@ export type Database = {
           last_error_at: string | null
           organization_id: string
           phone_number: string | null
+          proxy_config: Json | null
           qr_code: string | null
           qr_expires_at: string | null
           session_data: Json | null
@@ -4993,6 +4994,7 @@ export type Database = {
           last_error_at?: string | null
           organization_id: string
           phone_number?: string | null
+          proxy_config?: Json | null
           qr_code?: string | null
           qr_expires_at?: string | null
           session_data?: Json | null
@@ -5009,6 +5011,7 @@ export type Database = {
           last_error_at?: string | null
           organization_id?: string
           phone_number?: string | null
+          proxy_config?: Json | null
           qr_code?: string | null
           qr_expires_at?: string | null
           session_data?: Json | null

@@ -4,6 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 
+interface ProxyConfig {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+}
+
 interface WhatsAppSession {
   id: string;
   organization_id: string;
@@ -16,6 +23,7 @@ interface WhatsAppSession {
   last_active_at: string | null;
   created_at: string;
   updated_at: string;
+  proxy_config: ProxyConfig | null;
 }
 
 interface ConnectionState {
@@ -141,7 +149,7 @@ export function useWhatsAppSession() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as WhatsAppSession[];
+      return data as unknown as WhatsAppSession[];
     },
     enabled: !!currentOrganization,
   });
@@ -201,18 +209,24 @@ export function useWhatsAppSession() {
 
   // Start connection mutation - defined before any callbacks that might use it
   const connectMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (proxyConfig?: ProxyConfig | null) => {
       const organizationId = orgIdRef.current;
       if (!organizationId) throw new Error('No organization selected');
       
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Not authenticated');
 
+      const invokeBody: Record<string, unknown> = {
+        action: 'connect',
+        organizationId,
+      };
+      
+      if (proxyConfig && proxyConfig.host) {
+        invokeBody.proxyConfig = proxyConfig;
+      }
+
       const response = await supabase.functions.invoke('vps-whatsapp-proxy', {
-        body: {
-          action: 'connect',
-          organizationId,
-        },
+        body: invokeBody,
       });
 
       if (response.error) {
