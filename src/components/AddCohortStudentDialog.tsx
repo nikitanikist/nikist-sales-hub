@@ -79,6 +79,7 @@ export function AddCohortStudentDialog({
   const [platformFees, setPlatformFees] = useState("");
   const [paymentPlatform, setPaymentPlatform] = useState("UPI (IDFC)");
   const [paymentRemarks, setPaymentRemarks] = useState("");
+  const [closerId, setCloserId] = useState("");
 
   // Auto-calculate Platform Fees and GST based on Cash Collected and Payment Platform
   const calculatePaymentDetails = (cashAmount: number, platform: string) => {
