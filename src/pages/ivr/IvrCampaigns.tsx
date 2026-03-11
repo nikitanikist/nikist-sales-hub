@@ -106,6 +106,11 @@ export default function IvrCampaigns() {
                   <TableCell className="text-right">₹{(c.total_cost || 0).toFixed(2)}</TableCell>
                   <TableCell>{format(new Date(c.created_at), "dd MMM yyyy")}</TableCell>
                   <TableCell>
+                    {c.scheduled_at
+                      ? formatInTimeZone(new Date(c.scheduled_at), "Asia/Kolkata", "dd MMM yyyy, h:mm a")
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/ivr/campaigns/${c.id}`); }}>
                         <Eye className="h-4 w-4" />
