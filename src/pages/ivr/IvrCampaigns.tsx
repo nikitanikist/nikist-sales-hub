@@ -8,6 +8,7 @@ import { Plus, StopCircle, Eye, Play } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CreateIvrCampaignDialog } from "./CreateIvrCampaignDialog";
