@@ -8,6 +8,7 @@ import { Plus, StopCircle, Eye, Play } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CreateIvrCampaignDialog } from "./CreateIvrCampaignDialog";
@@ -68,6 +69,7 @@ export default function IvrCampaigns() {
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="running">Running</TabsTrigger>
+          <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
           <TabsTrigger value="completed">Completed</TabsTrigger>
           <TabsTrigger value="draft">Draft</TabsTrigger>
         </TabsList>
@@ -84,14 +86,15 @@ export default function IvrCampaigns() {
               <TableHead className="text-right">No Answer</TableHead>
               <TableHead className="text-right">Cost (₹)</TableHead>
               <TableHead>Created</TableHead>
+              <TableHead>Scheduled For</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : campaigns.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No campaigns found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No campaigns found</TableCell></TableRow>
             ) : (
               campaigns.map((c: IvrCampaign) => (
                 <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/ivr/campaigns/${c.id}`)}>
@@ -102,6 +105,11 @@ export default function IvrCampaigns() {
                   <TableCell className="text-right">{c.calls_no_answer}</TableCell>
                   <TableCell className="text-right">₹{(c.total_cost || 0).toFixed(2)}</TableCell>
                   <TableCell>{format(new Date(c.created_at), "dd MMM yyyy")}</TableCell>
+                  <TableCell>
+                    {c.scheduled_at
+                      ? formatInTimeZone(new Date(c.scheduled_at), "Asia/Kolkata", "dd MMM yyyy, h:mm a")
+                      : "—"}
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/ivr/campaigns/${c.id}`); }}>
