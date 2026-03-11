@@ -369,7 +369,7 @@ export function WhatsAppConnection() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              connect();
+                              connect(undefined);
                               setQrDialogOpen(true);
                             }}
                             disabled={isConnecting}
