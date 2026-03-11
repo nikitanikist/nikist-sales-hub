@@ -1,45 +1,41 @@
 
-## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-### What was built
+# Add Schedule Feature to IVR Campaign Creation
 
-**Database (Migration):**
-- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
-- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
-- `ivr_audio_library` table — reusable pre-recorded audio clips
-- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
-- RLS policies using `get_user_organization_ids()` on all tables
-- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
-- `ivr-audio` storage bucket (public)
+## Overview
+Add the ability to schedule IVR campaigns for a future date/time instead of running them immediately. The user picks a date and time in IST, and the campaign auto-starts at that time.
 
-**Edge Functions (6 new):**
-- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
-- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
-- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
-- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
-- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
-- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
+## How It Works
 
-**Cron Job:**
-- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
+The `ivr_campaigns` table already has `scheduled_at` (timestamp) and supports `status: "scheduled"`. The `start-ivr-campaign` function already accepts scheduled status. The missing pieces are:
 
-**Frontend:**
-- `src/types/ivr-campaign.ts` — TypeScript interfaces
-- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
-- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
-- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
-- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
-- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
-- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
-- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
-- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
+1. **UI** — Let users choose between "Run Now" and "Schedule" on Step 3
+2. **Auto-start** — Make `process-ivr-queue` check for scheduled campaigns whose time has arrived
 
-**Routes (App.tsx):**
-- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
+## Changes
 
-**Sidebar (AppLayout.tsx):**
-- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
+### 1. `src/pages/ivr/CreateIvrCampaignDialog.tsx`
+- Add state: `launchMode` ("now" | "schedule"), `scheduleDate`, `scheduleTime`
+- On Step 3, add a radio/toggle: "Run Now" vs "Schedule for Later"
+- When "Schedule" is selected, show a date picker and time input (displayed as IST)
+- Update `handleCreate`:
+  - If "now": create with `status: "draft"` then call `start-ivr-campaign` (current behavior)
+  - If "schedule": create with `status: "scheduled"` and `scheduled_at` set to the chosen IST datetime converted to UTC. Do NOT call `start-ivr-campaign`.
+- Update review section to show scheduled time when applicable
+- Change button label: "Create & Run Now" vs "Schedule Campaign"
 
-### Remaining setup
-- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
-- Upload pre-recorded audio clips to Audio Library
+### 2. `supabase/functions/process-ivr-queue/index.ts`
+- At the start of the outer loop (before querying running campaigns), add a check:
+  - Query `ivr_campaigns` where `status = 'scheduled'` and `scheduled_at <= now()`
+  - For each matched campaign, update status to `"running"`, set `started_at`, and update all `pending` calls to `queued` (same logic as `start-ivr-campaign`)
+  - Log the auto-start event
+- This piggybacks on the existing cron trigger (runs every minute), so scheduled campaigns start within ~1 minute of their scheduled time
+
+### 3. `src/pages/ivr/IvrCampaignDetail.tsx`
+- Show `scheduled_at` in the campaign header when status is "scheduled", formatted in IST
+
+## Technical Details
+- IST conversion: user picks date + time, construct as `Asia/Kolkata` timezone, convert to UTC ISO string for `scheduled_at`
+- The date picker uses the Shadcn Calendar component inside a Popover; time is a simple `<Input type="time">`
+- No database migration needed — `scheduled_at` column already exists
+
