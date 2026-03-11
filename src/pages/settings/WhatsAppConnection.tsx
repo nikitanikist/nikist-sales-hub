@@ -355,6 +355,11 @@ export function WhatsAppConnection() {
                                 Direct
                               </Badge>
                             )}
+                            {isVerifying && (
+                              <Badge variant="outline" className="text-xs border-amber-300 text-amber-600">
+                                Verifying...
+                              </Badge>
+                            )}
                             {isVpsDisconnected && (
                               <Badge variant="destructive" className="text-xs">
                                 Disconnected — Reconnect needed
