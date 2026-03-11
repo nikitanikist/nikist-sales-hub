@@ -48,6 +48,13 @@ export function WhatsAppConnection() {
   
   const [newAdminNumber, setNewAdminNumber] = useState('');
   
+  // Proxy config state
+  const [useProxy, setUseProxy] = useState(false);
+  const [proxyHost, setProxyHost] = useState('');
+  const [proxyPort, setProxyPort] = useState('');
+  const [proxyUsername, setProxyUsername] = useState('');
+  const [proxyPassword, setProxyPassword] = useState('');
+  
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
