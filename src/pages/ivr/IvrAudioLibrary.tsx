@@ -66,7 +66,7 @@ async function downloadAsMP3(clip: IvrAudioClip) {
 
     // Encode to MP3
     const mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
-    const mp3Data: Uint8Array[] = [];
+    const mp3Data: BlobPart[] = [];
     const blockSize = 1152;
     for (let i = 0; i < int16.length; i += blockSize) {
       const chunk = int16.subarray(i, i + blockSize);
