@@ -786,15 +786,22 @@ Deno.serve(async (req) => {
 
     // Handle session storage for connect action
     if (action === 'connect' && localSessionIdForDb && vpsSessionIdForVps) {
+      const insertPayload: Record<string, unknown> = {
+        id: localSessionIdForDb,
+        organization_id: organizationId,
+        status: 'connecting',
+        session_data: { vps_session_id: vpsSessionIdForVps },
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Save proxy config if provided
+      if (proxyConfig && proxyConfig.host) {
+        insertPayload.proxy_config = proxyConfig;
+      }
+      
       const { error: insertError } = await supabase
         .from('whatsapp_sessions')
-        .insert({
-          id: localSessionIdForDb,
-          organization_id: organizationId,
-          status: 'connecting',
-          session_data: { vps_session_id: vpsSessionIdForVps },
-          updated_at: new Date().toISOString(),
-        });
+        .insert(insertPayload);
 
       if (insertError) {
         console.error('Failed to store session:', insertError);
