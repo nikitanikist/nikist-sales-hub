@@ -428,6 +428,69 @@ export function WhatsAppConnection() {
                 </div>
               )}
 
+              {/* Proxy Configuration */}
+              <div className="border rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="use-proxy" className="text-sm font-medium flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Use Residential Proxy
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Route this session through a dedicated residential IP (SOCKS5)
+                    </p>
+                  </div>
+                  <Switch
+                    id="use-proxy"
+                    checked={useProxy}
+                    onCheckedChange={setUseProxy}
+                  />
+                </div>
+                
+                {useProxy && (
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-host" className="text-xs">Proxy Host</Label>
+                      <Input
+                        id="proxy-host"
+                        placeholder="82.41.251.88"
+                        value={proxyHost}
+                        onChange={(e) => setProxyHost(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-port" className="text-xs">Proxy Port</Label>
+                      <Input
+                        id="proxy-port"
+                        type="number"
+                        placeholder="45131"
+                        value={proxyPort}
+                        onChange={(e) => setProxyPort(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-user" className="text-xs">Proxy Username</Label>
+                      <Input
+                        id="proxy-user"
+                        placeholder="Username"
+                        value={proxyUsername}
+                        onChange={(e) => setProxyUsername(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="proxy-pass" className="text-xs">Proxy Password</Label>
+                      <Input
+                        id="proxy-pass"
+                        type="password"
+                        placeholder="••••••••"
+                        value={proxyPassword}
+                        onChange={(e) => setProxyPassword(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Always visible Add WhatsApp button */}
               <Button onClick={handleConnect} disabled={isConnecting} className="w-full">
                 {isConnecting ? (
