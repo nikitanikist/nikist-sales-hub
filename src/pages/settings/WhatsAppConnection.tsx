@@ -76,12 +76,26 @@ export function WhatsAppConnection() {
   }, [proxyConfigLoading, orgProxyConfig, proxyInitialized]);
   
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     status?: number;
     message: string;
     hint?: string;
   } | null>(null);
+
+  const handleProxyToggle = (checked: boolean) => {
+    if (!checked && orgProxyConfig) {
+      setShowDisableConfirm(true);
+    } else {
+      setUseProxy(checked);
+    }
+  };
+
+  const confirmDisableProxy = () => {
+    setUseProxy(false);
+    setShowDisableConfirm(false);
+  };
 
   const handleSaveProxy = () => {
     if (useProxy && proxyHost) {
