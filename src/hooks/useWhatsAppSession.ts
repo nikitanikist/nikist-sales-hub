@@ -154,6 +154,42 @@ export function useWhatsAppSession() {
     enabled: !!currentOrganization,
   });
 
+  // Fetch org-level default proxy config
+  const { data: orgProxyConfig, isLoading: proxyConfigLoading } = useQuery({
+    queryKey: ['org-proxy-config', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization) return null;
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('default_proxy_config')
+        .eq('id', currentOrganization.id)
+        .single();
+      if (error) throw error;
+      return (data as any)?.default_proxy_config as ProxyConfig | null;
+    },
+    enabled: !!currentOrganization,
+  });
+
+  // Save org-level proxy config
+  const saveProxyConfigMutation = useMutation({
+    mutationFn: async (proxyConfig: ProxyConfig | null) => {
+      const organizationId = orgIdRef.current;
+      if (!organizationId) throw new Error('No organization selected');
+      const { error } = await supabase
+        .from('organizations')
+        .update({ default_proxy_config: proxyConfig } as any)
+        .eq('id', organizationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['org-proxy-config'] });
+      toast.success('Proxy settings saved');
+    },
+    onError: (error: Error) => {
+      toast.error('Failed to save proxy settings', { description: error.message });
+    },
+  });
+
   // Test VPS Connection mutation
   const testVpsMutation = useMutation({
     mutationFn: async (): Promise<TestVpsResult> => {
