@@ -1,0 +1,1 @@
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS default_proxy_config JSONB DEFAULT NULL;

@@ -3364,6 +3364,7 @@ export type Database = {
           community_session_id: string | null
           created_at: string | null
           created_by: string | null
+          default_proxy_config: Json | null
           id: string
           is_active: boolean | null
           logo_url: string | null
@@ -3377,6 +3378,7 @@ export type Database = {
           community_session_id?: string | null
           created_at?: string | null
           created_by?: string | null
+          default_proxy_config?: Json | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
@@ -3390,6 +3392,7 @@ export type Database = {
           community_session_id?: string | null
           created_at?: string | null
           created_by?: string | null
+          default_proxy_config?: Json | null
           id?: string
           is_active?: boolean | null
           logo_url?: string | null
