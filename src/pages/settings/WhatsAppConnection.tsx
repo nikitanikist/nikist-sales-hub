@@ -60,22 +60,19 @@ export function WhatsAppConnection() {
   const [proxyPassword, setProxyPassword] = useState('');
   const [proxyInitialized, setProxyInitialized] = useState(false);
 
-  // Load saved proxy config from org on mount
-  useState(() => {
-    // This is handled by the effect below
-  });
-
   // Populate proxy fields from org config once loaded
-  if (!proxyInitialized && !proxyConfigLoading && orgProxyConfig !== undefined) {
-    if (orgProxyConfig) {
-      setUseProxy(true);
-      setProxyHost(orgProxyConfig.host || '');
-      setProxyPort(String(orgProxyConfig.port || ''));
-      setProxyUsername(orgProxyConfig.username || '');
-      setProxyPassword(orgProxyConfig.password || '');
+  useEffect(() => {
+    if (!proxyConfigLoading && orgProxyConfig !== undefined && !proxyInitialized) {
+      if (orgProxyConfig) {
+        setUseProxy(true);
+        setProxyHost(orgProxyConfig.host || '');
+        setProxyPort(String(orgProxyConfig.port || ''));
+        setProxyUsername(orgProxyConfig.username || '');
+        setProxyPassword(orgProxyConfig.password || '');
+      }
+      setProxyInitialized(true);
     }
-    setProxyInitialized(true);
-  }
+  }, [proxyConfigLoading, orgProxyConfig, proxyInitialized]);
   
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
