@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users, Plus, UserPlus, X, Shield } from 'lucide-react';
+import { Loader2, Smartphone, QrCode, RefreshCw, Unplug, MessageSquare, CheckCircle, XCircle, AlertTriangle, Activity, Trash2, Users, Plus, UserPlus, X, Shield, Save } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useWhatsAppSession } from '@/hooks/useWhatsAppSession';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useCommunitySession } from '@/hooks/useCommunitySession';
@@ -75,12 +76,26 @@ export function WhatsAppConnection() {
   }, [proxyConfigLoading, orgProxyConfig, proxyInitialized]);
   
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     status?: number;
     message: string;
     hint?: string;
   } | null>(null);
+
+  const handleProxyToggle = (checked: boolean) => {
+    if (!checked && orgProxyConfig) {
+      setShowDisableConfirm(true);
+    } else {
+      setUseProxy(checked);
+    }
+  };
+
+  const confirmDisableProxy = () => {
+    setUseProxy(false);
+    setShowDisableConfirm(false);
+  };
 
   const handleSaveProxy = () => {
     if (useProxy && proxyHost) {
@@ -131,21 +146,119 @@ export function WhatsAppConnection() {
 
   return (
     <div className="space-y-6">
-      {/* VPS Connection Test Card */}
+      {/* Proxy Configuration Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            VPS Connection Test
-          </CardTitle>
-          <CardDescription>
-            Test the connection to your WhatsApp VPS before connecting a device
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Proxy Configuration
+              </CardTitle>
+              <CardDescription>
+                Route all WhatsApp connections through a dedicated residential proxy (SOCKS5)
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              {orgProxyConfig ? (
+                <Badge variant="outline" className="border-blue-300 text-blue-600">
+                  Active: {orgProxyConfig.host}:{orgProxyConfig.port}
+                </Badge>
+              ) : (
+                <Badge variant="secondary">Not configured</Badge>
+              )}
+              <Switch
+                id="use-proxy-toggle"
+                checked={useProxy}
+                onCheckedChange={handleProxyToggle}
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
+          {useProxy ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="proxy-host" className="text-xs">Proxy Host</Label>
+                  <Input
+                    id="proxy-host"
+                    placeholder="82.41.251.88"
+                    value={proxyHost}
+                    onChange={(e) => setProxyHost(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="proxy-port" className="text-xs">Proxy Port</Label>
+                  <Input
+                    id="proxy-port"
+                    type="number"
+                    placeholder="45131"
+                    value={proxyPort}
+                    onChange={(e) => setProxyPort(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="proxy-user" className="text-xs">Proxy Username</Label>
+                  <Input
+                    id="proxy-user"
+                    placeholder="Username"
+                    value={proxyUsername}
+                    onChange={(e) => setProxyUsername(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="proxy-pass" className="text-xs">Proxy Password</Label>
+                  <Input
+                    id="proxy-pass"
+                    type="password"
+                    placeholder="••••••••"
+                    value={proxyPassword}
+                    onChange={(e) => setProxyPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleSaveProxy}
+                disabled={isSavingProxyConfig || !proxyHost}
+                className="w-full"
+              >
+                {isSavingProxyConfig ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Proxy Settings
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center justify-between py-2">
+              <p className="text-sm text-muted-foreground">
+                Direct connection — no proxy will be used for new WhatsApp connections.
+              </p>
+              {orgProxyConfig && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveProxy}
+                  disabled={isSavingProxyConfig}
+                >
+                  {isSavingProxyConfig ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Save (disable proxy)
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* VPS Test - compact */}
+          <div className="flex items-center gap-3 pt-3 border-t">
             <Button
-              variant="outline"
+              variant="ghost"
+              size="sm"
               onClick={handleTestConnection}
               disabled={isTestingVps}
             >
@@ -156,13 +269,12 @@ export function WhatsAppConnection() {
               )}
               Test VPS Connection
             </Button>
-            
             {testResult && (
-              <Badge variant={testResult.success ? 'default' : 'destructive'}>
+              <Badge variant={testResult.success ? 'default' : 'destructive'} className="text-xs">
                 {testResult.success ? (
-                  <><CheckCircle className="h-3 w-3 mr-1" /> Connected</>
+                  <><CheckCircle className="h-3 w-3 mr-1" /> OK</>
                 ) : (
-                  <><XCircle className="h-3 w-3 mr-1" /> Failed ({testResult.status || 'Error'})</>
+                  <><XCircle className="h-3 w-3 mr-1" /> Failed</>
                 )}
               </Badge>
             )}
@@ -177,33 +289,29 @@ export function WhatsAppConnection() {
                 {testResult.hint && (
                   <p className="text-sm opacity-90">{testResult.hint}</p>
                 )}
-                {testResult.status === 401 && (
-                  <div className="mt-3 p-3 bg-background/50 rounded text-sm">
-                    <p className="font-medium mb-2">How to fix:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                      <li>Open your backend panel (click "View Backend" below)</li>
-                      <li>Navigate to Secrets / Environment Variables</li>
-                      <li>Update <code className="bg-muted px-1 rounded">WHATSAPP_VPS_API_KEY</code> with the correct API key</li>
-                      <li>Make sure there are no quotes or extra spaces around the value</li>
-                      <li>Wait ~30 seconds for the change to take effect, then test again</li>
-                    </ol>
-                  </div>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {testResult?.success && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle>VPS Connection Successful</AlertTitle>
-              <AlertDescription>
-                Your backend can reach the WhatsApp VPS. You can now connect a device.
               </AlertDescription>
             </Alert>
           )}
         </CardContent>
       </Card>
+
+      {/* Disable Proxy Confirmation Dialog */}
+      <AlertDialog open={showDisableConfirm} onOpenChange={setShowDisableConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disable Proxy?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You currently have a proxy configured ({orgProxyConfig?.host}:{orgProxyConfig?.port}). Turning this off and saving will remove the proxy settings. New connections will use direct connection. Existing sessions won't be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Proxy</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDisableProxy}>
+              Disable Proxy
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Community Creation Settings Card */}
       <Card>
@@ -462,84 +570,6 @@ export function WhatsAppConnection() {
                   <p className="text-sm">Connect your first device to get started</p>
                 </div>
               )}
-
-              {/* Proxy Configuration */}
-              <div className="border rounded-lg p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="use-proxy" className="text-sm font-medium flex items-center gap-2">
-                      <Shield className="h-4 w-4" />
-                      Use Residential Proxy
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Route all new connections through a dedicated residential IP (SOCKS5). Settings are saved at the organization level.
-                    </p>
-                  </div>
-                  <Switch
-                    id="use-proxy"
-                    checked={useProxy}
-                    onCheckedChange={setUseProxy}
-                  />
-                </div>
-                
-                {useProxy && (
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="proxy-host" className="text-xs">Proxy Host</Label>
-                      <Input
-                        id="proxy-host"
-                        placeholder="82.41.251.88"
-                        value={proxyHost}
-                        onChange={(e) => setProxyHost(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="proxy-port" className="text-xs">Proxy Port</Label>
-                      <Input
-                        id="proxy-port"
-                        type="number"
-                        placeholder="45131"
-                        value={proxyPort}
-                        onChange={(e) => setProxyPort(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="proxy-user" className="text-xs">Proxy Username</Label>
-                      <Input
-                        id="proxy-user"
-                        placeholder="Username"
-                        value={proxyUsername}
-                        onChange={(e) => setProxyUsername(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="proxy-pass" className="text-xs">Proxy Password</Label>
-                      <Input
-                        id="proxy-pass"
-                        type="password"
-                        placeholder="••••••••"
-                        value={proxyPassword}
-                        onChange={(e) => setProxyPassword(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSaveProxy}
-                  disabled={isSavingProxyConfig}
-                  className="w-full"
-                >
-                  {isSavingProxyConfig ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Shield className="h-4 w-4 mr-2" />
-                  )}
-                  {useProxy ? 'Save Proxy Settings' : 'Clear Proxy Settings'}
-                </Button>
-              </div>
 
               {/* Always visible Add WhatsApp button */}
               <Button onClick={handleConnect} disabled={isConnecting} className="w-full">

@@ -1,28 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Proxy Setup UX Improvement
+### What was built
 
-## Problem
-1. "Clear Proxy Settings" button is dangerous — accidental click could break proxied sessions
-2. Proxy config is awkwardly placed inside the WhatsApp Connections card
-3. VPS Connection Test card takes up space that could be better used
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-## Solution
-Replace the "VPS Connection Test" card with a dedicated **"Proxy Configuration"** card. Move all proxy UI there. Remove the dangerous "Clear Proxy Settings" button — instead, turning the toggle OFF and saving will clear it (intentional action).
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-### Changes to `WhatsAppConnection.tsx`
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-1. **Replace the VPS Connection Test card** (lines 134-213) with a new "Proxy Configuration" card containing:
-   - Shield icon + "Proxy Configuration" title
-   - "Use Residential Proxy" toggle
-   - When ON: 4 fields (host, port, username, password) + "Save Proxy Settings" button
-   - When OFF: simple message "Direct connection (no proxy)" + if previously saved, a "Save" button to persist the OFF state
-   - Show current status: "Active: 82.41.x.x:45131" or "Not configured"
-   - Add a confirmation dialog if turning OFF when proxy was previously saved (prevents accidental clearing)
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-2. **Remove proxy section from WhatsApp Connections card** (lines 466-542) — it moves to the dedicated card above
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-3. **Keep VPS test** as a small "Test Connection" button inside the new proxy card or inside the Connections card header (less prominent but still accessible)
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-### No backend changes needed — same `saveProxyConfig` mutation, same org-level storage.
-
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library
