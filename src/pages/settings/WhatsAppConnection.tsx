@@ -33,6 +33,10 @@ export function WhatsAppConnection() {
     verifyingSessionIds,
     verifiedStatuses,
     refreshSession,
+    orgProxyConfig,
+    proxyConfigLoading,
+    saveProxyConfig,
+    isSavingProxyConfig,
   } = useWhatsAppSession();
 
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
@@ -48,12 +52,30 @@ export function WhatsAppConnection() {
   
   const [newAdminNumber, setNewAdminNumber] = useState('');
   
-  // Proxy config state
+  // Proxy config state — initialized from org settings
   const [useProxy, setUseProxy] = useState(false);
   const [proxyHost, setProxyHost] = useState('');
   const [proxyPort, setProxyPort] = useState('');
   const [proxyUsername, setProxyUsername] = useState('');
   const [proxyPassword, setProxyPassword] = useState('');
+  const [proxyInitialized, setProxyInitialized] = useState(false);
+
+  // Load saved proxy config from org on mount
+  useState(() => {
+    // This is handled by the effect below
+  });
+
+  // Populate proxy fields from org config once loaded
+  if (!proxyInitialized && !proxyConfigLoading && orgProxyConfig !== undefined) {
+    if (orgProxyConfig) {
+      setUseProxy(true);
+      setProxyHost(orgProxyConfig.host || '');
+      setProxyPort(String(orgProxyConfig.port || ''));
+      setProxyUsername(orgProxyConfig.username || '');
+      setProxyPassword(orgProxyConfig.password || '');
+    }
+    setProxyInitialized(true);
+  }
   
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -63,11 +85,22 @@ export function WhatsAppConnection() {
     hint?: string;
   } | null>(null);
 
+  const handleSaveProxy = () => {
+    if (useProxy && proxyHost) {
+      saveProxyConfig({
+        host: proxyHost,
+        port: parseInt(proxyPort) || 1080,
+        username: proxyUsername,
+        password: proxyPassword,
+      });
+    } else {
+      saveProxyConfig(null);
+    }
+  };
+
   const handleConnect = () => {
-    const proxyConfig = useProxy && proxyHost
-      ? { host: proxyHost, port: parseInt(proxyPort) || 1080, username: proxyUsername, password: proxyPassword }
-      : undefined;
-    connect(proxyConfig);
+    // Auto-use saved org proxy config — no need to pass manually
+    connect(undefined);
     setQrDialogOpen(true);
   };
 
