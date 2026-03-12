@@ -475,7 +475,7 @@ export function WhatsAppConnection() {
                       Use Residential Proxy
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Route this session through a dedicated residential IP (SOCKS5)
+                      Route all new connections through a dedicated residential IP (SOCKS5). Settings are saved at the organization level.
                     </p>
                   </div>
                   <Switch
@@ -527,6 +527,21 @@ export function WhatsAppConnection() {
                     </div>
                   </div>
                 )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveProxy}
+                  disabled={isSavingProxyConfig}
+                  className="w-full"
+                >
+                  {isSavingProxyConfig ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Shield className="h-4 w-4 mr-2" />
+                  )}
+                  {useProxy ? 'Save Proxy Settings' : 'Clear Proxy Settings'}
+                </Button>
               </div>
 
               {/* Always visible Add WhatsApp button */}

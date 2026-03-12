@@ -639,5 +639,10 @@ export function useWhatsAppSession() {
     verifyingSessionIds,
     verifiedStatuses,
     refreshSession,
+    // Proxy config
+    orgProxyConfig,
+    proxyConfigLoading,
+    saveProxyConfig: saveProxyConfigMutation.mutate,
+    isSavingProxyConfig: saveProxyConfigMutation.isPending,
   };
 }

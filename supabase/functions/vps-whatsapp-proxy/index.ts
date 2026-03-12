@@ -810,9 +810,10 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
       
-      // Save proxy config if provided
-      if (proxyConfig && proxyConfig.host) {
-        insertPayload.proxy_config = proxyConfig;
+      // Save proxy config (use effective proxy which may come from org default)
+      const effectiveProxyForInsert = (body as any)._effectiveProxy || proxyConfig;
+      if (effectiveProxyForInsert && effectiveProxyForInsert.host) {
+        insertPayload.proxy_config = effectiveProxyForInsert;
       }
       
       const { error: insertError } = await supabase
