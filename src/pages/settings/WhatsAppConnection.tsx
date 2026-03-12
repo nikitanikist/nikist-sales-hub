@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,10 @@ export function WhatsAppConnection() {
     verifyingSessionIds,
     verifiedStatuses,
     refreshSession,
+    orgProxyConfig,
+    proxyConfigLoading,
+    saveProxyConfig,
+    isSavingProxyConfig,
   } = useWhatsAppSession();
 
   const { groups, syncGroups, isSyncing } = useWhatsAppGroups();
@@ -48,12 +52,27 @@ export function WhatsAppConnection() {
   
   const [newAdminNumber, setNewAdminNumber] = useState('');
   
-  // Proxy config state
+  // Proxy config state — initialized from org settings
   const [useProxy, setUseProxy] = useState(false);
   const [proxyHost, setProxyHost] = useState('');
   const [proxyPort, setProxyPort] = useState('');
   const [proxyUsername, setProxyUsername] = useState('');
   const [proxyPassword, setProxyPassword] = useState('');
+  const [proxyInitialized, setProxyInitialized] = useState(false);
+
+  // Populate proxy fields from org config once loaded
+  useEffect(() => {
+    if (!proxyConfigLoading && orgProxyConfig !== undefined && !proxyInitialized) {
+      if (orgProxyConfig) {
+        setUseProxy(true);
+        setProxyHost(orgProxyConfig.host || '');
+        setProxyPort(String(orgProxyConfig.port || ''));
+        setProxyUsername(orgProxyConfig.username || '');
+        setProxyPassword(orgProxyConfig.password || '');
+      }
+      setProxyInitialized(true);
+    }
+  }, [proxyConfigLoading, orgProxyConfig, proxyInitialized]);
   
   const [qrDialogOpen, setQrDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -63,11 +82,22 @@ export function WhatsAppConnection() {
     hint?: string;
   } | null>(null);
 
+  const handleSaveProxy = () => {
+    if (useProxy && proxyHost) {
+      saveProxyConfig({
+        host: proxyHost,
+        port: parseInt(proxyPort) || 1080,
+        username: proxyUsername,
+        password: proxyPassword,
+      });
+    } else {
+      saveProxyConfig(null);
+    }
+  };
+
   const handleConnect = () => {
-    const proxyConfig = useProxy && proxyHost
-      ? { host: proxyHost, port: parseInt(proxyPort) || 1080, username: proxyUsername, password: proxyPassword }
-      : undefined;
-    connect(proxyConfig);
+    // Auto-use saved org proxy config — no need to pass manually
+    connect(undefined);
     setQrDialogOpen(true);
   };
 
@@ -442,7 +472,7 @@ export function WhatsAppConnection() {
                       Use Residential Proxy
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Route this session through a dedicated residential IP (SOCKS5)
+                      Route all new connections through a dedicated residential IP (SOCKS5). Settings are saved at the organization level.
                     </p>
                   </div>
                   <Switch
@@ -494,6 +524,21 @@ export function WhatsAppConnection() {
                     </div>
                   </div>
                 )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveProxy}
+                  disabled={isSavingProxyConfig}
+                  className="w-full"
+                >
+                  {isSavingProxyConfig ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Shield className="h-4 w-4 mr-2" />
+                  )}
+                  {useProxy ? 'Save Proxy Settings' : 'Clear Proxy Settings'}
+                </Button>
               </div>
 
               {/* Always visible Add WhatsApp button */}

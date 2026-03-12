@@ -1,42 +1,45 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Fix: Proxy Config Save & Auto-Apply on Connect
+### What was built
 
-## Problem
-The proxy fields are ephemeral state — there's no "Save" button, and when you click "Connect Another WhatsApp," the proxy config isn't being applied because the `connect()` function may not be wiring it through correctly. The user wants:
-1. A **Save** button so proxy details persist at the org level
-2. Saved proxy auto-applied to every new connection
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-## Approach
-Store the proxy config at the **organization level** (not per-session), so once saved, every new WhatsApp connection for that org automatically routes through the proxy.
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-### Database
-- Add `default_proxy_config JSONB DEFAULT NULL` column to `organizations` table (or `organization_settings` if that exists — needs verification, but organizations is the safe bet)
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-### Hook (`useWhatsAppSession.ts`)
-- Add a `saveProxyConfig` mutation that updates the org's `default_proxy_config`
-- Add a query/field to load the org's saved proxy config
-- In `connect()`, auto-read the org's proxy config if no explicit proxy is passed
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-### UI (`WhatsAppConnection.tsx`)
-- Load saved proxy config on mount and populate the fields
-- Add a **"Save Proxy Settings"** button below the proxy fields
-- Show success toast on save
-- Remove proxy fields from being tied to the connect action — they're now org-level settings
-- When connecting, automatically use the saved proxy config (no need to re-enter)
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-### Edge Function (`vps-whatsapp-proxy/index.ts`)
-- In the `connect` handler: if no `proxyConfig` in request body, look up the org's `default_proxy_config` as fallback
-- This ensures even auto-reconnect uses the proxy
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-### Session Badge
-- Keep the existing Direct/Proxied badge — it reads from `whatsapp_sessions.proxy_config` which gets set during connect
-
-## Files Changed
-| File | Change |
-|------|--------|
-| Migration SQL | Add `default_proxy_config` to `organizations` |
-| `useWhatsAppSession.ts` | Add save/load proxy mutations, auto-apply on connect |
-| `WhatsAppConnection.tsx` | Load saved proxy, add Save button, auto-populate fields |
-| `vps-whatsapp-proxy/index.ts` | Fallback to org proxy config if not in request |
-
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library

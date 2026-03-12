@@ -206,10 +206,26 @@ Deno.serve(async (req) => {
         vpsMethod = 'POST';
         vpsBody = { sessionId: vpsSessionIdForVps } as Record<string, unknown>;
         
-        // Add proxy config if provided (for new sessions)
-        if (proxyConfig && proxyConfig.host) {
-          vpsBody.proxy = proxyConfig;
-          console.log(`Connect with proxy: ${proxyConfig.host}:${proxyConfig.port}`);
+        // Determine proxy: explicit > org default
+        let effectiveProxy = proxyConfig;
+        if ((!effectiveProxy || !effectiveProxy.host) && organizationId) {
+          // Fallback to org-level default proxy config
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('default_proxy_config')
+            .eq('id', organizationId)
+            .single();
+          if ((orgData as any)?.default_proxy_config?.host) {
+            effectiveProxy = (orgData as any).default_proxy_config;
+            console.log(`Using org default proxy: ${effectiveProxy!.host}:${effectiveProxy!.port}`);
+          }
+        }
+        
+        if (effectiveProxy && effectiveProxy.host) {
+          vpsBody.proxy = effectiveProxy;
+          // Store the effective proxy in proxyConfig variable for session insert later
+          (body as any)._effectiveProxy = effectiveProxy;
+          console.log(`Connect with proxy: ${effectiveProxy.host}:${effectiveProxy.port}`);
         }
         break;
       }
@@ -794,9 +810,10 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
       
-      // Save proxy config if provided
-      if (proxyConfig && proxyConfig.host) {
-        insertPayload.proxy_config = proxyConfig;
+      // Save proxy config (use effective proxy which may come from org default)
+      const effectiveProxyForInsert = (body as any)._effectiveProxy || proxyConfig;
+      if (effectiveProxyForInsert && effectiveProxyForInsert.host) {
+        insertPayload.proxy_config = effectiveProxyForInsert;
       }
       
       const { error: insertError } = await supabase
