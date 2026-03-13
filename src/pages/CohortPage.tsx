@@ -635,6 +635,17 @@ const CohortPage = () => {
     },
   });
 
+  // Pre-populate form when editing
+  useEffect(() => {
+    if (editingBatch) {
+      setFormName(editingBatch.name);
+      setFormEventDates(editingBatch.event_dates || "");
+      setFormStatus(editingBatch.status);
+      setFormStartDate(editingBatch.start_date ? new Date(editingBatch.start_date) : undefined);
+      setFormNotes(editingBatch.notes || "");
+    }
+  }, [editingBatch]);
+
   const resetForm = () => {
     setFormName("");
     setFormEventDates("");
