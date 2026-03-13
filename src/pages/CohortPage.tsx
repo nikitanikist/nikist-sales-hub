@@ -108,6 +108,9 @@ const CohortPage = () => {
   const [formName, setFormName] = useState("");
   const [formEventDates, setFormEventDates] = useState("");
   const [formStatus, setFormStatus] = useState("active");
+  const [formStartDate, setFormStartDate] = useState<Date | undefined>(undefined);
+  const [formNotes, setFormNotes] = useState("");
+  const [isStartDateOpen, setIsStartDateOpen] = useState(false);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
