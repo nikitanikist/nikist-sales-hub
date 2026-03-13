@@ -75,6 +75,7 @@ const SendNotification = () => {
   const [delaySeconds, setDelaySeconds] = useState(5);
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
   const [scheduledFor, setScheduledFor] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
