@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ export function SendMessageNowDialog({
   const { templates, templatesLoading } = useMessageTemplates();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [manualValues, setManualValues] = useState<Record<string, string>>({});
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const selectedTemplate = useMemo(() => {
     return templates.find((t) => t.id === selectedTemplateId);
@@ -71,6 +73,7 @@ export function SendMessageNowDialog({
     if (!open) {
       setSelectedTemplateId('');
       setManualValues({});
+      setShowConfirm(false);
     }
   }, [open]);
 
@@ -99,6 +102,12 @@ export function SendMessageNowDialog({
 
   const handleSend = () => {
     if (!selectedTemplate || !allManualFilled) return;
+    setShowConfirm(true);
+  };
+
+  const handleConfirmedSend = () => {
+    if (!selectedTemplate) return;
+    setShowConfirm(false);
     onSend({
       templateId: selectedTemplate.id,
       content: processedContent,
@@ -119,6 +128,7 @@ export function SendMessageNowDialog({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -223,5 +233,23 @@ export function SendMessageNowDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you 100% sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will immediately send the message to {groupCount} group{groupCount !== 1 ? 's' : ''}. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmedSend}>
+            Yes, Send Now
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
