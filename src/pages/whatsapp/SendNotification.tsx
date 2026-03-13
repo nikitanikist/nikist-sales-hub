@@ -668,7 +668,11 @@ const SendNotification = () => {
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
+          <Button
+            onClick={sendMode === "now" ? () => setShowConfirm(true) : handleSubmit}
+            disabled={isSubmitting}
+            className="gap-2"
+          >
             {isSubmitting ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> Creating...</>
             ) : sendMode === "schedule" ? (
