@@ -902,11 +902,34 @@ const CohortPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Start Date (optional)</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formStartDate && "text-muted-foreground")}>
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {formStartDate ? format(formStartDate, "dd MMM yyyy") : "Pick a start date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={formStartDate} onSelect={setFormStartDate} className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="e.g., Event dates: 10 Mar, 11 Mar"
+                  rows={2}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingBatch(null)}>Cancel</Button>
               <Button 
-                onClick={() => editingBatch && updateBatchMutation.mutate({ id: editingBatch.id, name: formName, event_dates: formEventDates, status: formStatus })} 
+                onClick={() => editingBatch && updateBatchMutation.mutate({ id: editingBatch.id, name: formName, event_dates: formEventDates, start_date: formStartDate ? format(formStartDate, "yyyy-MM-dd") : null, notes: formNotes || null, status: formStatus })} 
                 disabled={!formName.trim() || updateBatchMutation.isPending}
               >
                 {updateBatchMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
