@@ -455,7 +455,7 @@ const CloserAssignedCalls = () => {
           access_given,
           access_given_at,
           previous_closer:profiles!call_appointments_previous_closer_id_fkey(full_name),
-          batch:cohort_batches(id, name, start_date),
+          batch:cohort_batches(id, name, start_date, event_dates),
           lead:leads(id, contact_name, email, phone, country, workshop_name)
         `)
         .eq("closer_id", closerId!)
