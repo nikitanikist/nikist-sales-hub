@@ -41,6 +41,7 @@ export function SendMessageNowDialog({
   const { templates, templatesLoading } = useMessageTemplates();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [manualValues, setManualValues] = useState<Record<string, string>>({});
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const selectedTemplate = useMemo(() => {
     return templates.find((t) => t.id === selectedTemplateId);
