@@ -516,12 +516,14 @@ const CohortPage = () => {
   });
 
   const updateBatchMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string; event_dates: string; status: string }) => {
+    mutationFn: async (data: { id: string; name: string; event_dates: string; start_date: string | null; notes: string | null; status: string }) => {
       const { error } = await supabase
         .from("cohort_batches")
         .update({
           name: data.name,
           event_dates: data.event_dates || null,
+          start_date: data.start_date || null,
+          notes: data.notes || null,
           status: data.status,
         })
         .eq("id", data.id);
