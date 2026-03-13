@@ -1,22 +1,23 @@
 
 
-# Update Closer Assignment for 3 Students in Batch 5
+# Add Confirmation Popup Before "Send Now"
 
 ## What
-Set `closer_id` to Akansha (`ca1af8e6-6b99-4a5d-8402-e50c806c6de3`) for three cohort_students records in Insider Crypto Club Batch 5.
+Add an "Are you sure?" confirmation dialog that appears when the user clicks "Send Now" in the SendMessageNowDialog. Only after confirming will the message actually be sent. Zero impact on existing functionality — it's purely an extra gate before the same `onSend` call.
 
 ## How
-Single data update (no code changes):
 
-```sql
-UPDATE cohort_students
-SET closer_id = 'ca1af8e6-6b99-4a5d-8402-e50c806c6de3'
-WHERE id IN (
-  'c7734194-d25e-42dd-b3e9-cd10721a4a44',  -- Hamesh Kumar
-  '38d2b854-46c4-487d-99a8-0c3353eedd1f',  -- Varun Nayyar
-  '7d13fc0c-8ce6-44c7-922c-aa3f9594a2a0'   -- Syed Adnan
-);
-```
+### Single file change: `src/components/operations/SendMessageNowDialog.tsx`
 
-No file changes required. This is a data-only operation.
+1. **Add state**: `const [showConfirm, setShowConfirm] = useState(false);`
+2. **Change `handleSend`**: Instead of calling `onSend(...)` directly, set `showConfirm = true`
+3. **Add `handleConfirmedSend`**: The actual `onSend(...)` call + `setShowConfirm(false)`
+4. **Add AlertDialog** (already available in `@/components/ui/alert-dialog`):
+   - Title: "Are you 100% sure?"
+   - Description: "This will immediately send the message to {groupCount} group(s). This action cannot be undone."
+   - Cancel button → closes dialog
+   - Confirm button → calls `handleConfirmedSend`
+5. **Reset** `showConfirm` to `false` when the parent dialog closes
+
+No other files are touched. The `onSend` callback and all upstream logic remain identical.
 
