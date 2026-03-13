@@ -1,4 +1,14 @@
 import { useState, useMemo, useRef } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { extractVariables, getVariableLabel, replaceVariables } from "@/lib/templateVariables";
 import { useNavigate } from "react-router-dom";
@@ -65,6 +75,7 @@ const SendNotification = () => {
   const [delaySeconds, setDelaySeconds] = useState(5);
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
   const [scheduledFor, setScheduledFor] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -658,7 +669,11 @@ const SendNotification = () => {
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit} disabled={isSubmitting} className="gap-2">
+          <Button
+            onClick={sendMode === "now" ? () => setShowConfirm(true) : handleSubmit}
+            disabled={isSubmitting}
+            className="gap-2"
+          >
             {isSubmitting ? (
               <><Loader2 className="h-4 w-4 animate-spin" /> Creating...</>
             ) : sendMode === "schedule" ? (
@@ -669,6 +684,23 @@ const SendNotification = () => {
           </Button>
         )}
       </div>
+
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you 100% sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately send the message to {selectedGroups.length} group(s). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowConfirm(false); handleSubmit(); }}>
+              Yes, Send Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
