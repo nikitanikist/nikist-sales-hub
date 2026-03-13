@@ -42,6 +42,7 @@ interface CohortBatch {
   name: string;
   start_date: string | null;
   event_dates: string | null;
+  notes: string | null;
   status: string;
   is_active: boolean;
   created_at: string;
