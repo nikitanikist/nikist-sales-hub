@@ -684,6 +684,23 @@ const SendNotification = () => {
           </Button>
         )}
       </div>
+
+      <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you 100% sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will immediately send the message to {selectedGroups.length} group(s). This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setShowConfirm(false); handleSubmit(); }}>
+              Yes, Send Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
