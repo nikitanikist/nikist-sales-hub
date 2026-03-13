@@ -232,5 +232,23 @@ export function SendMessageNowDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Are you 100% sure?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will immediately send the message to {groupCount} group{groupCount !== 1 ? 's' : ''}. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmedSend}>
+            Yes, Send Now
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
