@@ -598,7 +598,7 @@ const CloserAssignedCalls = () => {
           due_amount,
           classes_access,
           batch_id,
-          batch:cohort_batches(id, name, start_date),
+          batch:cohort_batches(id, name, start_date, event_dates),
           lead:leads(id, contact_name, email, phone)
         `)
         .eq("id", data.id)
