@@ -489,7 +489,7 @@ const CohortPage = () => {
 
   // Mutations
   const createBatchMutation = useMutation({
-    mutationFn: async (data: { name: string; event_dates: string; status: string }) => {
+    mutationFn: async (data: { name: string; event_dates: string; start_date: string | null; notes: string | null; status: string }) => {
       if (!cohortType || !currentOrganization) throw new Error("Missing cohort type or organization");
       
       const { error } = await supabase
@@ -499,6 +499,8 @@ const CohortPage = () => {
           organization_id: currentOrganization.id,
           name: data.name,
           event_dates: data.event_dates || null,
+          start_date: data.start_date || null,
+          notes: data.notes || null,
           status: data.status,
         });
       
