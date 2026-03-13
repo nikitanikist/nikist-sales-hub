@@ -844,6 +844,19 @@ const CohortPage = () => {
                 />
               </div>
               <div>
+                <Label>Status</Label>
+                <Select value={formStatus} onValueChange={setFormStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="planned">Planned</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Start Date (optional)</Label>
                 <Popover open={isStartDateOpen} onOpenChange={setIsStartDateOpen}>
                   <PopoverTrigger asChild>
