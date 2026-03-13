@@ -637,6 +637,8 @@ const CohortPage = () => {
     setFormName("");
     setFormEventDates("");
     setFormStatus("active");
+    setFormStartDate(undefined);
+    setFormNotes("");
   };
 
   const clearAllFilters = () => {
