@@ -793,6 +793,9 @@ const CohortPage = () => {
                         ? format(new Date(batch.start_date), "dd MMM yyyy")
                         : "TBD"}
                   </CardDescription>
+                  {batch.notes && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{batch.notes}</p>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center text-sm text-muted-foreground">

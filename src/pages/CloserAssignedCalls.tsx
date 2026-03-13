@@ -701,7 +701,7 @@ const CloserAssignedCalls = () => {
           const payload = {
             ...basePayload,
             batch_name: freshAppointment.batch?.name || '',
-            batch_start_date: freshAppointment.batch?.start_date || '',
+            batch_start_date: freshAppointment.batch?.start_date || freshAppointment.batch?.event_dates || '',
             classes_access: freshAppointment.classes_access,
             use_new_webhook: true
           };
