@@ -73,6 +73,7 @@ export function SendMessageNowDialog({
     if (!open) {
       setSelectedTemplateId('');
       setManualValues({});
+      setShowConfirm(false);
     }
   }, [open]);
 
