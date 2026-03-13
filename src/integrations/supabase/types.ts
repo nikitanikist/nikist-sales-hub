@@ -715,6 +715,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          notes: string | null
           organization_id: string
           start_date: string | null
           status: string
@@ -728,6 +729,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          notes?: string | null
           organization_id: string
           start_date?: string | null
           status?: string
@@ -741,6 +743,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          notes?: string | null
           organization_id?: string
           start_date?: string | null
           status?: string
