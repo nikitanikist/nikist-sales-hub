@@ -985,6 +985,9 @@ const CohortPage = () => {
                   ? format(new Date(selectedBatch.start_date), "dd MMM yyyy")
                   : "TBD"}
             </p>
+            {selectedBatch.notes && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">{selectedBatch.notes}</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
