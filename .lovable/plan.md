@@ -1,46 +1,71 @@
 
+## VoBiz IVR Voice Campaign System — IMPLEMENTED
 
-# Fix: Add Notes to Batch + Ensure Batch Start Date in Pabbly Webhook
+### What was built
 
-## Problem
-1. The "Create New Batch" / "Edit Batch" dialogs only save `event_dates` (free text) — the `start_date` column is never populated, so the Pabbly webhook sends an empty `batch_start_date`.
-2. There's no "Notes" field on batches for storing extra info (like event schedules for Future Mentorship).
+**Database (Migration):**
+- `ivr_campaigns` table — campaign config, audio URLs, speech detection, VoBiz settings, counters, retry config
+- `ivr_campaign_calls` table — individual call records with speech transcript, WhatsApp tracking, retry tracking
+- `ivr_audio_library` table — reusable pre-recorded audio clips
+- 3 atomic RPC functions: `increment_ivr_campaign_counter`, `add_ivr_campaign_cost`, `transition_ivr_call`
+- RLS policies using `get_user_organization_ids()` on all tables
+- Realtime enabled on `ivr_campaigns` and `ivr_campaign_calls`
+- `ivr-audio` storage bucket (public)
 
-## Changes
+**Edge Functions (6 new):**
+- `ivr-call-answer` — VoBiz Answer URL, returns XML with Play + Gather (speech recognition)
+- `ivr-call-response` — VoBiz Action URL, keyword matching, AiSensy WhatsApp trigger
+- `ivr-call-hangup` — VoBiz Hangup URL, duration/cost tracking, retry logic
+- `start-ivr-campaign` — JWT auth, starts campaign, queues calls
+- `stop-ivr-campaign` — JWT auth, cancels campaign and pending calls
+- `process-ivr-queue` — Cron processor, fires VoBiz Make Call API, respects CPS limits
 
-### 1. Database migration: Add `notes` column to `cohort_batches`
-```sql
-ALTER TABLE cohort_batches ADD COLUMN notes text;
-```
+**Cron Job:**
+- `process-ivr-queue-every-30s` — pg_cron firing every minute (pg_cron minimum interval)
 
-### 2. Update Create/Edit batch dialogs (`src/pages/CohortPage.tsx`)
-- Add `formStartDate` (Date state) and `formNotes` (string state)
-- Add a **Date Picker** labeled "Start Date" in both Create and Edit dialogs
-- Add a **Textarea** labeled "Notes (optional)" in both dialogs
-- Update `createBatchMutation` insert payload to include `start_date` and `notes`
-- Update `updateBatchMutation` update payload to include `start_date` and `notes`
-- Update `resetForm()` to clear both new fields
-- Pre-populate `formStartDate` and `formNotes` when opening edit dialog
-- Update `CohortBatch` interface to include `notes`
+**Frontend:**
+- `src/types/ivr-campaign.ts` — TypeScript interfaces
+- `src/hooks/useIvrCampaigns.ts` — Query hook for campaigns list
+- `src/hooks/useIvrCampaignDetail.ts` — Query hook for single campaign + calls
+- `src/hooks/useIvrCampaignRealtime.ts` — Realtime subscription
+- `src/pages/ivr/IvrDashboard.tsx` — Overview stats
+- `src/pages/ivr/IvrCampaigns.tsx` — Campaign list + create button
+- `src/pages/ivr/IvrCampaignDetail.tsx` — Stats cards, progress bar, calls table, realtime
+- `src/pages/ivr/IvrAudioLibrary.tsx` — Upload/manage audio clips
+- `src/pages/ivr/CreateIvrCampaignDialog.tsx` — Multi-step creation dialog
 
-### 3. Display notes on batch cards (`src/pages/CohortPage.tsx`)
-- On batch cards (grid view, lines ~779-785): after the date line, show `batch.notes` in a small colored text (e.g., `text-amber-600`) if present
-- On the batch detail header (line ~936-940): show notes below the event dates line
+**Routes (App.tsx):**
+- `/ivr/dashboard`, `/ivr/campaigns`, `/ivr/campaigns/:campaignId`, `/ivr/audio-library`
 
-### 4. Webhook fallback (`src/pages/CloserAssignedCalls.tsx`)
-- Change the batch join on lines 458 and 601 from `batch:cohort_batches(id, name, start_date)` to `batch:cohort_batches(id, name, start_date, event_dates)`
-- Update line 704: `batch_start_date: freshAppointment.batch?.start_date || freshAppointment.batch?.event_dates || ''`
-- This only affects Insider Crypto Club batches (the only ones used in the closer flow)
+**Sidebar (AppLayout.tsx):**
+- Added under "Calling" group: IVR Dashboard, IVR Campaigns, Audio Library
 
-### 5. Backfill existing Nikist batches (data update)
-Update the 3 Insider Crypto Club batches that have `event_dates` but null `start_date`:
-- Batch 6 → `2026-03-24`
-- Batch 5 → `2026-03-11`  
-- Batch 4 → `2026-02-16`
+### Remaining setup
+- Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
+- Upload pre-recorded audio clips to Audio Library
 
-## Scope
-- Only `CohortPage.tsx` and `CloserAssignedCalls.tsx` are modified
-- Manage Cohorts page is **not touched**
-- No changes to Future Mentorship, High Future, or any other module
-- One small migration to add `notes` column
+---
 
+## Fix: Batch Start Date + Notes — IMPLEMENTED
+
+### Problem
+- Batch create/edit dialogs only saved `event_dates` (free text) — `start_date` column was never populated
+- Pabbly webhook sent empty `batch_start_date` for converted calls → AISensy confirmation message failed
+- No "Notes" field on batches for storing extra info
+
+### What was done
+
+**Database:**
+- Added `notes` text column to `cohort_batches`
+- Backfilled 3 Insider Crypto Club batches with correct `start_date` values (Batch 4→2026-02-16, Batch 5→2026-03-11, Batch 6→2026-03-24)
+
+**CohortPage.tsx:**
+- Added Start Date picker (Shadcn Calendar/Popover) to Create & Edit batch dialogs
+- Added Notes textarea to Create & Edit batch dialogs
+- Updated `createBatchMutation` and `updateBatchMutation` to persist `start_date` and `notes`
+- Added useEffect to pre-populate edit form fields
+- Notes displayed on batch cards (amber text) and batch detail header
+
+**CloserAssignedCalls.tsx:**
+- Updated batch join to fetch `event_dates` as fallback
+- Webhook payload: `batch_start_date: batch?.start_date || batch?.event_dates || ''`

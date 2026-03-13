@@ -1,0 +1,1 @@
+ALTER TABLE cohort_batches ADD COLUMN notes text;

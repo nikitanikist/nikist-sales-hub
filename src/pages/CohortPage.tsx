@@ -42,6 +42,7 @@ interface CohortBatch {
   name: string;
   start_date: string | null;
   event_dates: string | null;
+  notes: string | null;
   status: string;
   is_active: boolean;
   created_at: string;
@@ -107,6 +108,9 @@ const CohortPage = () => {
   const [formName, setFormName] = useState("");
   const [formEventDates, setFormEventDates] = useState("");
   const [formStatus, setFormStatus] = useState("active");
+  const [formStartDate, setFormStartDate] = useState<Date | undefined>(undefined);
+  const [formNotes, setFormNotes] = useState("");
+  const [isStartDateOpen, setIsStartDateOpen] = useState(false);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -485,7 +489,7 @@ const CohortPage = () => {
 
   // Mutations
   const createBatchMutation = useMutation({
-    mutationFn: async (data: { name: string; event_dates: string; status: string }) => {
+    mutationFn: async (data: { name: string; event_dates: string; start_date: string | null; notes: string | null; status: string }) => {
       if (!cohortType || !currentOrganization) throw new Error("Missing cohort type or organization");
       
       const { error } = await supabase
@@ -495,6 +499,8 @@ const CohortPage = () => {
           organization_id: currentOrganization.id,
           name: data.name,
           event_dates: data.event_dates || null,
+          start_date: data.start_date || null,
+          notes: data.notes || null,
           status: data.status,
         });
       
@@ -512,12 +518,14 @@ const CohortPage = () => {
   });
 
   const updateBatchMutation = useMutation({
-    mutationFn: async (data: { id: string; name: string; event_dates: string; status: string }) => {
+    mutationFn: async (data: { id: string; name: string; event_dates: string; start_date: string | null; notes: string | null; status: string }) => {
       const { error } = await supabase
         .from("cohort_batches")
         .update({
           name: data.name,
           event_dates: data.event_dates || null,
+          start_date: data.start_date || null,
+          notes: data.notes || null,
           status: data.status,
         })
         .eq("id", data.id);
@@ -627,10 +635,23 @@ const CohortPage = () => {
     },
   });
 
+  // Pre-populate form when editing
+  useEffect(() => {
+    if (editingBatch) {
+      setFormName(editingBatch.name);
+      setFormEventDates(editingBatch.event_dates || "");
+      setFormStatus(editingBatch.status);
+      setFormStartDate(editingBatch.start_date ? new Date(editingBatch.start_date) : undefined);
+      setFormNotes(editingBatch.notes || "");
+    }
+  }, [editingBatch]);
+
   const resetForm = () => {
     setFormName("");
     setFormEventDates("");
     setFormStatus("active");
+    setFormStartDate(undefined);
+    setFormNotes("");
   };
 
   const clearAllFilters = () => {
@@ -783,6 +804,9 @@ const CohortPage = () => {
                         ? format(new Date(batch.start_date), "dd MMM yyyy")
                         : "TBD"}
                   </CardDescription>
+                  {batch.notes && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">{batch.notes}</p>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center text-sm text-muted-foreground">
@@ -832,11 +856,34 @@ const CohortPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Start Date (optional)</Label>
+                <Popover open={isStartDateOpen} onOpenChange={setIsStartDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formStartDate && "text-muted-foreground")}>
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {formStartDate ? format(formStartDate, "dd MMM yyyy") : "Pick a start date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={formStartDate} onSelect={(d) => { setFormStartDate(d); setIsStartDateOpen(false); }} className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="e.g., Event dates: 10 Mar, 11 Mar"
+                  rows={2}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
               <Button 
-                onClick={() => createBatchMutation.mutate({ name: formName, event_dates: formEventDates, status: formStatus })} 
+                onClick={() => createBatchMutation.mutate({ name: formName, event_dates: formEventDates, start_date: formStartDate ? format(formStartDate, "yyyy-MM-dd") : null, notes: formNotes || null, status: formStatus })} 
                 disabled={!formName.trim() || createBatchMutation.isPending}
               >
                 {createBatchMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -882,11 +929,34 @@ const CohortPage = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Start Date (optional)</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !formStartDate && "text-muted-foreground")}>
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {formStartDate ? format(formStartDate, "dd MMM yyyy") : "Pick a start date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={formStartDate} onSelect={setFormStartDate} className={cn("p-3 pointer-events-auto")} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="e.g., Event dates: 10 Mar, 11 Mar"
+                  rows={2}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingBatch(null)}>Cancel</Button>
               <Button 
-                onClick={() => editingBatch && updateBatchMutation.mutate({ id: editingBatch.id, name: formName, event_dates: formEventDates, status: formStatus })} 
+                onClick={() => editingBatch && updateBatchMutation.mutate({ id: editingBatch.id, name: formName, event_dates: formEventDates, start_date: formStartDate ? format(formStartDate, "yyyy-MM-dd") : null, notes: formNotes || null, status: formStatus })} 
                 disabled={!formName.trim() || updateBatchMutation.isPending}
               >
                 {updateBatchMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -939,6 +1009,9 @@ const CohortPage = () => {
                   ? format(new Date(selectedBatch.start_date), "dd MMM yyyy")
                   : "TBD"}
             </p>
+            {selectedBatch.notes && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">{selectedBatch.notes}</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
