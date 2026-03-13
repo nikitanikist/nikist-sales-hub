@@ -43,3 +43,29 @@
 ### Remaining setup
 - Add VoBiz integration to `organization_integrations` table with `integration_type: 'vobiz'` and config containing `auth_id`, `auth_token`, `from_number`
 - Upload pre-recorded audio clips to Audio Library
+
+---
+
+## Fix: Batch Start Date + Notes — IMPLEMENTED
+
+### Problem
+- Batch create/edit dialogs only saved `event_dates` (free text) — `start_date` column was never populated
+- Pabbly webhook sent empty `batch_start_date` for converted calls → AISensy confirmation message failed
+- No "Notes" field on batches for storing extra info
+
+### What was done
+
+**Database:**
+- Added `notes` text column to `cohort_batches`
+- Backfilled 3 Insider Crypto Club batches with correct `start_date` values (Batch 4→2026-02-16, Batch 5→2026-03-11, Batch 6→2026-03-24)
+
+**CohortPage.tsx:**
+- Added Start Date picker (Shadcn Calendar/Popover) to Create & Edit batch dialogs
+- Added Notes textarea to Create & Edit batch dialogs
+- Updated `createBatchMutation` and `updateBatchMutation` to persist `start_date` and `notes`
+- Added useEffect to pre-populate edit form fields
+- Notes displayed on batch cards (amber text) and batch detail header
+
+**CloserAssignedCalls.tsx:**
+- Updated batch join to fetch `event_dates` as fallback
+- Webhook payload: `batch_start_date: batch?.start_date || batch?.event_dates || ''`
