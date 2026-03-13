@@ -102,6 +102,12 @@ export function SendMessageNowDialog({
 
   const handleSend = () => {
     if (!selectedTemplate || !allManualFilled) return;
+    setShowConfirm(true);
+  };
+
+  const handleConfirmedSend = () => {
+    if (!selectedTemplate) return;
+    setShowConfirm(false);
     onSend({
       templateId: selectedTemplate.id,
       content: processedContent,
